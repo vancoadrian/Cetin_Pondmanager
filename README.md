@@ -1,0 +1,80 @@
+# Rybolov Cetín
+
+PWA prototyp pre správu rybárskeho revíru Štrkovisko Kocka a Veľký Cetín. Technický základ a UI rytmus nadväzuje na `FK_KNV_Clubhouse`: Nuxt 4, Nuxt UI, Tailwind v4, PWA manifest, app shell, mobile-first navigácia a pripravenosť na push notifikácie.
+
+## Čo je hotové
+
+- Verejný dashboard s výstrahou, obsadenosťou, mapou a poslednými úlovkami.
+- Obrazovka revírov pre dve susedné jazerá.
+- Interaktívna mapa lovných miest a chát.
+- Rezervačný prototyp s obsadenosťou, miestami a formulárom žiadosti.
+- Denník úlovkov s miestom, mierou, váhou, nástrahou, časom, skupinovým zápisníkom, admin schválením, interným reportom a budúcou AI vrstvou.
+- Súťažná mapa sektorov pre kaprárske preteky s kontrolórmi, hláseniami, vážením a trestami.
+- Verejná stránka sponzorov.
+- Mock login a interný admin dashboard pre majiteľa, správcu, organizátora, kontrolóra, súťažný tím, účtovníka a brigádnika.
+- Zapínateľné platobné metódy: hotovosť na mieste, bankový prevod a vypnutá budúca platobná brána.
+- Lokálne ukladanie rezervácií, požičovne, mapového editora, úlovkov, skupinových zápisníkov, uložených reportov, súťažného dispečingu a audit logu do `.data/rybolov-cetin/` ako dočasný backend pred Supabase.
+- PWA inštalačný prompt a základ push service worker.
+
+## Lokálny vývoj
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Potom otvor `http://localhost:3000`.
+
+## Dáta
+
+Pilotné dáta sú v `app/data/pond.ts`. Sú zámerne typované, aby sa dali neskôr nahradiť Supabase tabuľkami bez prepisovania obrazoviek:
+
+- `lakes`
+- `pegs`
+- `reservations`
+- `paymentMethods`
+- `catches`
+- `lakeClosures`
+- `tournaments`
+- `tournamentMarshals`
+- `tournamentRequests`
+- `tournamentCatches`
+- `tournamentPenalties`
+- `sponsors`
+- `alerts`
+
+Rezervačný workflow už používa aj lokálny runtime stav v `.data/rybolov-cetin/reservation-state.json`. Súbor sa pri prvom API volaní vytvorí zo seed dát, potom doň pribúdajú webové žiadosti a admin rozhodnutia.
+
+Mapový editor používa `.data/rybolov-cetin/map-state.json`. Admin úpravy bodov a aktívnych vrstiev sa ukladajú cez `PUT /api/admin/map`, public mapa číta rovnaký stav cez `GET /api/map`.
+
+Denník úlovkov používa `.data/rybolov-cetin/catch-state.json`. Verejná stránka číta stav cez `GET /api/catches`, nové úlovky ukladá cez `POST /api/catches` a skupinové zápisníky cez `POST /api/logbooks`. Fotky úlovkov sa v prototype ukladajú do `.data/rybolov-cetin/catch-photos/` a čítajú cez `GET /api/catch-photos/:id`. Nové úlovky čakajú na schválenie pred verejným zobrazením a dostávajú automatický weather snapshot cez provider `mock`, `station`, `manual`, `weather-api` alebo `disabled`; `/admin/ulovky` ich vie opraviť cez `POST /api/admin/catches/:id/correction`, pri korekcii ponechať, presunúť alebo odpojiť väzbu na zápisník a následne schváliť, ponechať v kontrole alebo zamietnuť cez `POST /api/admin/catches/:id/decision`. Interný report má filtre podľa obdobia, sezónneho okna, jazera a druhu, vie exportovať schválené úlovky do surového CSV aj manažérsky CSV export trendových signálov, počíta prvé weather signály pri zábere, porovnáva aktuálne obdobie s rovnakým obdobím minulý rok a zobrazuje mesačný, druhový aj kombinovaný trend druh + lovné miesto. Uložené reporty správcu sa ukladajú do `.data/rybolov-cetin/catch-reports.json` cez `GET/POST /api/admin/catch-reports` a sú pripravené na budúci e-mail alebo plánovač.
+
+Súťažný dispečing používa `.data/rybolov-cetin/tournament-state.json`. Verejná stránka číta stav cez `GET /api/tournaments` a hlásenia tímov ukladá cez `POST /api/tournament-requests`; admin akcie používajú endpointy pod `/api/admin/tournaments` vrátane priradenia kontrolóra, overenia váženia, trestov a kontrol pravidiel.
+
+Audit log používa `.data/rybolov-cetin/audit-log.json`. Admin obrazovka `/admin/audit` číta udalosti cez `GET /api/admin/audit`; udalosti sa zapisujú pri rezerváciách, úlovkoch, zápisníkoch, mapových úpravách a súťažných akciách.
+
+Seed export pre budúci Supabase import spustíš cez `pnpm seed:export`. Vygeneruje `supabase/seed/rybolov-cetin.seed.json` s deterministickými UUID a tabuľkovým payloadom podľa aktuálneho dátového kontraktu.
+
+## Podklady
+
+Obsahový základ bol pripravený podľa existujúceho webu:
+
+- https://strkoviskokocka.sk/
+- https://strkoviskokocka.sk/strkovisko-velky-cetin/home/
+- https://strkoviskokocka.sk/strkovisko-kocka/home/
+
+Lokálne obrazové podklady sú skopírované do `public/images/`.
+
+## Dokumentácia
+
+- `docs/plan.md` — produktový plán a roadmapa.
+- `docs/architecture.md` — architektúra, tabuľky, roly, public vs interné.
+- `docs/data-model.md` — návrh dátového modelu a availability engine.
+- `docs/public-admin.md` — rozdelenie verejnej a internej časti.
+- `docs/features/reservations.md` — rezervačný systém.
+- `docs/features/tournaments.md` — súťažný workflow.
+- `docs/features/maps.md` — mapy a editor miest.
+- `docs/features/catches-ai.md` — úlovky a budúca AI vrstva.
+- `docs/features/sponsors.md` — sponzori.
+- `docs/seed-import.md` — export mock dát do Supabase seed formátu.
+- `docs/source-web-assets.md` — zdrojové webové podklady a overené fakty.

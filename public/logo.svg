@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Rybolov Cetín">
+  <defs>
+    <linearGradient id="bg" x1="36" x2="184" y1="28" y2="196" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#155c55"/>
+      <stop offset="1" stop-color="#062523"/>
+    </linearGradient>
+    <linearGradient id="water" x1="44" x2="176" y1="124" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d8f1ec"/>
+      <stop offset="1" stop-color="#44b5a3"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="196" height="196" rx="52" fill="url(#bg)"/>
+  <path
+    d="M42 142c22-16 46-19 72-8 22 9 42 8 64-5"
+    fill="none"
+    stroke="#d8f1ec"
+    stroke-width="13"
+    stroke-linecap="round"
+  />
+  <path
+    d="M45 164c25-18 51-20 78-7 20 10 39 9 57-3"
+    fill="none"
+    stroke="url(#water)"
+    stroke-width="13"
+    stroke-linecap="round"
+  />
+  <g fill="none" stroke="#ffc247" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M139 49l14 12-14 12" stroke-width="8"/>
+    <path
+      d="M153 61v53c0 22 15 37 35 37 12 0 20-7 20-18 0-10-6-17-16-20"
+      stroke-width="12"
+    />
+    <path d="M192 113l18 8-15 12" stroke-width="10"/>
+    <path d="M196 132l-12 8" stroke-width="6"/>
+  </g>
+</svg>
