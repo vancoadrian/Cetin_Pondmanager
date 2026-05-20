@@ -6,6 +6,7 @@ export default defineEventHandler(async (): Promise<CatchReportStateResponse> =>
   const state = await readLocalCatchReportState()
 
   return {
+    deliveryLogs: state.deliveryLogs,
     ok: true,
     savedReports: state.savedReports,
     updatedAt: state.updatedAt,

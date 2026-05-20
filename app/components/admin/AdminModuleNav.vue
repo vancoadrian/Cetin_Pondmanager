@@ -9,6 +9,7 @@ const adminItems = [
   { label: 'Mapa', to: '/admin/mapa', icon: 'i-heroicons-map-pin' },
   { label: 'Požičovňa', to: '/admin/pozicovna', icon: 'i-heroicons-archive-box' },
   { label: 'Súťaže', to: '/admin/sutaze', icon: 'i-heroicons-trophy' },
+  { label: 'Notifikácie', to: '/admin/notifikacie', icon: 'i-heroicons-bell-alert' },
   { label: 'Sponzori', to: '/admin/sponzori', icon: 'i-heroicons-star' },
   { label: 'Audit', to: '/admin/audit', icon: 'i-heroicons-clipboard-document-list' },
 ]

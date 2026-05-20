@@ -19,7 +19,10 @@ export default defineEventHandler(async (event): Promise<CatchReportMutationSucc
     })
   }
 
-  await writeLocalCatchReportState({ savedReports: result.savedReports })
+  await writeLocalCatchReportState({
+    deliveryLogs: state.deliveryLogs,
+    savedReports: result.savedReports,
+  })
   await appendLocalAuditEvent({
     ...resolveAuditActor(event),
     action: 'catch.report.saved',

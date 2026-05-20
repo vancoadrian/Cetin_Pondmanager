@@ -27,8 +27,10 @@ describe('localCatchReportStore', () => {
     const raw = await readFile(filePath, 'utf8')
 
     expect(state.version).toBe(1)
+    expect(state.deliveryLogs).toEqual([])
     expect(state.savedReports).toEqual([])
     expect(JSON.parse(raw)).toMatchObject({
+      deliveryLogs: [],
       savedReports: [],
       version: 1,
     })
@@ -39,6 +41,17 @@ describe('localCatchReportStore', () => {
 
     await writeLocalCatchReportState(
       {
+        deliveryLogs: [{
+          attachmentCount: 2,
+          createdAt: '2026-05-19T08:05:00.000Z',
+          id: 'catch-report-delivery-test',
+          message: 'Draft pripravený.',
+          provider: 'mock',
+          recipients: ['majitel@example.test'],
+          reportId: 'catch-report-monthly-owner',
+          status: 'prepared',
+          subject: 'Rybolov Cetín: Mesačný report pre majiteľa',
+        }],
         savedReports: [{
           audience: 'owner',
           cadence: 'monthly',
@@ -67,6 +80,11 @@ describe('localCatchReportStore', () => {
       id: 'catch-report-monthly-owner',
       recipients: ['majitel@example.test'],
       title: 'Mesačný report pre majiteľa',
+    })
+    expect(reread.deliveryLogs[0]).toMatchObject({
+      provider: 'mock',
+      reportId: 'catch-report-monthly-owner',
+      status: 'prepared',
     })
   })
 })

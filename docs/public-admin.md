@@ -17,6 +17,7 @@ Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Inter
 | `/ulovky` | verejný alebo komunitný denník úlovkov |
 | `/sutaze` | verejný pohľad na súťaž a live stav |
 | `/notifikacie` | verejné výstrahy a oznamy |
+| `/admin/notifikacie` | interná príprava PWA výstrah, servisných oznamov a mock broadcastov |
 | `/info` | pravidlá, cenník, výbava |
 | `/kontakt` | kontakt na správcu |
 | `/sponzori` | partneri revíru a súťaží |

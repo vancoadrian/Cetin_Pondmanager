@@ -158,6 +158,28 @@ export const catchSavedReportInputSchema = z.object({
   }
 })
 
+export const pushSubscriptionInputSchema = z.object({
+  auth: z.string().trim().optional(),
+  deviceLabel: z.string().trim().max(80, 'Názov zariadenia môže mať najviac 80 znakov.').optional(),
+  endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
+  p256dh: z.string().trim().optional(),
+  permission: z.enum(['denied', 'granted', 'unknown']).default('unknown'),
+  topics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).default(['weather', 'service']),
+  userAgent: z.string().trim().max(240).optional(),
+})
+
+export const pushUnsubscribeInputSchema = z.object({
+  endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
+})
+
+export const notificationBroadcastInputSchema = z.object({
+  body: z.string().trim().min(10, 'Text notifikácie musí mať aspoň 10 znakov.').max(280, 'Text notifikácie môže mať najviac 280 znakov.'),
+  severity: z.enum(['storm', 'info', 'service', 'water']),
+  targetTopics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).min(1, 'Vyberte aspoň jeden okruh notifikácie.'),
+  title: z.string().trim().min(3, 'Nadpis musí mať aspoň 3 znaky.').max(80, 'Nadpis môže mať najviac 80 znakov.'),
+  validUntil: z.string().trim().min(3, 'Doplňte platnosť výstrahy.').max(60, 'Platnosť môže mať najviac 60 znakov.'),
+})
+
 export const tripLogbookInputSchema = z.object({
   lake: lakeSlugSchema,
   memberNames: z.array(z.string().trim().min(2)).min(1, 'Doplňte aspoň jedného rybára.'),

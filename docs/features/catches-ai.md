@@ -79,6 +79,11 @@ AI nemá nahradiť správcu. Má pomáhať hľadať kandidátov a nezrovnalosti.
 - Export trendových signálov skladá sezónne, mesačné, druhové a miesto-druhové porovnania do jednej tabuľky so stavom rast/pokles/bez bázy.
 - Správca si vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre majiteľa, správcu alebo účtovníka.
 - Uložené reporty sa čítajú a zapisujú cez `GET/POST /api/admin/catch-reports`, majú lokálny store `.data/rybolov-cetin/catch-reports.json` a audit udalosť `catch.report.saved`.
+- Uložený report sa dá vygenerovať cez `POST /api/admin/catch-reports/:id/generate`; výsledok obsahuje manažérsky súhrn, voliteľný CSV export úlovkov, voliteľný CSV export trendových signálov a audit udalosť `catch.report.generated`.
+- E-mailový draft reportu sa pripraví cez `POST /api/admin/catch-reports/:id/email-draft`; podľa providera vznikne lokálny draft, preskočené doručenie alebo reálne odoslanie cez Resend a vždy lokálny delivery log.
+- Plánovač reportov sa dá spustiť cez `POST /api/admin/catch-reports/run-due`; prejde aktívne týždenné a mesačné reporty, spracuje iba splatné položky, aktualizuje `lastGeneratedAt`, delivery logy a audit udalosť `catch.report.schedule.run`.
+- Hostingový cron môže volať `GET/POST /api/cron/catch-reports/run-due`; endpoint vyžaduje `RYBOLOV_REPORT_SCHEDULER_SECRET` cez `Authorization: Bearer <secret>` alebo `x-rybolov-cron-secret` a audit detail `source: cron`.
+- Doručovací provider je konfigurovateľný cez `.env`: `mock`, `resend` alebo `disabled`. `mock` je bezpečný režim bez odoslania, `disabled` iba zaznamená preskočené doručenie a `resend` odošle report cez Resend Email API, ak je nastavený `RYBOLOV_RESEND_API_KEY`.
 - Úlovky majú prvý weather snapshot: podmienky, teplotu vzduchu a vody, tlak, trend tlaku, vietor, smer vetra, oblačnosť a zdroj dát.
 - Nový verejný zápis úlovku dostane weather snapshot automaticky cez `catchWeatherService`; v prototype je deterministický mock podľa jazera, lovného miesta a času.
 - Weather resolver má provider konfiguráciu cez `.env`: `mock`, `station`, `manual`, `weather-api` alebo `disabled`. Stanica a manuálny režim môžu posielať kompletný snapshot; neúplný provider bezpečne padá na mock, ak je zapnutý fallback.
@@ -91,6 +96,6 @@ AI nemá nahradiť správcu. Má pomáhať hľadať kandidátov a nezrovnalosti.
 
 - Napájať skupinové výpravy na reálne účty a pozvánky.
 - Dopracovať asynchrónny adaptér pre konkrétnu meteoslužbu alebo lokálnu stanicu.
-- Napojenie uložených reportov na Resend, cron alebo iný plánovač po výbere produkčného runtime.
+- Po výbere hostingu nastaviť reálny cron schedule nad `/api/cron/catch-reports/run-due`.
 - Napájať upload fotiek na Supabase Storage a pravidlá prístupu podľa schválenia úlovku.
 - Vytvoriť prvý AI job nad `catchPhotos.aiStatus`.

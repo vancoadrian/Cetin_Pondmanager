@@ -91,6 +91,8 @@ export interface CatchRecord {
 export type CatchSavedReportAudience = 'accountant' | 'manager' | 'owner'
 export type CatchSavedReportCadence = 'manual' | 'monthly' | 'weekly'
 export type CatchSavedReportDelivery = 'email-ready' | 'in-app'
+export type CatchReportDeliveryProvider = 'disabled' | 'mock' | 'resend'
+export type CatchReportDeliveryStatus = 'failed' | 'prepared' | 'sent' | 'skipped'
 
 export interface CatchSavedReportFilter {
   dateFrom?: string
@@ -115,6 +117,19 @@ export interface CatchSavedReport {
   recipients: string[]
   title: string
   updatedAt: string
+}
+
+export interface CatchReportDeliveryLog {
+  id: string
+  attachmentCount: number
+  createdAt: string
+  externalId?: string
+  message: string
+  provider: CatchReportDeliveryProvider
+  recipients: string[]
+  reportId: string
+  status: CatchReportDeliveryStatus
+  subject: string
 }
 
 export interface CatchPhoto {
@@ -251,11 +266,46 @@ export interface TournamentRuleCheck {
   note: string
 }
 
+export type AlertSeverity = 'storm' | 'info' | 'service' | 'water'
+export type PushSubscriptionTopic = 'reservations' | 'service' | 'tournaments' | 'weather'
+export type PushSubscriptionPermission = 'denied' | 'granted' | 'unknown'
+export type NotificationBroadcastStatus = 'failed' | 'prepared' | 'sent' | 'skipped'
+
 export interface Alert {
   id: string
-  severity: 'storm' | 'info' | 'service' | 'water'
+  severity: AlertSeverity
   title: string
   body: string
+  validUntil: string
+}
+
+export interface PushSubscriptionRecord {
+  id: string
+  auth?: string
+  createdAt: string
+  deviceLabel: string
+  enabled: boolean
+  endpoint: string
+  lastSeenAt: string
+  p256dh?: string
+  permission: PushSubscriptionPermission
+  topics: PushSubscriptionTopic[]
+  updatedAt: string
+  userAgent: string
+}
+
+export interface NotificationBroadcast {
+  id: string
+  alertId: string
+  body: string
+  createdAt: string
+  createdBy: string
+  message: string
+  recipientCount: number
+  severity: AlertSeverity
+  status: NotificationBroadcastStatus
+  targetTopics: PushSubscriptionTopic[]
+  title: string
   validUntil: string
 }
 

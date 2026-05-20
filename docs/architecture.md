@@ -59,6 +59,8 @@ Detailnejší popis je v `docs/database.md`.
 
 Public časť obsahuje prehľad revíru, mapu, obsadenosť, pravidlá, kontakt, sponzorov a verejné súťažné informácie.
 Interná časť obsahuje admin dashboard, uzávierky, schvaľovanie rezervácií, požičovňu, notifikácie, sponzorské umiestnenia a súťažný dispečing.
+
+Notifikačná vrstva má prechodový lokálny store `.data/rybolov-cetin/notification-state.json`. Verejná PWA stránka ukladá odbery zariadení cez `/api/notifications/subscribe`, vie ich vypnúť cez `/api/notifications/unsubscribe` a číta aktívne oznamy cez `/api/notifications`. Admin `/admin/notifikacie` pripravuje nový verejný oznam a mock broadcast cez `/api/admin/notifications/broadcast`; broadcast zatiaľ počíta cieľové odbery podľa okruhov a zapisuje audit udalosť, reálny Web Push dispatcher príde po doplnení VAPID kľúčov.
 V prototype je interná časť mocknutá cez cookie login. Produkčne ju nahradí auth, role-based access control a row-level security.
 
 ## Dátová vrstva v prototype
@@ -72,7 +74,7 @@ Aktuálny smer toku dát je:
 Kapacitné výpočty mimo samotných miest sú oddelené do utility vrstvy. Požičovňa používa `app/utils/rentals.ts`, ktorý skladá `rentalItems` a `rentalBookings` do vysvetliteľného stavu pre public rezerváciu aj admin sklad.
 Úlovkové reporty používajú `app/utils/catchAnalytics.ts`. Utility vrstva počíta agregácie zo schválených úlovkov vrátane weather snapshotov, skladá sezónne okná z pravidiel a uzávierok revíru, aplikuje filtre pre admin report, generuje surový CSV úlovkov aj manažérsky CSV trendových signálov, porovnáva aktuálne obdobie s rovnakým obdobím minulý rok, skladá mesačný trend váhy úlovkov, trend podľa druhu ryby, trend kombinácie druh + lovné miesto a dá sa neskôr nahradiť Supabase materialized view.
 
-Uložené reporty úlovkov rieši `app/services/catchReportService.ts`. Správca vie v `/admin/ulovky` uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report s cieľovou rolou, príjemcami a výberom payloadu. Lokálny prechodový store je `.data/rybolov-cetin/catch-reports.json`; produkčne sa má nahradiť tabuľkou report definícií a plánovačom.
+Uložené reporty úlovkov rieši `app/services/catchReportService.ts`. Správca vie v `/admin/ulovky` uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report s cieľovou rolou, príjemcami a výberom payloadu. Rovnaká service vrstva vie uložený report vygenerovať do súhrnu, CSV úlovkov a CSV trendových signálov, pripraviť e-mailový draft s prílohami a spustiť plánovač splatných týždenných alebo mesačných reportov. Doručovací provider má režimy `mock`, `resend` a `disabled`; pri `resend` služba volá Resend Email API endpoint z `.env` a do delivery logu uloží stav `sent` alebo `failed`. Lokálny prechodový store je `.data/rybolov-cetin/catch-reports.json`; produkčne sa má nahradiť tabuľkou report definícií, delivery logom a cron/serverless plánovačom. Serverless vstup je oddelený cez `/api/cron/catch-reports/run-due` a chránený `RYBOLOV_REPORT_SCHEDULER_SECRET`.
 
 Weather snapshot pri nových úlovkoch rieši `app/services/catchWeatherService.ts`. Teraz ide o konfigurovateľný resolver s providermi `mock`, `station`, `manual`, `weather-api` a `disabled`. Deterministický mock zostáva fallback, station/manual vie použiť kompletný snapshot z prostredia a `weather-api` drží miesto pre konkrétny externý adaptér bez zmeny kontraktu úlovkových služieb.
 
@@ -92,6 +94,15 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `POST /api/admin/catches/:id/decision` schvaľuje, vracia do kontroly alebo zamieta úlovok pred verejným zobrazením.
 - `GET /api/admin/catch-reports` vracia uložené konfigurácie interných reportov úlovkov.
 - `POST /api/admin/catch-reports` uloží alebo aktualizuje report z aktuálneho filtra a zapíše audit udalosť.
+- `POST /api/admin/catch-reports/:id/generate` vygeneruje reportový payload, uloží `lastGeneratedAt` a zapíše audit udalosť.
+- `POST /api/admin/catch-reports/:id/email-draft` pripraví e-mailový draft reportu, uloží delivery log a zapíše audit udalosť.
+- `POST /api/admin/catch-reports/run-due` spustí splatné týždenné a mesačné reporty, aktualizuje lokálny store a zapíše audit udalosť.
+- `GET/POST /api/cron/catch-reports/run-due` spustí rovnaký plánovač pre hostingový cron, ale iba so správnym `Authorization: Bearer <secret>` alebo `x-rybolov-cron-secret`.
+- `GET /api/notifications` vracia verejné oznamy a počet aktívnych PWA odberov.
+- `POST /api/notifications/subscribe` uloží alebo aktualizuje PWA odber zariadenia.
+- `POST /api/notifications/unsubscribe` vypne uložený PWA odber zariadenia.
+- `GET /api/admin/notifications` vracia interný stav oznamov, odberov a broadcastov.
+- `POST /api/admin/notifications/broadcast` vytvorí verejný oznam, mock broadcast a audit udalosť.
 - `POST /api/logbooks` vytvorí aktívny osobný, skupinový alebo súťažný zápisník výpravy.
 - `GET /api/tournaments` vracia lokálny stav súťaží, kontrolórov, hlásení, vážení, trestov a kontrol.
 - `POST /api/tournament-requests` validuje tímové hlásenie a uloží ho do súťažného dispečingu.
@@ -136,7 +147,7 @@ Aktuálne pokrytie je sústredené na čistú doménovú logiku a kontrakty, kto
 - `tests/catchCorrectionService.test.ts` kontroluje admin opravy úlovkov, zrkadlenie, presun a odpojenie zápisníkov.
 - `tests/catchModerationService.test.ts` kontroluje admin rozhodnutia nad úlovkami pred zverejnením.
 - `tests/catchWeatherService.test.ts` kontroluje automatický mock weather snapshot, provider konfiguráciu, station/manual hodnoty, fallback a vypnutie snapshotov.
-- `tests/catchReportService.test.ts` kontroluje uložené reporty, normalizáciu príjemcov a validácie payloadu.
+- `tests/catchReportService.test.ts` kontroluje uložené reporty, normalizáciu príjemcov, validácie payloadu, generovanie reportových výstupov, e-mailové drafty a delivery provider konfiguráciu.
 - `tests/catchAnalytics.test.ts` kontroluje interné agregácie úlovkov, report filtre, CSV exporty, sezónne okná, sezónne porovnanie, mesačný trend, trend podľa druhu a trend druh + lovné miesto.
 - `tests/localCatchStore.test.ts` kontroluje JSON store pre úlovky a zápisníky.
 - `tests/localCatchReportStore.test.ts` kontroluje JSON store pre uložené reporty úlovkov.

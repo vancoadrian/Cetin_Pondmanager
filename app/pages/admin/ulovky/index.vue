@@ -15,6 +15,11 @@ import type {
 } from '~/services/catchModerationService'
 import type {
   CatchReportMutationSuccess,
+  CatchGeneratedReport,
+  CatchReportEmailDraft,
+  CatchReportEmailDraftSuccess,
+  CatchReportGenerationSuccess,
+  CatchReportScheduleRunSuccess,
   CatchReportStateResponse,
 } from '~/services/catchReportService'
 import {
@@ -37,6 +42,8 @@ import {
 } from '~/utils/catchAnalytics'
 
 useHead({ title: 'Admin úlovky' })
+
+type CatchReportScheduleRunRow = CatchReportScheduleRunSuccess['rows'][number]
 
 const {
   catches: seedCatches,
@@ -61,6 +68,7 @@ const fallbackCatchState = (): CatchStateResponse => ({
   updatedAt: 'seed',
 })
 const fallbackCatchReportState = (): CatchReportStateResponse => ({
+  deliveryLogs: [],
   ok: true,
   savedReports: [],
   updatedAt: 'seed',
@@ -124,12 +132,36 @@ const reportForm = reactive({
 })
 const reportSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reportSubmitMessage = ref('')
+const generatedCatchReport = ref<CatchGeneratedReport>()
+const generatingReportId = ref('')
+const generateReportMessage = ref('')
+const reportEmailDraft = ref<CatchReportEmailDraft>()
+const preparingEmailReportId = ref('')
+const reportEmailDraftStatus = ref<'idle' | 'success' | 'error'>('idle')
+const reportEmailDraftMessage = ref('')
+const schedulerRunStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const schedulerRunMessage = ref('')
+const schedulerRunRows = ref<CatchReportScheduleRunSuccess['rows']>([])
 
 const liveCatches = computed(() => catchState.value?.catches ?? seedCatches)
 const liveCatchPhotos = computed(() => catchState.value?.catchPhotos ?? seedCatchPhotos)
 const liveTripLogbookEntries = computed(() => catchState.value?.tripLogbookEntries ?? seedTripLogbookEntries)
 const liveTripLogbooks = computed(() => catchState.value?.tripLogbooks ?? seedTripLogbooks)
+const catchReportDeliveryLogs = computed(() => catchReportState.value?.deliveryLogs ?? [])
 const savedCatchReports = computed(() => catchReportState.value?.savedReports ?? [])
+const scheduledCatchReports = computed(() => savedCatchReports.value.filter((report) => report.cadence !== 'manual'))
+const latestDeliveryLogByReportId = computed(() => {
+  const logs = [...catchReportDeliveryLogs.value].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const logByReport = new Map<string, (typeof logs)[number]>()
+
+  for (const log of logs) {
+    if (!logByReport.has(log.reportId)) {
+      logByReport.set(log.reportId, log)
+    }
+  }
+
+  return logByReport
+})
 const correctionPegs = computed(() => pegs.filter((peg) => peg.lake === correctionForm.lake))
 const catchPhotoByCatchId = computed(() =>
   new Map(liveCatchPhotos.value.map((photo) => [photo.catchId, photo])),
@@ -637,6 +669,60 @@ function formatReportPayload(report: CatchSavedReport) {
   return parts.join(' + ')
 }
 
+function formatReportGeneratedAt(value?: string) {
+  if (!value) return 'ešte negenerovaný'
+
+  return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function formatDeliveryLog(report: CatchSavedReport) {
+  const log = latestDeliveryLogByReportId.value.get(report.id)
+  if (!log) return 'e-mail ešte nepripravený'
+
+  return `${log.status === 'prepared' ? 'pripravené' : log.status} · ${log.recipients.length} príjemcov · ${formatReportGeneratedAt(log.createdAt)}`
+}
+
+function formatSchedulerAction(row: CatchReportScheduleRunRow) {
+  if (row.action === 'generated') return 'v appke'
+  if (row.action === 'prepared') return 'draft'
+  if (row.action === 'sent') return 'odoslané'
+  if (row.action === 'failed') return 'chyba'
+
+  return row.due ? 'preskočené' : 'čaká'
+}
+
+function getSchedulerActionClass(row: CatchReportScheduleRunRow) {
+  if (row.action === 'failed') return 'border-error-500/25 bg-error-500/10 text-error-700'
+  if (row.action === 'sent' || row.action === 'prepared' || row.action === 'generated') {
+    return 'border-success-500/25 bg-success-500/10 text-success-700'
+  }
+  if (row.due) return 'border-warning-500/25 bg-warning-500/10 text-warning-800'
+
+  return 'border-border bg-muted text-foreground-muted'
+}
+
+function formatSchedulerRowMeta(row: CatchReportScheduleRunRow) {
+  const parts = [
+    catchReportCadenceLabels[row.cadence],
+    catchReportDeliveryLabels[row.delivery],
+  ]
+
+  if (row.generatedAt) {
+    parts.push(`výstup ${formatReportGeneratedAt(row.generatedAt)}`)
+  }
+  if (row.nextEligibleAt) {
+    parts.push(`ďalšie ${formatReportGeneratedAt(row.nextEligibleAt)}`)
+  }
+
+  return parts.join(' · ')
+}
+
+function formatEmailDraftAttachments(draft: CatchReportEmailDraft) {
+  if (draft.attachments.length === 0) return 'bez príloh'
+
+  return draft.attachments.map((attachment) => attachment.fileName).join(', ')
+}
+
 function getGroupWidth(count: number) {
   return `${Math.max(8, Math.round((count / catchAnalytics.value.topGroupCount) * 100))}%`
 }
@@ -762,6 +848,73 @@ async function saveCurrentCatchReport() {
   catch (error) {
     reportSubmitStatus.value = 'error'
     reportSubmitMessage.value = getApiErrorMessage(error, 'Report sa nepodarilo uložiť.')
+  }
+}
+
+async function generateSavedCatchReport(report: CatchSavedReport) {
+  generatingReportId.value = report.id
+  generateReportMessage.value = ''
+
+  try {
+    const result = await $fetch<CatchReportGenerationSuccess>(`/api/admin/catch-reports/${report.id}/generate`, {
+      method: 'POST',
+    })
+
+    generatedCatchReport.value = result.generatedReport
+    generateReportMessage.value = result.message
+    await refreshCatchReports()
+  }
+  catch (error) {
+    generateReportMessage.value = getApiErrorMessage(error, 'Report sa nepodarilo vygenerovať.')
+  }
+  finally {
+    generatingReportId.value = ''
+  }
+}
+
+async function prepareSavedCatchReportEmail(report: CatchSavedReport) {
+  preparingEmailReportId.value = report.id
+  reportEmailDraftStatus.value = 'idle'
+  reportEmailDraftMessage.value = ''
+
+  try {
+    const result = await $fetch<CatchReportEmailDraftSuccess>(`/api/admin/catch-reports/${report.id}/email-draft`, {
+      method: 'POST',
+    })
+
+    generatedCatchReport.value = result.generatedReport
+    reportEmailDraft.value = result.emailDraft
+    reportEmailDraftStatus.value = result.deliveryLog.status === 'failed' ? 'error' : 'success'
+    reportEmailDraftMessage.value = result.message
+    await refreshCatchReports()
+  }
+  catch (error) {
+    reportEmailDraftStatus.value = 'error'
+    reportEmailDraftMessage.value = getApiErrorMessage(error, 'E-mailový draft sa nepodarilo pripraviť.')
+  }
+  finally {
+    preparingEmailReportId.value = ''
+  }
+}
+
+async function runCatchReportScheduler() {
+  schedulerRunStatus.value = 'submitting'
+  schedulerRunMessage.value = ''
+  schedulerRunRows.value = []
+
+  try {
+    const result = await $fetch<CatchReportScheduleRunSuccess>('/api/admin/catch-reports/run-due', {
+      method: 'POST',
+    })
+
+    schedulerRunRows.value = result.rows
+    schedulerRunStatus.value = result.rows.some((row) => row.action === 'failed') ? 'error' : 'success'
+    schedulerRunMessage.value = result.message
+    await refreshCatchReports()
+  }
+  catch (error) {
+    schedulerRunStatus.value = 'error'
+    schedulerRunMessage.value = getApiErrorMessage(error, 'Plánovač reportov sa nepodarilo spustiť.')
   }
 }
 
@@ -1069,9 +1222,62 @@ async function saveCorrection() {
                   Pripravené konfigurácie pre budúci e-mail alebo plánovač.
                 </p>
               </div>
-              <span class="rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                {{ savedCatchReports.length }}
-              </span>
+              <div class="flex shrink-0 flex-col items-end gap-2">
+                <span class="rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
+                  {{ savedCatchReports.length }}
+                </span>
+                <UButton
+                  icon="i-heroicons-clock"
+                  size="xs"
+                  variant="soft"
+                  :disabled="scheduledCatchReports.length === 0"
+                  :loading="schedulerRunStatus === 'submitting'"
+                  @click="runCatchReportScheduler"
+                >
+                  Spustiť plánovač
+                </UButton>
+              </div>
+            </div>
+
+            <div
+              v-if="schedulerRunMessage"
+              class="mt-4 rounded-md border p-3"
+              :class="schedulerRunStatus === 'error' ? 'border-error-500/25 bg-error-500/10' : 'border-success-500/25 bg-success-500/10'"
+            >
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase" :class="schedulerRunStatus === 'error' ? 'text-error-700' : 'text-success-700'">
+                    Plánovač reportov
+                  </p>
+                  <p class="mt-1 text-sm font-semibold" :class="schedulerRunStatus === 'error' ? 'text-error-700' : 'text-success-700'">
+                    {{ schedulerRunMessage }}
+                  </p>
+                </div>
+                <span class="text-foreground-muted text-xs">
+                  {{ scheduledCatchReports.length }} plánovaných
+                </span>
+              </div>
+              <div v-if="schedulerRunRows.length > 0" class="mt-3 grid gap-2">
+                <div
+                  v-for="row in schedulerRunRows"
+                  :key="row.reportId"
+                  class="rounded-md border bg-white p-2"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="text-sm font-semibold">{{ row.title }}</p>
+                      <p class="text-foreground-muted mt-0.5 text-xs">{{ row.message }}</p>
+                      <p class="text-foreground-muted mt-1 text-xs">{{ formatSchedulerRowMeta(row) }}</p>
+                    </div>
+                    <span
+                      class="shrink-0 rounded-md border px-2 py-1 text-xs font-bold"
+                      :class="getSchedulerActionClass(row)"
+                    >
+                      {{ formatSchedulerAction(row) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-if="savedCatchReports.length > 0" class="mt-4 space-y-3">
@@ -1097,12 +1303,77 @@ async function saveCorrection() {
                   <span>{{ catchReportDeliveryLabels[report.delivery] }}</span>
                   <span>{{ formatReportPayload(report) }}</span>
                   <span>{{ formatReportRecipients(report) }}</span>
+                  <span class="sm:col-span-2">E-mail: {{ formatDeliveryLog(report) }}</span>
+                </div>
+                <div class="mt-3 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p class="text-foreground-muted text-xs">
+                    Posledný výstup: {{ formatReportGeneratedAt(report.lastGeneratedAt) }}
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    <UButton
+                      icon="i-heroicons-play"
+                      size="xs"
+                      variant="soft"
+                      :loading="generatingReportId === report.id"
+                      @click="generateSavedCatchReport(report)"
+                    >
+                      Vygenerovať
+                    </UButton>
+                    <UButton
+                      icon="i-heroicons-envelope"
+                      size="xs"
+                      variant="soft"
+                      :disabled="report.delivery !== 'email-ready'"
+                      :loading="preparingEmailReportId === report.id"
+                      @click="prepareSavedCatchReportEmail(report)"
+                    >
+                      Pripraviť e-mail
+                    </UButton>
+                  </div>
                 </div>
               </article>
             </div>
             <p v-else class="text-foreground-muted mt-4 rounded-md border border-dashed border-border p-4 text-sm">
               Zatiaľ nie je uložený žiadny report. Nastav filter a ulož prvú šablónu pre správcu.
             </p>
+            <div
+              v-if="generatedCatchReport"
+              class="mt-4 rounded-md border border-primary-200 bg-primary-50 p-3"
+            >
+              <p class="text-xs font-bold uppercase text-primary-700">Posledný vygenerovaný výstup</p>
+              <h4 class="mt-1 font-semibold">
+                {{ generatedCatchReport.summary.catchCount }} úlovkov ·
+                {{ formatWeight(generatedCatchReport.summary.totalWeightKg) }}
+              </h4>
+              <div class="text-foreground-muted mt-2 grid gap-1 text-xs sm:grid-cols-2">
+                <span>Obdobie: {{ generatedCatchReport.summary.periodLabel }}</span>
+                <span>Signály: {{ generatedCatchReport.summary.trendSignalCount }}</span>
+                <span>Top druh: {{ generatedCatchReport.summary.topSpeciesLabel }}</span>
+                <span>Top miesto: {{ generatedCatchReport.summary.topPegLabel }}</span>
+              </div>
+              <p v-if="generateReportMessage" class="mt-2 text-sm text-success-700">
+                {{ generateReportMessage }}
+              </p>
+            </div>
+            <div
+              v-if="reportEmailDraft"
+              class="mt-4 rounded-md border border-accent-200 bg-accent-50 p-3"
+            >
+              <p class="text-xs font-bold uppercase text-accent-700">E-mailový draft</p>
+              <h4 class="mt-1 font-semibold">{{ reportEmailDraft.subject }}</h4>
+              <div class="text-foreground-muted mt-2 grid gap-1 text-xs">
+                <span>Príjemcovia: {{ reportEmailDraft.recipients.join(', ') || 'bez príjemcov' }}</span>
+                <span>Prílohy: {{ formatEmailDraftAttachments(reportEmailDraft) }}</span>
+                <span>{{ reportEmailDraft.previewText }}</span>
+              </div>
+              <p
+                v-if="reportEmailDraftMessage"
+                class="mt-2 text-sm"
+                :class="reportEmailDraftStatus === 'error' ? 'text-error-700' : 'text-success-700'"
+              >
+                {{ reportEmailDraftMessage }}
+              </p>
+            </div>
           </div>
         </div>
       </div>

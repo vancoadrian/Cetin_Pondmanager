@@ -24,7 +24,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Úlovky: `/admin/ulovky` vie pred zverejnením opraviť chybné údaje a ponechať, presunúť alebo odpojiť väzbu na zápisník výpravy.
 - Úlovkové dáta: `/admin/ulovky` má prvý interný report podľa druhu, miesta, nástrahy, jazera, váhy a času.
 - Fotky úlovkov: verejný formulár ukladá JPG/PNG/WebP fotku do lokálneho mock storage a vytvára AI-ready metadata.
-- Uložené reporty: `/admin/ulovky` vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre správcu, majiteľa alebo účtovníka.
+- Uložené reporty: `/admin/ulovky` vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre správcu, majiteľa alebo účtovníka, vygenerovať z neho aktuálny reportový payload, pripraviť e-mailový draft s CSV prílohami a ručne spustiť plánovač splatných týždenných alebo mesačných reportov.
 - Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána.
 - Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
 - Lokálna perzistencia: rezervácie, požičovňa, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
@@ -72,7 +72,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Pridať upload fotiek a úložisko. Prvá lokálna verzia je hotová cez `.data/rybolov-cetin/catch-photos/`.
 - Pripraviť dátový model pre budúcu AI identifikáciu rýb. Prvé metadata sú v `catchPhotos` a Supabase tabuľke `catch_photos`.
 - Rozšíriť analytiku o konkrétny asynchrónny adaptér pre zvolenú meteoslužbu alebo lokálnu stanicu.
-- Napojiť uložené reporty na Resend alebo cron plánovač po výbere produkčného runtime.
+- Doplniť cron plánovač nad už pripravenými reportovými e-mail draftmi. Cron-ready endpoint so secretom je pripravený; po výbere hostingu treba nastaviť konkrétny schedule.
 
 ## Fáza 5: Súťaže
 
@@ -84,9 +84,9 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 
 ## Fáza 6: PWA a notifikácie
 
-- Pripraviť VAPID kľúče.
-- Zaviesť `push_subscriptions`.
-- Posielať výstrahy pred búrkou, servisné oznamy, zmeny rezervácie a súťažné udalosti.
+- Pripraviť VAPID kľúče. Env miesta pre public/private kľúč sú pripravené.
+- Zaviesť `push_subscriptions`. Prvá lokálna verzia odberov je hotová cez `.data/rybolov-cetin/notification-state.json`.
+- Posielať výstrahy pred búrkou, servisné oznamy, zmeny rezervácie a súťažné udalosti. Mock broadcast pre výstrahy a oznamy je hotový v `/admin/notifikacie`; reálne Web Push odosielanie čaká na provider.
 - Podporiť offline-friendly obrazovky pri vode.
 
 ## Fáza 7: Produkčné nasadenie

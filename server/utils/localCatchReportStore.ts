@@ -30,6 +30,7 @@ function isCatchReportState(value: unknown): value is LocalCatchReportState {
   return (
     candidate.version === 1 &&
     typeof candidate.updatedAt === 'string' &&
+    (candidate.deliveryLogs === undefined || Array.isArray(candidate.deliveryLogs)) &&
     Array.isArray(candidate.savedReports)
   )
 }
@@ -43,7 +44,10 @@ export async function readLocalCatchReportState(
 
     if (isCatchReportState(parsed)) {
       return {
-        ...cloneCatchReportState(parsed),
+        ...cloneCatchReportState({
+          deliveryLogs: parsed.deliveryLogs ?? [],
+          savedReports: parsed.savedReports,
+        }),
         updatedAt: parsed.updatedAt,
         version: 1,
       }

@@ -62,6 +62,7 @@ export default defineNuxtConfig({
       appName,
       venueName,
       reservationsPhone: process.env.NUXT_PUBLIC_REZERVACIE_PHONE || '+421 911 298 702',
+      vapidPublicKey: process.env.NUXT_PUBLIC_VAPID_PUBLIC_KEY || '',
     },
   },
 

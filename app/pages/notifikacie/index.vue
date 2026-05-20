@@ -1,10 +1,36 @@
 <script setup lang="ts">
+import type {
+  PublicNotificationStateResponse,
+  PushSubscriptionMutationSuccess,
+  PushUnsubscribeSuccess,
+} from '~/services/notificationService'
+
 useHead({ title: 'Výstrahy' })
 
-const { alerts } = usePondData()
+const { alerts: seedAlerts } = usePondData()
+const runtimeConfig = useRuntimeConfig()
+
+const fallbackNotificationState = (): PublicNotificationStateResponse => ({
+  alerts: seedAlerts,
+  ok: true,
+  subscriptionCount: 0,
+  updatedAt: 'seed',
+})
+const { data: notificationState, refresh: refreshNotifications } = await useAsyncData<PublicNotificationStateResponse>(
+  'public-notifications',
+  () => $fetch<PublicNotificationStateResponse>('/api/notifications'),
+  {
+    default: fallbackNotificationState,
+  },
+)
 
 const notificationStatus = ref<'unknown' | 'granted' | 'denied' | 'unsupported'>('unknown')
 const requesting = ref(false)
+const subscriptionEndpoint = ref('')
+const subscriptionSubmitMessage = ref('')
+const subscriptionSubmitStatus = ref<'idle' | 'success' | 'error'>('idle')
+const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
+const activeSubscriptionCount = computed(() => notificationState.value?.subscriptionCount ?? 0)
 
 onMounted(() => {
   if (!('Notification' in window)) {
@@ -12,7 +38,77 @@ onMounted(() => {
     return
   }
   notificationStatus.value = Notification.permission as 'granted' | 'denied' | 'unknown'
+  subscriptionEndpoint.value = localStorage.getItem('rybolov_cetin_push_endpoint') ?? ''
 })
+
+function urlBase64ToUint8Array(value: string) {
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index)
+  }
+
+  return outputArray
+}
+
+function getStoredMockEndpoint() {
+  const existingEndpoint = localStorage.getItem('rybolov_cetin_mock_push_endpoint')
+  if (existingEndpoint) return existingEndpoint
+
+  const endpoint = `mock://rybolov-cetin/${crypto.randomUUID()}`
+  localStorage.setItem('rybolov_cetin_mock_push_endpoint', endpoint)
+
+  return endpoint
+}
+
+async function createSubscriptionPayload(permission: NotificationPermission) {
+  const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
+  const canUseRealPush = 'serviceWorker' in navigator && 'PushManager' in window && vapidPublicKey
+
+  if (canUseRealPush) {
+    const registration = await navigator.serviceWorker.ready
+    const existingSubscription = await registration.pushManager.getSubscription()
+    const subscription = existingSubscription ?? await registration.pushManager.subscribe({
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      userVisibleOnly: true,
+    })
+    const payload = subscription.toJSON()
+
+    return {
+      auth: payload.keys?.auth,
+      endpoint: subscription.endpoint,
+      p256dh: payload.keys?.p256dh,
+      permission,
+    }
+  }
+
+  return {
+    auth: 'mock-auth',
+    endpoint: getStoredMockEndpoint(),
+    p256dh: 'mock-p256dh',
+    permission,
+  }
+}
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const fetchError = error as {
+    data?: {
+      data?: {
+        messages?: string[]
+      }
+      message?: string
+      statusMessage?: string
+    }
+  }
+
+  return fetchError.data?.data?.messages?.join(' ') ??
+    fetchError.data?.message ??
+    fetchError.data?.statusMessage ??
+    fallback
+}
 
 async function requestNotifications() {
   if (!('Notification' in window)) {
@@ -20,10 +116,73 @@ async function requestNotifications() {
     return
   }
   requesting.value = true
+  subscriptionSubmitMessage.value = ''
+  subscriptionSubmitStatus.value = 'idle'
   try {
     const permission = await Notification.requestPermission()
     notificationStatus.value = permission as 'granted' | 'denied'
+    if (permission !== 'granted') {
+      subscriptionSubmitStatus.value = 'error'
+      subscriptionSubmitMessage.value = 'Prehliadač nepovolil notifikácie.'
+      return
+    }
+
+    const subscriptionPayload = await createSubscriptionPayload(permission)
+    const result = await $fetch<PushSubscriptionMutationSuccess>('/api/notifications/subscribe', {
+      body: {
+        ...subscriptionPayload,
+        deviceLabel: 'Web PWA zariadenie',
+        topics: ['weather', 'service', 'reservations'],
+        userAgent: navigator.userAgent,
+      },
+      method: 'POST',
+    })
+
+    subscriptionEndpoint.value = result.subscription.endpoint
+    localStorage.setItem('rybolov_cetin_push_endpoint', result.subscription.endpoint)
+    subscriptionSubmitStatus.value = 'success'
+    subscriptionSubmitMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    subscriptionSubmitStatus.value = 'error'
+    subscriptionSubmitMessage.value = getApiErrorMessage(error, 'Odber notifikácií sa nepodarilo uložiť.')
   } finally {
+    requesting.value = false
+  }
+}
+
+async function disableNotifications() {
+  if (!subscriptionEndpoint.value) return
+
+  requesting.value = true
+  subscriptionSubmitMessage.value = ''
+  subscriptionSubmitStatus.value = 'idle'
+  try {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.getSubscription()
+      await subscription?.unsubscribe()
+    }
+
+    const result = await $fetch<PushUnsubscribeSuccess>('/api/notifications/unsubscribe', {
+      body: {
+        endpoint: subscriptionEndpoint.value,
+      },
+      method: 'POST',
+    })
+
+    localStorage.removeItem('rybolov_cetin_push_endpoint')
+    subscriptionEndpoint.value = ''
+    subscriptionSubmitStatus.value = 'success'
+    subscriptionSubmitMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    subscriptionSubmitStatus.value = 'error'
+    subscriptionSubmitMessage.value = getApiErrorMessage(error, 'Odber notifikácií sa nepodarilo vypnúť.')
+  }
+  finally {
     requesting.value = false
   }
 }
@@ -69,23 +228,46 @@ function alertClass(severity: string) {
           <div class="bg-muted mt-5 rounded-md p-4">
             <p class="text-foreground-muted text-sm">Stav</p>
             <p class="mt-1 text-lg font-bold">
-              <span v-if="notificationStatus === 'granted'">povolené</span>
+              <span v-if="subscriptionEndpoint">zapnuté v aplikácii</span>
+              <span v-else-if="notificationStatus === 'granted'">povolené v prehliadači</span>
               <span v-else-if="notificationStatus === 'denied'">zamietnuté</span>
               <span v-else-if="notificationStatus === 'unsupported'">nepodporované</span>
               <span v-else>neznáme</span>
             </p>
+            <p class="text-foreground-muted mt-1 text-xs">
+              Aktívne odbery: {{ activeSubscriptionCount }}
+            </p>
           </div>
 
-          <UButton
-            class="mt-5"
-            icon="i-heroicons-bell"
-            :loading="requesting"
-            :disabled="notificationStatus === 'unsupported'"
-            block
-            @click="requestNotifications"
+          <div class="mt-5 grid gap-2 sm:grid-cols-2">
+            <UButton
+              icon="i-heroicons-bell"
+              :loading="requesting"
+              :disabled="notificationStatus === 'unsupported'"
+              block
+              @click="requestNotifications"
+            >
+              Zapnúť upozornenia
+            </UButton>
+            <UButton
+              icon="i-heroicons-bell-slash"
+              color="neutral"
+              variant="soft"
+              :loading="requesting"
+              :disabled="!subscriptionEndpoint"
+              block
+              @click="disableNotifications"
+            >
+              Vypnúť
+            </UButton>
+          </div>
+          <p
+            v-if="subscriptionSubmitMessage"
+            class="mt-3 text-sm font-semibold"
+            :class="subscriptionSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
           >
-            Zapnúť upozornenia
-          </UButton>
+            {{ subscriptionSubmitMessage }}
+          </p>
         </div>
 
         <div class="space-y-4">
