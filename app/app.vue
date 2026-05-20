@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConnectionStatusBanner from '~/components/shared/ConnectionStatusBanner.vue'
 import PwaInstallPrompt from '~/components/shared/PwaInstallPrompt.vue'
 
 const colorMode = useColorMode()
@@ -15,6 +16,7 @@ useHead({
 
 <template>
   <UApp>
+    <ConnectionStatusBanner />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

@@ -40,6 +40,7 @@ Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Inter
 ## Mock auth
 
 Aktuálne je interný prístup riešený cez `useMockAuth` a cookie `rybolov_cetin_mock_session`.
+Mock admin používa spoločnú access matrix v `app/utils/adminAccess.ts`; z nej sa skladá interná navigácia, dashboard pre aktuálnu rolu a route guard pre `/admin/*`.
 
 Mock roly:
 
@@ -66,6 +67,8 @@ Toto je iba prototyp. Produkčne má byť nahradený Supabase Auth a RLS politik
 | `worker` | všetko public | nástupy, požičovňa, údržba a prevádzkové úlohy |
 | `manager` | všetko public | rezervácie, výstrahy, požičovňa, uzávierky |
 | `owner` | všetko public | všetko interné vrátane nastavení a sponzorov |
+
+Access matrix rozlišuje tri mock režimy: `plný`, `prevádzka` a `prehľad`. Produkčne sa táto logika presunie do reálneho RBAC/RLS modelu, ale UX už teraz ukazuje iba moduly patriace zvolenej role.
 
 ## Bezpečnostné poznámky
 

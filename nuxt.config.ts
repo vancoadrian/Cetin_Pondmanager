@@ -98,6 +98,31 @@ export default defineNuxtConfig({
       navigateFallback: '/',
       globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}'],
       importScripts: ['/sw-push.js'],
+      runtimeCaching: [
+        {
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'rybolov-public-api',
+            expiration: {
+              maxAgeSeconds: 60 * 60,
+              maxEntries: 30,
+            },
+            networkTimeoutSeconds: 3,
+          },
+          urlPattern: /\/api\/(notifications|map|reservations|catches|tournaments)(\/.*)?$/,
+        },
+        {
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'rybolov-source-images',
+            expiration: {
+              maxAgeSeconds: 7 * 24 * 60 * 60,
+              maxEntries: 40,
+            },
+          },
+          urlPattern: /\/images\/.*\.(?:png|jpg|jpeg|webp|svg)$/i,
+        },
+      ],
     },
     devOptions: {
       enabled: true,

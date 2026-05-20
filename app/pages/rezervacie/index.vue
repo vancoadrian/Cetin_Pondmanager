@@ -5,6 +5,16 @@ import type {
   ReservationSubmissionSuccess,
 } from '~/services/reservationApiService'
 import { getValidationMessages, reservationRequestSchema } from '~/schemas/pondSchemas'
+import {
+  enqueueOfflineReservation,
+  getOfflineReservationQueueErrorMessage,
+  markOfflineReservationAttempt,
+  readOfflineReservationQueue,
+  removeOfflineReservation,
+  shouldQueueReservationSubmission,
+  type OfflineReservationPayload,
+  type OfflineReservationQueueItem,
+} from '~/services/offlineReservationQueueService'
 import { getPegAvailability } from '~/utils/availability'
 import { getRentalAvailability } from '~/utils/rentals'
 
@@ -55,6 +65,11 @@ const selectedRentalIds = ref<string[]>(
 const selectedExtraIds = ref<string[]>([])
 const reservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reservationSubmitMessage = ref('')
+const offlineReservationQueue = ref<OfflineReservationQueueItem[]>([])
+const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
+const offlineSyncMessage = ref('')
+const isOnline = ref(true)
+let offlineSyncInProgress = false
 
 const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
 const liveRentalBookings = computed(() => reservationState.value?.rentalBookings ?? rentalBookings)
@@ -162,6 +177,121 @@ const getApiErrorMessage = (error: unknown) => {
   return messages?.join(' ') || fetchError.data?.message || fetchError.data?.statusMessage || 'Žiadosť sa nepodarilo odoslať.'
 }
 
+const createReservationPayload = (data: OfflineReservationPayload): OfflineReservationPayload => ({
+  cabinProductId: data.cabinProductId,
+  contactName: data.contactName,
+  contactPhone: data.contactPhone,
+  dateFrom: data.dateFrom,
+  dateTo: data.dateTo,
+  extraIds: data.extraIds,
+  lake: data.lake,
+  pegId: data.pegId,
+  permitId: data.permitId,
+  rentalIds: data.rentalIds,
+})
+
+const getQueueFallbackErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Offline rezerváciu sa nepodarilo uložiť v zariadení.'
+
+async function refreshOfflineReservationQueue() {
+  if (!import.meta.client) return
+
+  try {
+    offlineReservationQueue.value = await readOfflineReservationQueue()
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function queueOfflineReservation(payload: OfflineReservationPayload) {
+  try {
+    const item = await enqueueOfflineReservation(payload)
+
+    await refreshOfflineReservationQueue()
+    reservationSubmitStatus.value = 'success'
+    reservationSubmitMessage.value = `Slabý signál: žiadosť je uložená v tomto zariadení a odošle sa automaticky. Fronta: ${item.id}.`
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = `Vo fronte čaká ${offlineReservationQueue.value.length} rezervácia.`
+  }
+  catch (error) {
+    reservationSubmitStatus.value = 'error'
+    reservationSubmitMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function discardOfflineReservation(id: string) {
+  try {
+    await removeOfflineReservation(id)
+    await refreshOfflineReservationQueue()
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = 'Offline žiadosť bola odstránená zo zariadenia.'
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
+  if (!import.meta.client || offlineSyncInProgress) return
+
+  isOnline.value = navigator.onLine
+  if (!isOnline.value) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = 'Bez pripojenia nechávam žiadosti bezpečne v zariadení.'
+    return
+  }
+
+  await refreshOfflineReservationQueue()
+  if (offlineReservationQueue.value.length === 0) {
+    if (!options.silent) {
+      offlineSyncStatus.value = 'success'
+      offlineSyncMessage.value = 'Offline fronta rezervácií je prázdna.'
+    }
+    return
+  }
+
+  offlineSyncInProgress = true
+  offlineSyncStatus.value = 'syncing'
+  offlineSyncMessage.value = `Odosielam ${offlineReservationQueue.value.length} offline žiadostí.`
+
+  let syncedCount = 0
+
+  try {
+    for (const queuedReservation of [...offlineReservationQueue.value]) {
+      try {
+        await $fetch<ReservationSubmissionSuccess>('/api/reservations', {
+          body: queuedReservation.payload,
+          method: 'POST',
+        })
+        await removeOfflineReservation(queuedReservation.id)
+        syncedCount += 1
+      }
+      catch (error) {
+        await markOfflineReservationAttempt(
+          queuedReservation.id,
+          getOfflineReservationQueueErrorMessage(error),
+        )
+      }
+    }
+
+    await refreshOfflineReservationQueue()
+    if (syncedCount > 0) {
+      await refreshReservationState()
+    }
+
+    offlineSyncStatus.value = offlineReservationQueue.value.length > 0 ? 'error' : 'success'
+    offlineSyncMessage.value = offlineReservationQueue.value.length > 0
+      ? `${syncedCount} žiadostí odoslaných, ${offlineReservationQueue.value.length} čaká na ďalší pokus.`
+      : `${syncedCount} offline žiadostí bolo odoslaných správcovi.`
+  }
+  finally {
+    offlineSyncInProgress = false
+  }
+}
+
 const cleanSelectedExtras = () => {
   const availableIds = new Set(availableExtras.value.map((extra) => extra.id))
   selectedExtraIds.value = selectedExtraIds.value.filter((id) => availableIds.has(id))
@@ -179,8 +309,9 @@ const submitReservation = async () => {
   reservationSubmitMessage.value = ''
 
   try {
+    const payload = createReservationPayload(validation.data)
     const result = await $fetch<ReservationSubmissionSuccess>('/api/reservations', {
-      body: validation.data,
+      body: payload,
       method: 'POST',
     })
 
@@ -189,10 +320,48 @@ const submitReservation = async () => {
     await refreshReservationState()
   }
   catch (error) {
+    const payload = createReservationPayload(validation.data)
+
+    if (import.meta.client && shouldQueueReservationSubmission(error, navigator.onLine)) {
+      await queueOfflineReservation(payload)
+      return
+    }
+
     reservationSubmitStatus.value = 'error'
     reservationSubmitMessage.value = getApiErrorMessage(error)
   }
 }
+
+function handleOnline() {
+  isOnline.value = true
+  void syncOfflineReservationQueue({ silent: true })
+}
+
+function handleOffline() {
+  isOnline.value = false
+  offlineSyncStatus.value = 'idle'
+  offlineSyncMessage.value = 'Signál vypadol. Nové rezervácie sa uložia v zariadení.'
+}
+
+onMounted(() => {
+  if (!import.meta.client) return
+
+  isOnline.value = navigator.onLine
+  void refreshOfflineReservationQueue().then(() => {
+    if (navigator.onLine && offlineReservationQueue.value.length > 0) {
+      void syncOfflineReservationQueue({ silent: true })
+    }
+  })
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+})
+
+onBeforeUnmount(() => {
+  if (!import.meta.client) return
+
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
+})
 
 watch(selectedLake, () => {
   selectedPegId.value = lakePegs.value[0]?.id ?? ''
@@ -365,6 +534,72 @@ watch(reservationDraft, () => {
         <aside class="space-y-6">
           <div class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
+            <div
+              v-if="!isOnline || offlineReservationQueue.length > 0 || offlineSyncMessage"
+              class="mt-4 rounded-md border p-3"
+              :class="
+                offlineSyncStatus === 'error' || !isOnline
+                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
+                  : 'border-primary-200 bg-primary-50 text-primary-950'
+              "
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                      class="h-5 w-5"
+                    />
+                    <p class="text-sm font-bold">
+                      {{ isOnline ? 'Offline fronta rezervácií' : 'Bez pripojenia pri rezervácii' }}
+                    </p>
+                  </div>
+                  <p class="mt-1 text-sm opacity-80">
+                    {{ offlineSyncMessage || 'Pri výpadku signálu podržíme žiadosť v zariadení a odošleme ju hneď po návrate internetu.' }}
+                  </p>
+                </div>
+                <UButton
+                  v-if="offlineReservationQueue.length > 0"
+                  size="sm"
+                  icon="i-heroicons-arrow-path"
+                  variant="soft"
+                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
+                  :loading="offlineSyncStatus === 'syncing'"
+                  @click="syncOfflineReservationQueue()"
+                >
+                  Odoslať
+                </UButton>
+              </div>
+
+              <div v-if="offlineReservationQueue.length > 0" class="mt-3 space-y-2">
+                <div
+                  v-for="item in offlineReservationQueue"
+                  :key="item.id"
+                  class="flex items-start justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-sm text-foreground"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate font-bold">
+                      {{ item.payload.contactName }} · {{ getPegLabel(item.payload.pegId) }}
+                    </p>
+                    <p class="text-foreground-muted mt-0.5 text-xs">
+                      {{ item.payload.dateFrom }} až {{ item.payload.dateTo }} ·
+                      {{ getLakeName(item.payload.lake) }}
+                    </p>
+                    <p v-if="item.lastError" class="mt-1 text-xs font-semibold text-error-700">
+                      {{ item.lastError }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="text-foreground-muted hover:text-error-700 shrink-0 rounded-md p-1"
+                    aria-label="Odstrániť offline rezerváciu"
+                    @click="discardOfflineReservation(item.id)"
+                  >
+                    <UIcon name="i-heroicons-trash" class="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
             <form class="mt-5 space-y-5">
               <label class="block">
                 <span class="text-sm font-semibold">Jazero</span>

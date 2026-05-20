@@ -71,6 +71,8 @@ Záznam obsahuje:
 
 - `/sutaze` obsahuje verejný aj pracovný náhľad dispečingu napojený na lokálny JSON store.
 - Seed dáta sú v `tournamentMarshals`, `tournamentRequests`, `tournamentCatches`, `tournamentPenalties`, `tournamentRuleChecks`.
+- Tímový formulár na `/sutaze` má klientsku IndexedDB offline frontu. Ak výpadok siete zastaví odoslanie hlásenia, validovaný payload zostane v zariadení, UI ukáže čakajúce hlásenia a po návrate internetu sa fronta odošle na `POST /api/tournament-requests`.
+- `/offline` zobrazuje čakajúce súťažné hlásenia spolu s ostatnými offline položkami, vie ich hromadne odoslať alebo odstrániť zo zariadenia.
 - `/admin/sutaze` zobrazuje súhrn súťažných hlásení, vie priradiť kontrolóra, uzavrieť hlásenie, overiť čakajúce váženie, zapísať trest a zapísať kontrolu pravidiel.
 - Lokálny stav sa ukladá do `.data/rybolov-cetin/tournament-state.json`.
 - Súťažné zásahy sa zapisujú aj do `.data/rybolov-cetin/audit-log.json` a sú viditeľné v `/admin/audit`.
@@ -81,4 +83,5 @@ Záznam obsahuje:
 - Prihlasovanie tímov.
 - Live výsledkovka.
 - Push notifikácie kontrolórom.
+- Offline fronta pre kontrolórske merania a tresty v admin PWA režime.
 - Export výsledkov pre organizátora.

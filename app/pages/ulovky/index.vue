@@ -11,6 +11,16 @@ import {
   MAX_CATCH_PHOTO_BYTES,
   tripLogbookInputSchema,
 } from '~/schemas/pondSchemas'
+import {
+  enqueueOfflineCatch,
+  getOfflineCatchQueueErrorMessage,
+  markOfflineCatchAttempt,
+  readOfflineCatchQueue,
+  removeOfflineCatch,
+  shouldQueueCatchSubmission,
+  type OfflineCatchPayload,
+  type OfflineCatchQueueItem,
+} from '~/services/offlineCatchQueueService'
 
 useHead({ title: 'Úlovky' })
 
@@ -77,6 +87,11 @@ const catchPhotoDraft = ref<{
   sizeBytes: number
 } | null>(null)
 const catchPhotoError = ref('')
+const offlineCatchQueue = ref<OfflineCatchQueueItem[]>([])
+const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
+const offlineSyncMessage = ref('')
+const isOnline = ref(true)
+let offlineSyncInProgress = false
 const logbookModeOptions = Object.entries(tripLogbookModeLabels).map(([value, label]) => ({
   label,
   value: value as LogbookMode,
@@ -267,6 +282,110 @@ const getApiErrorMessage = (error: unknown) => {
   return messages?.join(' ') || fetchError.data?.message || fetchError.data?.statusMessage || 'Zápis sa nepodarilo uložiť.'
 }
 
+const getQueueFallbackErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Offline zápis sa nepodarilo uložiť v zariadení.'
+
+async function refreshOfflineCatchQueue() {
+  if (!import.meta.client) return
+
+  try {
+    offlineCatchQueue.value = await readOfflineCatchQueue()
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function queueOfflineCatch(payload: OfflineCatchPayload) {
+  try {
+    const item = await enqueueOfflineCatch(payload)
+
+    await refreshOfflineCatchQueue()
+    catchSubmitStatus.value = 'success'
+    catchSubmitMessage.value = `Slabý signál: úlovok je uložený v tomto zariadení a odošle sa automaticky. Fronta: ${item.id}.`
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = `Vo fronte čaká ${offlineCatchQueue.value.length} offline zápis.`
+    clearCatchPhoto()
+  }
+  catch (error) {
+    catchSubmitStatus.value = 'error'
+    catchSubmitMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function discardOfflineCatch(id: string) {
+  try {
+    await removeOfflineCatch(id)
+    await refreshOfflineCatchQueue()
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = 'Offline zápis bol odstránený zo zariadenia.'
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function syncOfflineCatchQueue(options: { silent?: boolean } = {}) {
+  if (!import.meta.client || offlineSyncInProgress) return
+
+  isOnline.value = navigator.onLine
+  if (!isOnline.value) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = 'Bez pripojenia nechávam zápisy bezpečne v zariadení.'
+    return
+  }
+
+  await refreshOfflineCatchQueue()
+  if (offlineCatchQueue.value.length === 0) {
+    if (!options.silent) {
+      offlineSyncStatus.value = 'success'
+      offlineSyncMessage.value = 'Offline fronta je prázdna.'
+    }
+    return
+  }
+
+  offlineSyncInProgress = true
+  offlineSyncStatus.value = 'syncing'
+  offlineSyncMessage.value = `Odosielam ${offlineCatchQueue.value.length} offline zápisov.`
+
+  let syncedCount = 0
+
+  try {
+    for (const queuedCatch of [...offlineCatchQueue.value]) {
+      try {
+        const result = await $fetch<CatchSubmissionSuccess>('/api/catches', {
+          body: queuedCatch.payload,
+          method: 'POST',
+        })
+
+        if (result.logbookEntry) {
+          selectedLogbookId.value = result.logbookEntry.logbookId
+        }
+        await removeOfflineCatch(queuedCatch.id)
+        syncedCount += 1
+      }
+      catch (error) {
+        await markOfflineCatchAttempt(queuedCatch.id, getOfflineCatchQueueErrorMessage(error))
+      }
+    }
+
+    await refreshOfflineCatchQueue()
+    if (syncedCount > 0) {
+      await refreshCatchState()
+    }
+
+    offlineSyncStatus.value = offlineCatchQueue.value.length > 0 ? 'error' : 'success'
+    offlineSyncMessage.value = offlineCatchQueue.value.length > 0
+      ? `${syncedCount} zápisov odoslaných, ${offlineCatchQueue.value.length} čaká na ďalší pokus.`
+      : `${syncedCount} offline zápisov bolo odoslaných na schválenie.`
+  }
+  finally {
+    offlineSyncInProgress = false
+  }
+}
+
 const submitLogbook = async () => {
   const validation = logbookValidation.value
   if (!validation.success) {
@@ -311,11 +430,12 @@ const submitCatch = async () => {
   catchSubmitMessage.value = ''
 
   try {
+    const payload: OfflineCatchPayload = {
+      ...validation.data,
+      logbookId: selectedCatchLogbookId.value || undefined,
+    }
     const result = await $fetch<CatchSubmissionSuccess>('/api/catches', {
-      body: {
-        ...validation.data,
-        logbookId: selectedCatchLogbookId.value || undefined,
-      },
+      body: payload,
       method: 'POST',
     })
 
@@ -328,10 +448,51 @@ const submitCatch = async () => {
     await refreshCatchState()
   }
   catch (error) {
+    const payload: OfflineCatchPayload = {
+      ...validation.data,
+      logbookId: selectedCatchLogbookId.value || undefined,
+    }
+
+    if (import.meta.client && shouldQueueCatchSubmission(error, navigator.onLine)) {
+      await queueOfflineCatch(payload)
+      return
+    }
+
     catchSubmitStatus.value = 'error'
     catchSubmitMessage.value = getApiErrorMessage(error)
   }
 }
+
+function handleOnline() {
+  isOnline.value = true
+  void syncOfflineCatchQueue({ silent: true })
+}
+
+function handleOffline() {
+  isOnline.value = false
+  offlineSyncStatus.value = 'idle'
+  offlineSyncMessage.value = 'Signál vypadol. Nové úlovky sa uložia v zariadení.'
+}
+
+onMounted(() => {
+  if (!import.meta.client) return
+
+  isOnline.value = navigator.onLine
+  void refreshOfflineCatchQueue().then(() => {
+    if (navigator.onLine && offlineCatchQueue.value.length > 0) {
+      void syncOfflineCatchQueue({ silent: true })
+    }
+  })
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+})
+
+onBeforeUnmount(() => {
+  if (!import.meta.client) return
+
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
+})
 
 watch(() => logbookForm.lake, () => {
   logbookForm.pegId = logbookPegs.value[0]?.id ?? ''
@@ -668,6 +829,71 @@ watch(catchValidation, () => {
 
           <div class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Pridať úlovok</h2>
+            <div
+              v-if="!isOnline || offlineCatchQueue.length > 0 || offlineSyncMessage"
+              class="mt-4 rounded-md border p-3"
+              :class="
+                offlineSyncStatus === 'error' || !isOnline
+                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
+                  : 'border-primary-200 bg-primary-50 text-primary-950'
+              "
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                      class="h-5 w-5"
+                    />
+                    <p class="text-sm font-bold">
+                      {{ isOnline ? 'Offline fronta úlovkov' : 'Bez pripojenia pri vode' }}
+                    </p>
+                  </div>
+                  <p class="mt-1 text-sm opacity-80">
+                    {{ offlineSyncMessage || 'Pri výpadku signálu uložíme úlovok v zariadení a odošleme ho po návrate internetu.' }}
+                  </p>
+                </div>
+                <UButton
+                  v-if="offlineCatchQueue.length > 0"
+                  size="sm"
+                  icon="i-heroicons-arrow-path"
+                  variant="soft"
+                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
+                  :loading="offlineSyncStatus === 'syncing'"
+                  @click="syncOfflineCatchQueue()"
+                >
+                  Odoslať
+                </UButton>
+              </div>
+
+              <div v-if="offlineCatchQueue.length > 0" class="mt-3 space-y-2">
+                <div
+                  v-for="item in offlineCatchQueue"
+                  :key="item.id"
+                  class="flex items-start justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-sm text-foreground"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate font-bold">
+                      {{ item.payload.species }} {{ item.payload.weightKg }} kg · {{ item.payload.angler }}
+                    </p>
+                    <p class="text-foreground-muted mt-0.5 text-xs">
+                      {{ getPegLabel(item.payload.pegId) }} · {{ formatCatchTime(item.payload.caughtAt) }}
+                    </p>
+                    <p v-if="item.lastError" class="mt-1 text-xs font-semibold text-error-700">
+                      {{ item.lastError }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="text-foreground-muted hover:text-error-700 shrink-0 rounded-md p-1"
+                    aria-label="Odstrániť offline zápis"
+                    @click="discardOfflineCatch(item.id)"
+                  >
+                    <UIcon name="i-heroicons-trash" class="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
             <form class="mt-5 space-y-4" @submit.prevent="submitCatch">
               <label class="block">
                 <span class="text-sm font-semibold">Jazero</span>

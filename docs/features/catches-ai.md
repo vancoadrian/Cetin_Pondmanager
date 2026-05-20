@@ -61,6 +61,7 @@ AI nemá nahradiť správcu. Má pomáhať hľadať kandidátov a nezrovnalosti.
 - Skupinové výpravy majú prvý mock model v `tripLogbooks` a `tripLogbookEntries`.
 - Verejná stránka zobrazuje spoločnú tabuľku partie, členov, váhu a stav fotky pre AI-ready zápisy.
 - Formulár úlovku a skupinového zápisníka používa Zod validácie a zapisuje cez `POST /api/catches` a `POST /api/logbooks`.
+- Formulár úlovku má klientsku offline frontu v IndexedDB. Ak odoslanie zlyhá kvôli výpadku siete, validovaný payload vrátane fotky ostane v zariadení, UI ukáže čakajúce záznamy a po návrate internetu sa fronta odošle na `POST /api/catches`.
 - Nový úlovok sa uloží ako čakajúci na schválenie. Verejný zoznam filtruje iba schválené úlovky.
 - Verejný formulár podporuje JPG, PNG a WebP fotku do 6 MB. Server ju uloží do `.data/rybolov-cetin/catch-photos/` a metadata do `catchPhotos`.
 - Fotka sa číta cez `GET /api/catch-photos/:id`; v produkcii sa tento kontrakt nahradí Supabase Storage URL.
@@ -98,4 +99,5 @@ AI nemá nahradiť správcu. Má pomáhať hľadať kandidátov a nezrovnalosti.
 - Dopracovať asynchrónny adaptér pre konkrétnu meteoslužbu alebo lokálnu stanicu.
 - Po výbere hostingu nastaviť reálny cron schedule nad `/api/cron/catch-reports/run-due`.
 - Napájať upload fotiek na Supabase Storage a pravidlá prístupu podľa schválenia úlovku.
+- Zvážiť samostatný detail offline úlovku v `/offline`, ak bude treba pred odoslaním meniť fotku alebo údaje.
 - Vytvoriť prvý AI job nad `catchPhotos.aiStatus`.

@@ -13,7 +13,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Dáta: typované seed dáta v `app/data/pond.ts`.
 - Dátová vrstva: `usePondData()` číta cez `pondService` a `pondRepository`, seed dáta už nie sú importované priamo v stránkach.
 - Validácie: prvé Zod schémy pre rezervácie, úlovky, skupinové zápisníky, súťažné hlásenia a mapové body.
-- PWA: manifest, ikony, inštalačný prompt, základ service worker.
+- PWA: manifest, ikony, inštalačný prompt, service worker, offline stránka, stavový banner pripojenia a offline fronty pre rezervácie, úlovky a súťažné hlásenia.
 - Branding: finálny pracovný brand je `Rybolov Cetín`, nové SVG logo.
 - Dostupnosť miest: prvý availability engine v `app/utils/availability.ts` napojený na mapu, rezervácie a admin.
 - Požičovňa: prvý kapacitný výpočet v `app/utils/rentals.ts` napojený na verejnú rezerváciu a admin požičovňu.
@@ -51,7 +51,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Pridať lokálny JSON store ako dočasné úložisko pred Supabase. Prvá verzia pre rezervácie, požičovňu, mapový editor, úlovky, skupinové zápisníky a súťažný dispečing je hotová.
 - Doplniť audit log lokálnych a budúcich Supabase mutácií. Prvá lokálna verzia je hotová cez `audit-log.json`, `/admin/audit` a tabuľku `audit_events` v migrácii.
 - Nastaviť RLS politiky podľa rolí.
-- Dopĺňať roly `tournament_organizer`, `accountant` a `worker` popri owner, manager, marshal, tournament team a angler.
+- Dopĺňať roly `tournament_organizer`, `accountant` a `worker` popri owner, manager, marshal, tournament team a angler. Mock admin už má spoločnú access matrix pre navigáciu, dashboard a route guard.
 
 ## Fáza 3: Rezervácie a dostupnosť
 
@@ -76,7 +76,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 
 ## Fáza 5: Súťaže
 
-- Rozšíriť mock dispečing na reálne súťažné role. Lokálny store a API pre hlásenia tímov, priradenie kontrolóra a overenie váženia sú hotové.
+- Rozšíriť mock dispečing na reálne súťažné role. Lokálny store, API a offline fronta pre hlásenia tímov, priradenie kontrolóra a overenie váženia sú hotové.
 - Pridať tímové účty a sektorové priradenie.
 - Zaviesť hlásenia tímov: úlovok, porušenie, technická pomoc, námietka. Prvé public odoslanie hlásenia je hotové.
 - Pridať kontrolórske váženia, tresty, kontroly pravidiel a live rebríček. Prvé admin overenie váženia, formulár trestu a formulár kontroly pravidiel sú hotové.
@@ -87,7 +87,10 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Pripraviť VAPID kľúče. Env miesta pre public/private kľúč sú pripravené.
 - Zaviesť `push_subscriptions`. Prvá lokálna verzia odberov je hotová cez `.data/rybolov-cetin/notification-state.json`.
 - Posielať výstrahy pred búrkou, servisné oznamy, zmeny rezervácie a súťažné udalosti. Mock broadcast pre výstrahy a oznamy je hotový v `/admin/notifikacie`; reálne Web Push odosielanie čaká na provider.
-- Podporiť offline-friendly obrazovky pri vode.
+- Podporiť offline-friendly obrazovky pri vode. `/offline`, stavový banner pripojenia, header badge čakajúcich položiek, runtime cache pre kľúčové public API a centrum všetkých čakajúcich offline položiek sú hotové vrátane chybového stavu, počtu pokusov a preklikov do príslušných formulárov.
+- Pridať offline mutačnú frontu pre úlovky. Prvá verzia je hotová cez klientsku IndexedDB frontu, ktorá pri sieťovom zlyhaní podrží validovaný úlovok aj s fotkou v zariadení a po návrate internetu ho odošle na `POST /api/catches`.
+- Pridať offline mutačnú frontu pre súťažné hlásenia tímov. Prvá verzia je hotová cez klientsku IndexedDB frontu, ktorá pri výpadku podrží privolanie kontrolóra, hlásenie porušenia alebo technickú pomoc a po návrate internetu ho odošle na `POST /api/tournament-requests`.
+- Pridať offline mutačnú frontu pre rezervácie. Prvá verzia je hotová cez klientsku IndexedDB frontu, ktorá pri výpadku podrží žiadosť o miesto, chatu, výbavu a doplnky a po návrate internetu ju odošle na `POST /api/reservations`.
 
 ## Fáza 7: Produkčné nasadenie
 

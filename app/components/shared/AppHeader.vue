@@ -21,6 +21,13 @@ const nav: NavItem[] = [
 const route = useRoute()
 const config = useRuntimeConfig()
 const mobileOpen = ref(false)
+const { total: offlineQueueTotal } = useOfflineQueueSummary()
+
+const offlineQueueLabel = computed(() =>
+  offlineQueueTotal.value === 1
+    ? '1 offline položka čaká na odoslanie'
+    : `${offlineQueueTotal.value} offline položiek čaká na odoslanie`,
+)
 
 watch(
   () => route.fullPath,
@@ -65,6 +72,19 @@ const isActive = (to: string) => {
       </nav>
 
       <div class="flex items-center gap-2">
+        <NuxtLink
+          v-if="offlineQueueTotal > 0"
+          to="/offline"
+          class="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-warning-400 text-primary-950 transition-colors hover:bg-warning-300"
+          :aria-label="offlineQueueLabel"
+        >
+          <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5" />
+          <span
+            class="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-error-600 px-1 text-[11px] font-black leading-none text-white ring-2 ring-primary-900"
+          >
+            {{ offlineQueueTotal > 9 ? '9+' : offlineQueueTotal }}
+          </span>
+        </NuxtLink>
         <UButton
           to="/admin"
           icon="i-heroicons-shield-check"
@@ -101,6 +121,20 @@ const isActive = (to: string) => {
       :ui="{ content: 'max-w-xs' }"
     >
       <template #body>
+        <NuxtLink
+          v-if="offlineQueueTotal > 0"
+          to="/offline"
+          class="mb-3 flex items-center justify-between gap-3 rounded-md border border-warning-300 bg-warning-100 px-3 py-3 text-warning-900"
+          @click="mobileOpen = false"
+        >
+          <span class="flex items-center gap-3 font-bold">
+            <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5" />
+            Offline fronta
+          </span>
+          <span class="rounded-full bg-error-600 px-2 py-0.5 text-xs font-black text-white">
+            {{ offlineQueueTotal }}
+          </span>
+        </NuxtLink>
         <nav class="flex flex-col gap-1">
           <NuxtLink
             v-for="item in nav"

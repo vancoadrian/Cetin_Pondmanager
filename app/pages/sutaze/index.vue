@@ -5,6 +5,16 @@ import type {
   TournamentStateResponse,
 } from '~/services/tournamentApiService'
 import { getValidationMessages, tournamentRequestInputSchema } from '~/schemas/pondSchemas'
+import {
+  enqueueOfflineTournamentRequest,
+  getOfflineTournamentRequestQueueErrorMessage,
+  markOfflineTournamentRequestAttempt,
+  readOfflineTournamentRequestQueue,
+  removeOfflineTournamentRequest,
+  shouldQueueTournamentRequestSubmission,
+  type OfflineTournamentRequestPayload,
+  type OfflineTournamentRequestQueueItem,
+} from '~/services/offlineTournamentRequestQueueService'
 
 useHead({ title: 'Súťaže' })
 
@@ -58,6 +68,11 @@ const requestForm = reactive<{
 })
 const requestSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const requestSubmitMessage = ref('')
+const offlineRequestQueue = ref<OfflineTournamentRequestQueueItem[]>([])
+const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
+const offlineSyncMessage = ref('')
+const isOnline = ref(true)
+let offlineSyncInProgress = false
 
 const requestTypeOptions = Object.entries(tournamentRequestTypeLabels) as [
   TournamentRequest['type'],
@@ -151,6 +166,109 @@ const getApiErrorMessage = (error: unknown) => {
   return messages?.join(' ') || fetchError.data?.message || fetchError.data?.statusMessage || 'Hlásenie sa nepodarilo uložiť.'
 }
 
+const getQueueFallbackErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Offline hlásenie sa nepodarilo uložiť v zariadení.'
+
+async function refreshOfflineRequestQueue() {
+  if (!import.meta.client) return
+
+  try {
+    offlineRequestQueue.value = await readOfflineTournamentRequestQueue()
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function queueOfflineRequest(payload: OfflineTournamentRequestPayload) {
+  try {
+    const item = await enqueueOfflineTournamentRequest(payload)
+
+    await refreshOfflineRequestQueue()
+    requestSubmitStatus.value = 'success'
+    requestSubmitMessage.value = `Slabý signál: hlásenie je uložené v tomto zariadení a odošle sa automaticky. Fronta: ${item.id}.`
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = `Vo fronte čaká ${offlineRequestQueue.value.length} súťažné hlásenie.`
+    requestForm.description = ''
+  }
+  catch (error) {
+    requestSubmitStatus.value = 'error'
+    requestSubmitMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function discardOfflineRequest(id: string) {
+  try {
+    await removeOfflineTournamentRequest(id)
+    await refreshOfflineRequestQueue()
+    offlineSyncStatus.value = 'success'
+    offlineSyncMessage.value = 'Offline hlásenie bolo odstránené zo zariadenia.'
+  }
+  catch (error) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = getQueueFallbackErrorMessage(error)
+  }
+}
+
+async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
+  if (!import.meta.client || offlineSyncInProgress) return
+
+  isOnline.value = navigator.onLine
+  if (!isOnline.value) {
+    offlineSyncStatus.value = 'error'
+    offlineSyncMessage.value = 'Bez pripojenia nechávam hlásenia bezpečne v zariadení.'
+    return
+  }
+
+  await refreshOfflineRequestQueue()
+  if (offlineRequestQueue.value.length === 0) {
+    if (!options.silent) {
+      offlineSyncStatus.value = 'success'
+      offlineSyncMessage.value = 'Offline fronta hlásení je prázdna.'
+    }
+    return
+  }
+
+  offlineSyncInProgress = true
+  offlineSyncStatus.value = 'syncing'
+  offlineSyncMessage.value = `Odosielam ${offlineRequestQueue.value.length} offline hlásení.`
+
+  let syncedCount = 0
+
+  try {
+    for (const queuedRequest of [...offlineRequestQueue.value]) {
+      try {
+        await $fetch<TournamentRequestSubmissionSuccess>('/api/tournament-requests', {
+          body: queuedRequest.payload,
+          method: 'POST',
+        })
+        await removeOfflineTournamentRequest(queuedRequest.id)
+        syncedCount += 1
+      }
+      catch (error) {
+        await markOfflineTournamentRequestAttempt(
+          queuedRequest.id,
+          getOfflineTournamentRequestQueueErrorMessage(error),
+        )
+      }
+    }
+
+    await refreshOfflineRequestQueue()
+    if (syncedCount > 0) {
+      await refreshTournamentState()
+    }
+
+    offlineSyncStatus.value = offlineRequestQueue.value.length > 0 ? 'error' : 'success'
+    offlineSyncMessage.value = offlineRequestQueue.value.length > 0
+      ? `${syncedCount} hlásení odoslaných, ${offlineRequestQueue.value.length} čaká na ďalší pokus.`
+      : `${syncedCount} offline hlásení bolo odoslaných do dispečingu.`
+  }
+  finally {
+    offlineSyncInProgress = false
+  }
+}
+
 const submitRequest = async () => {
   const validation = requestValidation.value
   if (!validation.success) {
@@ -174,10 +292,48 @@ const submitRequest = async () => {
     await refreshTournamentState()
   }
   catch (error) {
+    const payload: OfflineTournamentRequestPayload = validation.data
+
+    if (import.meta.client && shouldQueueTournamentRequestSubmission(error, navigator.onLine)) {
+      await queueOfflineRequest(payload)
+      return
+    }
+
     requestSubmitStatus.value = 'error'
     requestSubmitMessage.value = getApiErrorMessage(error)
   }
 }
+
+function handleOnline() {
+  isOnline.value = true
+  void syncOfflineRequestQueue({ silent: true })
+}
+
+function handleOffline() {
+  isOnline.value = false
+  offlineSyncStatus.value = 'idle'
+  offlineSyncMessage.value = 'Signál vypadol. Nové súťažné hlásenia sa uložia v zariadení.'
+}
+
+onMounted(() => {
+  if (!import.meta.client) return
+
+  isOnline.value = navigator.onLine
+  void refreshOfflineRequestQueue().then(() => {
+    if (navigator.onLine && offlineRequestQueue.value.length > 0) {
+      void syncOfflineRequestQueue({ silent: true })
+    }
+  })
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+})
+
+onBeforeUnmount(() => {
+  if (!import.meta.client) return
+
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
+})
 
 watch(requestValidation, () => {
   if (requestSubmitStatus.value !== 'submitting') {
@@ -257,6 +413,72 @@ watch(requestValidation, () => {
 
           <div class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Privolať kontrolóra</h2>
+            <div
+              v-if="!isOnline || offlineRequestQueue.length > 0 || offlineSyncMessage"
+              class="mt-4 rounded-md border p-3"
+              :class="
+                offlineSyncStatus === 'error' || !isOnline
+                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
+                  : 'border-primary-200 bg-primary-50 text-primary-950'
+              "
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                      class="h-5 w-5"
+                    />
+                    <p class="text-sm font-bold">
+                      {{ isOnline ? 'Offline fronta hlásení' : 'Bez pripojenia pri sektore' }}
+                    </p>
+                  </div>
+                  <p class="mt-1 text-sm opacity-80">
+                    {{ offlineSyncMessage || 'Pri výpadku signálu podržíme hlásenie v zariadení a odošleme ho hneď po návrate internetu.' }}
+                  </p>
+                </div>
+                <UButton
+                  v-if="offlineRequestQueue.length > 0"
+                  size="sm"
+                  icon="i-heroicons-arrow-path"
+                  variant="soft"
+                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
+                  :loading="offlineSyncStatus === 'syncing'"
+                  @click="syncOfflineRequestQueue()"
+                >
+                  Odoslať
+                </UButton>
+              </div>
+
+              <div v-if="offlineRequestQueue.length > 0" class="mt-3 space-y-2">
+                <div
+                  v-for="item in offlineRequestQueue"
+                  :key="item.id"
+                  class="flex items-start justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-sm text-foreground"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate font-bold">
+                      {{ tournamentRequestTypeLabels[item.payload.type] }} ·
+                      {{ sectorById(item.payload.sectorId)?.label ?? item.payload.sectorId }}
+                    </p>
+                    <p class="text-foreground-muted mt-0.5 text-xs">
+                      {{ sectorById(item.payload.sectorId)?.team ?? 'tím čaká na synchronizáciu' }}
+                    </p>
+                    <p v-if="item.lastError" class="mt-1 text-xs font-semibold text-error-700">
+                      {{ item.lastError }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="text-foreground-muted hover:text-error-700 shrink-0 rounded-md p-1"
+                    aria-label="Odstrániť offline hlásenie"
+                    @click="discardOfflineRequest(item.id)"
+                  >
+                    <UIcon name="i-heroicons-trash" class="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
             <form class="mt-5 space-y-4" @submit.prevent="submitRequest">
               <label class="block">
                 <span class="text-sm font-semibold">Sektor tímu</span>

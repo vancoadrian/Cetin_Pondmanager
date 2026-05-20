@@ -61,6 +61,8 @@ Výsledok má byť vysvetliteľný. Admin aj rybár musia vidieť, prečo miesto
 - Uloženie rozhodnutia v `/admin/rezervacie` mení lokálny stav rezervácie a výpožičiek, takže sa prepočítajú štatistiky aj kalendár bez reloadu.
 - Rozhodovacia logika schváliť/telefonát/zamietnuť je presunutá do `reservationWorkflowService` a composable `useAdminReservationWorkflow`.
 - Verejná žiadosť používa `reservationRequestSchema` zo Zod validácií a odosiela sa na `POST /api/reservations`.
+- Verejný formulár má klientsku IndexedDB offline frontu. Ak odoslanie zlyhá kvôli výpadku siete, payload žiadosti o miesto, chatu, výbavu a doplnky zostane v zariadení a po návrate internetu sa odošle na `POST /api/reservations`.
+- `/offline` zobrazuje čakajúce rezervácie spolu s ostatnými offline položkami, vie ich hromadne odoslať alebo odstrániť zo zariadenia.
 - Serverová vrstva používa `reservationApiService`, znovu odvodí dostupnosť miesta, chatu a požičovne z lokálne uloženého stavu a netrustuje klientsky stav.
 - `GET /api/reservations` vracia aktuálny lokálny stav rezervácií a výpožičiek.
 - Admin endpoint `POST /api/admin/reservations/:id/decision` zapisuje rozhodnutie do lokálneho JSON store a má rovnaký tvar ako budúca mutácia schválenia rezervácie.
@@ -78,3 +80,4 @@ Výsledok má byť vysvetliteľný. Admin aj rybár musia vidieť, prečo miesto
 - Persistovať položky požičovne a doplnky ako `reservation_items`.
 - Email/SMS/push potvrdenia cez Resend alebo iného providera podľa rozhodnutia prevádzkovateľa.
 - Doplniť prepínače platobných metód do admin nastavení.
+- Doriešiť notifikáciu používateľovi, ak offline rezervácia po návrate internetu narazí na konflikt dostupnosti.

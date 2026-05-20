@@ -3,6 +3,7 @@ import { getPegAvailability } from '~/utils/availability'
 
 useHead({ title: 'Admin' })
 
+const route = useRoute()
 const {
   getLakeName,
   lakeClosures,
@@ -18,6 +19,8 @@ const {
 
 const { logout, user } = useMockAuth()
 
+const allowedAdminModules = computed(() => getAdminModulesForRole(user.value?.role))
+const deniedModuleLabel = computed(() => typeof route.query.denied === 'string' ? route.query.denied : '')
 const pendingReservations = computed(() =>
   reservations.filter((reservation) => reservation.status === 'pending'),
 )
@@ -55,11 +58,46 @@ async function signOut() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="deniedModuleLabel"
+        class="mb-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-4 text-warning-800"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-sm font-bold">Tento mock používateľ nemá prístup do modulu {{ deniedModuleLabel }}.</p>
+            <p class="mt-1 text-sm">
+              V produkcii to nahradí RBAC a RLS nad Supabase. Teraz ťa dashboard podrží v moduloch, ktoré patria zvolenej role.
+            </p>
+          </div>
+          <UButton to="/login" color="warning" variant="soft" icon="i-heroicons-user-circle">
+            Zmeniť rolu
+          </UButton>
+        </div>
+      </div>
+
       <div class="mb-6 flex flex-col gap-4 rounded-card border border-border bg-primary-900 p-5 text-white lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p class="text-sm font-semibold text-accent-300">Prihlásený mock používateľ</p>
-          <h2 class="mt-1 text-2xl font-bold">{{ user?.name }}</h2>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-bold">{{ user?.name }}</h2>
+            <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-accent-300">
+              {{ user?.roleLabel }}
+            </span>
+          </div>
           <p class="mt-1 text-sm text-white/75">{{ user?.description }}</p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <span
+              v-for="module in allowedAdminModules"
+              :key="module.id"
+              class="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white"
+            >
+              <UIcon :name="module.icon" class="h-3.5 w-3.5 text-accent-300" />
+              {{ module.label }}
+              <span class="text-white/55">
+                {{ adminAccessModeLabels[getAdminModuleAccess(module, user?.role)!] }}
+              </span>
+            </span>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2">
           <UButton to="/" color="neutral" variant="outline" class="border-white/30 bg-white/10 text-white hover:bg-white/15">
