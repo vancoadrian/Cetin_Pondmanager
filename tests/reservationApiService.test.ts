@@ -3,6 +3,8 @@ import {
   submitReservationDecision,
   submitReservationRequest,
 } from '~/app/services/reservationApiService'
+import { createMockPondRepository, createPondSnapshot } from '~/app/repositories/pondRepository'
+import { createPondService } from '~/app/services/pondService'
 
 const validPayload = {
   cabinProductId: 'client-value-is-derived-again-on-server',
@@ -46,6 +48,34 @@ describe('submitReservationRequest', () => {
     if (result.ok) throw new Error('Reservation request should be invalid.')
 
     expect(result.statusCode).toBe(422)
+    expect(result.messages).toContain('Vybrané miesto nie je v zvolenom termíne rezervovateľné.')
+  })
+
+  it('uses injected closure state when validating a reservation request', () => {
+    const service = createPondService(
+      createMockPondRepository(
+        createPondSnapshot({
+          lakeClosures: [
+            {
+              affectsReservations: true,
+              from: '2026-06-10',
+              id: 'closure-api-test',
+              lake: 'velky-cetin',
+              notes: 'Dynamická lokálna uzávierka.',
+              reason: 'maintenance',
+              title: 'Dynamická údržba',
+              to: '2026-06-12',
+              visibility: 'internal',
+            },
+          ],
+        }),
+      ),
+    )
+    const result = submitReservationRequest(validPayload, service)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Reservation request should be blocked by injected closure.')
+
     expect(result.messages).toContain('Vybrané miesto nie je v zvolenom termíne rezervovateľné.')
   })
 

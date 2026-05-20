@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MapShape, Peg } from '~/data/pond'
+import type { LakeClosure, MapShape, Peg, Reservation } from '~/data/pond'
 import { getPegAvailability } from '~/utils/availability'
 import {
   clampMapPercent,
@@ -15,17 +15,21 @@ import {
 
 const props = withDefaults(
   defineProps<{
+    closures?: LakeClosure[]
     editable?: boolean
     image?: string
     points: Peg[]
+    reservations?: Reservation[]
     selectedId?: string
     shapes?: MapShape[]
     title: string
   }>(),
   {
+    closures: undefined,
     editable: false,
     image: '',
     selectedId: '',
+    reservations: undefined,
     shapes: () => [],
   },
 )
@@ -35,7 +39,9 @@ const emit = defineEmits<{
   movePoint: [payload: { id: string, x: number, y: number }]
 }>()
 
-const { lakeClosures, reservations } = usePondData()
+const { lakeClosures, reservations: seedReservations } = usePondData()
+const activeClosures = computed(() => props.closures ?? lakeClosures)
+const activeReservations = computed(() => props.reservations ?? seedReservations)
 
 const svgRef = ref<SVGSVGElement | null>(null)
 const draggingId = ref<string>()
@@ -52,7 +58,7 @@ function pointerToMapPoint(event: PointerEvent) {
 }
 
 function markerStyle(point: Peg) {
-  const availability = getPegAvailability(point, { closures: lakeClosures, reservations })
+  const availability = getPegAvailability(point, { closures: activeClosures.value, reservations: activeReservations.value })
   return getMapMarkerStyle(availability.status)
 }
 

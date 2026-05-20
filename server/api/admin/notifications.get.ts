@@ -1,8 +1,11 @@
 import { defineEventHandler } from 'h3'
 import type { NotificationStateResponse } from '~/services/notificationService'
+import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalNotificationState } from '../../utils/localNotificationStore'
 
-export default defineEventHandler(async (): Promise<NotificationStateResponse> => {
+export default defineEventHandler(async (event): Promise<NotificationStateResponse> => {
+  requireAdminAccess(event, { moduleId: 'notifications' })
+
   const state = await readLocalNotificationState()
 
   return {

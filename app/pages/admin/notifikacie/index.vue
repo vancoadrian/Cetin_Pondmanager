@@ -23,6 +23,12 @@ const { data: notificationState, refresh: refreshNotifications } = await useAsyn
     default: fallbackNotificationState,
   },
 )
+const {
+  canOperate: canOperateNotifications,
+  isReadOnly: notificationsReadOnly,
+  label: notificationAccessLabel,
+  readOnlyMessage: notificationReadOnlyMessage,
+} = useAdminModuleAccess('notifications')
 const broadcastForm = reactive({
   body: 'O 18:30 sa očakáva prechod búrkového pásma. Skontrolujte bivaky a počas bleskov nemanipulujte s prútmi.',
   severity: 'storm' as AlertSeverity,
@@ -69,6 +75,12 @@ function getApiErrorMessage(error: unknown, fallback = 'Notifikáciu sa nepodari
 }
 
 async function submitBroadcast() {
+  if (!canOperateNotifications.value) {
+    broadcastSubmitStatus.value = 'error'
+    broadcastSubmitMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+
   broadcastSubmitStatus.value = 'submitting'
   broadcastSubmitMessage.value = ''
 
@@ -100,6 +112,14 @@ async function submitBroadcast() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="notificationsReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ notificationAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ notificationReadOnlyMessage }}</p>
+      </div>
+
       <div class="grid gap-4 md:grid-cols-3">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Aktívne odbery</p>
@@ -125,64 +145,67 @@ async function submitBroadcast() {
             Vytvorí verejný oznam a pripraví push broadcast pre zvolené okruhy.
           </p>
 
-          <div class="mt-5 grid gap-3">
-            <label class="block">
-              <span class="text-sm font-semibold">Nadpis</span>
-              <input
-                v-model="broadcastForm.title"
-                type="text"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-              >
-            </label>
-            <label class="block">
-              <span class="text-sm font-semibold">Text</span>
-              <textarea
-                v-model="broadcastForm.body"
-                rows="4"
-                class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
-              />
-            </label>
-            <div class="grid gap-3 sm:grid-cols-2">
+          <fieldset :disabled="!canOperateNotifications" class="contents">
+            <div class="mt-5 grid gap-3">
               <label class="block">
-                <span class="text-sm font-semibold">Typ</span>
-                <select
-                  v-model="broadcastForm.severity"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                >
-                  <option value="storm">búrka</option>
-                  <option value="water">voda/vietor</option>
-                  <option value="service">prevádzka</option>
-                  <option value="info">info</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Platné do</span>
+                <span class="text-sm font-semibold">Nadpis</span>
                 <input
-                  v-model="broadcastForm.validUntil"
+                  v-model="broadcastForm.title"
                   type="text"
                   class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
               </label>
-            </div>
-            <div>
-              <p class="text-sm font-semibold">Okruhy</p>
-              <div class="mt-2 flex flex-wrap gap-3 text-sm">
-                <label v-for="topic in availableTopics" :key="topic" class="flex items-center gap-2">
-                  <input
-                    v-model="broadcastForm.targetTopics"
-                    :value="topic"
-                    type="checkbox"
-                    class="h-4 w-4 accent-primary-700"
+              <label class="block">
+                <span class="text-sm font-semibold">Text</span>
+                <textarea
+                  v-model="broadcastForm.body"
+                  rows="4"
+                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Typ</span>
+                  <select
+                    v-model="broadcastForm.severity"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
-                  {{ pushSubscriptionTopicLabels[topic] }}
+                    <option value="storm">búrka</option>
+                    <option value="water">voda/vietor</option>
+                    <option value="service">prevádzka</option>
+                    <option value="info">info</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Platné do</span>
+                  <input
+                    v-model="broadcastForm.validUntil"
+                    type="text"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
                 </label>
               </div>
+              <div>
+                <p class="text-sm font-semibold">Okruhy</p>
+                <div class="mt-2 flex flex-wrap gap-3 text-sm">
+                  <label v-for="topic in availableTopics" :key="topic" class="flex items-center gap-2">
+                    <input
+                      v-model="broadcastForm.targetTopics"
+                      :value="topic"
+                      type="checkbox"
+                      class="h-4 w-4 accent-primary-700"
+                    >
+                    {{ pushSubscriptionTopicLabels[topic] }}
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
+          </fieldset>
 
           <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <UButton
               icon="i-heroicons-paper-airplane"
+              :disabled="!canOperateNotifications"
               :loading="broadcastSubmitStatus === 'submitting'"
               @click="submitBroadcast"
             >

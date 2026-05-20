@@ -2,6 +2,12 @@
 useHead({ title: 'Admin sponzori' })
 
 const { sponsors } = usePondData()
+const {
+  canOperate: canOperateSponsors,
+  isReadOnly: sponsorsReadOnly,
+  label: sponsorAccessLabel,
+  readOnlyMessage: sponsorReadOnlyMessage,
+} = useAdminModuleAccess('sponsors')
 
 const tierLabels = {
   main: 'hlavný',
@@ -25,6 +31,14 @@ const inactiveSponsors = computed(() => sponsors.filter((sponsor) => !sponsor.ac
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="sponsorsReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ sponsorAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ sponsorReadOnlyMessage }}</p>
+      </div>
+
       <div class="grid gap-4 md:grid-cols-3">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Aktívni</p>
@@ -47,7 +61,7 @@ const inactiveSponsors = computed(() => sponsors.filter((sponsor) => !sponsor.ac
               <h2 class="text-lg font-bold">Partneri</h2>
               <p class="text-foreground-muted text-sm">Public stránka zobrazuje iba aktívnych partnerov.</p>
             </div>
-            <UButton icon="i-heroicons-plus" variant="soft">Pridať sponzora</UButton>
+            <UButton icon="i-heroicons-plus" variant="soft" :disabled="!canOperateSponsors">Pridať sponzora</UButton>
           </div>
 
           <div class="mt-5 space-y-3">
@@ -85,24 +99,26 @@ const inactiveSponsors = computed(() => sponsors.filter((sponsor) => !sponsor.ac
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Nový partner</h2>
             <form class="mt-4 space-y-4">
-              <label class="block">
-                <span class="text-sm font-semibold">Názov</span>
-                <input class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="Názov partnera">
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Tier</span>
-                <select class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
-                  <option>hlavný partner</option>
-                  <option>partner revíru</option>
-                  <option>partner súťaže</option>
-                  <option>sektorový partner</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Umiestnenie</span>
-                <input class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="homepage, sektor B4...">
-              </label>
-              <UButton type="button" icon="i-heroicons-plus" block>Uložiť mock partnera</UButton>
+              <fieldset :disabled="!canOperateSponsors" class="contents">
+                <label class="block">
+                  <span class="text-sm font-semibold">Názov</span>
+                  <input class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="Názov partnera">
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Tier</span>
+                  <select class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                    <option>hlavný partner</option>
+                    <option>partner revíru</option>
+                    <option>partner súťaže</option>
+                    <option>sektorový partner</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Umiestnenie</span>
+                  <input class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="homepage, sektor B4...">
+                </label>
+              </fieldset>
+              <UButton type="button" icon="i-heroicons-plus" block :disabled="!canOperateSponsors">Uložiť mock partnera</UButton>
             </form>
           </div>
 

@@ -1,10 +1,20 @@
 <script setup lang="ts">
+import { getPegAvailability } from '~/utils/availability'
+
 useHead({ title: 'Prehľad' })
 
 const { alerts, catches, getLakeName, getPegLabel, lakes, pegs, reservations } = usePondData()
+const { liveClosures } = await useClosureState({ key: 'public-home-closure-state' })
 
-const availableCount = computed(() => pegs.filter((peg) => peg.status === 'free').length)
-const reservedCount = computed(() => pegs.filter((peg) => peg.status === 'reserved').length)
+const livePegAvailabilityRows = computed(() =>
+  pegs.map((peg) => getPegAvailability(peg, { closures: liveClosures.value, reservations })),
+)
+const availableCount = computed(() =>
+  livePegAvailabilityRows.value.filter((availability) => availability.reservable).length,
+)
+const reservedCount = computed(() =>
+  livePegAvailabilityRows.value.filter((availability) => !availability.reservable).length,
+)
 const cabinCount = computed(() => pegs.filter((peg) => peg.type === 'cabin').length)
 const latestCatches = computed(() => catches.filter((catchItem) => catchItem.status === 'approved').slice(0, 3))
 const todayReservations = computed(() => reservations.slice(0, 4))
@@ -106,7 +116,9 @@ const activeAlert = alerts[0]!
           <LakeMap
             title="Veľký Cetín"
             image="/images/source-web/velky-cetin-map-original.jpg"
+            :closures="liveClosures"
             :points="pegs.filter((peg) => peg.lake === 'velky-cetin')"
+            :reservations="reservations"
             selected-id="vc-03"
           />
         </div>

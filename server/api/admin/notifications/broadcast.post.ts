@@ -3,11 +3,14 @@ import {
   createNotificationBroadcast,
   type NotificationBroadcastSuccess,
 } from '~/services/notificationService'
+import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '../../../utils/localNotificationStore'
 
 export default defineEventHandler(async (event): Promise<NotificationBroadcastSuccess> => {
+  requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
+
   const state = await readLocalNotificationState()
   const actor = resolveAuditActor(event)
   const result = createNotificationBroadcast(await readBody(event), state, actor.actorLabel)

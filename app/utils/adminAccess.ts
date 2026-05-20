@@ -45,6 +45,38 @@ export const adminAccessModeDescriptions: Record<AdminAccessMode, string> = {
   read: 'Má prehľad bez plného prevádzkového rozhodovania.',
 }
 
+const accessRank: Record<AdminAccessMode, number> = {
+  read: 1,
+  operate: 2,
+  full: 3,
+}
+
+const mockAdminRoles = [
+  'owner',
+  'manager',
+  'organizer',
+  'marshal',
+  'team',
+  'accountant',
+  'worker',
+] as const satisfies readonly MockRole[]
+
+export interface AdminApiAccessRequirement {
+  mode?: AdminAccessMode
+  moduleId: AdminModuleId
+}
+
+export interface AdminApiAccessDecision {
+  allowed: boolean
+  currentMode?: AdminAccessMode
+  moduleId: AdminModuleId
+  moduleLabel: string
+  requiredMode: AdminAccessMode
+  role?: MockRole
+  statusCode?: 401 | 403
+  statusMessage?: string
+}
+
 export const adminModules: AdminModuleDefinition[] = [
   {
     id: 'dashboard',
@@ -185,6 +217,30 @@ export function getAdminModuleAccess(module: AdminModuleDefinition, role?: MockR
   return module.access[role]
 }
 
+export function findAdminModuleById(moduleId: AdminModuleId) {
+  return adminModules.find((module) => module.id === moduleId)
+}
+
+export function hasAdminAccessMode(mode: AdminAccessMode | undefined, required: AdminAccessMode) {
+  if (!mode) return false
+
+  return accessRank[mode] >= accessRank[required]
+}
+
+export function canOperateAdminModule(role: MockRole | undefined | null, moduleId: AdminModuleId) {
+  const module = findAdminModuleById(moduleId)
+  if (!module) return false
+
+  return hasAdminAccessMode(getAdminModuleAccess(module, role), 'operate')
+}
+
+export function canManageAdminModule(role: MockRole | undefined | null, moduleId: AdminModuleId) {
+  const module = findAdminModuleById(moduleId)
+  if (!module) return false
+
+  return hasAdminAccessMode(getAdminModuleAccess(module, role), 'full')
+}
+
 export function findAdminModuleByPath(path: string) {
   const normalizedPath = path.replace(/\/$/, '') || '/admin'
 
@@ -202,4 +258,39 @@ export function canAccessAdminPath(role: MockRole | undefined | null, path: stri
   if (!module) return false
 
   return Boolean(getAdminModuleAccess(module, role))
+}
+
+export function isMockAdminRole(value: string | null | undefined): value is MockRole {
+  return typeof value === 'string' && mockAdminRoles.includes(value as MockRole)
+}
+
+export function getAdminApiAccessDecision(
+  role: MockRole | undefined,
+  requirement: AdminApiAccessRequirement,
+): AdminApiAccessDecision {
+  const requiredMode = requirement.mode ?? 'read'
+  const module = findAdminModuleById(requirement.moduleId)
+  const currentMode = module ? getAdminModuleAccess(module, role) : undefined
+
+  if (module && hasAdminAccessMode(currentMode, requiredMode)) {
+    return {
+      allowed: true,
+      currentMode,
+      moduleId: requirement.moduleId,
+      moduleLabel: module.label,
+      requiredMode,
+      role,
+    }
+  }
+
+  return {
+    allowed: false,
+    currentMode,
+    moduleId: requirement.moduleId,
+    moduleLabel: module?.label ?? requirement.moduleId,
+    requiredMode,
+    role,
+    statusCode: role ? 403 : 401,
+    statusMessage: role ? 'Admin access denied' : 'Admin login required',
+  }
 }

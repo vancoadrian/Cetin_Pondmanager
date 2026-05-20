@@ -4,12 +4,15 @@ import {
   type CatchReportEmailDraftSuccess,
 } from '~/services/catchReportService'
 import { pondService } from '~/services/pondService'
+import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
 import { readLocalCatchState } from '../../../../utils/localCatchStore'
 import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import { readLocalCatchReportState, writeLocalCatchReportState } from '../../../../utils/localCatchReportStore'
 
 export default defineEventHandler(async (event): Promise<CatchReportEmailDraftSuccess> => {
+  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+
   const reportId = getRouterParam(event, 'id') ?? ''
   const [reportState, catchState] = await Promise.all([
     readLocalCatchReportState(),

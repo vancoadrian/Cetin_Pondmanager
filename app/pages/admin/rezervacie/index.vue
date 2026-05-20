@@ -15,7 +15,6 @@ const {
   cabinProducts,
   getLakeName,
   getPegLabel,
-  lakeClosures,
   pegs,
   permitProducts,
   rentalBookings,
@@ -37,6 +36,13 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
     default: fallbackReservationState,
   },
 )
+const { liveClosures } = await useClosureState({ admin: true, key: 'admin-reservation-closure-state' })
+const {
+  canOperate: canOperateReservations,
+  isReadOnly: reservationsReadOnly,
+  label: reservationAccessLabel,
+  readOnlyMessage: reservationReadOnlyMessage,
+} = useAdminModuleAccess('reservations')
 
 const selectedLake = ref<LakeSlug | 'all'>('all')
 const {
@@ -107,13 +113,13 @@ const reservationStats = computed(() => ({
 }))
 
 const conflictingClosures = computed(() =>
-  lakeClosures.filter((closure) => closure.affectsReservations),
+  liveClosures.value.filter((closure) => closure.affectsReservations),
 )
 const pegAvailabilityRows = computed(() =>
   pegs
     .filter((peg) => selectedLake.value === 'all' || peg.lake === selectedLake.value)
     .map((peg) => ({
-      availability: getPegAvailability(peg, { closures: lakeClosures, reservations: adminReservations.value }),
+      availability: getPegAvailability(peg, { closures: liveClosures.value, reservations: adminReservations.value }),
       peg,
     })),
 )
@@ -125,7 +131,7 @@ const calendarRows = computed(() =>
     peg,
     cells: calendarDays.value.map((day) => {
       const availability = getPegAvailability(peg, {
-        closures: lakeClosures,
+        closures: liveClosures.value,
         dateFrom: day.iso,
         dateTo: day.iso,
         reservations: adminReservations.value,
@@ -176,7 +182,7 @@ const selectedAvailability = computed(() => {
   if (!reservation || !selectedPeg.value) return undefined
 
   return getPegAvailability(selectedPeg.value, {
-    closures: lakeClosures,
+    closures: liveClosures.value,
     dateFrom: reservation.from,
     dateTo: reservation.to,
     reservations: adminReservations.value.filter((item) => item.id !== reservation.id),
@@ -186,7 +192,7 @@ const selectedClosureConflicts = computed(() => {
   const reservation = selectedReservation.value
   if (!reservation) return []
 
-  return lakeClosures.filter((closure) => {
+  return liveClosures.value.filter((closure) => {
     const targetsLake = closure.lake === 'all' || closure.lake === reservation.lake
     const targetsPeg = !closure.pegIds || closure.pegIds.includes(reservation.pegId)
 
@@ -308,6 +314,11 @@ const calendarCellClass = (status: string, selected?: boolean) => {
 const saveDecision = () => {
   const reservation = selectedReservation.value
   if (!reservation) return
+  if (!canOperateReservations.value) {
+    decisionSubmitStatus.value = 'error'
+    decisionSubmitMessage.value = reservationReadOnlyMessage.value
+    return
+  }
 
   decisionSubmitStatus.value = 'submitting'
   decisionSubmitMessage.value = ''
@@ -355,6 +366,14 @@ const saveDecision = () => {
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
+
+      <div
+        v-if="reservationsReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ reservationAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ reservationReadOnlyMessage }}</p>
+      </div>
 
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
@@ -647,6 +666,7 @@ const saveDecision = () => {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canOperateReservations"
                   :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-white'"
                   @click="decisionMode = 'approve'"
                 >
@@ -655,6 +675,7 @@ const saveDecision = () => {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canOperateReservations"
                   :class="decisionMode === 'call' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-white'"
                   @click="decisionMode = 'call'"
                 >
@@ -663,6 +684,7 @@ const saveDecision = () => {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canOperateReservations"
                   :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-white'"
                   @click="decisionMode = 'reject'"
                 >
@@ -675,6 +697,7 @@ const saveDecision = () => {
                 <textarea
                   v-model="adminNoteDraft"
                   rows="4"
+                  :readonly="!canOperateReservations"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -683,7 +706,7 @@ const saveDecision = () => {
                   data-testid="save-reservation-decision"
                   icon="i-heroicons-check"
                   variant="soft"
-                  :disabled="decisionSubmitStatus === 'submitting'"
+                  :disabled="!canOperateReservations || decisionSubmitStatus === 'submitting'"
                   :loading="decisionSubmitStatus === 'submitting'"
                   @click="saveDecision"
                 >

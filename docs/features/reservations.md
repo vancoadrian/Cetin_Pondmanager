@@ -51,6 +51,7 @@ Dostupnosť sa musí vypočítať z viacerých zdrojov:
 - kapacita požičovne.
 
 Výsledok má byť vysvetliteľný. Admin aj rybár musia vidieť, prečo miesto nie je dostupné.
+Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pri odoslaní opäť číta plný lokálny closure store. Interné blokácie sa rybárovi zobrazujú iba ako blokovaný termín bez internej poznámky, ale stále blokujú rezerváciu.
 
 ## Stav v prototype
 
@@ -66,6 +67,7 @@ Výsledok má byť vysvetliteľný. Admin aj rybár musia vidieť, prečo miesto
 - Serverová vrstva používa `reservationApiService`, znovu odvodí dostupnosť miesta, chatu a požičovne z lokálne uloženého stavu a netrustuje klientsky stav.
 - `GET /api/reservations` vracia aktuálny lokálny stav rezervácií a výpožičiek.
 - Admin endpoint `POST /api/admin/reservations/:id/decision` zapisuje rozhodnutie do lokálneho JSON store a má rovnaký tvar ako budúca mutácia schválenia rezervácie.
+- Uzávierky sa ukladajú cez `/api/admin/closures` do `.data/rybolov-cetin/closure-state.json` a rezervačný endpoint ich používa pri kontrole dostupnosti.
 - Platobné metódy sú pripravené v modeli ako zapínateľný zoznam: hotovosť, prevod a vypnutá budúca brána.
 - Požičovňa má termínový výpočet dostupnosti cez `rentalBookings` a `getRentalAvailability`.
 - `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín.

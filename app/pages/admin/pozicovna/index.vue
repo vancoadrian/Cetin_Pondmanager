@@ -4,6 +4,12 @@ import { getRentalAvailability } from '~/utils/rentals'
 useHead({ title: 'Admin požičovňa' })
 
 const { getLakeName, getPegLabel, rentalBookings, rentalItems, reservationExtras, reservations } = usePondData()
+const {
+  canOperate: canOperateRentals,
+  isReadOnly: rentalsReadOnly,
+  label: rentalAccessLabel,
+  readOnlyMessage: rentalReadOnlyMessage,
+} = useAdminModuleAccess('rentals')
 
 const rangeFrom = ref('2026-05-16')
 const rangeTo = ref('2026-05-18')
@@ -48,6 +54,14 @@ const rangeAvailableStock = computed(() =>
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="rentalsReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ rentalAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ rentalReadOnlyMessage }}</p>
+      </div>
+
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Položky výbavy</p>
@@ -74,7 +88,7 @@ const rangeAvailableStock = computed(() =>
               <h2 class="text-lg font-bold">Sklad výbavy</h2>
               <p class="text-foreground-muted text-sm">Ceny a sklad sú mock, dostupnosť sa už počíta podľa rezervácií.</p>
             </div>
-            <UButton icon="i-heroicons-plus" variant="soft">Pridať položku</UButton>
+            <UButton icon="i-heroicons-plus" variant="soft" :disabled="!canOperateRentals">Pridať položku</UButton>
           </div>
 
           <div class="mt-5 grid gap-3 rounded-md bg-muted p-3 sm:grid-cols-2">

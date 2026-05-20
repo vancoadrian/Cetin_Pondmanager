@@ -63,7 +63,7 @@ Interná časť obsahuje admin dashboard, uzávierky, schvaľovanie rezervácií
 Notifikačná vrstva má prechodový lokálny store `.data/rybolov-cetin/notification-state.json`. Verejná PWA stránka ukladá odbery zariadení cez `/api/notifications/subscribe`, vie ich vypnúť cez `/api/notifications/unsubscribe` a číta aktívne oznamy cez `/api/notifications`. Admin `/admin/notifikacie` pripravuje nový verejný oznam a mock broadcast cez `/api/admin/notifications/broadcast`; broadcast zatiaľ počíta cieľové odbery podľa okruhov a zapisuje audit udalosť, reálny Web Push dispatcher príde po doplnení VAPID kľúčov.
 
 Offline režim je riešený v app shelli cez `ConnectionStatusBanner`, stránkou `/offline` a Workbox runtime cache. Verejné API pre výstrahy, mapu, rezervácie, úlovky a súťaže používa `NetworkFirst` cache s krátkym timeoutom, obrázky revíru používajú `StaleWhileRevalidate`. Verejné formuláre používajú spoločnú IndexedDB databázu `rybolov-cetin-offline` cez `offlineQueueDb`, ktorá drží samostatné store pre rezervácie, úlovky a súťažné hlásenia. Sieťové zlyhanie bez HTTP statusu uloží validovaný payload do zariadenia, návrat online stavu spustí opakované odoslanie na `POST /api/reservations`, `POST /api/catches` alebo `POST /api/tournament-requests` a záznam zostáva vo fronte, ak ho server odmietne validáciou. Stránka `/offline` je zároveň centrum fronty: vie spočítať všetky čakajúce položky, zvýrazniť položky na kontrolu, zobraziť počet pokusov a poslednú chybu, prekliknúť späť do formulára, odstrániť jednotlivé položky a ručne spustiť hromadné odoslanie. `useOfflineQueueSummary` číta počty front pre app shell a `OFFLINE_QUEUE_CHANGED_EVENT` aktualizuje header badge po lokálnych zmenách fronty.
-V prototype je interná časť mocknutá cez cookie login. Spoločná access matrix v `app/utils/adminAccess.ts` riadi admin navigáciu, dashboardové popisy prístupov a route guard pre interné moduly. Produkčne ju nahradí auth, role-based access control a row-level security.
+V prototype je interná časť mocknutá cez cookie login. Spoločná access matrix v `app/utils/adminAccess.ts` riadi admin navigáciu, dashboardové popisy prístupov a route guard pre interné moduly. `useAdminModuleAccess()` premieta režimy `plný`, `prevádzka` a `prehľad` do prvých zápisových akcií vo všetkých hlavných admin moduloch; exporty úlovkov ostávajú dostupné aj pre účtovnícky read-only režim. Rovnakú matrix používa `server/utils/adminAccessGuard.ts` pre `/api/admin/*`, takže server rozlišuje neprihlásený stav `401` a nedostatočné oprávnenie `403`. Produkčne ju nahradí auth, role-based access control a row-level security.
 
 ## Dátová vrstva v prototype
 
@@ -82,6 +82,7 @@ Weather snapshot pri nových úlovkoch rieši `app/services/catchWeatherService.
 
 Admin schvaľovanie rezervácií má prvú mutačnú service vrstvu v `app/services/reservationWorkflowService.ts`.
 Obrazovka `/admin/rezervacie` ju používa cez `useAdminReservationWorkflow()`. Kým nie je pripravený Supabase, stav rezervácií a výpožičiek sa číta a zapisuje cez lokálny JSON store.
+Uzávierky, sezóny a servisné blokácie majú vlastný prechodový store `.data/rybolov-cetin/closure-state.json`. Admin `/admin/uzavierky` zapisuje cez `/api/admin/closures`, public rezervácia a mapa čítajú sanitizované blokácie cez `/api/closures` a serverové vytvorenie rezervácie vždy validuje termín proti aktuálnemu closure store. Shared `useClosureState()` drží public/admin obrazovky na rovnakom zdroji uzávierok.
 Audit udalosti sa zapisujú do samostatného lokálneho store `.data/rybolov-cetin/audit-log.json`, aby každá mutácia mala stopu mimo doménového stavu.
 
 Prvá API vrstva je pripravená nad rovnakými službami:
@@ -89,6 +90,9 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `GET /api/reservations` vracia aktuálny lokálny stav rezervácií a výpožičiek.
 - `POST /api/reservations` prijíma verejnú žiadosť, overí ju cez `reservationApiService` a uloží pending rezerváciu s výpožičkami.
 - `POST /api/admin/reservations/:id/decision` prijíma admin rozhodnutie, používa rovnaký workflow service ako admin obrazovka a zapisuje výsledok.
+- `GET /api/closures` vracia sanitizované public uzávierky a interné blokácie bez interných poznámok, aby public dostupnosť sedela so serverom.
+- `GET /api/admin/closures` vracia plný interný stav uzávierok.
+- `POST /api/admin/closures` vytvorí alebo aktualizuje uzávierku, zapíše lokálny closure store a audit udalosť.
 - `GET /api/catches` vracia lokálny stav úlovkov, skupinových zápisníkov a riadkov zápisníkov.
 - `POST /api/catches` validuje úlovok, voliteľne ho priradí do kompatibilného zápisníka a uloží ho do lokálneho store v stave čakajúcom na schválenie.
 - `GET /api/catch-photos/:id` vráti binárnu fotku z lokálneho mock storage adresára `.data/rybolov-cetin/catch-photos/`.
@@ -114,7 +118,7 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `POST /api/admin/tournaments/rule-checks` vytvorí samostatnú kontrolu pravidiel sektora.
 - `GET /api/admin/audit` vracia posledné audit udalosti pre internú obrazovku `/admin/audit`.
 
-Endpointy sú stále backend-agnostické. Ich zmysel je ustáliť kontrakt pred tým, než sa lokálny JSON store nahradí Supabase repository.
+Admin endpointy sú chránené mock access guardom podľa rovnakej matrix ako UI. Endpointy sú stále backend-agnostické. Ich zmysel je ustáliť kontrakt pred tým, než sa lokálny JSON store nahradí Supabase repository.
 
 ## Validácie vstupov
 
@@ -152,6 +156,8 @@ Aktuálne pokrytie je sústredené na čistú doménovú logiku a kontrakty, kto
 - `tests/catchReportService.test.ts` kontroluje uložené reporty, normalizáciu príjemcov, validácie payloadu, generovanie reportových výstupov, e-mailové drafty a delivery provider konfiguráciu.
 - `tests/catchAnalytics.test.ts` kontroluje interné agregácie úlovkov, report filtre, CSV exporty, sezónne okná, sezónne porovnanie, mesačný trend, trend podľa druhu a trend druh + lovné miesto.
 - `tests/localCatchStore.test.ts` kontroluje JSON store pre úlovky a zápisníky.
+- `tests/closureApiService.test.ts` kontroluje tvorbu, aktualizáciu, validáciu a public sanitizáciu uzávierok.
+- `tests/localClosureStore.test.ts` kontroluje JSON store pre uzávierky, sezóny a servisné blokácie.
 - `tests/localCatchReportStore.test.ts` kontroluje JSON store pre uložené reporty úlovkov.
 - `tests/localCatchPhotoStore.test.ts` kontroluje lokálne uloženie a načítanie binárnych fotiek úlovkov.
 - `tests/tournamentApiService.test.ts` kontroluje lokálny API kontrakt pre súťažné hlásenia, priradenie kontrolóra, overenie váženia, tresty a kontroly pravidiel.
@@ -160,6 +166,7 @@ Aktuálne pokrytie je sústredené na čistú doménovú logiku a kontrakty, kto
 - `tests/localAuditLogStore.test.ts` kontroluje JSON store pre lokálny audit log.
 - `tests/pondSchemas.test.ts` kontroluje Zod vstupy pre rezervácie, úlovky, skupinové zápisníky, súťažné hlásenia a mapové body.
 - `tests/pondService.test.ts` kontroluje konzistenciu seed referencií a základné helpery `pondService`.
+- `tests/adminAccess.test.ts` a `tests/adminAccessGuard.test.ts` kontrolujú mock RBAC matrix, route prístupy a serverové API rozhodnutia.
 
 Tento smer je zámerný: logika, ktorú neskôr presunieme na Supabase mutácie alebo API routes, má zostať testovateľná mimo UI.
 

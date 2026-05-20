@@ -4,13 +4,18 @@ import { submitReservationRequest } from '~/services/reservationApiService'
 import { createPondService } from '~/services/pondService'
 import { resolveAuditActor } from '../utils/auditActor'
 import { appendLocalAuditEvent } from '../utils/localAuditLogStore'
+import { readLocalClosureState } from '../utils/localClosureStore'
 import { appendLocalReservation, readLocalReservationState } from '../utils/localReservationStore'
 
 export default defineEventHandler(async (event) => {
-  const state = await readLocalReservationState()
+  const [state, closureState] = await Promise.all([
+    readLocalReservationState(),
+    readLocalClosureState(),
+  ])
   const service = createPondService(
     createMockPondRepository(
       createPondSnapshot({
+        lakeClosures: closureState.lakeClosures,
         rentalBookings: state.rentalBookings,
         reservations: state.reservations,
       }),

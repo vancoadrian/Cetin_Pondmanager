@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getRouterParam, readBody, setResponseS
 import { createMockPondRepository, createPondSnapshot } from '~/repositories/pondRepository'
 import { submitCatchCorrection } from '~/services/catchCorrectionService'
 import { createPondService } from '~/services/pondService'
+import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import {
@@ -11,6 +12,8 @@ import {
 import { readLocalMapState } from '../../../../utils/localMapStore'
 
 export default defineEventHandler(async (event) => {
+  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+
   const catchId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
   const [state, mapState] = await Promise.all([

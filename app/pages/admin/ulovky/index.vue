@@ -50,7 +50,6 @@ const {
   catchPhotos: seedCatchPhotos,
   getLakeName,
   getPegLabel,
-  lakeClosures,
   lakes,
   pegs,
   tripLogbookEntries: seedTripLogbookEntries,
@@ -58,6 +57,7 @@ const {
   tripLogbooks: seedTripLogbooks,
   tripLogbookStatusLabels,
 } = usePondData()
+const { liveClosures } = await useClosureState({ admin: true, key: 'admin-catch-closure-state' })
 
 const fallbackCatchState = (): CatchStateResponse => ({
   catches: seedCatches,
@@ -88,6 +88,12 @@ const { data: catchReportState, refresh: refreshCatchReports } = await useAsyncD
     default: fallbackCatchReportState,
   },
 )
+const {
+  canManage: canManageCatches,
+  isReadOnly: catchesReadOnly,
+  label: catchAccessLabel,
+  readOnlyMessage: catchReadOnlyMessage,
+} = useAdminModuleAccess('catches')
 
 const statusFilter = ref<CatchRecordStatus | 'all'>('pending')
 const statusFilterTouched = ref(false)
@@ -214,7 +220,7 @@ const analyticsSpeciesOptions = computed(() =>
 const catchSeasonWindowOptions = computed(() =>
   createCatchSeasonWindows(
     liveCatches.value,
-    lakeClosures,
+    liveClosures.value,
     {
       lake: analyticsFilter.lake,
       species: analyticsFilter.species === 'all' ? undefined : analyticsFilter.species,
@@ -817,6 +823,12 @@ function getApiErrorMessage(error: unknown, fallback = 'Rozhodnutie sa nepodaril
 }
 
 async function saveCurrentCatchReport() {
+  if (!canManageCatches.value) {
+    reportSubmitStatus.value = 'error'
+    reportSubmitMessage.value = catchReadOnlyMessage.value
+    return
+  }
+
   if (!reportForm.includeRawCsv && !reportForm.includeTrendSignals) {
     reportSubmitStatus.value = 'error'
     reportSubmitMessage.value = 'Report musí obsahovať aspoň CSV úlovkov alebo trendové signály.'
@@ -852,6 +864,11 @@ async function saveCurrentCatchReport() {
 }
 
 async function generateSavedCatchReport(report: CatchSavedReport) {
+  if (!canManageCatches.value) {
+    generateReportMessage.value = catchReadOnlyMessage.value
+    return
+  }
+
   generatingReportId.value = report.id
   generateReportMessage.value = ''
 
@@ -873,6 +890,12 @@ async function generateSavedCatchReport(report: CatchSavedReport) {
 }
 
 async function prepareSavedCatchReportEmail(report: CatchSavedReport) {
+  if (!canManageCatches.value) {
+    reportEmailDraftStatus.value = 'error'
+    reportEmailDraftMessage.value = catchReadOnlyMessage.value
+    return
+  }
+
   preparingEmailReportId.value = report.id
   reportEmailDraftStatus.value = 'idle'
   reportEmailDraftMessage.value = ''
@@ -898,6 +921,13 @@ async function prepareSavedCatchReportEmail(report: CatchSavedReport) {
 }
 
 async function runCatchReportScheduler() {
+  if (!canManageCatches.value) {
+    schedulerRunStatus.value = 'error'
+    schedulerRunMessage.value = catchReadOnlyMessage.value
+    schedulerRunRows.value = []
+    return
+  }
+
   schedulerRunStatus.value = 'submitting'
   schedulerRunMessage.value = ''
   schedulerRunRows.value = []
@@ -921,6 +951,11 @@ async function runCatchReportScheduler() {
 async function saveDecision() {
   const catchItem = selectedCatch.value
   if (!catchItem) return
+  if (!canManageCatches.value) {
+    decisionSubmitStatus.value = 'error'
+    decisionSubmitMessage.value = catchReadOnlyMessage.value
+    return
+  }
 
   decisionSubmitStatus.value = 'submitting'
   decisionSubmitMessage.value = ''
@@ -949,6 +984,11 @@ async function saveDecision() {
 async function saveCorrection() {
   const catchItem = selectedCatch.value
   if (!catchItem) return
+  if (!canManageCatches.value) {
+    correctionSubmitStatus.value = 'error'
+    correctionSubmitMessage.value = catchReadOnlyMessage.value
+    return
+  }
 
   const validation = correctionValidation.value
   if (!validation.success || !correctionReady.value) {
@@ -988,6 +1028,17 @@ async function saveCorrection() {
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
+
+      <div
+        v-if="catchesReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ catchAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ catchReadOnlyMessage }}</p>
+        <p class="mt-1 text-sm">
+          Exporty ostávajú dostupné, schvaľovanie, korekcie a ukladanie reportov sú vypnuté.
+        </p>
+      </div>
 
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
@@ -1120,85 +1171,88 @@ async function saveCorrection() {
               </span>
             </div>
 
-            <div class="mt-4 grid gap-3 md:grid-cols-2">
-              <label class="block">
-                <span class="text-sm font-semibold">Názov</span>
-                <input
-                  v-model="reportForm.title"
-                  type="text"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                >
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Príjemcovia</span>
-                <input
-                  v-model="reportForm.recipients"
-                  type="text"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  placeholder="emaily oddelené čiarkou"
-                >
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Pre koho</span>
-                <select
-                  v-model="reportForm.audience"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                >
-                  <option value="manager">{{ catchReportAudienceLabels.manager }}</option>
-                  <option value="owner">{{ catchReportAudienceLabels.owner }}</option>
-                  <option value="accountant">{{ catchReportAudienceLabels.accountant }}</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Periodicita</span>
-                <select
-                  v-model="reportForm.cadence"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                >
-                  <option value="manual">{{ catchReportCadenceLabels.manual }}</option>
-                  <option value="weekly">{{ catchReportCadenceLabels.weekly }}</option>
-                  <option value="monthly">{{ catchReportCadenceLabels.monthly }}</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Doručenie</span>
-                <select
-                  v-model="reportForm.delivery"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                >
-                  <option value="in-app">{{ catchReportDeliveryLabels['in-app'] }}</option>
-                  <option value="email-ready">{{ catchReportDeliveryLabels['email-ready'] }}</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-semibold">Popis</span>
-                <input
-                  v-model="reportForm.description"
-                  type="text"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  placeholder="voliteľná poznámka"
-                >
-              </label>
-            </div>
+            <fieldset :disabled="!canManageCatches" class="contents">
+              <div class="mt-4 grid gap-3 md:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Názov</span>
+                  <input
+                    v-model="reportForm.title"
+                    type="text"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Príjemcovia</span>
+                  <input
+                    v-model="reportForm.recipients"
+                    type="text"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="emaily oddelené čiarkou"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Pre koho</span>
+                  <select
+                    v-model="reportForm.audience"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                    <option value="manager">{{ catchReportAudienceLabels.manager }}</option>
+                    <option value="owner">{{ catchReportAudienceLabels.owner }}</option>
+                    <option value="accountant">{{ catchReportAudienceLabels.accountant }}</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Periodicita</span>
+                  <select
+                    v-model="reportForm.cadence"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                    <option value="manual">{{ catchReportCadenceLabels.manual }}</option>
+                    <option value="weekly">{{ catchReportCadenceLabels.weekly }}</option>
+                    <option value="monthly">{{ catchReportCadenceLabels.monthly }}</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Doručenie</span>
+                  <select
+                    v-model="reportForm.delivery"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                    <option value="in-app">{{ catchReportDeliveryLabels['in-app'] }}</option>
+                    <option value="email-ready">{{ catchReportDeliveryLabels['email-ready'] }}</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Popis</span>
+                  <input
+                    v-model="reportForm.description"
+                    type="text"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="voliteľná poznámka"
+                  >
+                </label>
+              </div>
 
-            <div class="mt-3 flex flex-wrap gap-4 text-sm">
-              <label class="flex items-center gap-2">
-                <input v-model="reportForm.includeRawCsv" type="checkbox" class="h-4 w-4 accent-primary-700">
-                CSV úlovkov
-              </label>
-              <label class="flex items-center gap-2">
-                <input v-model="reportForm.includeTrendSignals" type="checkbox" class="h-4 w-4 accent-primary-700">
-                Trendové signály
-              </label>
-              <label class="flex items-center gap-2">
-                <input v-model="reportForm.enabled" type="checkbox" class="h-4 w-4 accent-primary-700">
-                Aktívny report
-              </label>
-            </div>
+              <div class="mt-3 flex flex-wrap gap-4 text-sm">
+                <label class="flex items-center gap-2">
+                  <input v-model="reportForm.includeRawCsv" type="checkbox" class="h-4 w-4 accent-primary-700">
+                  CSV úlovkov
+                </label>
+                <label class="flex items-center gap-2">
+                  <input v-model="reportForm.includeTrendSignals" type="checkbox" class="h-4 w-4 accent-primary-700">
+                  Trendové signály
+                </label>
+                <label class="flex items-center gap-2">
+                  <input v-model="reportForm.enabled" type="checkbox" class="h-4 w-4 accent-primary-700">
+                  Aktívny report
+                </label>
+              </div>
+            </fieldset>
 
             <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <UButton
                 icon="i-heroicons-bookmark-square"
+                :disabled="!canManageCatches"
                 :loading="reportSubmitStatus === 'submitting'"
                 @click="saveCurrentCatchReport"
               >
@@ -1230,7 +1284,7 @@ async function saveCorrection() {
                   icon="i-heroicons-clock"
                   size="xs"
                   variant="soft"
-                  :disabled="scheduledCatchReports.length === 0"
+                  :disabled="!canManageCatches || scheduledCatchReports.length === 0"
                   :loading="schedulerRunStatus === 'submitting'"
                   @click="runCatchReportScheduler"
                 >
@@ -1314,6 +1368,7 @@ async function saveCorrection() {
                       icon="i-heroicons-play"
                       size="xs"
                       variant="soft"
+                      :disabled="!canManageCatches"
                       :loading="generatingReportId === report.id"
                       @click="generateSavedCatchReport(report)"
                     >
@@ -1323,7 +1378,7 @@ async function saveCorrection() {
                       icon="i-heroicons-envelope"
                       size="xs"
                       variant="soft"
-                      :disabled="report.delivery !== 'email-ready'"
+                      :disabled="!canManageCatches || report.delivery !== 'email-ready'"
                       :loading="preparingEmailReportId === report.id"
                       @click="prepareSavedCatchReportEmail(report)"
                     >
@@ -1898,149 +1953,152 @@ async function saveCorrection() {
                 </span>
               </div>
 
-              <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <label class="block">
-                  <span class="text-sm font-semibold">Rybár</span>
-                  <input
-                    v-model="correctionForm.angler"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Druh</span>
-                  <input
-                    v-model="correctionForm.species"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Jazero</span>
-                  <select
-                    v-model="correctionForm.lake"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                    <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
-                  </select>
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Miesto</span>
-                  <select
-                    v-model="correctionForm.pegId"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                    <option v-for="peg in correctionPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
-                  </select>
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Váha kg</span>
-                  <input
-                    v-model.number="correctionForm.weightKg"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Miera cm</span>
-                  <input
-                    v-model.number="correctionForm.lengthCm"
-                    type="number"
-                    min="0"
-                    step="1"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="block sm:col-span-2">
-                  <span class="text-sm font-semibold">Nástraha</span>
-                  <input
-                    v-model="correctionForm.bait"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Čas úlovku</span>
-                  <input
-                    v-model="correctionForm.caughtAt"
-                    type="datetime-local"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                  >
-                </label>
-                <label class="flex items-center gap-2 self-end rounded-md bg-muted p-3 text-sm font-semibold">
-                  <input v-model="correctionForm.released" type="checkbox" class="h-4 w-4 accent-primary-700">
-                  Ryba pustená späť
-                </label>
-                <label class="block sm:col-span-2">
-                  <span class="text-sm font-semibold">Poznámka rybára</span>
-                  <textarea
-                    v-model="correctionForm.notes"
-                    rows="3"
-                    class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-                <div class="sm:col-span-2 rounded-md border border-border bg-muted/40 p-4">
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p class="text-sm font-bold">Zápisník výpravy</p>
-                      <p class="text-foreground-muted mt-1 text-sm">
-                        {{ selectedLogbook ? `${selectedLogbook.title} · ${selectedLogbook.shareCode}` : 'Úlovok zatiaľ nie je v žiadnom zápisníku.' }}
-                      </p>
-                    </div>
-                    <span
-                      v-if="selectedLogbook"
-                      class="w-fit rounded-md bg-white px-2.5 py-1 text-xs font-bold text-foreground-muted"
-                    >
-                      {{ tripLogbookModeLabels[selectedLogbook.mode] }}
-                    </span>
-                  </div>
-
-                  <div class="mt-4 grid gap-2 sm:grid-cols-3">
-                    <button
-                      v-for="option in logbookLinkOptions"
-                      :key="option.value"
-                      type="button"
-                      class="rounded-md border p-3 text-left transition-colors"
-                      :class="
-                        correctionForm.logbookLinkMode === option.value
-                          ? 'border-primary-600 bg-primary-50 text-primary-950'
-                          : 'border-border bg-white text-foreground hover:bg-muted'
-                      "
-                      @click="correctionForm.logbookLinkMode = option.value"
-                    >
-                      <span class="flex items-center gap-2 text-sm font-bold">
-                        <UIcon :name="option.icon" class="h-4 w-4 shrink-0" />
-                        {{ option.label }}
-                      </span>
-                      <span class="text-foreground-muted mt-1 block text-xs leading-5">
-                        {{ option.description }}
-                      </span>
-                    </button>
-                  </div>
-
-                  <label v-if="correctionForm.logbookLinkMode === 'move'" class="mt-4 block">
-                    <span class="text-sm font-semibold">Cieľový zápisník</span>
-                    <select
-                      v-model="correctionForm.targetLogbookId"
+              <fieldset :disabled="!canManageCatches" class="contents">
+                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="text-sm font-semibold">Rybár</span>
+                    <input
+                      v-model="correctionForm.angler"
                       class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
-                      :disabled="compatibleCorrectionLogbooks.length === 0"
                     >
-                      <option v-if="compatibleCorrectionLogbooks.length === 0" value="">
-                        Žiadny otvorený zápisník pre toto miesto
-                      </option>
-                      <option
-                        v-for="logbook in compatibleCorrectionLogbooks"
-                        :key="logbook.id"
-                        :value="logbook.id"
-                      >
-                        {{ formatLogbookSummary(logbook.id) }}
-                      </option>
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Druh</span>
+                    <input
+                      v-model="correctionForm.species"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Jazero</span>
+                    <select
+                      v-model="correctionForm.lake"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                      <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                     </select>
                   </label>
-                  <p v-else-if="correctionForm.logbookLinkMode === 'detach'" class="text-foreground-muted mt-4 text-sm">
-                    Po uložení nebude tento úlovok patriť do žiadnej skupinovej tabuľky, ale ostane v interných úlovkoch.
-                  </p>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Miesto</span>
+                    <select
+                      v-model="correctionForm.pegId"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                      <option v-for="peg in correctionPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Váha kg</span>
+                    <input
+                      v-model.number="correctionForm.weightKg"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Miera cm</span>
+                    <input
+                      v-model.number="correctionForm.lengthCm"
+                      type="number"
+                      min="0"
+                      step="1"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                  </label>
+                  <label class="block sm:col-span-2">
+                    <span class="text-sm font-semibold">Nástraha</span>
+                    <input
+                      v-model="correctionForm.bait"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Čas úlovku</span>
+                    <input
+                      v-model="correctionForm.caughtAt"
+                      type="datetime-local"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                  </label>
+                  <label class="flex items-center gap-2 self-end rounded-md bg-muted p-3 text-sm font-semibold">
+                    <input v-model="correctionForm.released" type="checkbox" class="h-4 w-4 accent-primary-700">
+                    Ryba pustená späť
+                  </label>
+                  <label class="block sm:col-span-2">
+                    <span class="text-sm font-semibold">Poznámka rybára</span>
+                    <textarea
+                      v-model="correctionForm.notes"
+                      rows="3"
+                      class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div class="sm:col-span-2 rounded-md border border-border bg-muted/40 p-4">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p class="text-sm font-bold">Zápisník výpravy</p>
+                        <p class="text-foreground-muted mt-1 text-sm">
+                          {{ selectedLogbook ? `${selectedLogbook.title} · ${selectedLogbook.shareCode}` : 'Úlovok zatiaľ nie je v žiadnom zápisníku.' }}
+                        </p>
+                      </div>
+                      <span
+                        v-if="selectedLogbook"
+                        class="w-fit rounded-md bg-white px-2.5 py-1 text-xs font-bold text-foreground-muted"
+                      >
+                        {{ tripLogbookModeLabels[selectedLogbook.mode] }}
+                      </span>
+                    </div>
+
+                    <div class="mt-4 grid gap-2 sm:grid-cols-3">
+                      <button
+                        v-for="option in logbookLinkOptions"
+                        :key="option.value"
+                        type="button"
+                        :disabled="!canManageCatches"
+                        class="rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                        :class="
+                          correctionForm.logbookLinkMode === option.value
+                            ? 'border-primary-600 bg-primary-50 text-primary-950'
+                            : 'border-border bg-white text-foreground hover:bg-muted'
+                        "
+                        @click="correctionForm.logbookLinkMode = option.value"
+                      >
+                        <span class="flex items-center gap-2 text-sm font-bold">
+                          <UIcon :name="option.icon" class="h-4 w-4 shrink-0" />
+                          {{ option.label }}
+                        </span>
+                        <span class="text-foreground-muted mt-1 block text-xs leading-5">
+                          {{ option.description }}
+                        </span>
+                      </button>
+                    </div>
+
+                    <label v-if="correctionForm.logbookLinkMode === 'move'" class="mt-4 block">
+                      <span class="text-sm font-semibold">Cieľový zápisník</span>
+                      <select
+                        v-model="correctionForm.targetLogbookId"
+                        class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                        :disabled="!canManageCatches || compatibleCorrectionLogbooks.length === 0"
+                      >
+                        <option v-if="compatibleCorrectionLogbooks.length === 0" value="">
+                          Žiadny otvorený zápisník pre toto miesto
+                        </option>
+                        <option
+                          v-for="logbook in compatibleCorrectionLogbooks"
+                          :key="logbook.id"
+                          :value="logbook.id"
+                        >
+                          {{ formatLogbookSummary(logbook.id) }}
+                        </option>
+                      </select>
+                    </label>
+                    <p v-else-if="correctionForm.logbookLinkMode === 'detach'" class="text-foreground-muted mt-4 text-sm">
+                      Po uložení nebude tento úlovok patriť do žiadnej skupinovej tabuľky, ale ostane v interných úlovkoch.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </fieldset>
 
               <ValidationSummary
                 class="mt-4"
@@ -2066,7 +2124,7 @@ async function saveCorrection() {
                 type="submit"
                 icon="i-heroicons-pencil-square"
                 variant="soft"
-                :disabled="!correctionReady || correctionSubmitStatus === 'submitting'"
+                :disabled="!canManageCatches || !correctionReady || correctionSubmitStatus === 'submitting'"
                 :loading="correctionSubmitStatus === 'submitting'"
               >
                 Uložiť opravu
@@ -2091,6 +2149,7 @@ async function saveCorrection() {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canManageCatches"
                   :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-white'"
                   @click="decisionMode = 'approve'"
                 >
@@ -2099,6 +2158,7 @@ async function saveCorrection() {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canManageCatches"
                   :class="decisionMode === 'pending' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-white'"
                   @click="decisionMode = 'pending'"
                 >
@@ -2107,6 +2167,7 @@ async function saveCorrection() {
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  :disabled="!canManageCatches"
                   :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-white'"
                   @click="decisionMode = 'reject'"
                 >
@@ -2118,6 +2179,7 @@ async function saveCorrection() {
                 <textarea
                   v-model="reviewNote"
                   rows="4"
+                  :readonly="!canManageCatches"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -2125,7 +2187,7 @@ async function saveCorrection() {
                 class="mt-4"
                 icon="i-heroicons-check"
                 variant="soft"
-                :disabled="decisionSubmitStatus === 'submitting'"
+                :disabled="!canManageCatches || decisionSubmitStatus === 'submitting'"
                 :loading="decisionSubmitStatus === 'submitting'"
                 @click="saveDecision"
               >

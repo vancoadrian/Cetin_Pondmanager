@@ -5,6 +5,9 @@ import {
   findAdminModuleByPath,
   getAdminModuleAccess,
   getAdminModulesForRole,
+  canManageAdminModule,
+  canOperateAdminModule,
+  hasAdminAccessMode,
 } from '~/app/utils/adminAccess'
 
 describe('admin access matrix', () => {
@@ -36,5 +39,21 @@ describe('admin access matrix', () => {
     expect(module?.id).toBe('reservations')
     expect(getAdminModuleAccess(module!, 'manager')).toBe('full')
     expect(canAccessAdminPath('team', '/admin/rezervacie/detail/test')).toBe(false)
+  })
+
+  it('distinguishes read, operate and full write levels', () => {
+    expect(hasAdminAccessMode('read', 'operate')).toBe(false)
+    expect(hasAdminAccessMode('operate', 'operate')).toBe(true)
+    expect(hasAdminAccessMode('full', 'operate')).toBe(true)
+    expect(canOperateAdminModule('worker', 'reservations')).toBe(true)
+    expect(canManageAdminModule('worker', 'reservations')).toBe(false)
+    expect(canManageAdminModule('manager', 'map')).toBe(true)
+    expect(canManageAdminModule('owner', 'catches')).toBe(true)
+    expect(canOperateAdminModule('accountant', 'catches')).toBe(false)
+    expect(canOperateAdminModule('organizer', 'notifications')).toBe(true)
+    expect(canManageAdminModule('organizer', 'notifications')).toBe(false)
+    expect(canOperateAdminModule('accountant', 'sponsors')).toBe(false)
+    expect(canOperateAdminModule('worker', 'rentals')).toBe(true)
+    expect(canManageAdminModule('worker', 'closures')).toBe(false)
   })
 })

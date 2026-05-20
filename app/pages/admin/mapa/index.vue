@@ -5,7 +5,8 @@ import type { MapSaveSuccess, MapStateResponse } from '~/services/mapApiService'
 
 useHead({ title: 'Admin mapa' })
 
-const { getLakeName, lakes, mapLayers, mapShapes, pegs } = usePondData()
+const { getLakeName, lakes, mapLayers, mapShapes, pegs, reservations } = usePondData()
+const { liveClosures } = await useClosureState({ admin: true, key: 'admin-map-closure-state' })
 
 const fallbackMapState = (): MapStateResponse => ({
   ok: true,
@@ -21,6 +22,12 @@ const { data: mapState, refresh: refreshMapState } = await useAsyncData<MapState
     default: fallbackMapState,
   },
 )
+const {
+  canManage: canManageMap,
+  isReadOnly: mapReadOnly,
+  label: mapAccessLabel,
+  readOnlyMessage: mapReadOnlyMessage,
+} = useAdminModuleAccess('map')
 
 const selectedLake = ref<LakeSlug>('velky-cetin')
 const selectedPegId = ref('vc-03')
@@ -128,6 +135,8 @@ function toggleLayer(layerId: string) {
 }
 
 function movePoint(payload: { id: string, x: number, y: number }) {
+  if (!canManageMap.value) return
+
   const peg = editorPegs.value.find((item) => item.id === payload.id)
   if (!peg) return
   peg.x = payload.x
@@ -138,6 +147,12 @@ function movePoint(payload: { id: string, x: number, y: number }) {
 }
 
 function resetSelectedPegPosition() {
+  if (!canManageMap.value) {
+    saveStatus.value = 'error'
+    saveMessage.value = mapReadOnlyMessage.value
+    return
+  }
+
   const peg = selectedPeg.value
   const original = peg ? storedPegs.value.find((item) => item.id === peg.id) : undefined
   if (!peg || !original) return
@@ -170,6 +185,12 @@ function getApiErrorMessage(error: unknown) {
 }
 
 async function saveMapChanges() {
+  if (!canManageMap.value) {
+    saveStatus.value = 'error'
+    saveMessage.value = mapReadOnlyMessage.value
+    return
+  }
+
   if (!selectedPegValidation.value.success) {
     saveStatus.value = 'error'
     saveMessage.value = selectedPegValidationMessages.value[0] ?? 'Skontrolujte vybraný bod mapy.'
@@ -217,6 +238,14 @@ async function saveMapChanges() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="mapReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ mapAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ mapReadOnlyMessage }}</p>
+      </div>
+
       <div class="mb-5 inline-flex rounded-lg bg-muted p-1">
         <button
           v-for="lake in lakes"
@@ -232,10 +261,12 @@ async function saveMapChanges() {
 
       <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <MapEditorCanvas
-          editable
+          :closures="liveClosures"
+          :editable="canManageMap"
           :title="`${currentLake.name} · SVG editor`"
           :image="activeBackgroundImage"
           :points="visiblePegs"
+          :reservations="reservations"
           :shapes="visibleShapes"
           :selected-id="selectedPegId"
           @select="selectPeg"
@@ -283,36 +314,36 @@ async function saveMapChanges() {
             <form v-if="selectedPeg" class="mt-5 space-y-4">
               <label class="block">
                 <span class="text-sm font-semibold">Názov</span>
-                <input v-model="selectedPeg.label" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <input v-model="selectedPeg.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
               </label>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">X pozícia</span>
-                  <input v-model.number="selectedPeg.x" type="number" min="0" max="100" step="0.1" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Y pozícia</span>
-                  <input v-model.number="selectedPeg.y" type="number" min="0" max="100" step="0.1" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
                 </label>
               </div>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Typ</span>
-                  <select v-model="selectedPeg.type" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedPeg.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
                     <option value="shore">lovné miesto</option>
                     <option value="cabin">miesto s chatou</option>
                   </select>
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Kapacita</span>
-                  <input v-model.number="selectedPeg.capacity" type="number" min="1" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.capacity" type="number" min="1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
                 </label>
               </div>
               <label class="flex items-center gap-2 rounded-md bg-muted p-3 text-sm font-semibold">
                 <input
                   v-model="selectedPeg.requiresCabinReservation"
                   type="checkbox"
-                  :disabled="selectedPeg.type !== 'cabin'"
+                  :disabled="!canManageMap || selectedPeg.type !== 'cabin'"
                   class="h-4 w-4 accent-primary-700 disabled:opacity-50"
                 >
                 Pri rezervácii vyžadovať aj chatu
@@ -323,13 +354,13 @@ async function saveMapChanges() {
                 valid-description="Súradnice, názov, typ a kapacita sú pripravené na uloženie."
               />
               <div class="grid gap-2 sm:grid-cols-2">
-                <UButton type="button" icon="i-heroicons-arrow-path" variant="soft" @click="resetSelectedPegPosition">
+                <UButton type="button" icon="i-heroicons-arrow-path" variant="soft" :disabled="!canManageMap" @click="resetSelectedPegPosition">
                   Vrátiť pozíciu
                 </UButton>
                 <UButton
                   type="button"
                   icon="i-heroicons-check"
-                  :disabled="!selectedPegValidation.success || saveStatus === 'saving'"
+                  :disabled="!canManageMap || !selectedPegValidation.success || saveStatus === 'saving'"
                   :loading="saveStatus === 'saving'"
                   @click="saveMapChanges"
                 >

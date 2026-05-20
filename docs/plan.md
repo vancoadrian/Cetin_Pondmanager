@@ -28,6 +28,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána.
 - Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
 - Lokálna perzistencia: rezervácie, požičovňa, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
+- Lokálna perzistencia: uzávierky, sezóny a servisné blokácie majú samostatný store `.data/rybolov-cetin/closure-state.json`; vstupujú do serverovej validácie rezervácií, public mapy, admin mapy, dashboardu a sezónnych okien reportov.
 - Lokálna perzistencia: uložené reporty úlovkov majú samostatný store `.data/rybolov-cetin/catch-reports.json`.
 - Testy: Vitest je pridaný pre dostupnosť, požičovňu, admin workflow rezervácií, rezervačné API, lokálne store vrstvy, audit log, Zod formuláre, súťažný workflow a seed/service kontrakty.
 
@@ -51,12 +52,12 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Pridať lokálny JSON store ako dočasné úložisko pred Supabase. Prvá verzia pre rezervácie, požičovňu, mapový editor, úlovky, skupinové zápisníky a súťažný dispečing je hotová.
 - Doplniť audit log lokálnych a budúcich Supabase mutácií. Prvá lokálna verzia je hotová cez `audit-log.json`, `/admin/audit` a tabuľku `audit_events` v migrácii.
 - Nastaviť RLS politiky podľa rolí.
-- Dopĺňať roly `tournament_organizer`, `accountant` a `worker` popri owner, manager, marshal, tournament team a angler. Mock admin už má spoločnú access matrix pre navigáciu, dashboard a route guard.
+- Dopĺňať roly `tournament_organizer`, `accountant` a `worker` popri owner, manager, marshal, tournament team a angler. Mock admin už má spoločnú access matrix pre navigáciu, dashboard, route guard, write/read obmedzenia vo všetkých hlavných admin moduloch a serverový guard pre `/api/admin/*`.
 
 ## Fáza 3: Rezervácie a dostupnosť
 
 - Implementovať availability engine. Prvá mock verzia je hotová.
-- Kombinovať rezervácie, uzávierky, údržbu, sezóny, neres, súťaže a pravidlá chát.
+- Kombinovať rezervácie, uzávierky, údržbu, sezóny, neres, súťaže a pravidlá chát. Uzávierky sú už samostatný lokálny API/store modul a public mapa, admin mapa, dashboard aj rezervácie ich čítajú ako živý stav.
 - Započítať dostupnosť požičovne podľa termínu. Prvá mock verzia cez `rentalBookings` je hotová.
 - Vytvoriť kalendár obsadenosti po jazerách, miestach a chatách. Prvá týždňová mriežka v adminovi je hotová.
 - Pridať schvaľovanie rezervácií a interné poznámky správcu. Prvý mock service workflow v `/admin/rezervacie` je hotový.
@@ -96,7 +97,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 
 - Nastaviť environmenty dev/stage/prod.
 - Pridať monitoring a error reporting.
-- Rozšíriť testy pre budúce Supabase mutácie a API routes. Prvá Vitest sada pre availability, rental, reservation workflow, rezervačné API, lokálny store, audit log, Zod formuláre a service kontrakty je hotová.
+- Rozšíriť testy pre budúce Supabase mutácie a API routes. Prvá Vitest sada pre availability, rental, reservation workflow, rezervačné API, closure API/store, lokálny store, audit log, Zod formuláre, service kontrakty a mock RBAC guardy je hotová.
 - Pripraviť import dát zo súčasných tabuliek alebo ručných zoznamov. Prvý JSON seed export z mock dát je hotový.
 - Prejsť obsah a ceny so správcom revíru.
 

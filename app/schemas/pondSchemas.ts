@@ -180,6 +180,28 @@ export const notificationBroadcastInputSchema = z.object({
   validUntil: z.string().trim().min(3, 'Doplňte platnosť výstrahy.').max(60, 'Platnosť môže mať najviac 60 znakov.'),
 })
 
+export const lakeClosureInputSchema = z.object({
+  affectsReservations: z.boolean().default(true),
+  from: isoDateSchema,
+  id: z.string().trim().optional(),
+  lake: lakeScopeSchema,
+  notes: z.string().trim().min(8, 'Doplňte poznámku k uzávierke aspoň 8 znakmi.').max(500, 'Poznámka môže mať najviac 500 znakov.'),
+  organization: z.string().trim().max(120, 'Organizácia môže mať najviac 120 znakov.').optional(),
+  pegIds: z.array(z.string()).default([]),
+  reason: z.enum(['maintenance', 'season', 'spawning', 'tournament', 'emergency', 'pandemic']),
+  title: z.string().trim().min(3, 'Názov uzávierky musí mať aspoň 3 znaky.').max(100, 'Názov uzávierky môže mať najviac 100 znakov.'),
+  to: isoDateSchema,
+  visibility: z.enum(['public', 'internal']),
+}).superRefine((value, ctx) => {
+  if (value.to < value.from) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Dátum konca uzávierky musí byť rovnaký alebo neskorší ako začiatok.',
+      path: ['to'],
+    })
+  }
+})
+
 export const tripLogbookInputSchema = z.object({
   lake: lakeSlugSchema,
   memberNames: z.array(z.string().trim().min(2)).min(1, 'Doplňte aspoň jedného rybára.'),

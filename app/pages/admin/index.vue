@@ -6,7 +6,6 @@ useHead({ title: 'Admin' })
 const route = useRoute()
 const {
   getLakeName,
-  lakeClosures,
   lakes,
   pegs,
   rentalItems,
@@ -16,6 +15,7 @@ const {
   tournamentRequests,
   tournamentRequestTypeLabels,
 } = usePondData()
+const { liveClosures } = await useClosureState({ admin: true, key: 'admin-dashboard-closure-state' })
 
 const { logout, user } = useMockAuth()
 
@@ -28,7 +28,7 @@ const blockedReservations = computed(() =>
   reservations.filter((reservation) => reservation.status === 'blocked'),
 )
 const internalClosures = computed(() =>
-  lakeClosures.filter((closure) => closure.visibility === 'internal' || closure.affectsReservations),
+  liveClosures.value.filter((closure) => closure.visibility === 'internal' || closure.affectsReservations),
 )
 const activeSponsors = computed(() => sponsors.filter((sponsor) => sponsor.active))
 const activeTournamentRequests = computed(() =>
@@ -38,7 +38,7 @@ const activeTournamentPenalties = computed(() =>
   tournamentPenalties.filter((penalty) => penalty.status === 'active'),
 )
 const blockedPegs = computed(() =>
-  pegs.filter((peg) => !getPegAvailability(peg, { closures: lakeClosures, reservations }).reservable),
+  pegs.filter((peg) => !getPegAvailability(peg, { closures: liveClosures.value, reservations }).reservable),
 )
 
 async function signOut() {

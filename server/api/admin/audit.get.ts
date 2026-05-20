@@ -1,11 +1,14 @@
 import { defineEventHandler, getQuery } from 'h3'
 import type { AuditArea } from '~/data/pond'
 import { filterAuditEvents, type AuditLogResponse } from '~/services/auditLogService'
+import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalAuditLogState } from '../../utils/localAuditLogStore'
 
 const auditAreas = new Set<AuditArea>(['catches', 'logbooks', 'map', 'reservations', 'system', 'tournaments'])
 
 export default defineEventHandler(async (event): Promise<AuditLogResponse> => {
+  requireAdminAccess(event, { moduleId: 'audit' })
+
   const state = await readLocalAuditLogState()
   const query = getQuery(event)
   const area = typeof query.area === 'string' && auditAreas.has(query.area as AuditArea)

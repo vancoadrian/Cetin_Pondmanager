@@ -1,10 +1,13 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { saveMapState } from '~/services/mapApiService'
+import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { readLocalMapState, writeLocalMapState } from '../../utils/localMapStore'
 
 export default defineEventHandler(async (event) => {
+  requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
+
   const state = await readLocalMapState()
   const result = saveMapState(await readBody(event), {
     mapLayers: state.mapLayers,

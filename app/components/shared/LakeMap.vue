@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MapShape, Peg } from '~/data/pond'
+import type { LakeClosure, MapShape, Peg, Reservation } from '~/data/pond'
 import { getPegAvailability } from '~/utils/availability'
 import {
   getMapMarkerStyle,
@@ -12,9 +12,11 @@ import {
 } from '~/utils/map'
 
 const props = defineProps<{
+  closures?: LakeClosure[]
   title: string
   image?: string
   points: Peg[]
+  reservations?: Reservation[]
   shapes?: MapShape[]
   selectedId?: string
 }>()
@@ -23,8 +25,10 @@ const emit = defineEmits<{
   select: [peg: Peg]
 }>()
 
-const { lakeClosures, mapShapes, reservations } = usePondData()
+const { lakeClosures, mapShapes, reservations: seedReservations } = usePondData()
 
+const activeClosures = computed(() => props.closures ?? lakeClosures)
+const activeReservations = computed(() => props.reservations ?? seedReservations)
 const selectedPeg = computed(() => props.points.find((point) => point.id === props.selectedId) ?? props.points[0])
 const currentLakeSlug = computed(() => props.points[0]?.lake)
 const currentShapes = computed(() => props.shapes ?? mapShapes)
@@ -33,12 +37,12 @@ const visibleShapes = computed(() =>
 )
 const selectedAvailability = computed(() =>
   selectedPeg.value
-    ? getPegAvailability(selectedPeg.value, { closures: lakeClosures, reservations })
+    ? getPegAvailability(selectedPeg.value, { closures: activeClosures.value, reservations: activeReservations.value })
     : undefined,
 )
 
 function markerStyle(point: Peg) {
-  const availability = getPegAvailability(point, { closures: lakeClosures, reservations })
+  const availability = getPegAvailability(point, { closures: activeClosures.value, reservations: activeReservations.value })
   return getMapMarkerStyle(availability.status)
 }
 

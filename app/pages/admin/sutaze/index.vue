@@ -45,6 +45,12 @@ const { data: tournamentState, refresh: refreshTournamentState } = await useAsyn
     default: fallbackTournamentState,
   },
 )
+const {
+  canOperate: canOperateTournaments,
+  isReadOnly: tournamentsReadOnly,
+  label: tournamentAccessLabel,
+  readOnlyMessage: tournamentReadOnlyMessage,
+} = useAdminModuleAccess('tournaments')
 
 const liveTournaments = computed(() => tournamentState.value?.tournaments ?? seedTournaments)
 const liveTournamentCatches = computed(() => tournamentState.value?.tournamentCatches ?? seedTournamentCatches)
@@ -144,6 +150,12 @@ const getApiErrorMessage = (error: unknown) => {
 }
 
 const submitRequestAction = async (requestId: string, action: 'assign' | 'resolve') => {
+  if (!canOperateTournaments.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+
   actionStatus.value = 'submitting'
   actionMessage.value = ''
   activeActionId.value = `${requestId}:${action}`
@@ -168,6 +180,12 @@ const submitRequestAction = async (requestId: string, action: 'assign' | 'resolv
 }
 
 const verifyCatch = async (catchId: string) => {
+  if (!canOperateTournaments.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+
   actionStatus.value = 'submitting'
   actionMessage.value = ''
   activeActionId.value = `${catchId}:verify`
@@ -192,6 +210,12 @@ const verifyCatch = async (catchId: string) => {
 }
 
 const submitPenalty = async () => {
+  if (!canOperateTournaments.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+
   const validation = penaltyValidation.value
   if (!validation.success) {
     actionStatus.value = 'error'
@@ -223,6 +247,12 @@ const submitPenalty = async () => {
 }
 
 const submitRuleCheck = async () => {
+  if (!canOperateTournaments.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+
   const validation = ruleCheckValidation.value
   if (!validation.success) {
     actionStatus.value = 'error'
@@ -277,6 +307,14 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
+      <div
+        v-if="tournamentsReadOnly"
+        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
+      >
+        <p class="text-sm font-bold">Režim prístupu: {{ tournamentAccessLabel }}</p>
+        <p class="mt-1 text-sm">{{ tournamentReadOnlyMessage }}</p>
+      </div>
+
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Aktívne hlásenia</p>
@@ -329,7 +367,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                     size="sm"
                     icon="i-heroicons-user-plus"
                     variant="soft"
-                    :disabled="request.status === 'resolved' || actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || request.status === 'resolved' || actionStatus === 'submitting'"
                     :loading="activeActionId === `${request.id}:assign`"
                     @click="submitRequestAction(request.id, 'assign')"
                   >
@@ -340,7 +378,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                     icon="i-heroicons-check"
                     color="neutral"
                     variant="soft"
-                    :disabled="request.status === 'resolved' || actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || request.status === 'resolved' || actionStatus === 'submitting'"
                     :loading="activeActionId === `${request.id}:resolve`"
                     @click="submitRequestAction(request.id, 'resolve')"
                   >
@@ -374,7 +412,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                     size="sm"
                     icon="i-heroicons-scale"
                     variant="soft"
-                    :disabled="actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || actionStatus === 'submitting'"
                     :loading="activeActionId === `${catchItem.id}:verify`"
                     @click="verifyCatch(catchItem.id)"
                   >
@@ -414,6 +452,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                   <span class="text-sm font-semibold">Sektor</span>
                   <select
                     v-model="penaltyForm.sectorId"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
@@ -425,6 +464,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                   <span class="text-sm font-semibold">Kontrolór</span>
                   <select
                     v-model="penaltyForm.marshalId"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(penaltyForm.sectorId)" :key="marshal.id" :value="marshal.id">
@@ -438,6 +478,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 <span class="text-sm font-semibold">Typ trestu</span>
                 <select
                   v-model="penaltyForm.type"
+                  :disabled="!canOperateTournaments"
                   class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
                   <option v-for="[value, label] in penaltyTypeOptions" :key="value" :value="value">
@@ -457,6 +498,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                     type="number"
                     min="1"
                     max="24"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                 </label>
@@ -467,6 +509,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                     type="number"
                     min="1"
                     max="4"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                 </label>
@@ -477,6 +520,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 <textarea
                   v-model="penaltyForm.reason"
                   rows="3"
+                  :readonly="!canOperateTournaments"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -491,7 +535,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 type="submit"
                 icon="i-heroicons-no-symbol"
                 block
-                :disabled="!penaltyValidation.success || actionStatus === 'submitting'"
+                :disabled="!canOperateTournaments || !penaltyValidation.success || actionStatus === 'submitting'"
                 :loading="activeActionId === 'penalty:create'"
               >
                 Uložiť trest
@@ -507,6 +551,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                   <span class="text-sm font-semibold">Sektor</span>
                   <select
                     v-model="ruleCheckForm.sectorId"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
@@ -518,6 +563,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                   <span class="text-sm font-semibold">Kontrolór</span>
                   <select
                     v-model="ruleCheckForm.marshalId"
+                    :disabled="!canOperateTournaments"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(ruleCheckForm.sectorId)" :key="marshal.id" :value="marshal.id">
@@ -531,6 +577,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 <span class="text-sm font-semibold">Výsledok</span>
                 <select
                   v-model="ruleCheckForm.result"
+                  :disabled="!canOperateTournaments"
                   class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
                   <option v-for="[value, label] in ruleCheckResultOptions" :key="value" :value="value">
@@ -544,6 +591,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 <textarea
                   v-model="ruleCheckForm.note"
                   rows="3"
+                  :readonly="!canOperateTournaments"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -558,7 +606,7 @@ watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { 
                 type="submit"
                 icon="i-heroicons-clipboard-document-check"
                 block
-                :disabled="!ruleCheckValidation.success || actionStatus === 'submitting'"
+                :disabled="!canOperateTournaments || !ruleCheckValidation.success || actionStatus === 'submitting'"
                 :loading="activeActionId === 'rule-check:create'"
               >
                 Uložiť kontrolu

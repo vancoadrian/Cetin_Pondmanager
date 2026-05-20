@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
 import { submitReservationDecision } from '~/services/reservationApiService'
+import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import {
@@ -8,6 +9,8 @@ import {
 } from '../../../../utils/localReservationStore'
 
 export default defineEventHandler(async (event) => {
+  requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
+
   const reservationId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
   const state = await readLocalReservationState()

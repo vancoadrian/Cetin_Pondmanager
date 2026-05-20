@@ -25,7 +25,6 @@ const {
   contactInfo,
   getLakeName,
   getPegLabel,
-  lakeClosures,
   lakes,
   pegs,
   paymentMethods,
@@ -50,6 +49,7 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
     default: fallbackReservationState,
   },
 )
+const { liveClosures } = await useClosureState({ key: 'public-reservation-closure-state' })
 
 const route = useRoute()
 const selectedLake = ref<LakeSlug>('velky-cetin')
@@ -77,7 +77,7 @@ const lakePegs = computed(() => pegs.filter((peg) => peg.lake === selectedLake.v
 const availabilityRows = computed(() =>
   lakePegs.value.map((peg) => ({
     availability: getPegAvailability(peg, {
-      closures: lakeClosures,
+      closures: liveClosures.value,
       dateFrom: reservationFrom.value,
       dateTo: reservationTo.value,
       reservations: liveReservations.value,
@@ -100,7 +100,7 @@ const selectedPeg = computed(() => pegs.find((peg) => peg.id === selectedPegId.v
 const selectedAvailability = computed(() =>
   selectedPeg.value
     ? getPegAvailability(selectedPeg.value, {
-      closures: lakeClosures,
+      closures: liveClosures.value,
       dateFrom: reservationFrom.value,
       dateTo: reservationTo.value,
       reservations: liveReservations.value,

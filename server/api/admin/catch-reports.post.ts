@@ -3,11 +3,14 @@ import {
   saveCatchSavedReport,
   type CatchReportMutationSuccess,
 } from '~/services/catchReportService'
+import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { readLocalCatchReportState, writeLocalCatchReportState } from '../../utils/localCatchReportStore'
 
 export default defineEventHandler(async (event): Promise<CatchReportMutationSuccess> => {
+  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+
   const state = await readLocalCatchReportState()
   const result = saveCatchSavedReport(await readBody(event), state)
 

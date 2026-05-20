@@ -5,7 +5,8 @@ import { getPegAvailability } from '~/utils/availability'
 
 useHead({ title: 'Mapa lovných miest' })
 
-const { lakeClosures, lakes, mapLayers, mapShapes, pegs, reservations } = usePondData()
+const { lakes, mapLayers, mapShapes, pegs, reservations } = usePondData()
+const { liveClosures } = await useClosureState({ key: 'public-map-closure-state' })
 
 const fallbackMapState = (): MapStateResponse => ({
   ok: true,
@@ -37,14 +38,14 @@ const activeBackgroundImage = computed(() =>
 const lakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === selectedLake.value))
 const availabilityRows = computed(() =>
   lakePegs.value.map((peg) => ({
-    availability: getPegAvailability(peg, { closures: lakeClosures, reservations }),
+    availability: getPegAvailability(peg, { closures: liveClosures.value, reservations }),
     peg,
   })),
 )
 const selectedPeg = computed(() => lakePegs.value.find((peg) => peg.id === selectedPegId.value))
 const selectedAvailability = computed(() =>
   selectedPeg.value
-    ? getPegAvailability(selectedPeg.value, { closures: lakeClosures, reservations })
+    ? getPegAvailability(selectedPeg.value, { closures: liveClosures.value, reservations })
     : undefined,
 )
 
@@ -91,7 +92,9 @@ function selectPeg(peg: Peg) {
       <LakeMap
         :title="currentLake.name"
         :image="activeBackgroundImage"
+        :closures="liveClosures"
         :points="lakePegs"
+        :reservations="reservations"
         :shapes="liveMapShapes"
         :selected-id="selectedPegId"
         @select="selectPeg"

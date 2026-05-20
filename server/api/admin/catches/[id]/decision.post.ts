@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
 import { submitCatchModerationDecision } from '~/services/catchModerationService'
+import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import {
@@ -8,6 +9,8 @@ import {
 } from '../../../../utils/localCatchStore'
 
 export default defineEventHandler(async (event) => {
+  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+
   const catchId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
   const state = await readLocalCatchState()
