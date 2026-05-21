@@ -556,7 +556,9 @@ export function buildSupabaseSeedPayload(
       lake_id: null,
       placement: sponsor.placement,
       sponsor_id: sponsorIds[sponsor.id]!,
-      tournament_id: sponsor.tier === 'tournament' ? tournamentIds[source.tournaments[0]?.id ?? ''] ?? null : null,
+      tournament_id: sponsor.tournamentId
+        ? tournamentIds[sponsor.tournamentId] ?? null
+        : sponsor.tier === 'tournament' ? tournamentIds[source.tournaments[0]?.id ?? ''] ?? null : null,
       venue_id: venueId,
     })),
     sponsors: source.sponsors.map((sponsor) => ({

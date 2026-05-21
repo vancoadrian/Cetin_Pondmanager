@@ -187,19 +187,77 @@ export const paymentMethodSettingsInputSchema = z.object({
 })
 
 export const rentalCatalogSettingsInputSchema = z.object({
+  removeRentalItemIds: z.array(z.string().trim().min(1, 'Chýba identifikátor odstraňovanej výbavy.')).default([]),
+  removeReservationExtraIds: z.array(z.string().trim().min(1, 'Chýba identifikátor odstraňovaného doplnku.')).default([]),
   rentalItems: z.array(z.object({
     active: z.boolean(),
+    category: z.enum(['fish-care', 'comfort', 'cabin']),
+    description: z.string().trim().min(5, 'Doplňte popis výbavy aspoň 5 znakmi.').max(240, 'Popis výbavy môže mať najviac 240 znakov.'),
     id: z.string().trim().min(1, 'Chýba identifikátor výbavy.'),
+    label: z.string().trim().min(2, 'Názov výbavy musí mať aspoň 2 znaky.').max(80, 'Názov výbavy môže mať najviac 80 znakov.'),
     priceLabel: z.string().trim().min(1, 'Doplňte cenníkový text výbavy.').max(120, 'Cenníkový text môže mať najviac 120 znakov.'),
     recommended: z.boolean(),
     stock: z.coerce.number().int('Sklad musí byť celé číslo.').min(0, 'Sklad nemôže byť záporný.').max(100, 'Sklad môže mať najviac 100 kusov.'),
   })).min(1, 'Upravte aspoň jednu položku výbavy.'),
   reservationExtras: z.array(z.object({
     active: z.boolean(),
+    appliesTo: z.enum(['all', 'cabin']),
+    description: z.string().trim().min(5, 'Doplňte popis doplnku aspoň 5 znakmi.').max(240, 'Popis doplnku môže mať najviac 240 znakov.'),
     id: z.string().trim().min(1, 'Chýba identifikátor doplnku.'),
+    label: z.string().trim().min(2, 'Názov doplnku musí mať aspoň 2 znaky.').max(80, 'Názov doplnku môže mať najviac 80 znakov.'),
+    lake: lakeSlugSchema.optional(),
     priceLabel: z.string().trim().min(1, 'Doplňte cenníkový text doplnku.').max(120, 'Cenníkový text môže mať najviac 120 znakov.'),
     source: z.enum(['web', 'proposal']),
   })).min(1, 'Upravte aspoň jeden doplnok k rezervácii.'),
+})
+
+const sponsorPlacementTypeSchema = z.enum(['homepage', 'footer', 'sponsors', 'tournament', 'sector', 'scoreboard'])
+const sponsorInputSchema = z.object({
+  active: z.boolean(),
+  description: z.string().trim().min(8, 'Popis sponzora musí mať aspoň 8 znakov.').max(240, 'Popis sponzora môže mať najviac 240 znakov.'),
+  id: z.string().trim().min(1, 'Chýba identifikátor sponzora.'),
+  logoText: z.string().trim().min(1, 'Doplňte skratku alebo text loga.').max(6, 'Text loga môže mať najviac 6 znakov.'),
+  name: z.string().trim().min(2, 'Názov sponzora musí mať aspoň 2 znaky.').max(100, 'Názov sponzora môže mať najviac 100 znakov.'),
+  placement: z.string().trim().min(3, 'Umiestnenie musí mať aspoň 3 znaky.').max(140, 'Umiestnenie môže mať najviac 140 znakov.'),
+  placementType: sponsorPlacementTypeSchema.default('sponsors'),
+  sectorId: z.string().trim().optional(),
+  sortOrder: z.coerce.number().int('Poradie musí byť celé číslo.').min(1, 'Poradie musí byť aspoň 1.').max(999, 'Poradie môže byť najviac 999.').default(100),
+  tier: z.enum(['main', 'partner', 'sector', 'tournament']),
+  tournamentId: z.string().trim().optional(),
+  validFrom: z.union([isoDateSchema, z.literal('')]).optional(),
+  validTo: z.union([isoDateSchema, z.literal('')]).optional(),
+  website: z.union([
+    z.string().trim().url('Web sponzora musí byť platná URL adresa.'),
+    z.literal(''),
+  ]).optional(),
+}).superRefine((value, ctx) => {
+  if ((value.placementType === 'tournament' || value.placementType === 'scoreboard') && !value.tournamentId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Pri súťažnom umiestnení vyberte súťaž.',
+      path: ['tournamentId'],
+    })
+  }
+
+  if (value.placementType === 'sector' && !value.sectorId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Pri sektorovom umiestnení vyberte sektor.',
+      path: ['sectorId'],
+    })
+  }
+
+  if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Platnosť kampane musí končiť rovnaký deň alebo neskôr ako začína.',
+      path: ['validTo'],
+    })
+  }
+})
+
+export const sponsorSettingsInputSchema = z.object({
+  sponsors: z.array(sponsorInputSchema).min(1, 'Upravte aspoň jedného sponzora.'),
 })
 
 export const notificationBroadcastInputSchema = z.object({

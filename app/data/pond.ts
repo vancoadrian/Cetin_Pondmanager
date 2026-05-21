@@ -444,10 +444,16 @@ export interface Sponsor {
   website?: string
   description: string
   placement: string
+  placementType?: 'homepage' | 'footer' | 'sponsors' | 'tournament' | 'sector' | 'scoreboard'
+  sectorId?: string
+  sortOrder?: number
+  tournamentId?: string
+  validFrom?: string
+  validTo?: string
   active: boolean
 }
 
-export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'logbooks' | 'tournaments' | 'map' | 'system'
+export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'logbooks' | 'tournaments' | 'map' | 'sponsors' | 'system'
 export type AuditActorRole =
   | 'owner'
   | 'manager'
@@ -1007,6 +1013,9 @@ export const sponsors: Sponsor[] = [
     website: 'https://example.com',
     description: 'Hlavný partner súťažného merania, váženia a cien pre víťazov.',
     placement: 'homepage, súťaže, výsledková tabuľa',
+    placementType: 'homepage',
+    sortOrder: 1,
+    validFrom: '2026-01-01',
     active: true,
   },
   {
@@ -1017,6 +1026,11 @@ export const sponsors: Sponsor[] = [
     website: 'https://example.com',
     description: 'Partner pretekov a tímových cien za najväčšiu rybu.',
     placement: 'European Carp Cup Junior',
+    placementType: 'tournament',
+    sortOrder: 2,
+    tournamentId: 'eccj-2026',
+    validFrom: '2026-08-01',
+    validTo: '2026-08-31',
     active: true,
   },
   {
@@ -1026,6 +1040,8 @@ export const sponsors: Sponsor[] = [
     logoText: 'OP',
     description: 'Lokálny partner prevádzky a komunitných akcií pri vode.',
     placement: 'kontakt, info, footer',
+    placementType: 'footer',
+    sortOrder: 3,
     active: true,
   },
   {
@@ -1035,6 +1051,10 @@ export const sponsors: Sponsor[] = [
     logoText: 'B4',
     description: 'Ukážka sponzora naviazaného na konkrétny sektor alebo lovné miesto.',
     placement: 'súťažná mapa, sektor B4',
+    placementType: 'sector',
+    sectorId: 'b4',
+    sortOrder: 4,
+    tournamentId: 'eccj-2026',
     active: false,
   },
 ]

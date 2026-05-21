@@ -67,6 +67,8 @@
 | `sponsor_assets` | logá a vizuály |
 | `sponsor_placements` | umiestnenie: homepage, súťaž, sektor, výsledkovka |
 
+Sponzori majú prechodový lokálny store `.data/rybolov-cetin/sponsor-state.json`; public stránka číta iba aktívnych partnerov cez `/api/sponsors` a `/admin/sponzori` vie zoznam upraviť cez `/api/admin/sponsors`. Prototyp už drží aj typ umiestnenia (`homepage`, `footer`, `sponsors`, `tournament`, `sector`, `scoreboard`), poradie, voliteľnú platnosť kampane a väzbu na súťaž alebo sektor.
+
 ## Availability engine
 
 Rezervovateľnosť miesta sa nemá počítať len z tabuľky `reservations`.
@@ -106,7 +108,7 @@ Prvý výpočet rezervovateľnosti je oddelený v `app/utils/availability.ts`, a
 Skupinové zápisníky výprav sú v prototype cez `tripLogbooks` a `tripLogbookEntries`; cieľ je podporiť link alebo kód bez účtu aj neskoršie priradenie k účtu rybára.
 Mapový prototyp používa `mapLayers`, `mapShapes` a pomocné SVG funkcie v `app/utils/map.ts`. Produkčný smer je plný SVG editor s nahrateľným podkladovým obrázkom.
 Požičovňa má prvý prechodový model cez `rentalBookings`; dostupnosť kusov podľa termínu počíta `app/utils/rentals.ts`.
-Katalóg požičovne a doplnkov má prechodový lokálny store `.data/rybolov-cetin/rental-catalog-state.json`; `/admin/pozicovna` vie meniť `active`, sklad, odporúčanie a cenníkový text a public/admin rezervácie používajú iba aktívne položky.
+Katalóg požičovne a doplnkov má prechodový lokálny store `.data/rybolov-cetin/rental-catalog-state.json`; `/admin/pozicovna` vie pridať novú výbavu alebo doplnok, meniť `active`, sklad, odporúčanie a cenníkový text a odstrániť iba nepoužité položky. Public/admin rezervácie používajú iba aktívne položky a história rezervácií chráni použité položky pred fyzickým zmazaním.
 Rezervácie už v mock modeli nesú kontaktný telefón, povolenku, voliteľnú chatu, výbavu, doplnky, zdroj žiadosti a internú poznámku správcu.
 Platobné metódy sú v `paymentMethods`: hotovosť a prevod sú zapnuté, platobná brána je pripravená ako vypnutý budúci modul. Aktuálny zapnutý stav sa dočasne ukladá do `.data/rybolov-cetin/payment-method-state.json` a číta ho public rezervácia, info stránka aj admin vytvorenie rezervácie.
 Admin kalendár skladá `reservations`, živý closure state a `pegs` do týždňovej alebo mesačnej mriežky cez helpery v `app/utils/calendar.ts`. Rovnaký closure state používa public mapa, admin mapa, dashboard aj serverová validácia rezervácie.

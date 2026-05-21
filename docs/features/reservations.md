@@ -73,7 +73,8 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - `/admin/uzavierky` vie existujúcu uzávierku načítať späť do formulára, upraviť ju a uložiť cez rovnaký API kontrakt.
 - Platobné metódy sú pripravené v modeli ako zapínateľný zoznam: hotovosť, prevod a vypnutá budúca brána. `/admin/rezervacie` ich vie zapnúť alebo vypnúť cez lokálny payment store.
 - Požičovňa má termínový výpočet dostupnosti cez `rentalBookings` a `getRentalAvailability`.
-- `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín; správca vie dočasne vypnúť položku, upraviť sklad, odporúčanie a cenníkový text.
+- `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín; správca vie pridať novú výbavu alebo doplnok, dočasne vypnúť položku, upraviť sklad, odporúčanie a cenníkový text.
+- Nepoužitú výbavu alebo doplnok vie správca bezpečne odstrániť. Položky použité v rezerváciách alebo výpožičkách sa nemažú kvôli histórii, UI aj API ich navádzajú radšej vypnúť cez `active`.
 - Aktívny katalóg požičovne a doplnkov sa dočasne ukladá do `.data/rybolov-cetin/rental-catalog-state.json`; public rezervácia, info stránka a admin vytváranie rezervácie čítajú iba aktívne položky.
 - Dáta sú v `app/data/pond.ts`.
 
@@ -81,6 +82,5 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 
 - Neskôr nahradiť lokálny JSON store produkčnou repository/Supabase mutáciou.
 - Konfliktné pravidlá a vysvetlenie dostupnosti.
-- Pridať vytváranie úplne nových položiek katalógu v adminovi, dnes sa upravujú existujúce seed položky.
 - Email/SMS/push potvrdenia cez Resend alebo iného providera podľa rozhodnutia prevádzkovateľa.
 - Doriešiť notifikáciu používateľovi, ak offline rezervácia po návrate internetu narazí na konflikt dostupnosti.

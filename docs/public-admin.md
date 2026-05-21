@@ -32,9 +32,9 @@ Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Inter
 | `/admin/ulovky` | mock | oprava a schvaľovanie verejných úlovkov, presun alebo odpojenie zápisníka, poznámky správcu a interný report |
 | `/admin/mapa` | mock | SVG editor lovných miest, chát, vrstiev a servisných zón |
 | `/admin/uzavierky` | mock | sezóny, neres, údržba, preteky, mimoriadne uzávierky |
-| `/admin/pozicovna` | mock | sklad výbavy, aktívne doplnky, cenníkový text a priradenie k rezerváciám |
+| `/admin/pozicovna` | mock | tvorba a úprava výbavy, aktívne doplnky, cenníkový text, bezpečné mazanie nepoužitých položiek a priradenie k rezerváciám |
 | `/admin/sutaze` | mock | organizácia pretekov, kontrolóri, tresty |
-| `/admin/sponzori` | mock | partneri a ich umiestnenia |
+| `/admin/sponzori` | mock + lokálny store | partneri, aktívnosť, tier, web, umiestnenia, poradie a platnosť kampane |
 | `/admin/audit` | mock | audit log lokálnych rozhodnutí a zmien |
 
 ## Mock auth

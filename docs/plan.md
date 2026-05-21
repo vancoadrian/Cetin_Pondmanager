@@ -16,7 +16,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - PWA: manifest, ikony, inštalačný prompt, service worker, offline stránka, stavový banner pripojenia a offline fronty pre rezervácie, úlovky a súťažné hlásenia.
 - Branding: finálny pracovný brand je `Rybolov Cetín`, nové SVG logo.
 - Dostupnosť miest: prvý availability engine v `app/utils/availability.ts` napojený na mapu, rezervácie a admin.
-- Požičovňa: kapacitný výpočet v `app/utils/rentals.ts` je napojený na verejnú rezerváciu a admin požičovňu; katalóg položiek a doplnkov má lokálny store a správca vie meniť aktivitu, sklad, odporúčanie a cenníkový text.
+- Požičovňa: kapacitný výpočet v `app/utils/rentals.ts` je napojený na verejnú rezerváciu a admin požičovňu; katalóg položiek a doplnkov má lokálny store a správca vie pridať novú položku, meniť aktivitu, sklad, odporúčanie, cenníkový text a bezpečne odstrániť nepoužité položky.
 - Admin rezervácie: prvý schvaľovací detail ukazuje kontakt, miesto, chatu, výbavu, doplnky, konflikty a internú poznámku; uloženie rozhodnutia už ide cez mock service/composable workflow. Správca vie vytvoriť telefonickú alebo osobnú rezerváciu priamo v adminovi.
 - Admin kalendár: týždňová aj mesačná mriežka obsadenosti po miestach a chatách v `/admin/rezervacie`; na mobile je dostupný denný súhrn bez širokej tabuľky.
 - Úlovky: verejný denník doplnený o mock skupinové zápisníky výprav.
@@ -27,7 +27,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Uložené reporty: `/admin/ulovky` vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre správcu, majiteľa alebo účtovníka, vygenerovať z neho aktuálny reportový payload, pripraviť e-mailový draft s CSV prílohami a ručne spustiť plánovač splatných týždenných alebo mesačných reportov.
 - Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána; aktuálne sa dajú prepínať v admin rezerváciách cez lokálny payment store.
 - Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin vytvorenie má `POST /api/admin/reservations` a admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
-- Lokálna perzistencia: rezervácie, platobné metódy, katalóg požičovne/doplnkov, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
+- Lokálna perzistencia: rezervácie, platobné metódy, katalóg požičovne/doplnkov, sponzori vrátane umiestnení/kampaní, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
 - Lokálna perzistencia: uzávierky, sezóny a servisné blokácie majú samostatný store `.data/rybolov-cetin/closure-state.json`; vstupujú do serverovej validácie rezervácií, public mapy, admin mapy, dashboardu a sezónnych okien reportov. Admin uzávierky vie správca vytvoriť aj spätne upraviť.
 - Lokálna perzistencia: uložené reporty úlovkov majú samostatný store `.data/rybolov-cetin/catch-reports.json`.
 - Testy: Vitest je pridaný pre dostupnosť, požičovňu, katalóg požičovne, admin workflow rezervácií, rezervačné API, lokálne store vrstvy, audit log, Zod formuláre, súťažný workflow a seed/service kontrakty.
@@ -49,7 +49,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Presunúť mock dáta z `app/data/pond.ts` do repository/service vrstvy. Prvý mock repository/service mostík je hotový.
 - Zaviesť Zod validácie pre formuláre a doménové vstupy. Prvá sada schém je hotová v `app/schemas/pondSchemas.ts`.
 - Ustáliť API kontrakty pred Supabase. Prvé endpointy pre rezervácie, úlovky a admin rozhodnutia sú hotové.
-- Pridať lokálny JSON store ako dočasné úložisko pred Supabase. Prvá verzia pre rezervácie, požičovňu, mapový editor, úlovky, skupinové zápisníky a súťažný dispečing je hotová.
+- Pridať lokálny JSON store ako dočasné úložisko pred Supabase. Prvá verzia pre rezervácie, požičovňu, sponzorov, mapový editor, úlovky, skupinové zápisníky a súťažný dispečing je hotová.
 - Doplniť audit log lokálnych a budúcich Supabase mutácií. Prvá lokálna verzia je hotová cez `audit-log.json`, `/admin/audit` a tabuľku `audit_events` v migrácii.
 - Nastaviť RLS politiky podľa rolí.
 - Dopĺňať roly `tournament_organizer`, `accountant` a `worker` popri owner, manager, marshal, tournament team a angler. Mock admin už má spoločnú access matrix pre navigáciu, dashboard, route guard, write/read obmedzenia vo všetkých hlavných admin moduloch a serverový guard pre `/api/admin/*`.

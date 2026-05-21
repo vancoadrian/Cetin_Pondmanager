@@ -7,13 +7,19 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { readLocalRentalCatalogState, writeLocalRentalCatalogState } from '../../utils/localRentalCatalogStore'
+import { readLocalReservationState } from '../../utils/localReservationStore'
 
 export default defineEventHandler(async (event): Promise<RentalCatalogMutationSuccess> => {
   requireAdminAccess(event, { moduleId: 'rentals', mode: 'operate' })
 
-  const state = await readLocalRentalCatalogState()
+  const [state, reservationState] = await Promise.all([
+    readLocalRentalCatalogState(),
+    readLocalReservationState(),
+  ])
   const result = updateRentalCatalogSettings(await readBody(event), {
+    rentalBookings: reservationState.rentalBookings,
     rentalItems: state.rentalItems,
+    reservations: reservationState.reservations,
     reservationExtras: state.reservationExtras,
   })
 
@@ -40,6 +46,8 @@ export default defineEventHandler(async (event): Promise<RentalCatalogMutationSu
     details: {
       activeExtraIds: updatedState.reservationExtras.filter((extra) => extra.active).map((extra) => extra.id),
       activeRentalItemIds: updatedState.rentalItems.filter((item) => item.active).map((item) => item.id),
+      removedRentalItemIds: result.removedRentalItemIds,
+      removedReservationExtraIds: result.removedReservationExtraIds,
       totalStock: updatedState.rentalItems.reduce((sum, item) => sum + item.stock, 0),
     },
     entityId: 'rental-catalog',

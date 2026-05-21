@@ -41,13 +41,12 @@ Možné umiestnenia:
 
 ## Stav v prototype
 
-- `/sponzori` je verejná stránka.
+- `/sponzori` je verejná stránka a číta iba aktívnych partnerov zo živého sponsor state.
 - `/admin` zobrazuje súhrn partnerov.
-- Dáta sú v `sponsors`.
+- `/admin/sponzori` vie meniť aktívnosť, názov, tier, text loga, web, umiestnenie partnera, typ umiestnenia, poradie, platnosť kampane a voliteľnú väzbu na súťaž alebo sektor.
+- Dáta sú seedované zo `sponsors` a prechodovo uložené v `.data/rybolov-cetin/sponsor-state.json`.
 
 ## Ďalšie kroky
 
-- Samostatná route `/admin/sponzori`.
 - Upload loga.
-- Väzba na súťaž a sektor.
-- Poradie a časová platnosť kampane.
+- Produkčná väzba na samostatnú tabuľku umiestnení a assetov.

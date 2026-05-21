@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { Sponsor } from '~/data/pond'
+
 useHead({ title: 'Sponzori' })
 
-const { sponsors } = usePondData()
+const { activeSponsors } = await useSponsorState({ key: 'public-sponsors-page-state' })
 
 const tierLabels = {
   main: 'hlavný partner',
@@ -9,8 +11,22 @@ const tierLabels = {
   sector: 'sektorový partner',
   tournament: 'partner súťaže',
 } as const
+const placementTypeLabels = {
+  footer: 'footer',
+  homepage: 'homepage',
+  scoreboard: 'výsledkovka',
+  sector: 'sektor',
+  sponsors: 'stránka sponzorov',
+  tournament: 'súťaž',
+} as const
 
-const activeSponsors = computed(() => sponsors.filter((sponsor) => sponsor.active))
+function campaignRange(sponsor: Sponsor) {
+  if (sponsor.validFrom && sponsor.validTo) return `${sponsor.validFrom} až ${sponsor.validTo}`
+  if (sponsor.validFrom) return `od ${sponsor.validFrom}`
+  if (sponsor.validTo) return `do ${sponsor.validTo}`
+
+  return ''
+}
 </script>
 
 <template>
@@ -38,7 +54,15 @@ const activeSponsors = computed(() => sponsors.filter((sponsor) => sponsor.activ
             </div>
           </div>
           <p class="text-foreground-muted mt-4 text-sm">{{ sponsor.description }}</p>
-          <p class="mt-4 text-sm font-semibold">{{ sponsor.placement }}</p>
+          <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+            <span class="rounded-md bg-primary-50 px-2 py-1 text-primary-800">
+              {{ sponsor.placementType ? placementTypeLabels[sponsor.placementType] : placementTypeLabels.sponsors }}
+            </span>
+            <span v-if="campaignRange(sponsor)" class="rounded-md bg-muted px-2 py-1 text-foreground-muted">
+              {{ campaignRange(sponsor) }}
+            </span>
+          </div>
+          <p class="mt-3 text-sm font-semibold">{{ sponsor.placement }}</p>
           <UButton
             v-if="sponsor.website"
             :to="sponsor.website"

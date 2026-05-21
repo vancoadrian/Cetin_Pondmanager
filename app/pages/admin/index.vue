@@ -9,13 +9,13 @@ const {
   lakes,
   pegs,
   reservations,
-  sponsors,
   tournamentPenalties,
   tournamentRequests,
   tournamentRequestTypeLabels,
 } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-dashboard-closure-state' })
 const { activeRentalItems } = await useRentalCatalogState({ admin: true, key: 'admin-dashboard-rental-catalog-state' })
+const { liveSponsors } = await useSponsorState({ admin: true, key: 'admin-dashboard-sponsor-state' })
 
 const { logout, user } = useMockAuth()
 
@@ -30,7 +30,7 @@ const blockedReservations = computed(() =>
 const internalClosures = computed(() =>
   liveClosures.value.filter((closure) => closure.visibility === 'internal' || closure.affectsReservations),
 )
-const activeSponsors = computed(() => sponsors.filter((sponsor) => sponsor.active))
+const activeSponsors = computed(() => liveSponsors.value.filter((sponsor) => sponsor.active))
 const activeTournamentRequests = computed(() =>
   tournamentRequests.filter((request) => request.status !== 'resolved'),
 )
@@ -263,7 +263,7 @@ async function signOut() {
               <UButton to="/admin/sponzori" icon="i-heroicons-arrow-right" variant="ghost" aria-label="Sponzori" />
             </div>
             <div class="mt-4 space-y-3">
-              <div v-for="sponsor in sponsors" :key="sponsor.id" class="flex items-center gap-3 rounded-md bg-muted p-3">
+              <div v-for="sponsor in liveSponsors" :key="sponsor.id" class="flex items-center gap-3 rounded-md bg-muted p-3">
                 <div class="flex h-10 w-10 items-center justify-center rounded-md bg-primary-900 text-sm font-black text-accent-300">
                   {{ sponsor.logoText }}
                 </div>
