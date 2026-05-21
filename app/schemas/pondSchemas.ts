@@ -18,6 +18,74 @@ export const catchPhotoUploadSchema = z.object({
   (value) => value.dataUrl.startsWith(`data:${value.mimeType};base64,`),
   'Fotka nemá platný dátový formát.',
 )
+export const MAX_SPONSOR_LOGO_BYTES = 2 * 1024 * 1024
+export const sponsorLogoPlacementRules = {
+  footer: {
+    label: 'footer',
+    maxRatio: 5,
+    minHeight: 96,
+    minRatio: 0.75,
+    minWidth: 240,
+    ratioLabel: '3:4 až 5:1',
+  },
+  homepage: {
+    label: 'homepage',
+    maxRatio: 6,
+    minHeight: 240,
+    minRatio: 2,
+    minWidth: 720,
+    ratioLabel: '2:1 až 6:1',
+  },
+  scoreboard: {
+    label: 'výsledkovku',
+    maxRatio: 5,
+    minHeight: 220,
+    minRatio: 2,
+    minWidth: 720,
+    ratioLabel: '2:1 až 5:1',
+  },
+  sector: {
+    label: 'sektor',
+    maxRatio: 1.4,
+    minHeight: 260,
+    minRatio: 0.7,
+    minWidth: 260,
+    ratioLabel: '7:10 až 14:10',
+  },
+  sponsors: {
+    label: 'stránku sponzorov',
+    maxRatio: 4,
+    minHeight: 140,
+    minRatio: 0.75,
+    minWidth: 320,
+    ratioLabel: '3:4 až 4:1',
+  },
+  tournament: {
+    label: 'súťaž',
+    maxRatio: 5,
+    minHeight: 180,
+    minRatio: 1.5,
+    minWidth: 480,
+    ratioLabel: '3:2 až 5:1',
+  },
+} as const
+
+export const sponsorLogoUploadSchema = z.object({
+  dataUrl: z.string().startsWith('data:image/', 'Logo musí byť obrázok.'),
+  fileName: z.string().trim().min(1, 'Logo nemá názov súboru.').max(120),
+  height: z.coerce.number().int('Výška loga musí byť celé číslo.').min(1, 'Logo nemá zistenú výšku.').max(10000, 'Logo je príliš vysoké.'),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp'], {
+    message: 'Podporované sú iba JPG, PNG alebo WebP logá.',
+  }),
+  sizeBytes: z.coerce.number().int().min(1, 'Logo je prázdne.').max(
+    MAX_SPONSOR_LOGO_BYTES,
+    'Logo môže mať najviac 2 MB.',
+  ),
+  width: z.coerce.number().int('Šírka loga musí byť celé číslo.').min(1, 'Logo nemá zistenú šírku.').max(10000, 'Logo je príliš široké.'),
+}).refine(
+  (value) => value.dataUrl.startsWith(`data:${value.mimeType};base64,`),
+  'Logo nemá platný dátový formát.',
+)
 const phoneSchema = z
   .string()
   .trim()
@@ -212,14 +280,22 @@ export const rentalCatalogSettingsInputSchema = z.object({
 })
 
 const sponsorPlacementTypeSchema = z.enum(['homepage', 'footer', 'sponsors', 'tournament', 'sector', 'scoreboard'])
+const sponsorLogoVariantInputSchema = z.object({
+  logoUpload: sponsorLogoUploadSchema.optional(),
+  placementType: sponsorPlacementTypeSchema,
+  removeLogo: z.boolean().default(false),
+})
 const sponsorInputSchema = z.object({
   active: z.boolean(),
   description: z.string().trim().min(8, 'Popis sponzora musí mať aspoň 8 znakov.').max(240, 'Popis sponzora môže mať najviac 240 znakov.'),
   id: z.string().trim().min(1, 'Chýba identifikátor sponzora.'),
+  logoUpload: sponsorLogoUploadSchema.optional(),
+  logoVariants: z.array(sponsorLogoVariantInputSchema).default([]),
   logoText: z.string().trim().min(1, 'Doplňte skratku alebo text loga.').max(6, 'Text loga môže mať najviac 6 znakov.'),
   name: z.string().trim().min(2, 'Názov sponzora musí mať aspoň 2 znaky.').max(100, 'Názov sponzora môže mať najviac 100 znakov.'),
   placement: z.string().trim().min(3, 'Umiestnenie musí mať aspoň 3 znaky.').max(140, 'Umiestnenie môže mať najviac 140 znakov.'),
   placementType: sponsorPlacementTypeSchema.default('sponsors'),
+  removeLogo: z.boolean().default(false),
   sectorId: z.string().trim().optional(),
   sortOrder: z.coerce.number().int('Poradie musí byť celé číslo.').min(1, 'Poradie musí byť aspoň 1.').max(999, 'Poradie môže byť najviac 999.').default(100),
   tier: z.enum(['main', 'partner', 'sector', 'tournament']),
@@ -253,6 +329,61 @@ const sponsorInputSchema = z.object({
       message: 'Platnosť kampane musí končiť rovnaký deň alebo neskôr ako začína.',
       path: ['validTo'],
     })
+  }
+
+  if (value.logoUpload) {
+    const logoRule = sponsorLogoPlacementRules[value.placementType]
+    const logoRatio = value.logoUpload.width / value.logoUpload.height
+
+    if (value.logoUpload.width < logoRule.minWidth || value.logoUpload.height < logoRule.minHeight) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Logo pre ${logoRule.label} musí mať aspoň ${logoRule.minWidth} x ${logoRule.minHeight} px.`,
+        path: ['logoUpload'],
+      })
+    }
+
+    if (logoRatio < logoRule.minRatio || logoRatio > logoRule.maxRatio) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Logo pre ${logoRule.label} musí mať pomer strán ${logoRule.ratioLabel}.`,
+        path: ['logoUpload'],
+      })
+    }
+  }
+
+  const duplicateVariantTypes = value.logoVariants
+    .map((variant) => variant.placementType)
+    .filter((placementType, index, list) => list.indexOf(placementType) !== index)
+  for (const placementType of [...new Set(duplicateVariantTypes)]) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Variant loga je v požiadavke duplicitný: ${sponsorLogoPlacementRules[placementType].label}.`,
+      path: ['logoVariants'],
+    })
+  }
+
+  for (const variant of value.logoVariants) {
+    if (!variant.logoUpload) continue
+
+    const logoRule = sponsorLogoPlacementRules[variant.placementType]
+    const logoRatio = variant.logoUpload.width / variant.logoUpload.height
+
+    if (variant.logoUpload.width < logoRule.minWidth || variant.logoUpload.height < logoRule.minHeight) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Variant loga pre ${logoRule.label} musí mať aspoň ${logoRule.minWidth} x ${logoRule.minHeight} px.`,
+        path: ['logoVariants'],
+      })
+    }
+
+    if (logoRatio < logoRule.minRatio || logoRatio > logoRule.maxRatio) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Variant loga pre ${logoRule.label} musí mať pomer strán ${logoRule.ratioLabel}.`,
+        path: ['logoVariants'],
+      })
+    }
   }
 })
 

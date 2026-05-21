@@ -34,7 +34,7 @@ Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Inter
 | `/admin/uzavierky` | mock | sezóny, neres, údržba, preteky, mimoriadne uzávierky |
 | `/admin/pozicovna` | mock | tvorba a úprava výbavy, aktívne doplnky, cenníkový text, bezpečné mazanie nepoužitých položiek a priradenie k rezerváciám |
 | `/admin/sutaze` | mock | organizácia pretekov, kontrolóri, tresty |
-| `/admin/sponzori` | mock + lokálny store | partneri, aktívnosť, tier, web, umiestnenia, poradie a platnosť kampane |
+| `/admin/sponzori` | mock + lokálny store | partneri, aktívnosť, tier, web, logá, umiestnenia, poradie a platnosť kampane |
 | `/admin/audit` | mock | audit log lokálnych rozhodnutí a zmien |
 
 ## Mock auth

@@ -27,6 +27,16 @@ function normalizeSponsor(sponsor: Sponsor): Sponsor {
 
   return {
     ...sponsor,
+    logoAssetId: sponsor.logoAssetId ?? seedSponsor?.logoAssetId,
+    logoFileName: sponsor.logoFileName ?? seedSponsor?.logoFileName,
+    logoHeight: sponsor.logoHeight ?? seedSponsor?.logoHeight,
+    logoMimeType: sponsor.logoMimeType ?? seedSponsor?.logoMimeType,
+    logoSizeBytes: sponsor.logoSizeBytes ?? seedSponsor?.logoSizeBytes,
+    logoStoragePath: sponsor.logoStoragePath ?? seedSponsor?.logoStoragePath,
+    logoUpdatedAt: sponsor.logoUpdatedAt ?? seedSponsor?.logoUpdatedAt,
+    logoUrl: sponsor.logoUrl ?? seedSponsor?.logoUrl,
+    logoVariants: sponsor.logoVariants ?? seedSponsor?.logoVariants,
+    logoWidth: sponsor.logoWidth ?? seedSponsor?.logoWidth,
     placementType: sponsor.placementType ?? seedSponsor?.placementType ?? 'sponsors',
     sectorId: sponsor.sectorId ?? seedSponsor?.sectorId,
     sortOrder: sponsor.sortOrder ?? seedSponsor?.sortOrder ?? 100,

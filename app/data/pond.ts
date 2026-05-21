@@ -436,11 +436,34 @@ export interface MapShape {
   tone: 'water' | 'reed' | 'warning' | 'service' | 'sector'
 }
 
+export interface SponsorLogoVariant {
+  fileName?: string
+  height?: number
+  mimeType?: 'image/jpeg' | 'image/png' | 'image/webp'
+  placementType: 'homepage' | 'footer' | 'sponsors' | 'tournament' | 'sector' | 'scoreboard'
+  sizeBytes?: number
+  storagePath?: string
+  updatedAt?: string
+  url?: string
+  variantId?: string
+  width?: number
+}
+
 export interface Sponsor {
   id: string
   name: string
   tier: 'main' | 'partner' | 'sector' | 'tournament'
   logoText: string
+  logoAssetId?: string
+  logoFileName?: string
+  logoHeight?: number
+  logoMimeType?: 'image/jpeg' | 'image/png' | 'image/webp'
+  logoSizeBytes?: number
+  logoStoragePath?: string
+  logoUpdatedAt?: string
+  logoUrl?: string
+  logoVariants?: SponsorLogoVariant[]
+  logoWidth?: number
   website?: string
   description: string
   placement: string

@@ -67,7 +67,7 @@
 | `sponsor_assets` | logá a vizuály |
 | `sponsor_placements` | umiestnenie: homepage, súťaž, sektor, výsledkovka |
 
-Sponzori majú prechodový lokálny store `.data/rybolov-cetin/sponsor-state.json`; public stránka číta iba aktívnych partnerov cez `/api/sponsors` a `/admin/sponzori` vie zoznam upraviť cez `/api/admin/sponsors`. Prototyp už drží aj typ umiestnenia (`homepage`, `footer`, `sponsors`, `tournament`, `sector`, `scoreboard`), poradie, voliteľnú platnosť kampane a väzbu na súťaž alebo sektor.
+Sponzori majú prechodový lokálny store `.data/rybolov-cetin/sponsor-state.json`; public stránka číta iba aktívnych partnerov cez `/api/sponsors` a `/admin/sponzori` vie zoznam upraviť cez `/api/admin/sponsors`. Prototyp už drží aj typ umiestnenia (`homepage`, `footer`, `sponsors`, `tournament`, `sector`, `scoreboard`), poradie, voliteľnú platnosť kampane a väzbu na súťaž alebo sektor. Logo assety sa ukladajú lokálne do `.data/rybolov-cetin/sponsor-assets/`, metadata sú na sponzorovi vrátane šírky/výšky a voliteľných variantov podľa umiestnenia. Produkčný export mapuje hlavné logo aj varianty do `sponsor_assets`.
 
 ## Availability engine
 

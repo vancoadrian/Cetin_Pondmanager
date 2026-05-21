@@ -43,7 +43,7 @@ Prvý export pokrýva:
 - uzávierky jazier a konkrétnych miest,
 - úlovky, fotky úlovkov, zápisníky výprav a riadky zápisníkov,
 - súťaže, sektory, tímy, kontrolórov, hlásenia, úlovky, tresty a kontroly pravidiel,
-- sponzorov a ich umiestnenia,
+- sponzorov, logo assety a ich umiestnenia,
 - verejné výstrahy.
 
 ## Validácia

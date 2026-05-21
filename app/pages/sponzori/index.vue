@@ -27,6 +27,10 @@ function campaignRange(sponsor: Sponsor) {
 
   return ''
 }
+
+function cardLogo(sponsor: Sponsor) {
+  return getSponsorLogo(sponsor, sponsor.placementType ?? 'sponsors')
+}
 </script>
 
 <template>
@@ -45,8 +49,14 @@ function campaignRange(sponsor: Sponsor) {
           class="border-border bg-surface rounded-card border p-5"
         >
           <div class="flex items-start gap-4">
-            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-primary-900 text-lg font-black text-accent-300">
-              {{ sponsor.logoText }}
+            <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-lg font-black text-accent-300">
+              <img
+                v-if="cardLogo(sponsor).url"
+                :src="cardLogo(sponsor).url"
+                :alt="cardLogo(sponsor).alt"
+                class="h-full w-full bg-white object-contain p-2"
+              >
+              <span v-else>{{ cardLogo(sponsor).text }}</span>
             </div>
             <div class="min-w-0">
               <p class="text-primary-700 text-sm font-semibold">{{ tierLabels[sponsor.tier] }}</p>

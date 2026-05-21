@@ -6,6 +6,7 @@ import {
   getValidationMessages,
   mapPointDraftSchema,
   reservationRequestSchema,
+  sponsorSettingsInputSchema,
   tournamentPenaltyInputSchema,
   tournamentRequestInputSchema,
   tournamentRuleCheckInputSchema,
@@ -147,6 +148,126 @@ describe('catchRecordInputSchema', () => {
     if (result.success) throw new Error('GIF catch photo should be invalid.')
 
     expect(getValidationMessages(result)).toContain('Podporované sú iba JPG, PNG alebo WebP fotky.')
+  })
+})
+
+describe('sponsorSettingsInputSchema', () => {
+  const validSponsor = {
+    active: true,
+    description: 'Partner revíru a súťažných cien.',
+    id: 'sponsor-test',
+    logoText: 'ST',
+    name: 'Sponsor Test',
+    placement: 'stránka sponzorov',
+    tier: 'partner',
+  }
+
+  it('accepts a supported sponsor logo upload', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoUpload: {
+          dataUrl: 'data:image/webp;base64,aGVsbG8=',
+          fileName: 'logo.webp',
+          height: 180,
+          mimeType: 'image/webp',
+          sizeBytes: 5,
+          width: 400,
+        },
+      }],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Sponsor settings should be valid.')
+
+    expect(result.data.sponsors[0]?.logoUpload?.fileName).toBe('logo.webp')
+  })
+
+  it('rejects unsupported sponsor logo uploads', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoUpload: {
+          dataUrl: 'data:image/gif;base64,aGVsbG8=',
+          fileName: 'logo.gif',
+          height: 180,
+          mimeType: 'image/gif',
+          sizeBytes: 5,
+          width: 400,
+        },
+      }],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('GIF sponsor logo should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Podporované sú iba JPG, PNG alebo WebP logá.')
+  })
+
+  it('rejects sponsor logos that are too narrow for scoreboard placement', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoUpload: {
+          dataUrl: 'data:image/png;base64,aGVsbG8=',
+          fileName: 'scoreboard.png',
+          height: 260,
+          mimeType: 'image/png',
+          sizeBytes: 5,
+          width: 300,
+        },
+        placementType: 'scoreboard',
+        tournamentId: 'eccj-2026',
+      }],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Scoreboard logo should be invalid.')
+
+    const messages = getValidationMessages(result)
+    expect(messages).toContain('Logo pre výsledkovku musí mať aspoň 720 x 220 px.')
+    expect(messages).toContain('Logo pre výsledkovku musí mať pomer strán 2:1 až 5:1.')
+  })
+
+  it('validates placement-specific sponsor logo variants', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoVariants: [{
+          logoUpload: {
+            dataUrl: 'data:image/png;base64,aGVsbG8=',
+            fileName: 'homepage.png',
+            height: 300,
+            mimeType: 'image/png',
+            sizeBytes: 5,
+            width: 900,
+          },
+          placementType: 'homepage',
+        }],
+      }],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Sponsor logo variant should be valid.')
+
+    expect(result.data.sponsors[0]?.logoVariants[0]?.placementType).toBe('homepage')
+  })
+
+  it('rejects duplicate sponsor logo variant targets', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoVariants: [
+          { placementType: 'footer' },
+          { placementType: 'footer' },
+        ],
+      }],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Duplicate logo variants should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Variant loga je v požiadavke duplicitný: footer.')
   })
 })
 

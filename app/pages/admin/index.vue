@@ -45,6 +45,10 @@ async function signOut() {
   logout()
   await navigateTo('/login')
 }
+
+function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
+  return getSponsorLogo(sponsor, sponsor.placementType ?? 'sponsors')
+}
 </script>
 
 <template>
@@ -264,8 +268,14 @@ async function signOut() {
             </div>
             <div class="mt-4 space-y-3">
               <div v-for="sponsor in liveSponsors" :key="sponsor.id" class="flex items-center gap-3 rounded-md bg-muted p-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-md bg-primary-900 text-sm font-black text-accent-300">
-                  {{ sponsor.logoText }}
+                <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-sm font-black text-accent-300">
+                  <img
+                    v-if="dashboardSponsorLogo(sponsor).url"
+                    :src="dashboardSponsorLogo(sponsor).url"
+                    :alt="dashboardSponsorLogo(sponsor).alt"
+                    class="h-full w-full bg-white object-contain p-1.5"
+                  >
+                  <span v-else>{{ dashboardSponsorLogo(sponsor).text }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="truncate font-semibold">{{ sponsor.name }}</p>

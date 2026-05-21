@@ -252,6 +252,29 @@ export function buildSupabaseSeedPayload(
     (marshal) => rowId('tournament_marshals', marshal.id),
   )
   const sponsorIds = mapBy(source.sponsors, (sponsor) => sponsor.id, (sponsor) => rowId('sponsors', sponsor.id))
+  const sponsorAssetRefs = source.sponsors.flatMap((sponsor) => [
+    ...(sponsor.logoStoragePath
+      ? [{
+          altText: sponsor.logoFileName ?? `Logo ${sponsor.name}`,
+          id: sponsor.logoAssetId ?? sponsor.id,
+          sponsorId: sponsor.id,
+          storagePath: sponsor.logoStoragePath,
+        }]
+      : []),
+    ...(sponsor.logoVariants ?? [])
+      .filter((variant) => variant.storagePath)
+      .map((variant) => ({
+        altText: variant.fileName ?? `Logo ${sponsor.name} ${variant.placementType}`,
+        id: variant.variantId ?? `${sponsor.id}-${variant.placementType}`,
+        sponsorId: sponsor.id,
+        storagePath: variant.storagePath!,
+      })),
+  ])
+  const sponsorAssetIds = mapBy(
+    sponsorAssetRefs,
+    (asset) => asset.id,
+    (asset) => rowId('sponsor_assets', asset.id),
+  )
 
   const teamIdFor = (tournamentId: string, sectorId: string, teamName?: string) => {
     const teamId = tournamentTeamIds[`${tournamentId}:${sectorId}`]
@@ -571,6 +594,12 @@ export function buildSupabaseSeedPayload(
       venue_id: venueId,
       website: sponsor.website ?? null,
     })),
+    sponsor_assets: sponsorAssetRefs.map((asset) => ({
+      alt_text: asset.altText,
+      id: sponsorAssetIds[asset.id]!,
+      sponsor_id: sponsorIds[asset.sponsorId]!,
+      storage_path: asset.storagePath,
+    })),
     tournament_catches: source.tournamentCatches.map((catchItem) => ({
       caught_at: parseOperationalTimestamp(catchItem.caughtAt, baseDate),
       id: rowId('tournament_catches', catchItem.id),
@@ -758,6 +787,7 @@ export function buildSupabaseSeedPayload(
     rentalItems: rentalItemIds,
     reservationExtras: reservationExtraIds,
     reservations: reservationIds,
+    sponsorAssets: sponsorAssetIds,
     sponsors: sponsorIds,
     tournamentMarshals: tournamentMarshalIds,
     tournamentSectors: tournamentSectorIds,
@@ -837,6 +867,7 @@ export function validateSupabaseSeedPayload(payload: SupabaseSeedPayload) {
     'tournament_marshals',
     'tournament_requests',
     'sponsors',
+    'sponsor_assets',
     'sponsor_placements',
   ]
 
