@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import type { LakeSlug, RentalBooking, Reservation } from '~/data/pond'
+import type { LakeSlug, PaymentMethod, RentalBooking, Reservation } from '~/data/pond'
+import type { PaymentMethodMutationSuccess } from '~/services/paymentMethodService'
 import type {
   ReservationDecisionSuccess,
+  ReservationSubmissionSuccess,
   ReservationStateResponse,
 } from '~/services/reservationApiService'
 import type { ReservationDecisionMode } from '~/services/reservationWorkflowService'
 import { getPegAvailability, rangesOverlap } from '~/utils/availability'
-import { addDays, buildCalendarDays } from '~/utils/calendar'
+import { addDays, addMonths, buildCalendarDays, buildMonthCalendarDays, getMonthStart } from '~/utils/calendar'
 import { getRentalAvailability } from '~/utils/rentals'
 
 useHead({ title: 'Admin rezervácie' })
@@ -18,8 +20,6 @@ const {
   pegs,
   permitProducts,
   rentalBookings,
-  rentalItems,
-  reservationExtras,
   reservations,
 } = usePondData()
 
@@ -37,6 +37,17 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
   },
 )
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-reservation-closure-state' })
+const {
+  enabledPaymentMethods,
+  livePaymentMethods,
+  refresh: refreshPaymentMethodState,
+} = await usePaymentMethodState({ admin: true, key: 'admin-reservation-payment-state' })
+const {
+  activeRentalItems,
+  activeReservationExtras,
+  liveRentalItems,
+  liveReservationExtras,
+} = await useRentalCatalogState({ admin: true, key: 'admin-reservation-rental-catalog-state' })
 const {
   canOperate: canOperateReservations,
   isReadOnly: reservationsReadOnly,
@@ -63,9 +74,36 @@ const selectedReservationId = ref(
 )
 const decisionMode = ref<ReservationDecisionMode>('approve')
 const adminNoteDraft = ref('')
+const calendarMode = ref<'week' | 'month'>('week')
 const calendarStart = ref('2026-05-16')
 const decisionSubmitStatus = ref<'idle' | 'submitting' | 'error'>('idle')
 const decisionSubmitMessage = ref('')
+const adminReservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const adminReservationSubmitMessage = ref('')
+const paymentMethodSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const paymentMethodSubmitMessage = ref('')
+const paymentMethodDraft = ref<PaymentMethod[]>([])
+
+function getFirstPegId(lake: LakeSlug) {
+  return pegs.find((peg) => peg.lake === lake)?.id ?? ''
+}
+
+const createDefaultAdminReservationDraft = () => ({
+  contactName: '',
+  contactPhone: '',
+  dateFrom: '2026-06-10',
+  dateTo: '2026-06-12',
+  extraIds: [] as string[],
+  internalNote: '',
+  lake: 'velky-cetin' as LakeSlug,
+  paymentMethodId: enabledPaymentMethods.value[0]?.id ?? '',
+  pegId: getFirstPegId('velky-cetin'),
+  permitId: permitProducts[0]?.id ?? '',
+  rentalIds: [] as string[],
+  source: 'phone' as Extract<Reservation['source'], 'phone' | 'admin'>,
+  status: 'pending' as Extract<Reservation['status'], 'pending' | 'confirmed'>,
+})
+const adminReservationDraft = reactive(createDefaultAdminReservationDraft())
 
 watch(
   reservationState,
@@ -112,6 +150,100 @@ const reservationStats = computed(() => ({
   web: adminReservations.value.filter((reservation) => reservation.source === 'web').length,
 }))
 
+const adminReservationPegs = computed(() =>
+  pegs.filter((peg) => peg.lake === adminReservationDraft.lake),
+)
+const adminReservationSelectedPeg = computed(() =>
+  adminReservationPegs.value.find((peg) => peg.id === adminReservationDraft.pegId),
+)
+const adminReservationCabin = computed(() =>
+  cabinProducts.find((cabin) => cabin.pegIds.includes(adminReservationDraft.pegId)),
+)
+const adminReservationAvailableExtras = computed(() =>
+  activeReservationExtras.value.filter((extra) => {
+    const lakeMatches = !extra.lake || extra.lake === adminReservationDraft.lake
+    const surfaceMatches = extra.appliesTo === 'all' || Boolean(adminReservationCabin.value)
+
+    return lakeMatches && surfaceMatches
+  }),
+)
+const adminReservationAvailability = computed(() => {
+  const peg = adminReservationSelectedPeg.value
+  if (!peg) return undefined
+
+  return getPegAvailability(peg, {
+    closures: liveClosures.value,
+    dateFrom: adminReservationDraft.dateFrom,
+    dateTo: adminReservationDraft.dateTo,
+    reservations: adminReservations.value,
+  })
+})
+const adminReservationRentalRows = computed(() =>
+  activeRentalItems.value.map((item) => ({
+    availability: getRentalAvailability(item, {
+      bookings: adminRentalBookings.value,
+      dateFrom: adminReservationDraft.dateFrom,
+      dateTo: adminReservationDraft.dateTo,
+    }),
+    item,
+  })),
+)
+const adminReservationCanSubmit = computed(() =>
+  Boolean(
+    adminReservationDraft.contactName.trim().length >= 2 &&
+    adminReservationDraft.contactPhone.trim().length >= 7 &&
+    adminReservationDraft.pegId &&
+    adminReservationDraft.permitId &&
+    adminReservationAvailability.value?.reservable,
+  ),
+)
+
+watch(
+  () => adminReservationDraft.lake,
+  (lake) => {
+    if (!adminReservationPegs.value.some((peg) => peg.id === adminReservationDraft.pegId)) {
+      adminReservationDraft.pegId = getFirstPegId(lake)
+    }
+  },
+)
+
+watch(
+  adminReservationAvailableExtras,
+  (extras) => {
+    const allowedExtraIds = new Set(extras.map((extra) => extra.id))
+    adminReservationDraft.extraIds = adminReservationDraft.extraIds.filter((id) => allowedExtraIds.has(id))
+  },
+)
+
+watch(
+  adminReservationRentalRows,
+  (rows) => {
+    const availableRentalIds = new Set(
+      rows.filter((row) => row.availability.reservable).map((row) => row.item.id),
+    )
+    adminReservationDraft.rentalIds = adminReservationDraft.rentalIds.filter((id) => availableRentalIds.has(id))
+  },
+)
+
+watch(
+  livePaymentMethods,
+  (methods) => {
+    paymentMethodDraft.value = methods.map((method) => ({ ...method }))
+  },
+  { immediate: true },
+)
+
+const togglePaymentMethodDraft = (methodId: string, enabled: boolean) => {
+  paymentMethodDraft.value = paymentMethodDraft.value.map((method) =>
+    method.id === methodId ? { ...method, enabled } : method,
+  )
+  paymentMethodSubmitStatus.value = 'idle'
+  paymentMethodSubmitMessage.value = ''
+}
+const handlePaymentMethodToggle = (methodId: string, event: Event) => {
+  togglePaymentMethodDraft(methodId, Boolean((event.target as HTMLInputElement | null)?.checked))
+}
+
 const conflictingClosures = computed(() =>
   liveClosures.value.filter((closure) => closure.affectsReservations),
 )
@@ -124,7 +256,28 @@ const pegAvailabilityRows = computed(() =>
     })),
 )
 const calendarLake = computed<LakeSlug>(() => (selectedLake.value === 'all' ? 'velky-cetin' : selectedLake.value))
-const calendarDays = computed(() => buildCalendarDays(calendarStart.value, 7))
+const calendarDays = computed(() =>
+  calendarMode.value === 'month'
+    ? buildMonthCalendarDays(calendarStart.value)
+    : buildCalendarDays(calendarStart.value, 7),
+)
+const calendarRangeLabel = computed(() => {
+  const firstDay = calendarDays.value[0]
+  const lastDay = calendarDays.value.at(-1)
+  if (!firstDay || !lastDay) return calendarStart.value
+
+  if (calendarMode.value === 'month') {
+    return `${firstDay.monthName} ${firstDay.iso.slice(0, 4)}`
+  }
+
+  return `${firstDay.iso} až ${lastDay.iso}`
+})
+const calendarGridTemplate = computed(() =>
+  `160px repeat(${calendarDays.value.length}, minmax(${calendarMode.value === 'month' ? '88px' : '104px'}, 1fr))`,
+)
+const calendarTableMinWidth = computed(() =>
+  `${160 + calendarDays.value.length * (calendarMode.value === 'month' ? 88 : 104)}px`,
+)
 const calendarLakePegs = computed(() => pegs.filter((peg) => peg.lake === calendarLake.value))
 const calendarRows = computed(() =>
   calendarLakePegs.value.map((peg) => ({
@@ -147,6 +300,23 @@ const calendarRows = computed(() =>
       }
     }),
   })),
+)
+const calendarDaySummaries = computed(() =>
+  calendarDays.value.map((day) => {
+    const cells = calendarRows.value.flatMap((row) => {
+      const cell = row.cells.find((item) => item.day.iso === day.iso)
+      return cell ? [{ ...cell, peg: row.peg }] : []
+    })
+
+    return {
+      available: cells.filter((cell) => cell.availability.status === 'available').length,
+      blocked: cells.filter((cell) => ['blocked', 'closed'].includes(cell.availability.status)).length,
+      day,
+      pending: cells.filter((cell) => ['limited', 'requires_approval'].includes(cell.availability.status)).length,
+      reservations: cells.flatMap((cell) => cell.reservation ? [{ peg: cell.peg, reservation: cell.reservation }] : []),
+      reserved: cells.filter((cell) => cell.availability.status === 'reserved').length,
+    }
+  }),
 )
 const calendarSummary = computed(() => {
   const cells = calendarRows.value.flatMap((row) => row.cells)
@@ -175,7 +345,7 @@ const selectedCabin = computed(() => {
   return cabinProducts.find((cabin) => cabin.pegIds.includes(reservation.pegId))
 })
 const selectedExtras = computed(() =>
-  reservationExtras.filter((extra) => selectedReservation.value?.extraIds.includes(extra.id)),
+  liveReservationExtras.value.filter((extra) => selectedReservation.value?.extraIds.includes(extra.id)),
 )
 const selectedAvailability = computed(() => {
   const reservation = selectedReservation.value
@@ -209,7 +379,7 @@ const selectedRentalRows = computed(() => {
   if (!reservation) return []
 
   return reservation.rentalIds.flatMap((id) => {
-    const item = rentalItems.find((rentalItem) => rentalItem.id === id)
+    const item = liveRentalItems.value.find((rentalItem) => rentalItem.id === id)
     if (!item) return []
 
     const bookings = adminRentalBookings.value.filter((booking) => booking.reservationId !== reservation.id)
@@ -283,8 +453,16 @@ const rentalBookingStatusLabel = (status?: RentalBooking['status']) => {
       return 'bez záznamu'
   }
 }
-const moveCalendar = (days: number) => {
-  calendarStart.value = addDays(calendarStart.value, days)
+const setCalendarMode = (mode: 'week' | 'month') => {
+  calendarMode.value = mode
+  if (mode === 'month') {
+    calendarStart.value = getMonthStart(calendarStart.value)
+  }
+}
+const moveCalendar = (direction: number) => {
+  calendarStart.value = calendarMode.value === 'month'
+    ? addMonths(calendarStart.value, direction > 0 ? 1 : -1)
+    : addDays(calendarStart.value, direction)
 }
 const selectCalendarCell = (reservation?: Reservation) => {
   if (reservation) {
@@ -354,6 +532,104 @@ const saveDecision = () => {
         'Rozhodnutie sa nepodarilo uložiť.'
     })
 }
+
+async function submitAdminReservation() {
+  if (!canOperateReservations.value) {
+    adminReservationSubmitStatus.value = 'error'
+    adminReservationSubmitMessage.value = reservationReadOnlyMessage.value
+    return
+  }
+
+  adminReservationSubmitStatus.value = 'submitting'
+  adminReservationSubmitMessage.value = ''
+
+  try {
+    const result = await $fetch<ReservationSubmissionSuccess>('/api/admin/reservations', {
+      body: {
+        ...adminReservationDraft,
+        internalNote: adminReservationDraft.internalNote.trim() || undefined,
+        paymentMethodId: adminReservationDraft.paymentMethodId || undefined,
+        extraIds: [...adminReservationDraft.extraIds],
+        rentalIds: [...adminReservationDraft.rentalIds],
+      },
+      method: 'POST',
+    })
+
+    await refreshReservationState()
+    selectedLake.value = result.reservation.lake
+    selectedReservationId.value = result.reservation.id
+    adminReservationDraft.contactName = ''
+    adminReservationDraft.contactPhone = ''
+    adminReservationDraft.internalNote = ''
+    adminReservationSubmitStatus.value = 'success'
+    adminReservationSubmitMessage.value = result.message
+  }
+  catch (error) {
+    const fetchError = error as {
+      data?: {
+        data?: {
+          messages?: string[]
+        }
+        message?: string
+        statusMessage?: string
+      }
+    }
+    adminReservationSubmitStatus.value = 'error'
+    adminReservationSubmitMessage.value =
+      fetchError.data?.data?.messages?.join(' ') ??
+      fetchError.data?.message ??
+      fetchError.data?.statusMessage ??
+      'Rezerváciu sa nepodarilo vytvoriť.'
+  }
+}
+
+async function savePaymentMethodSettings() {
+  if (!canOperateReservations.value) {
+    paymentMethodSubmitStatus.value = 'error'
+    paymentMethodSubmitMessage.value = reservationReadOnlyMessage.value
+    return
+  }
+
+  paymentMethodSubmitStatus.value = 'submitting'
+  paymentMethodSubmitMessage.value = ''
+
+  try {
+    const result = await $fetch<PaymentMethodMutationSuccess>('/api/admin/payment-methods', {
+      body: {
+        methods: paymentMethodDraft.value.map((method) => ({
+          enabled: method.enabled,
+          id: method.id,
+        })),
+      },
+      method: 'PUT',
+    })
+
+    await refreshPaymentMethodState()
+    const enabledIds = new Set(result.paymentMethods.filter((method) => method.enabled).map((method) => method.id))
+    if (adminReservationDraft.paymentMethodId && !enabledIds.has(adminReservationDraft.paymentMethodId)) {
+      adminReservationDraft.paymentMethodId = result.paymentMethods.find((method) => method.enabled)?.id ?? ''
+    }
+    paymentMethodSubmitStatus.value = 'success'
+    paymentMethodSubmitMessage.value = result.message
+  }
+  catch (error) {
+    const fetchError = error as {
+      data?: {
+        data?: {
+          messages?: string[]
+        }
+        message?: string
+        statusMessage?: string
+      }
+    }
+    paymentMethodSubmitStatus.value = 'error'
+    paymentMethodSubmitMessage.value =
+      fetchError.data?.data?.messages?.join(' ') ??
+      fetchError.data?.message ??
+      fetchError.data?.statusMessage ??
+      'Platobné metódy sa nepodarilo uložiť.'
+  }
+}
 </script>
 
 <template>
@@ -395,16 +671,290 @@ const saveDecision = () => {
       </div>
 
       <div class="mt-6 rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Platobné metódy rezervácií</h2>
+            <p class="text-foreground-muted mt-1 text-sm">
+              Zapnuté možnosti sa zobrazia rybárom aj správcovi pri vytváraní rezervácie.
+            </p>
+          </div>
+          <UButton
+            icon="i-heroicons-check"
+            variant="soft"
+            :disabled="!canOperateReservations || paymentMethodSubmitStatus === 'submitting'"
+            :loading="paymentMethodSubmitStatus === 'submitting'"
+            @click="savePaymentMethodSettings"
+          >
+            Uložiť platby
+          </UButton>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+          <label
+            v-for="method in paymentMethodDraft"
+            :key="method.id"
+            class="flex min-h-32 flex-col justify-between rounded-md border border-border bg-white p-4"
+          >
+            <span>
+              <span class="flex items-start justify-between gap-3">
+                <span>
+                  <span class="block font-bold">{{ method.label }}</span>
+                  <span class="text-foreground-muted mt-1 block text-sm">{{ method.instructions }}</span>
+                </span>
+                <input
+                  :checked="method.enabled"
+                  type="checkbox"
+                  :disabled="!canOperateReservations"
+                  class="mt-1 h-5 w-5 accent-primary-700"
+                  @change="handlePaymentMethodToggle(method.id, $event)"
+                >
+              </span>
+            </span>
+            <span
+              class="mt-4 w-fit rounded-md px-2.5 py-1 text-xs font-bold"
+              :class="method.enabled ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-800'"
+            >
+              {{ method.enabled ? 'zapnuté' : 'vypnuté' }}
+            </span>
+          </label>
+        </div>
+        <p
+          v-if="paymentMethodSubmitMessage"
+          class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
+          :class="
+            paymentMethodSubmitStatus === 'error'
+              ? 'bg-error-500/10 text-error-700'
+              : 'bg-success-500/10 text-success-700'
+          "
+        >
+          {{ paymentMethodSubmitMessage }}
+        </p>
+      </div>
+
+      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Nová rezervácia správcu</h2>
+            <p class="text-foreground-muted mt-1 text-sm">
+              Pre telefonát, osobnú dohodu alebo internú blokáciu bez toho, aby správca vypĺňal public formulár.
+            </p>
+          </div>
+          <span class="w-fit rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
+            {{ adminReservationDraft.status === 'confirmed' ? 'uloží sa ako potvrdená' : 'uloží sa ako čakajúca' }}
+          </span>
+        </div>
+
+        <form class="mt-5 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]" @submit.prevent="submitAdminReservation">
+          <fieldset :disabled="!canOperateReservations" class="grid gap-4 md:grid-cols-2">
+            <label class="block">
+              <span class="text-sm font-semibold">Meno hosťa</span>
+              <input
+                v-model="adminReservationDraft.contactName"
+                required
+                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                placeholder="napr. Peter Novák"
+              >
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Telefón</span>
+              <input
+                v-model="adminReservationDraft.contactPhone"
+                required
+                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                placeholder="+421 ..."
+              >
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Zdroj</span>
+              <select v-model="adminReservationDraft.source" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option value="phone">Telefonát</option>
+                <option value="admin">Admin / osobne</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Stav po uložení</span>
+              <select v-model="adminReservationDraft.status" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option value="pending">Čaká na potvrdenie</option>
+                <option value="confirmed">Rovno potvrdená</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Jazero</span>
+              <select v-model="adminReservationDraft.lake" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option value="velky-cetin">Veľký Cetín</option>
+                <option value="strkovisko-kocka">Štrkovisko Kocka</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Lovné miesto</span>
+              <select v-model="adminReservationDraft.pegId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option v-for="peg in adminReservationPegs" :key="peg.id" :value="peg.id">
+                  {{ peg.label }} · {{ peg.type === 'cabin' ? 's chatou' : 'miesto' }}
+                </option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Od</span>
+              <input v-model="adminReservationDraft.dateFrom" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Do</span>
+              <input v-model="adminReservationDraft.dateTo" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Povolenka</span>
+              <select v-model="adminReservationDraft.permitId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option v-for="permit in permitProducts" :key="permit.id" :value="permit.id">
+                  {{ permit.label }} · {{ permit.priceEur }} €
+                </option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-semibold">Platba</span>
+              <select v-model="adminReservationDraft.paymentMethodId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <option value="">Bez platby v zázname</option>
+                <option v-for="method in enabledPaymentMethods" :key="method.id" :value="method.id">
+                  {{ method.label }}
+                </option>
+              </select>
+            </label>
+            <label class="block md:col-span-2">
+              <span class="text-sm font-semibold">Interná poznámka</span>
+              <textarea
+                v-model="adminReservationDraft.internalNote"
+                rows="3"
+                class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                placeholder="napr. potvrdené telefonicky, príchod večer, drevo pripraviť pri chate..."
+              />
+            </label>
+          </fieldset>
+
+          <div class="space-y-4">
+            <div
+              v-if="adminReservationAvailability"
+              class="rounded-md border p-4"
+              :class="adminReservationAvailability.classes"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-bold">{{ adminReservationAvailability.label }}</p>
+                  <p class="mt-1 text-sm">{{ adminReservationAvailability.description }}</p>
+                  <p class="mt-2 text-xs font-semibold">{{ adminReservationAvailability.reasons[0] }}</p>
+                </div>
+                <UIcon :name="adminReservationAvailability.icon" class="mt-0.5 h-5 w-5 shrink-0" />
+              </div>
+            </div>
+
+            <div v-if="adminReservationCabin" class="rounded-md bg-primary-50 p-4 text-primary-900">
+              <p class="text-sm font-bold">{{ adminReservationCabin.label }}</p>
+              <p class="mt-1 text-xs text-primary-800">
+                {{ adminReservationCabin.pricePer24hEur }} € / 24 h · kapacita {{ adminReservationCabin.capacity }}
+              </p>
+            </div>
+
+            <div>
+              <p class="text-sm font-semibold">Požičovňa</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <label
+                  v-for="row in adminReservationRentalRows"
+                  :key="row.item.id"
+                  class="flex items-start gap-2 rounded-md border border-border bg-white p-3 text-sm"
+                  :class="!row.availability.reservable ? 'opacity-55' : ''"
+                >
+                  <input
+                    v-model="adminReservationDraft.rentalIds"
+                    type="checkbox"
+                    :value="row.item.id"
+                    :disabled="!canOperateReservations || !row.availability.reservable"
+                    class="mt-0.5 h-4 w-4 accent-primary-700"
+                  >
+                  <span>
+                    <span class="block font-semibold">{{ row.item.label }}</span>
+                    <span class="text-foreground-muted block text-xs">
+                      {{ row.availability.label }} · {{ row.item.priceLabel }}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-sm font-semibold">Doplnky</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <label
+                  v-for="extra in adminReservationAvailableExtras"
+                  :key="extra.id"
+                  class="flex items-start gap-2 rounded-md border border-border bg-white p-3 text-sm"
+                >
+                  <input
+                    v-model="adminReservationDraft.extraIds"
+                    type="checkbox"
+                    :value="extra.id"
+                    :disabled="!canOperateReservations"
+                    class="mt-0.5 h-4 w-4 accent-primary-700"
+                  >
+                  <span>
+                    <span class="block font-semibold">{{ extra.label }}</span>
+                    <span class="text-foreground-muted block text-xs">{{ extra.priceLabel }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <UButton
+              type="submit"
+              icon="i-heroicons-calendar-days"
+              block
+              :disabled="!canOperateReservations || !adminReservationCanSubmit || adminReservationSubmitStatus === 'submitting'"
+              :loading="adminReservationSubmitStatus === 'submitting'"
+            >
+              Vytvoriť rezerváciu
+            </UButton>
+            <p
+              v-if="adminReservationSubmitMessage"
+              class="rounded-md px-3 py-2 text-sm font-semibold"
+              :class="
+                adminReservationSubmitStatus === 'error'
+                  ? 'bg-error-500/10 text-error-700'
+                  : 'bg-success-500/10 text-success-700'
+              "
+            >
+              {{ adminReservationSubmitMessage }}
+            </p>
+          </div>
+        </form>
+      </div>
+
+      <div class="mt-6 rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 class="text-lg font-bold">Týždenný kalendár obsadenosti</h2>
+            <h2 class="text-lg font-bold">
+              {{ calendarMode === 'month' ? 'Mesačný kalendár obsadenosti' : 'Týždenný kalendár obsadenosti' }}
+            </h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              {{ getLakeName(calendarLake) }} · od {{ calendarStart }} · bunky používajú rovnaký availability engine ako mapa.
+              {{ getLakeName(calendarLake) }} · {{ calendarRangeLabel }} · bunky používajú rovnaký availability engine ako mapa.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <div class="flex rounded-md border border-border bg-white p-1">
+              <button
+                type="button"
+                class="rounded px-3 py-1.5 text-sm font-semibold"
+                :class="calendarMode === 'week' ? 'bg-primary-700 text-white' : 'text-foreground-muted hover:bg-muted'"
+                @click="setCalendarMode('week')"
+              >
+                Týždeň
+              </button>
+              <button
+                type="button"
+                class="rounded px-3 py-1.5 text-sm font-semibold"
+                :class="calendarMode === 'month' ? 'bg-primary-700 text-white' : 'text-foreground-muted hover:bg-muted'"
+                @click="setCalendarMode('month')"
+              >
+                Mesiac
+              </button>
+            </div>
             <UButton size="sm" icon="i-heroicons-chevron-left" color="neutral" variant="soft" @click="moveCalendar(-7)">
-              Týždeň späť
+              {{ calendarMode === 'month' ? 'Mesiac späť' : 'Týždeň späť' }}
             </UButton>
             <input
               v-model="calendarStart"
@@ -413,7 +963,7 @@ const saveDecision = () => {
               aria-label="Začiatok kalendára"
             >
             <UButton size="sm" icon="i-heroicons-chevron-right" color="neutral" variant="soft" @click="moveCalendar(7)">
-              Týždeň ďalej
+              {{ calendarMode === 'month' ? 'Mesiac ďalej' : 'Týždeň ďalej' }}
             </UButton>
           </div>
         </div>
@@ -437,9 +987,50 @@ const saveDecision = () => {
           </div>
         </div>
 
-        <div class="mt-5 overflow-x-auto rounded-md border border-border">
-          <div class="min-w-[920px]">
-            <div class="grid grid-cols-[160px_repeat(7,minmax(104px,1fr))] border-b border-border bg-muted">
+        <div class="mt-5 grid gap-3 md:hidden">
+          <div
+            v-for="summary in calendarDaySummaries"
+            :key="summary.day.iso"
+            class="rounded-md border border-border bg-white p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-bold">{{ summary.day.dayName }} {{ summary.day.dayNumber }} {{ summary.day.monthName }}</p>
+                <p class="text-foreground-muted mt-1 text-xs">{{ getLakeName(calendarLake) }}</p>
+              </div>
+              <span class="rounded-md bg-muted px-2 py-1 text-xs font-bold text-foreground-muted">
+                {{ summary.reserved }} obs.
+              </span>
+            </div>
+            <div class="mt-3 grid grid-cols-4 gap-2 text-center text-xs font-semibold">
+              <div class="rounded bg-success-500/10 px-2 py-1 text-success-700">{{ summary.available }} voľné</div>
+              <div class="rounded bg-error-500/10 px-2 py-1 text-error-700">{{ summary.reserved }} obs.</div>
+              <div class="rounded bg-warning-500/10 px-2 py-1 text-warning-800">{{ summary.pending }} čaká</div>
+              <div class="rounded bg-foreground-muted/10 px-2 py-1 text-foreground-muted">{{ summary.blocked }} blok.</div>
+            </div>
+            <div v-if="summary.reservations.length" class="mt-3 space-y-2">
+              <button
+                v-for="item in summary.reservations"
+                :key="`${summary.day.iso}-${item.reservation.id}-${item.peg.id}`"
+                type="button"
+                class="w-full rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-left text-sm text-primary-900"
+                @click="selectCalendarCell(item.reservation)"
+              >
+                <span class="block font-semibold">{{ item.reservation.guest }}</span>
+                <span class="mt-0.5 block text-xs text-primary-800">
+                  {{ item.peg.label }} · {{ statusLabel(item.reservation.status) }}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 hidden overflow-x-auto rounded-md border border-border md:block">
+          <div :style="{ minWidth: calendarTableMinWidth }">
+            <div
+              class="grid border-b border-border bg-muted"
+              :style="{ gridTemplateColumns: calendarGridTemplate }"
+            >
               <div class="px-3 py-3 text-xs font-bold uppercase text-foreground-muted">Miesto</div>
               <div
                 v-for="day in calendarDays"
@@ -454,7 +1045,8 @@ const saveDecision = () => {
             <div
               v-for="row in calendarRows"
               :key="row.peg.id"
-              class="grid grid-cols-[160px_repeat(7,minmax(104px,1fr))] border-b border-border last:border-b-0"
+              class="grid border-b border-border last:border-b-0"
+              :style="{ gridTemplateColumns: calendarGridTemplate }"
             >
               <div class="bg-white px-3 py-3">
                 <p class="font-semibold">{{ row.peg.label }}</p>

@@ -37,6 +37,13 @@ export const reservationRequestPayloadSchema = z.object({
   rentalIds: z.array(z.string()),
 })
 
+export const adminReservationRequestPayloadSchema = reservationRequestPayloadSchema.extend({
+  internalNote: z.string().trim().max(700, 'Interná poznámka môže mať najviac 700 znakov.').optional(),
+  paymentMethodId: z.string().trim().optional(),
+  source: z.enum(['phone', 'admin']).default('phone'),
+  status: z.enum(['pending', 'confirmed']).default('pending'),
+})
+
 export const reservationRequestSchema = reservationRequestPayloadSchema
   .extend({
     requiresCabinReservation: z.boolean(),
@@ -170,6 +177,29 @@ export const pushSubscriptionInputSchema = z.object({
 
 export const pushUnsubscribeInputSchema = z.object({
   endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
+})
+
+export const paymentMethodSettingsInputSchema = z.object({
+  methods: z.array(z.object({
+    enabled: z.boolean(),
+    id: z.string().trim().min(1, 'Chýba identifikátor platobnej metódy.'),
+  })).min(1, 'Upravte aspoň jednu platobnú metódu.'),
+})
+
+export const rentalCatalogSettingsInputSchema = z.object({
+  rentalItems: z.array(z.object({
+    active: z.boolean(),
+    id: z.string().trim().min(1, 'Chýba identifikátor výbavy.'),
+    priceLabel: z.string().trim().min(1, 'Doplňte cenníkový text výbavy.').max(120, 'Cenníkový text môže mať najviac 120 znakov.'),
+    recommended: z.boolean(),
+    stock: z.coerce.number().int('Sklad musí byť celé číslo.').min(0, 'Sklad nemôže byť záporný.').max(100, 'Sklad môže mať najviac 100 kusov.'),
+  })).min(1, 'Upravte aspoň jednu položku výbavy.'),
+  reservationExtras: z.array(z.object({
+    active: z.boolean(),
+    id: z.string().trim().min(1, 'Chýba identifikátor doplnku.'),
+    priceLabel: z.string().trim().min(1, 'Doplňte cenníkový text doplnku.').max(120, 'Cenníkový text môže mať najviac 120 znakov.'),
+    source: z.enum(['web', 'proposal']),
+  })).min(1, 'Upravte aspoň jeden doplnok k rezervácii.'),
 })
 
 export const notificationBroadcastInputSchema = z.object({

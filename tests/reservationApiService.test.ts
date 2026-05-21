@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  submitAdminReservationRequest,
   submitReservationDecision,
   submitReservationRequest,
 } from '~/app/services/reservationApiService'
@@ -91,6 +92,68 @@ describe('submitReservationRequest', () => {
 
     expect(result.messages).toContain('Vybraná výbava neexistuje v požičovni: not-existing-rental.')
     expect(result.messages).toContain('Vybraný doplnok nie je dostupný pre túto rezerváciu: not-existing-extra.')
+  })
+
+  it('rejects inactive rental catalog items and inactive extras', () => {
+    const snapshot = createPondSnapshot()
+    const service = createPondService(
+      createMockPondRepository(
+        createPondSnapshot({
+          rentalItems: snapshot.rentalItems.map((item) =>
+            item.id === 'landing-net-rental' ? { ...item, active: false } : item,
+          ),
+          reservationExtras: snapshot.reservationExtras.map((extra) =>
+            extra.id === 'wood-crate' ? { ...extra, active: false } : extra,
+          ),
+        }),
+      ),
+    )
+    const result = submitReservationRequest(validPayload, service)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Reservation request should be invalid.')
+
+    expect(result.messages).toContain('Vybraná výbava nie je zapnutá v požičovni: Podberák 1 m+.')
+    expect(result.messages).toContain('Vybraný doplnok nie je dostupný pre túto rezerváciu: wood-crate.')
+  })
+})
+
+describe('submitAdminReservationRequest', () => {
+  it('creates a confirmed phone reservation with reserved rental bookings', () => {
+    const result = submitAdminReservationRequest({
+      ...validPayload,
+      contactName: 'Telefonická rezervácia',
+      contactPhone: '+421 905 444 111',
+      internalNote: 'Hosť volal správcovi a termín je potvrdený.',
+      paymentMethodId: 'cash-on-site',
+      source: 'phone',
+      status: 'confirmed',
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Admin reservation request should be valid.')
+
+    expect(result.statusCode).toBe(201)
+    expect(result.reservation.status).toBe('confirmed')
+    expect(result.reservation.source).toBe('phone')
+    expect(result.reservation.paymentMethodId).toBe('cash-on-site')
+    expect(result.reservation.paymentStatus).toBe('pending')
+    expect(result.reservation.internalNote).toBe('Hosť volal správcovi a termín je potvrdený.')
+    expect(result.rentalBookings.every((booking) => booking.status === 'reserved')).toBe(true)
+  })
+
+  it('rejects a disabled payment method for admin-created reservations', () => {
+    const result = submitAdminReservationRequest({
+      ...validPayload,
+      paymentMethodId: 'card-gateway',
+      source: 'admin',
+      status: 'pending',
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Disabled payment method should be invalid.')
+
+    expect(result.messages).toContain('Vybraná platobná metóda nie je zapnutá: Platobná brána.')
   })
 })
 

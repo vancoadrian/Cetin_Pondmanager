@@ -5,16 +5,15 @@ const {
   cabinProducts,
   contactInfo,
   infoSections,
-  paymentMethods,
   permitProducts,
-  rentalItems,
   requiredEquipment,
-  reservationExtras,
 } = usePondData()
 
-const sortedPaymentMethods = computed(() =>
-  paymentMethods.slice().sort((methodA, methodB) => methodA.sortOrder - methodB.sortOrder),
-)
+const { livePaymentMethods: sortedPaymentMethods } = await usePaymentMethodState({ key: 'info-payment-method-state' })
+const {
+  activeRentalItems,
+  activeReservationExtras,
+} = await useRentalCatalogState({ key: 'info-rental-catalog-state' })
 </script>
 
 <template>
@@ -172,7 +171,7 @@ const sortedPaymentMethods = computed(() =>
             <div class="border-border bg-surface rounded-card border p-5">
               <h2 class="text-lg font-bold">Návrh požičovne</h2>
               <div class="mt-4 space-y-3">
-                <div v-for="item in rentalItems" :key="item.id" class="rounded-md bg-muted p-4">
+                <div v-for="item in activeRentalItems" :key="item.id" class="rounded-md bg-muted p-4">
                   <div class="flex items-start justify-between gap-3">
                     <p class="font-semibold">{{ item.label }}</p>
                     <span class="text-foreground-muted text-xs">{{ item.stock }} ks</span>
@@ -186,7 +185,7 @@ const sortedPaymentMethods = computed(() =>
             <div class="border-border bg-surface rounded-card border p-5">
               <h2 class="text-lg font-bold">Doplnky k rezervácii</h2>
               <div class="mt-4 space-y-3">
-                <div v-for="extra in reservationExtras" :key="extra.id" class="rounded-md bg-muted p-4">
+                <div v-for="extra in activeReservationExtras" :key="extra.id" class="rounded-md bg-muted p-4">
                   <div class="flex items-start justify-between gap-3">
                     <p class="font-semibold">{{ extra.label }}</p>
                     <span

@@ -8,7 +8,6 @@ const {
   getLakeName,
   lakes,
   pegs,
-  rentalItems,
   reservations,
   sponsors,
   tournamentPenalties,
@@ -16,6 +15,7 @@ const {
   tournamentRequestTypeLabels,
 } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-dashboard-closure-state' })
+const { activeRentalItems } = await useRentalCatalogState({ admin: true, key: 'admin-dashboard-rental-catalog-state' })
 
 const { logout, user } = useMockAuth()
 
@@ -220,7 +220,7 @@ async function signOut() {
               <UButton to="/admin/pozicovna" icon="i-heroicons-arrow-right" variant="ghost" aria-label="Požičovňa" />
             </div>
             <div class="mt-4 space-y-3">
-              <div v-for="item in rentalItems" :key="item.id" class="rounded-md bg-muted p-4">
+              <div v-for="item in activeRentalItems" :key="item.id" class="rounded-md bg-muted p-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="font-semibold">{{ item.label }}</p>

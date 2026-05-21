@@ -448,7 +448,7 @@ export function buildSupabaseSeedPayload(
       venue_id: venueId,
     })),
     rental_items: source.rentalItems.map((item) => ({
-      active: true,
+      active: item.active,
       category: snakeValue(item.category),
       code: item.id,
       description: item.description,
@@ -470,7 +470,7 @@ export function buildSupabaseSeedPayload(
       venue_id: venueId,
     })),
     reservation_extras: source.reservationExtras.map((extra) => ({
-      active: true,
+      active: extra.active,
       applies_to: extra.appliesTo,
       code: extra.id,
       description: extra.description,

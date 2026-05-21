@@ -27,12 +27,9 @@ const {
   getPegLabel,
   lakes,
   pegs,
-  paymentMethods,
   permitProducts,
   rentalBookings,
-  rentalItems,
   requiredEquipment,
-  reservationExtras,
   reservations,
 } = usePondData()
 
@@ -50,6 +47,11 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
   },
 )
 const { liveClosures } = await useClosureState({ key: 'public-reservation-closure-state' })
+const { enabledPaymentMethods } = await usePaymentMethodState({ key: 'public-reservation-payment-state' })
+const {
+  activeRentalItems,
+  activeReservationExtras,
+} = await useRentalCatalogState({ key: 'public-reservation-rental-catalog-state' })
 
 const route = useRoute()
 const selectedLake = ref<LakeSlug>('velky-cetin')
@@ -59,9 +61,7 @@ const reservationFrom = ref('2026-05-16')
 const reservationTo = ref('2026-05-18')
 const reservationContactName = ref('Marek H.')
 const reservationContactPhone = ref('+421 900 123 456')
-const selectedRentalIds = ref<string[]>(
-  rentalItems.filter((item) => item.recommended).map((item) => item.id),
-)
+const selectedRentalIds = ref<string[]>([])
 const selectedExtraIds = ref<string[]>([])
 const reservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reservationSubmitMessage = ref('')
@@ -114,7 +114,7 @@ const selectedCabin = computed(() =>
   cabinProducts.find((cabin) => cabin.pegIds.includes(selectedPegId.value)),
 )
 const availableExtras = computed(() =>
-  reservationExtras.filter((extra) => {
+  activeReservationExtras.value.filter((extra) => {
     const lakeMatches = !extra.lake || extra.lake === selectedLake.value
     const surfaceMatches = extra.appliesTo === 'all' || Boolean(selectedCabin.value)
 
@@ -122,7 +122,7 @@ const availableExtras = computed(() =>
   }),
 )
 const rentalAvailabilityRows = computed(() =>
-  rentalItems.map((item) => ({
+  activeRentalItems.value.map((item) => ({
     availability: getRentalAvailability(item, {
       bookings: liveRentalBookings.value,
       dateFrom: reservationFrom.value,
@@ -140,9 +140,6 @@ const unavailableSelectedRentalLabels = computed(() =>
 )
 const selectedExtras = computed(() =>
   availableExtras.value.filter((item) => selectedExtraIds.value.includes(item.id)),
-)
-const enabledPaymentMethods = computed(() =>
-  paymentMethods.filter((method) => method.enabled).sort((a, b) => a.sortOrder - b.sortOrder),
 )
 const reservationDraft = computed(() => ({
   cabinProductId: selectedCabin.value?.id,
@@ -378,6 +375,28 @@ watch(reservationDraft, () => {
     reservationSubmitMessage.value = ''
   }
 })
+
+watch(
+  activeRentalItems,
+  (items) => {
+    const activeIds = new Set(items.map((item) => item.id))
+    const filteredIds = selectedRentalIds.value.filter((id) => activeIds.has(id))
+
+    selectedRentalIds.value = filteredIds.length > 0
+      ? filteredIds
+      : items.filter((item) => item.recommended).map((item) => item.id)
+  },
+  { immediate: true },
+)
+
+watch(
+  availableExtras,
+  (extras) => {
+    const availableIds = new Set(extras.map((extra) => extra.id))
+    selectedExtraIds.value = selectedExtraIds.value.filter((id) => availableIds.has(id))
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

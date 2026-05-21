@@ -29,7 +29,8 @@ const { liveClosures: unsortedLiveClosures, refresh: refreshClosureState } = awa
   key: 'admin-closures-state',
 })
 
-const closureDraft = reactive({
+const createDefaultClosureDraft = () => ({
+  id: undefined as string | undefined,
   affectsReservations: true,
   from: '2026-06-01',
   lake: 'velky-cetin' as LakeScope,
@@ -41,6 +42,7 @@ const closureDraft = reactive({
   to: '2026-06-02',
   visibility: 'internal' as LakeClosure['visibility'],
 })
+const closureDraft = reactive(createDefaultClosureDraft())
 const closureSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const closureSubmitMessage = ref('')
 
@@ -52,6 +54,10 @@ const liveClosures = computed(() =>
 const publicClosures = computed(() => liveClosures.value.filter((closure) => closure.visibility === 'public'))
 const internalClosures = computed(() => liveClosures.value.filter((closure) => closure.visibility === 'internal'))
 const blockingClosures = computed(() => liveClosures.value.filter((closure) => closure.affectsReservations))
+const isEditingClosure = computed(() => Boolean(closureDraft.id))
+const selectedClosure = computed(() =>
+  liveClosures.value.find((closure) => closure.id === closureDraft.id) ?? null,
+)
 const availablePegTargets = computed(() =>
   pegs.filter((peg) => closureDraft.lake === 'all' || peg.lake === closureDraft.lake),
 )
@@ -79,6 +85,34 @@ const getApiErrorMessage = (error: unknown) => {
   return messages?.join(' ') || fetchError.data?.message || fetchError.data?.statusMessage || 'Uzávierku sa nepodarilo uložiť.'
 }
 
+function copyClosureToDraft(closure: LakeClosure) {
+  Object.assign(closureDraft, {
+    id: closure.id,
+    affectsReservations: closure.affectsReservations,
+    from: closure.from,
+    lake: closure.lake,
+    notes: closure.notes,
+    organization: closure.organization ?? '',
+    pegIds: [...(closure.pegIds ?? [])],
+    reason: closure.reason,
+    title: closure.title,
+    to: closure.to,
+    visibility: closure.visibility,
+  })
+}
+
+function editClosure(closure: LakeClosure) {
+  copyClosureToDraft(closure)
+  closureSubmitStatus.value = 'idle'
+  closureSubmitMessage.value = ''
+}
+
+function resetClosureDraft() {
+  Object.assign(closureDraft, createDefaultClosureDraft())
+  closureSubmitStatus.value = 'idle'
+  closureSubmitMessage.value = ''
+}
+
 async function submitClosure() {
   if (!canManageClosures.value) {
     closureSubmitStatus.value = 'error'
@@ -100,6 +134,7 @@ async function submitClosure() {
     })
 
     await refreshClosureState()
+    copyClosureToDraft(result.closure)
     closureSubmitStatus.value = 'success'
     closureSubmitMessage.value = result.message
   }
@@ -148,7 +183,16 @@ async function submitClosure() {
         <div class="rounded-card border border-border bg-surface p-5">
           <h2 class="text-lg font-bold">Kalendár uzávierok</h2>
           <div class="mt-5 space-y-3">
-            <div v-for="closure in liveClosures" :key="closure.id" class="rounded-md border border-border bg-white p-4">
+            <div
+              v-for="closure in liveClosures"
+              :key="closure.id"
+              class="rounded-md border bg-white p-4 transition"
+              :class="
+                closureDraft.id === closure.id
+                  ? 'border-primary-400 ring-2 ring-primary-100'
+                  : 'border-border'
+              "
+            >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="font-bold">{{ closure.title }}</p>
@@ -171,6 +215,17 @@ async function submitClosure() {
                   >
                     {{ closure.visibility === 'public' ? 'public' : 'interné' }}
                   </span>
+                  <UButton
+                    type="button"
+                    size="xs"
+                    icon="i-heroicons-pencil-square"
+                    color="neutral"
+                    variant="soft"
+                    :disabled="!canManageClosures"
+                    @click="editClosure(closure)"
+                  >
+                    {{ closureDraft.id === closure.id ? 'Upravuje sa' : 'Upraviť' }}
+                  </UButton>
                 </div>
               </div>
               <p class="text-foreground-muted mt-3 text-sm">{{ closure.notes }}</p>
@@ -187,12 +242,38 @@ async function submitClosure() {
                 </span>
               </div>
             </div>
+            <div v-if="!liveClosures.length" class="rounded-md border border-dashed border-border bg-white p-5 text-sm text-foreground-muted">
+              Zatiaľ nie je evidovaná žiadna uzávierka.
+            </div>
           </div>
         </div>
 
         <aside class="space-y-6">
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Nová uzávierka</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">{{ isEditingClosure ? 'Upraviť uzávierku' : 'Nová uzávierka' }}</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  <template v-if="isEditingClosure && selectedClosure">
+                    Upravuje sa položka {{ selectedClosure.title }}.
+                  </template>
+                  <template v-else>
+                    Vytvorenie blokácie pre sezónu, preteky, údržbu alebo konkrétne miesta.
+                  </template>
+                </p>
+              </div>
+              <UButton
+                v-if="isEditingClosure"
+                type="button"
+                size="sm"
+                icon="i-heroicons-document-plus"
+                color="neutral"
+                variant="soft"
+                @click="resetClosureDraft"
+              >
+                Nová uzávierka
+              </UButton>
+            </div>
             <form class="mt-4 space-y-4" @submit.prevent="submitClosure">
               <fieldset :disabled="!canManageClosures" class="contents">
                 <label class="block">
@@ -262,12 +343,12 @@ async function submitClosure() {
               </fieldset>
               <UButton
                 type="submit"
-                icon="i-heroicons-plus"
+                :icon="isEditingClosure ? 'i-heroicons-check' : 'i-heroicons-plus'"
                 block
                 :disabled="!canManageClosures || closureSubmitStatus === 'submitting'"
                 :loading="closureSubmitStatus === 'submitting'"
               >
-                Uložiť uzávierku
+                {{ isEditingClosure ? 'Uložiť zmeny' : 'Uložiť uzávierku' }}
               </UButton>
               <p
                 v-if="closureSubmitMessage"

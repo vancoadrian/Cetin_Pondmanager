@@ -10,6 +10,7 @@ const item = (overrides: Partial<RentalItem> = {}): RentalItem => ({
   stock: 3,
   priceLabel: 'v cene testu',
   recommended: true,
+  active: true,
   ...overrides,
 })
 
@@ -72,5 +73,18 @@ describe('getRentalAvailability', () => {
     expect(result.status).toBe('unavailable')
     expect(result.reservable).toBe(false)
     expect(result.availableQuantity).toBe(0)
+  })
+
+  it('marks inactive catalog items as unavailable even when stock exists', () => {
+    const result = getRentalAvailability(item({ active: false, stock: 6 }), {
+      dateFrom: '2026-06-11',
+      dateTo: '2026-06-11',
+      bookings: [],
+    })
+
+    expect(result.status).toBe('unavailable')
+    expect(result.reservable).toBe(false)
+    expect(result.availableQuantity).toBe(0)
+    expect(result.reasons[0]).toBe('Položka je v katalógu požičovne vypnutá.')
   })
 })

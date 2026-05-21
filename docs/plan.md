@@ -16,21 +16,21 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - PWA: manifest, ikony, inštalačný prompt, service worker, offline stránka, stavový banner pripojenia a offline fronty pre rezervácie, úlovky a súťažné hlásenia.
 - Branding: finálny pracovný brand je `Rybolov Cetín`, nové SVG logo.
 - Dostupnosť miest: prvý availability engine v `app/utils/availability.ts` napojený na mapu, rezervácie a admin.
-- Požičovňa: prvý kapacitný výpočet v `app/utils/rentals.ts` napojený na verejnú rezerváciu a admin požičovňu.
-- Admin rezervácie: prvý schvaľovací detail ukazuje kontakt, miesto, chatu, výbavu, doplnky, konflikty a internú poznámku; uloženie rozhodnutia už ide cez mock service/composable workflow.
-- Admin kalendár: týždňová mriežka obsadenosti po miestach a chatách v `/admin/rezervacie`.
+- Požičovňa: kapacitný výpočet v `app/utils/rentals.ts` je napojený na verejnú rezerváciu a admin požičovňu; katalóg položiek a doplnkov má lokálny store a správca vie meniť aktivitu, sklad, odporúčanie a cenníkový text.
+- Admin rezervácie: prvý schvaľovací detail ukazuje kontakt, miesto, chatu, výbavu, doplnky, konflikty a internú poznámku; uloženie rozhodnutia už ide cez mock service/composable workflow. Správca vie vytvoriť telefonickú alebo osobnú rezerváciu priamo v adminovi.
+- Admin kalendár: týždňová aj mesačná mriežka obsadenosti po miestach a chatách v `/admin/rezervacie`; na mobile je dostupný denný súhrn bez širokej tabuľky.
 - Úlovky: verejný denník doplnený o mock skupinové zápisníky výprav.
 - Úlovky: verejne sa zobrazujú až po schválení správcom; nové public zápisy sú v stave `pending` a `/admin/ulovky` ich vie schváliť, ponechať v kontrole alebo zamietnuť.
 - Úlovky: `/admin/ulovky` vie pred zverejnením opraviť chybné údaje a ponechať, presunúť alebo odpojiť väzbu na zápisník výpravy.
 - Úlovkové dáta: `/admin/ulovky` má prvý interný report podľa druhu, miesta, nástrahy, jazera, váhy a času.
 - Fotky úlovkov: verejný formulár ukladá JPG/PNG/WebP fotku do lokálneho mock storage a vytvára AI-ready metadata.
 - Uložené reporty: `/admin/ulovky` vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre správcu, majiteľa alebo účtovníka, vygenerovať z neho aktuálny reportový payload, pripraviť e-mailový draft s CSV prílohami a ručne spustiť plánovač splatných týždenných alebo mesačných reportov.
-- Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána.
-- Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
-- Lokálna perzistencia: rezervácie, požičovňa, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
-- Lokálna perzistencia: uzávierky, sezóny a servisné blokácie majú samostatný store `.data/rybolov-cetin/closure-state.json`; vstupujú do serverovej validácie rezervácií, public mapy, admin mapy, dashboardu a sezónnych okien reportov.
+- Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána; aktuálne sa dajú prepínať v admin rezerváciách cez lokálny payment store.
+- Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin vytvorenie má `POST /api/admin/reservations` a admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
+- Lokálna perzistencia: rezervácie, platobné metódy, katalóg požičovne/doplnkov, mapový editor, úlovky, skupinové zápisníky, súťažný dispečing a audit log sa ukladajú do `.data/rybolov-cetin/`, kým nebude pripravený Supabase.
+- Lokálna perzistencia: uzávierky, sezóny a servisné blokácie majú samostatný store `.data/rybolov-cetin/closure-state.json`; vstupujú do serverovej validácie rezervácií, public mapy, admin mapy, dashboardu a sezónnych okien reportov. Admin uzávierky vie správca vytvoriť aj spätne upraviť.
 - Lokálna perzistencia: uložené reporty úlovkov majú samostatný store `.data/rybolov-cetin/catch-reports.json`.
-- Testy: Vitest je pridaný pre dostupnosť, požičovňu, admin workflow rezervácií, rezervačné API, lokálne store vrstvy, audit log, Zod formuláre, súťažný workflow a seed/service kontrakty.
+- Testy: Vitest je pridaný pre dostupnosť, požičovňu, katalóg požičovne, admin workflow rezervácií, rezervačné API, lokálne store vrstvy, audit log, Zod formuláre, súťažný workflow a seed/service kontrakty.
 
 ## Fáza 1: Produktový prototyp
 
@@ -57,11 +57,11 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 ## Fáza 3: Rezervácie a dostupnosť
 
 - Implementovať availability engine. Prvá mock verzia je hotová.
-- Kombinovať rezervácie, uzávierky, údržbu, sezóny, neres, súťaže a pravidlá chát. Uzávierky sú už samostatný lokálny API/store modul a public mapa, admin mapa, dashboard aj rezervácie ich čítajú ako živý stav.
+- Kombinovať rezervácie, uzávierky, údržbu, sezóny, neres, súťaže a pravidlá chát. Uzávierky sú už samostatný lokálny API/store modul a public mapa, admin mapa, dashboard aj rezervácie ich čítajú ako živý stav; `/admin/uzavierky` ich vie vytvárať aj upravovať.
 - Započítať dostupnosť požičovne podľa termínu. Prvá mock verzia cez `rentalBookings` je hotová.
-- Vytvoriť kalendár obsadenosti po jazerách, miestach a chatách. Prvá týždňová mriežka v adminovi je hotová.
-- Pridať schvaľovanie rezervácií a interné poznámky správcu. Prvý mock service workflow v `/admin/rezervacie` je hotový.
-- Pripraviť platobné metódy ako voliteľný modul. Aktuálne má byť dostupná hotovosť na mieste a bankový prevod; platobná brána zostáva pripravená, ale vypnutá.
+- Vytvoriť kalendár obsadenosti po jazerách, miestach a chatách. Týždenný, mesačný a mobilný prehľad v adminovi je hotový.
+- Pridať schvaľovanie rezervácií, interné poznámky a telefonické/osobné vytvorenie rezervácie správcom. Prvý mock service workflow v `/admin/rezervacie` je hotový.
+- Pripraviť platobné metódy ako voliteľný modul. Aktuálne má byť dostupná hotovosť na mieste a bankový prevod; platobná brána zostáva pripravená a všetky metódy sú zapínateľné cez admin.
 
 ## Fáza 4: Úlovky a rybárske dáta
 

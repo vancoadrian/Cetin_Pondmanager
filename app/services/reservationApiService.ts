@@ -1,5 +1,6 @@
 import type { RentalBooking, Reservation } from '~/data/pond'
 import {
+  adminReservationRequestPayloadSchema,
   getValidationMessages,
   reservationDecisionInputSchema,
   reservationRequestPayloadSchema,
@@ -45,6 +46,16 @@ export interface ReservationStateResponse {
 export type ReservationSubmissionResult = ApiValidationFailure | ReservationSubmissionSuccess
 export type ReservationDecisionApiResult = ApiValidationFailure | ReservationDecisionSuccess
 
+interface ReservationSubmissionOptions {
+  internalNote: string
+  message: string
+  paymentMethodId?: string
+  rentalBookingNote: string
+  rentalBookingStatus: RentalBooking['status']
+  source: Reservation['source']
+  status: Reservation['status']
+}
+
 const dayMs = 24 * 60 * 60 * 1000
 
 function resolveReservationType(dateFrom: string, dateTo: string): Reservation['type'] {
@@ -85,22 +96,25 @@ function validationFailure(messages: string[], statusCode: ApiValidationFailure[
   }
 }
 
-export function submitReservationRequest(
-  rawInput: unknown,
+function createReservationSubmission(
+  payload: ReturnType<typeof reservationRequestPayloadSchema.parse>,
   service: PondService = pondService,
+  options: ReservationSubmissionOptions,
 ): ReservationSubmissionResult {
-  const payloadResult = reservationRequestPayloadSchema.safeParse(rawInput)
-  if (!payloadResult.success) {
-    return validationFailure(getValidationMessages(payloadResult))
-  }
-
-  const payload = payloadResult.data
   const peg = service.pegs.find((item) => item.id === payload.pegId && item.lake === payload.lake)
   const permit = service.permitProducts.find((item) => item.id === payload.permitId)
   const cabin = service.cabinProducts.find((item) => item.pegIds.includes(payload.pegId))
+  const paymentMethod = options.paymentMethodId
+    ? service.paymentMethods.find((item) => item.id === options.paymentMethodId)
+    : undefined
   const rentalItems = payload.rentalIds.map((id) => service.rentalItems.find((item) => item.id === id))
+  const inactiveRentalLabels = rentalItems
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .filter((item) => !item.active)
+    .map((item) => item.label)
   const selectedRentalLabels = rentalItems
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .filter((item) => item.active)
     .filter((item) =>
       !getRentalAvailability(item, {
         bookings: service.rentalBookings,
@@ -115,7 +129,7 @@ export function submitReservationRequest(
         const lakeMatches = !extra.lake || extra.lake === payload.lake
         const surfaceMatches = extra.appliesTo === 'all' || Boolean(cabin)
 
-        return lakeMatches && surfaceMatches
+        return extra.active && lakeMatches && surfaceMatches
       })
       .map((extra) => extra.id),
   )
@@ -123,9 +137,16 @@ export function submitReservationRequest(
   const referenceMessages = [
     ...(!peg ? ['Vybrané lovné miesto neexistuje pre zvolené jazero.'] : []),
     ...(!permit ? ['Vybraná povolenka neexistuje v cenníku.'] : []),
+    ...(options.paymentMethodId && !paymentMethod
+      ? [`Vybraná platobná metóda neexistuje: ${options.paymentMethodId}.`]
+      : []),
+    ...(paymentMethod && !paymentMethod.enabled
+      ? [`Vybraná platobná metóda nie je zapnutá: ${paymentMethod.label}.`]
+      : []),
     ...payload.rentalIds
       .filter((id, index) => !rentalItems[index])
       .map((id) => `Vybraná výbava neexistuje v požičovni: ${id}.`),
+    ...inactiveRentalLabels.map((label) => `Vybraná výbava nie je zapnutá v požičovni: ${label}.`),
     ...payload.extraIds
       .filter((id) => !availableExtraIds.has(id))
       .map((id) => `Vybraný doplnok nie je dostupný pre túto rezerváciu: ${id}.`),
@@ -167,13 +188,15 @@ export function submitReservationRequest(
     from: requestResult.data.dateFrom,
     to: requestResult.data.dateTo,
     type: resolveReservationType(requestResult.data.dateFrom, requestResult.data.dateTo),
-    status: 'pending',
+    status: options.status,
     permitId: requestResult.data.permitId,
     cabinProductId: requestResult.data.cabinProductId,
     rentalIds: requestResult.data.rentalIds,
     extraIds: requestResult.data.extraIds,
-    internalNote: 'Webová žiadosť prijatá cez lokálne API. Správca ju má potvrdiť telefonicky.',
-    source: 'web',
+    paymentMethodId: options.paymentMethodId,
+    paymentStatus: options.paymentMethodId ? (options.status === 'confirmed' ? 'pending' : 'unpaid') : undefined,
+    internalNote: options.internalNote,
+    source: options.source,
   }
   const rentalBookings: RentalBooking[] = requestResult.data.rentalIds.map((rentalItemId, index) => ({
     id: `${reservationId}-rental-${index + 1}`,
@@ -183,17 +206,64 @@ export function submitReservationRequest(
     from: requestResult.data.dateFrom,
     to: requestResult.data.dateTo,
     quantity: 1,
-    status: 'requested',
-    note: 'Žiadosť z verejného formulára čaká na potvrdenie správcom.',
+    status: options.rentalBookingStatus,
+    note: options.rentalBookingNote,
   }))
 
   return {
     ok: true,
-    message: 'Žiadosť je uložená lokálne a čaká na telefonické potvrdenie správcom.',
+    message: options.message,
     rentalBookings,
     reservation,
     statusCode: 201,
   }
+}
+
+export function submitReservationRequest(
+  rawInput: unknown,
+  service: PondService = pondService,
+): ReservationSubmissionResult {
+  const payloadResult = reservationRequestPayloadSchema.safeParse(rawInput)
+  if (!payloadResult.success) {
+    return validationFailure(getValidationMessages(payloadResult))
+  }
+
+  return createReservationSubmission(payloadResult.data, service, {
+    internalNote: 'Webová žiadosť prijatá cez lokálne API. Správca ju má potvrdiť telefonicky.',
+    message: 'Žiadosť je uložená lokálne a čaká na telefonické potvrdenie správcom.',
+    rentalBookingNote: 'Žiadosť z verejného formulára čaká na potvrdenie správcom.',
+    rentalBookingStatus: 'requested',
+    source: 'web',
+    status: 'pending',
+  })
+}
+
+export function submitAdminReservationRequest(
+  rawInput: unknown,
+  service: PondService = pondService,
+): ReservationSubmissionResult {
+  const payloadResult = adminReservationRequestPayloadSchema.safeParse(rawInput)
+  if (!payloadResult.success) {
+    return validationFailure(getValidationMessages(payloadResult))
+  }
+
+  const payload = payloadResult.data
+  const confirmed = payload.status === 'confirmed'
+  const sourceLabel = payload.source === 'phone' ? 'telefonicky' : 'správcom v adminovi'
+
+  return createReservationSubmission(payload, service, {
+    internalNote: payload.internalNote || `Rezervácia vytvorená ${sourceLabel}.`,
+    message: confirmed
+      ? 'Rezervácia bola vytvorená a rovno potvrdená v lokálnom stave.'
+      : 'Rezervácia bola vytvorená správcom a čaká na potvrdenie.',
+    paymentMethodId: payload.paymentMethodId,
+    rentalBookingNote: confirmed
+      ? 'Výbava je rezervovaná správcom spolu s potvrdenou rezerváciou.'
+      : 'Výbava čaká na potvrdenie správcom.',
+    rentalBookingStatus: confirmed ? 'reserved' : 'requested',
+    source: payload.source,
+    status: payload.status,
+  })
 }
 
 export function submitReservationDecision(
@@ -226,6 +296,7 @@ export function submitReservationDecision(
 
 export function createReservationApiService(repositoryService: PondService = createPondService()) {
   return {
+    submitAdminReservationRequest: (input: unknown) => submitAdminReservationRequest(input, repositoryService),
     submitReservationDecision,
     submitReservationRequest: (input: unknown) => submitReservationRequest(input, repositoryService),
   }

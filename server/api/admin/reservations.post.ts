@@ -1,15 +1,21 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { createMockPondRepository, createPondSnapshot } from '~/repositories/pondRepository'
-import { submitReservationRequest } from '~/services/reservationApiService'
+import {
+  submitAdminReservationRequest,
+  type ReservationSubmissionSuccess,
+} from '~/services/reservationApiService'
 import { createPondService } from '~/services/pondService'
-import { resolveAuditActor } from '../utils/auditActor'
-import { appendLocalAuditEvent } from '../utils/localAuditLogStore'
-import { readLocalClosureState } from '../utils/localClosureStore'
-import { readLocalPaymentMethodState } from '../utils/localPaymentMethodStore'
-import { appendLocalReservation, readLocalReservationState } from '../utils/localReservationStore'
-import { readLocalRentalCatalogState } from '../utils/localRentalCatalogStore'
+import { requireAdminAccess } from '../../utils/adminAccessGuard'
+import { resolveAuditActor } from '../../utils/auditActor'
+import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
+import { readLocalClosureState } from '../../utils/localClosureStore'
+import { readLocalPaymentMethodState } from '../../utils/localPaymentMethodStore'
+import { appendLocalReservation, readLocalReservationState } from '../../utils/localReservationStore'
+import { readLocalRentalCatalogState } from '../../utils/localRentalCatalogStore'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<ReservationSubmissionSuccess> => {
+  requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
+
   const [state, closureState, paymentMethodState, rentalCatalogState] = await Promise.all([
     readLocalReservationState(),
     readLocalClosureState(),
@@ -28,33 +34,43 @@ export default defineEventHandler(async (event) => {
       }),
     ),
   )
-  const result = submitReservationRequest(await readBody(event), service)
+  const result = submitAdminReservationRequest(await readBody(event), service)
 
   if (!result.ok) {
     throw createError({
       data: { messages: result.messages },
       statusCode: result.statusCode,
-      statusMessage: 'Reservation request validation failed',
+      statusMessage: 'Admin reservation validation failed',
     })
   }
 
   await appendLocalReservation(result.reservation, result.rentalBookings)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
-    action: 'reservation.request.created',
+    ...resolveAuditActor(event, {
+      actorId: 'admin',
+      actorLabel: 'Admin',
+      actorRole: 'manager',
+    }),
+    action: result.reservation.status === 'confirmed'
+      ? 'reservation.admin.created_confirmed'
+      : 'reservation.admin.created_pending',
     area: 'reservations',
     details: {
       extraCount: result.reservation.extraIds.length,
       from: result.reservation.from,
+      paymentMethodId: result.reservation.paymentMethodId ?? null,
       pegId: result.reservation.pegId,
       rentalCount: result.reservation.rentalIds.length,
+      source: result.reservation.source,
+      status: result.reservation.status,
       to: result.reservation.to,
     },
     entityId: result.reservation.id,
     entityLabel: result.reservation.guest,
     entityType: 'reservation',
     lake: result.reservation.lake,
-    summary: `${result.reservation.guest} poslal webovú žiadosť na miesto ${result.reservation.pegId}.`,
+    severity: result.reservation.status === 'confirmed' ? 'info' : 'warning',
+    summary: `Správca vytvoril rezerváciu ${result.reservation.guest}.`,
   })
   setResponseStatus(event, result.statusCode)
 

@@ -22,7 +22,8 @@ Rezervácie majú byť použiteľné pre bežného rybára aj správcu. Rybár m
 3. Systém upozorní na konflikt s uzávierkou, súťažou, neresom alebo údržbou.
 4. Správca schváli, upraví alebo zamietne rezerváciu.
 5. Pri schválení sa blokujú aj požičané položky.
-6. Neskôr môže aplikácia poslať potvrdenie cez Resend/e-mail; telefonické potvrdenie zostáva rovnocenný workflow.
+6. Správca vie vytvoriť telefonickú alebo osobnú rezerváciu priamo v adminovi ako čakajúcu alebo rovno potvrdenú.
+7. Neskôr môže aplikácia poslať potvrdenie cez Resend/e-mail; telefonické potvrdenie zostáva rovnocenný workflow.
 
 ## Chata + miesto
 
@@ -58,28 +59,28 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - `/rezervacie` obsahuje verejný rezervačný formulár.
 - `/admin` ukazuje súhrn rezervácií na spracovanie.
 - `/admin/rezervacie` má mock schvaľovací detail vybranej rezervácie s kontaktom, povolenkou, chatou, požičovňou, doplnkami, konfliktmi a internou poznámkou.
-- `/admin/rezervacie` má týždňový kalendár po miestach a chatách, kde každá bunka ukazuje stav z availability engine a obsadená bunka otvorí detail rezervácie.
+- `/admin/rezervacie` má týždenný aj mesačný kalendár po miestach a chatách, kde každá bunka ukazuje stav z availability engine a obsadená bunka otvorí detail rezervácie. Na mobile sa kalendár mení na denný súhrn obsadenosti.
 - Uloženie rozhodnutia v `/admin/rezervacie` mení lokálny stav rezervácie a výpožičiek, takže sa prepočítajú štatistiky aj kalendár bez reloadu.
 - Rozhodovacia logika schváliť/telefonát/zamietnuť je presunutá do `reservationWorkflowService` a composable `useAdminReservationWorkflow`.
 - Verejná žiadosť používa `reservationRequestSchema` zo Zod validácií a odosiela sa na `POST /api/reservations`.
 - Verejný formulár má klientsku IndexedDB offline frontu. Ak odoslanie zlyhá kvôli výpadku siete, payload žiadosti o miesto, chatu, výbavu a doplnky zostane v zariadení a po návrate internetu sa odošle na `POST /api/reservations`.
 - `/offline` zobrazuje čakajúce rezervácie spolu s ostatnými offline položkami, vie ich hromadne odoslať alebo odstrániť zo zariadenia.
-- Serverová vrstva používa `reservationApiService`, znovu odvodí dostupnosť miesta, chatu a požičovne z lokálne uloženého stavu a netrustuje klientsky stav.
+- Serverová vrstva používa `reservationApiService`, znovu odvodí dostupnosť miesta, chatu, aktívnej požičovne a doplnkov z lokálne uloženého stavu a netrustuje klientsky stav.
 - `GET /api/reservations` vracia aktuálny lokálny stav rezervácií a výpožičiek.
 - Admin endpoint `POST /api/admin/reservations/:id/decision` zapisuje rozhodnutie do lokálneho JSON store a má rovnaký tvar ako budúca mutácia schválenia rezervácie.
+- Admin endpoint `POST /api/admin/reservations` vytvára telefonickú alebo osobnú rezerváciu cez rovnakú serverovú kontrolu dostupnosti ako public formulár, ale chráni ju admin RBAC guardom.
 - Uzávierky sa ukladajú cez `/api/admin/closures` do `.data/rybolov-cetin/closure-state.json` a rezervačný endpoint ich používa pri kontrole dostupnosti.
-- Platobné metódy sú pripravené v modeli ako zapínateľný zoznam: hotovosť, prevod a vypnutá budúca brána.
+- `/admin/uzavierky` vie existujúcu uzávierku načítať späť do formulára, upraviť ju a uložiť cez rovnaký API kontrakt.
+- Platobné metódy sú pripravené v modeli ako zapínateľný zoznam: hotovosť, prevod a vypnutá budúca brána. `/admin/rezervacie` ich vie zapnúť alebo vypnúť cez lokálny payment store.
 - Požičovňa má termínový výpočet dostupnosti cez `rentalBookings` a `getRentalAvailability`.
-- `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín.
+- `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín; správca vie dočasne vypnúť položku, upraviť sklad, odporúčanie a cenníkový text.
+- Aktívny katalóg požičovne a doplnkov sa dočasne ukladá do `.data/rybolov-cetin/rental-catalog-state.json`; public rezervácia, info stránka a admin vytváranie rezervácie čítajú iba aktívne položky.
 - Dáta sú v `app/data/pond.ts`.
 
 ## Ďalšie kroky
 
-- Rozšíriť lokálnu repository vrstvu aj na vytváranie rezervácií z adminu.
-- Rozšíriť kalendár na mesačný a mobilný režim.
 - Neskôr nahradiť lokálny JSON store produkčnou repository/Supabase mutáciou.
 - Konfliktné pravidlá a vysvetlenie dostupnosti.
-- Persistovať položky požičovne a doplnky ako `reservation_items`.
+- Pridať vytváranie úplne nových položiek katalógu v adminovi, dnes sa upravujú existujúce seed položky.
 - Email/SMS/push potvrdenia cez Resend alebo iného providera podľa rozhodnutia prevádzkovateľa.
-- Doplniť prepínače platobných metód do admin nastavení.
 - Doriešiť notifikáciu používateľovi, ak offline rezervácia po návrate internetu narazí na konflikt dostupnosti.

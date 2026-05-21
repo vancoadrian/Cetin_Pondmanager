@@ -65,6 +65,20 @@ export function getRentalAvailability(
   const requestedQuantity = bookings
     .filter((booking) => booking.status === 'requested')
     .reduce((sum, booking) => sum + booking.quantity, 0)
+  if (!item.active) {
+    return {
+      status: 'unavailable',
+      stock: item.stock,
+      reservedQuantity,
+      requestedQuantity,
+      availableQuantity: 0,
+      reasons: ['Položka je v katalógu požičovne vypnutá.'],
+      sourceIds: bookings.map((booking) => booking.id),
+      bookings,
+      ...statusMeta.unavailable,
+    }
+  }
+
   const availableQuantity = Math.max(item.stock - reservedQuantity - requestedQuantity, 0)
   const status: RentalAvailabilityStatus =
     availableQuantity <= 0 ? 'unavailable' : availableQuantity <= 2 || bookings.length > 0 ? 'limited' : 'available'

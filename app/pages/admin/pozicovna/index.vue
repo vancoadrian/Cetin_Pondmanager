@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import type { RentalItem, ReservationExtra } from '~/data/pond'
+import type { ReservationStateResponse } from '~/services/reservationApiService'
+import type { RentalCatalogMutationSuccess } from '~/services/rentalCatalogService'
 import { getRentalAvailability } from '~/utils/rentals'
 
 useHead({ title: 'Admin požičovňa' })
 
-const { getLakeName, getPegLabel, rentalBookings, rentalItems, reservationExtras, reservations } = usePondData()
+const { getLakeName, getPegLabel, rentalBookings, reservations } = usePondData()
 const {
   canOperate: canOperateRentals,
   isReadOnly: rentalsReadOnly,
@@ -11,15 +14,41 @@ const {
   readOnlyMessage: rentalReadOnlyMessage,
 } = useAdminModuleAccess('rentals')
 
+const fallbackReservationState = (): ReservationStateResponse => ({
+  ok: true,
+  rentalBookings,
+  reservations,
+  updatedAt: 'seed',
+})
+const { data: reservationState } = await useAsyncData<ReservationStateResponse>(
+  'admin-rentals-reservation-state',
+  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  {
+    default: fallbackReservationState,
+  },
+)
+const {
+  liveRentalItems,
+  liveReservationExtras,
+  refresh: refreshRentalCatalogState,
+} = await useRentalCatalogState({ admin: true, key: 'admin-rentals-catalog-state' })
+
 const rangeFrom = ref('2026-05-16')
 const rangeTo = ref('2026-05-18')
-const totalStock = computed(() => rentalItems.reduce((sum, item) => sum + item.stock, 0))
-const recommendedItems = computed(() => rentalItems.filter((item) => item.recommended))
-const cabinExtras = computed(() => reservationExtras.filter((extra) => extra.appliesTo === 'cabin'))
+const rentalItemDraft = ref<RentalItem[]>([])
+const reservationExtraDraft = ref<ReservationExtra[]>([])
+const catalogSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const catalogSubmitMessage = ref('')
+const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
+const liveRentalBookings = computed(() => reservationState.value?.rentalBookings ?? rentalBookings)
+const activeRentalItemDraft = computed(() => rentalItemDraft.value.filter((item) => item.active))
+const totalStock = computed(() => activeRentalItemDraft.value.reduce((sum, item) => sum + item.stock, 0))
+const recommendedItems = computed(() => activeRentalItemDraft.value.filter((item) => item.recommended))
+const cabinExtras = computed(() => reservationExtraDraft.value.filter((extra) => extra.active && extra.appliesTo === 'cabin'))
 const rentalAvailabilityRows = computed(() =>
-  rentalItems.map((item) => ({
+  rentalItemDraft.value.map((item) => ({
     availability: getRentalAvailability(item, {
-      bookings: rentalBookings,
+      bookings: liveRentalBookings.value,
       dateFrom: rangeFrom.value,
       dateTo: rangeTo.value,
     }),
@@ -34,13 +63,93 @@ const activeRentalBookings = computed(() =>
     row.availability.bookings.map((booking) => ({
       booking,
       item: row.item,
-      reservation: reservations.find((reservation) => reservation.id === booking.reservationId),
+      reservation: liveReservations.value.find((reservation) => reservation.id === booking.reservationId),
     })),
   ),
 )
 const rangeAvailableStock = computed(() =>
   rentalAvailabilityRows.value.reduce((sum, row) => sum + row.availability.availableQuantity, 0),
 )
+
+watch(
+  liveRentalItems,
+  (items) => {
+    rentalItemDraft.value = items.map((item) => ({ ...item }))
+  },
+  { immediate: true },
+)
+
+watch(
+  liveReservationExtras,
+  (extras) => {
+    reservationExtraDraft.value = extras.map((extra) => ({ ...extra }))
+  },
+  { immediate: true },
+)
+
+watch(
+  [rentalItemDraft, reservationExtraDraft],
+  () => {
+    if (catalogSubmitStatus.value !== 'submitting') {
+      catalogSubmitStatus.value = 'idle'
+      catalogSubmitMessage.value = ''
+    }
+  },
+  { deep: true },
+)
+
+async function saveRentalCatalogSettings() {
+  if (!canOperateRentals.value) {
+    catalogSubmitStatus.value = 'error'
+    catalogSubmitMessage.value = rentalReadOnlyMessage.value
+    return
+  }
+
+  catalogSubmitStatus.value = 'submitting'
+  catalogSubmitMessage.value = ''
+
+  try {
+    const result = await $fetch<RentalCatalogMutationSuccess>('/api/admin/rental-catalog', {
+      body: {
+        rentalItems: rentalItemDraft.value.map((item) => ({
+          active: item.active,
+          id: item.id,
+          priceLabel: item.priceLabel,
+          recommended: item.recommended,
+          stock: item.stock,
+        })),
+        reservationExtras: reservationExtraDraft.value.map((extra) => ({
+          active: extra.active,
+          id: extra.id,
+          priceLabel: extra.priceLabel,
+          source: extra.source,
+        })),
+      },
+      method: 'PUT',
+    })
+
+    await refreshRentalCatalogState()
+    catalogSubmitStatus.value = 'success'
+    catalogSubmitMessage.value = result.message
+  }
+  catch (error) {
+    const fetchError = error as {
+      data?: {
+        data?: {
+          messages?: string[]
+        }
+        message?: string
+        statusMessage?: string
+      }
+    }
+    catalogSubmitStatus.value = 'error'
+    catalogSubmitMessage.value =
+      fetchError.data?.data?.messages?.join(' ') ??
+      fetchError.data?.message ??
+      fetchError.data?.statusMessage ??
+      'Požičovňu sa nepodarilo uložiť.'
+  }
+}
 </script>
 
 <template>
@@ -65,7 +174,7 @@ const rangeAvailableStock = computed(() =>
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Položky výbavy</p>
-          <p class="mt-2 text-3xl font-bold">{{ rentalItems.length }}</p>
+          <p class="mt-2 text-3xl font-bold">{{ activeRentalItemDraft.length }}/{{ rentalItemDraft.length }}</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Sklad spolu</p>
@@ -86,10 +195,29 @@ const rangeAvailableStock = computed(() =>
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="text-lg font-bold">Sklad výbavy</h2>
-              <p class="text-foreground-muted text-sm">Ceny a sklad sú mock, dostupnosť sa už počíta podľa rezervácií.</p>
+              <p class="text-foreground-muted text-sm">Správca vie vypnúť položku, upraviť sklad a cenníkový text pre rezervácie.</p>
             </div>
-            <UButton icon="i-heroicons-plus" variant="soft" :disabled="!canOperateRentals">Pridať položku</UButton>
+            <UButton
+              icon="i-heroicons-check"
+              variant="soft"
+              :disabled="!canOperateRentals || catalogSubmitStatus === 'submitting'"
+              :loading="catalogSubmitStatus === 'submitting'"
+              @click="saveRentalCatalogSettings"
+            >
+              Uložiť požičovňu
+            </UButton>
           </div>
+          <p
+            v-if="catalogSubmitMessage"
+            class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
+            :class="
+              catalogSubmitStatus === 'error'
+                ? 'bg-error-500/10 text-error-700'
+                : 'bg-success-500/10 text-success-700'
+            "
+          >
+            {{ catalogSubmitMessage }}
+          </p>
 
           <div class="mt-5 grid gap-3 rounded-md bg-muted p-3 sm:grid-cols-2">
             <label class="block">
@@ -115,10 +243,17 @@ const rangeAvailableStock = computed(() =>
               v-for="row in rentalAvailabilityRows"
               :key="row.item.id"
               class="grid gap-3 border-b border-border bg-white p-4 last:border-b-0 md:grid-cols-[1fr_auto]"
+              :class="!row.item.active ? 'opacity-70' : ''"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="font-bold">{{ row.item.label }}</p>
+                  <span
+                    class="rounded-md px-2 py-1 text-xs font-bold"
+                    :class="row.item.active ? 'bg-success-500/10 text-success-700' : 'bg-foreground-muted/10 text-foreground-muted'"
+                  >
+                    {{ row.item.active ? 'aktívne' : 'vypnuté' }}
+                  </span>
                   <span v-if="row.item.recommended" class="rounded-md bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">
                     odporúčané
                   </span>
@@ -131,11 +266,48 @@ const rangeAvailableStock = computed(() =>
                 <p class="text-foreground-muted mt-1 text-xs">
                   {{ row.availability.reasons[0] }}
                 </p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                  <label class="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-semibold">
+                    <input
+                      v-model="row.item.active"
+                      type="checkbox"
+                      :disabled="!canOperateRentals"
+                      class="h-4 w-4 accent-primary-700"
+                    >
+                    Aktívne
+                  </label>
+                  <label class="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-semibold">
+                    <input
+                      v-model="row.item.recommended"
+                      type="checkbox"
+                      :disabled="!canOperateRentals || !row.item.active"
+                      class="h-4 w-4 accent-primary-700"
+                    >
+                    Odporúčané
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Cenníkový text</span>
+                    <input
+                      v-model="row.item.priceLabel"
+                      :disabled="!canOperateRentals"
+                      class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                      placeholder="cena po potvrdení správcom"
+                    >
+                  </label>
+                </div>
               </div>
               <div class="grid grid-cols-4 gap-2 text-center text-xs sm:min-w-72">
                 <div class="rounded-md bg-muted p-2">
                   <p class="text-foreground-muted">Sklad</p>
-                  <p class="text-lg font-bold">{{ row.availability.stock }}</p>
+                  <input
+                    v-model.number="row.item.stock"
+                    type="number"
+                    min="0"
+                    max="100"
+                    :disabled="!canOperateRentals"
+                    class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2 text-center text-lg font-bold"
+                    aria-label="Sklad"
+                  >
                 </div>
                 <div class="rounded-md bg-muted p-2">
                   <p class="text-foreground-muted">Potvrdené</p>
@@ -208,20 +380,57 @@ const rangeAvailableStock = computed(() =>
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Doplnky k rezervácii</h2>
             <div class="mt-4 space-y-3">
-              <div v-for="extra in reservationExtras" :key="extra.id" class="rounded-md bg-muted p-4">
+              <div v-for="extra in reservationExtraDraft" :key="extra.id" class="rounded-md bg-muted p-4" :class="!extra.active ? 'opacity-70' : ''">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="font-semibold">{{ extra.label }}</p>
                     <p class="text-foreground-muted mt-1 text-sm">{{ extra.description }}</p>
                   </div>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="extra.source === 'web' ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-700'"
-                  >
-                    {{ extra.source === 'web' ? 'web' : 'návrh' }}
-                  </span>
+                  <div class="flex flex-wrap justify-end gap-2">
+                    <span
+                      class="rounded-md px-2 py-1 text-xs font-bold"
+                      :class="extra.active ? 'bg-success-500/10 text-success-700' : 'bg-foreground-muted/10 text-foreground-muted'"
+                    >
+                      {{ extra.active ? 'aktívne' : 'vypnuté' }}
+                    </span>
+                    <span
+                      class="rounded-md px-2 py-1 text-xs font-bold"
+                      :class="extra.source === 'web' ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-700'"
+                    >
+                      {{ extra.source === 'web' ? 'web' : 'návrh' }}
+                    </span>
+                  </div>
                 </div>
-                <p class="text-primary-800 mt-2 text-xs font-semibold">{{ extra.priceLabel }}</p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+                  <label class="flex items-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold">
+                    <input
+                      v-model="extra.active"
+                      type="checkbox"
+                      :disabled="!canOperateRentals"
+                      class="h-4 w-4 accent-primary-700"
+                    >
+                    Aktívne
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Zdroj doplnku</span>
+                    <select
+                      v-model="extra.source"
+                      :disabled="!canOperateRentals"
+                      class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
+                    >
+                      <option value="web">z webu</option>
+                      <option value="proposal">návrh</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Cenníkový text doplnku</span>
+                    <input
+                      v-model="extra.priceLabel"
+                      :disabled="!canOperateRentals"
+                      class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                    >
+                  </label>
+                </div>
               </div>
             </div>
           </div>

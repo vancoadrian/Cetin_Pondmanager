@@ -30,6 +30,7 @@ export const auditAreaLabels: Record<AuditArea, string> = {
   logbooks: 'Zápisníky',
   map: 'Mapa',
   reservations: 'Rezervácie',
+  rentals: 'Požičovňa',
   system: 'Systém',
   tournaments: 'Súťaže',
 }
@@ -52,6 +53,7 @@ export const auditActionLabels: Record<string, string> = {
   'catch.report.saved': 'Report uložený',
   'map.updated': 'Mapa upravená',
   'notification.broadcast.created': 'Notifikácia pripravená',
+  'rental_catalog.updated': 'Požičovňa upravená',
   'reservation.decision.blocked': 'Rezervácia zamietnutá',
   'reservation.decision.confirmed': 'Rezervácia potvrdená',
   'reservation.decision.pending': 'Rezervácia v riešení',

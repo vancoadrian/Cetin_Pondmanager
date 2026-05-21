@@ -354,6 +354,7 @@ export interface RentalItem {
   stock: number
   priceLabel: string
   recommended: boolean
+  active: boolean
 }
 
 export interface RentalBooking {
@@ -376,6 +377,7 @@ export interface ReservationExtra {
   priceLabel: string
   lake?: LakeSlug
   source: 'web' | 'proposal'
+  active: boolean
 }
 
 export interface PaymentMethod {
@@ -445,7 +447,7 @@ export interface Sponsor {
   active: boolean
 }
 
-export type AuditArea = 'reservations' | 'catches' | 'logbooks' | 'tournaments' | 'map' | 'system'
+export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'logbooks' | 'tournaments' | 'map' | 'system'
 export type AuditActorRole =
   | 'owner'
   | 'manager'
@@ -605,6 +607,7 @@ export const rentalItems: RentalItem[] = [
     stock: 6,
     priceLabel: 'cena po potvrdení správcom',
     recommended: true,
+    active: true,
   },
   {
     id: 'fish-cradle-rental',
@@ -614,6 +617,7 @@ export const rentalItems: RentalItem[] = [
     stock: 6,
     priceLabel: 'cena po potvrdení správcom',
     recommended: true,
+    active: true,
   },
   {
     id: 'weigh-sling',
@@ -623,6 +627,7 @@ export const rentalItems: RentalItem[] = [
     stock: 4,
     priceLabel: 'cena po potvrdení správcom',
     recommended: false,
+    active: true,
   },
   {
     id: 'fish-care-kit',
@@ -632,6 +637,7 @@ export const rentalItems: RentalItem[] = [
     stock: 8,
     priceLabel: 'cena po potvrdení správcom',
     recommended: false,
+    active: true,
   },
   {
     id: 'extension-cable',
@@ -641,6 +647,7 @@ export const rentalItems: RentalItem[] = [
     stock: 3,
     priceLabel: 'cena po potvrdení správcom',
     recommended: false,
+    active: true,
   },
 ]
 
@@ -710,6 +717,7 @@ export const reservationExtras: ReservationExtra[] = [
     appliesTo: 'cabin',
     priceLabel: 'podľa aktuálneho cenníka',
     source: 'proposal',
+    active: true,
   },
   {
     id: 'grill',
@@ -718,6 +726,7 @@ export const reservationExtras: ReservationExtra[] = [
     appliesTo: 'cabin',
     priceLabel: 'podľa dostupnosti',
     source: 'proposal',
+    active: true,
   },
   {
     id: 'third-rod',
@@ -726,6 +735,7 @@ export const reservationExtras: ReservationExtra[] = [
     appliesTo: 'all',
     priceLabel: 'po dohode so správcom',
     source: 'web',
+    active: true,
   },
   {
     id: 'gazebo-kocka',
@@ -735,6 +745,7 @@ export const reservationExtras: ReservationExtra[] = [
     priceLabel: 'cena dohodou',
     lake: 'strkovisko-kocka',
     source: 'web',
+    active: true,
   },
 ]
 

@@ -18,6 +18,23 @@ export function addDays(iso: string, days: number) {
   return toIsoDate(date)
 }
 
+export function addMonths(iso: string, months: number) {
+  const date = toUtcDate(iso)
+  date.setUTCMonth(date.getUTCMonth() + months, 1)
+  return toIsoDate(date)
+}
+
+export function getMonthStart(iso: string) {
+  const date = toUtcDate(iso)
+  date.setUTCDate(1)
+  return toIsoDate(date)
+}
+
+function getDaysInMonth(iso: string) {
+  const date = toUtcDate(iso)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+}
+
 export function buildCalendarDays(startIso: string, count = 7): CalendarDay[] {
   return Array.from({ length: count }, (_, index) => {
     const iso = addDays(startIso, index)
@@ -32,3 +49,7 @@ export function buildCalendarDays(startIso: string, count = 7): CalendarDay[] {
   })
 }
 
+export function buildMonthCalendarDays(anchorIso: string): CalendarDay[] {
+  const monthStart = getMonthStart(anchorIso)
+  return buildCalendarDays(monthStart, getDaysInMonth(monthStart))
+}
