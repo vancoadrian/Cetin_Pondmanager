@@ -24,6 +24,7 @@ create type public.catch_photo_status as enum ('missing', 'uploaded', 'ai_ready'
 create type public.map_layer_kind as enum ('background', 'pegs', 'cabins', 'sectors', 'service');
 create type public.map_shape_type as enum ('shoreline', 'island', 'zone', 'sector', 'service');
 create type public.map_tone as enum ('water', 'reed', 'warning', 'service', 'sector');
+create type public.map_facility_type as enum ('electricity', 'entry', 'first_aid', 'other', 'parking', 'reception', 'shower', 'storage', 'toilet', 'waste', 'wood');
 create type public.tournament_status as enum ('planned', 'live', 'closed');
 create type public.tournament_marshal_status as enum ('available', 'on_route', 'measuring', 'off_duty');
 create type public.tournament_request_type as enum ('catch_measurement', 'rule_report', 'technical_help', 'other');
@@ -114,10 +115,25 @@ create table public.map_layers (
   name text not null,
   kind public.map_layer_kind not null,
   source_url text,
+  image_settings jsonb not null default '{}'::jsonb check (jsonb_typeof(image_settings) = 'object'),
   visibility public.visibility_scope not null default 'public',
   editable boolean not null default false,
   enabled boolean not null default true,
   sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.map_facilities (
+  id uuid primary key default gen_random_uuid(),
+  venue_id uuid not null references public.venues(id) on delete cascade,
+  lake_id uuid not null references public.lakes(id) on delete cascade,
+  label text not null,
+  type public.map_facility_type not null,
+  map_x numeric(5, 2) not null check (map_x >= 0 and map_x <= 100),
+  map_y numeric(5, 2) not null check (map_y >= 0 and map_y <= 100),
+  visibility public.visibility_scope not null default 'public',
+  notes text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -333,6 +349,8 @@ create table public.alerts (
   body text not null,
   valid_from timestamptz not null default now(),
   valid_until timestamptz not null,
+  target_topics text[] not null default '{}'::text[],
+  target_audience jsonb not null default '{}'::jsonb check (jsonb_typeof(target_audience) = 'object'),
   visibility public.visibility_scope not null default 'public',
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -498,6 +516,10 @@ create table public.tournament_teams (
   updated_at timestamptz not null default now()
 );
 
+alter table public.map_shapes
+  add column tournament_id uuid references public.tournaments(id) on delete set null,
+  add column tournament_sector_id uuid references public.tournament_sectors(id) on delete set null;
+
 create table public.tournament_marshals (
   id uuid primary key default gen_random_uuid(),
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
@@ -543,6 +565,7 @@ create table public.tournament_catches (
   status public.tournament_catch_status not null default 'waiting',
   photo_label text not null default '',
   notes text not null default '',
+  verification_client_mutation_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -561,6 +584,7 @@ create table public.tournament_penalties (
   starts_at timestamptz,
   ends_at timestamptz,
   status public.tournament_penalty_status not null default 'active',
+  client_mutation_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -573,6 +597,7 @@ create table public.tournament_rule_checks (
   checked_at timestamptz not null default now(),
   result public.tournament_rule_check_result not null,
   note text not null default '',
+  client_mutation_id text,
   created_at timestamptz not null default now()
 );
 
@@ -623,6 +648,7 @@ create table public.sponsor_assets (
   sponsor_id uuid not null references public.sponsors(id) on delete cascade,
   storage_path text not null,
   alt_text text not null default '',
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -646,13 +672,31 @@ create table public.push_subscriptions (
   p256dh text not null,
   auth_secret text not null,
   user_agent text,
+  topics text[] not null default array['weather', 'service']::text[],
+  audience_role public.venue_role,
+  audience_scope jsonb not null default '{}'::jsonb check (jsonb_typeof(audience_scope) = 'object'),
   enabled boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+create table public.notification_delivery_logs (
+  id uuid primary key default gen_random_uuid(),
+  venue_id uuid not null references public.venues(id) on delete cascade,
+  alert_id uuid references public.alerts(id) on delete set null,
+  push_subscription_id uuid references public.push_subscriptions(id) on delete set null,
+  provider text not null check (provider in ('disabled', 'mock', 'web-push')),
+  status text not null check (status in ('failed', 'prepared', 'sent', 'skipped')),
+  endpoint text not null,
+  device_label text not null,
+  message text not null default '',
+  attempted_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 create index lakes_venue_id_idx on public.lakes (venue_id);
 create index pegs_lake_id_idx on public.pegs (lake_id);
+create index map_facilities_lake_type_idx on public.map_facilities (lake_id, type);
 create index payment_methods_venue_enabled_idx on public.payment_methods (venue_id, enabled, sort_order);
 create index reservations_venue_dates_idx on public.reservations (venue_id, starts_on, ends_on, status);
 create index reservations_peg_dates_idx on public.reservations (peg_id, starts_on, ends_on);
@@ -660,18 +704,25 @@ create index rental_bookings_item_dates_idx on public.rental_bookings (rental_it
 create index lake_closures_venue_dates_idx on public.lake_closures (venue_id, starts_on, ends_on);
 create index catch_records_lake_caught_at_idx on public.catch_records (lake_id, caught_at desc);
 create index trip_logbook_entries_logbook_idx on public.trip_logbook_entries (logbook_id, caught_at desc);
+create index map_shapes_tournament_sector_idx on public.map_shapes (tournament_id, tournament_sector_id);
 create index tournament_requests_status_idx on public.tournament_requests (tournament_id, status, priority);
 create index tournament_catches_score_idx on public.tournament_catches (tournament_id, team_id, status, weight_kg desc);
+create unique index tournament_catches_verification_client_mutation_idx on public.tournament_catches (tournament_id, verification_client_mutation_id) where verification_client_mutation_id is not null;
+create unique index tournament_penalties_client_mutation_idx on public.tournament_penalties (tournament_id, client_mutation_id) where client_mutation_id is not null;
+create unique index tournament_rule_checks_client_mutation_idx on public.tournament_rule_checks (tournament_id, client_mutation_id) where client_mutation_id is not null;
 create index user_roles_user_venue_idx on public.user_roles (user_id, venue_id, role);
 create index audit_events_venue_created_idx on public.audit_events (venue_id, created_at desc);
 create index audit_events_area_created_idx on public.audit_events (venue_id, area, created_at desc);
 create index push_subscriptions_venue_enabled_idx on public.push_subscriptions (venue_id, enabled);
+create index push_subscriptions_audience_scope_idx on public.push_subscriptions using gin (audience_scope);
+create index notification_delivery_logs_venue_attempted_idx on public.notification_delivery_logs (venue_id, attempted_at desc);
 
 create trigger venues_set_updated_at before update on public.venues for each row execute function public.set_updated_at();
 create trigger profiles_set_updated_at before update on public.profiles for each row execute function public.set_updated_at();
 create trigger lakes_set_updated_at before update on public.lakes for each row execute function public.set_updated_at();
 create trigger pegs_set_updated_at before update on public.pegs for each row execute function public.set_updated_at();
 create trigger map_layers_set_updated_at before update on public.map_layers for each row execute function public.set_updated_at();
+create trigger map_facilities_set_updated_at before update on public.map_facilities for each row execute function public.set_updated_at();
 create trigger map_shapes_set_updated_at before update on public.map_shapes for each row execute function public.set_updated_at();
 create trigger permit_products_set_updated_at before update on public.permit_products for each row execute function public.set_updated_at();
 create trigger cabin_products_set_updated_at before update on public.cabin_products for each row execute function public.set_updated_at();
@@ -738,6 +789,7 @@ alter table public.profiles enable row level security;
 alter table public.lakes enable row level security;
 alter table public.pegs enable row level security;
 alter table public.map_layers enable row level security;
+alter table public.map_facilities enable row level security;
 alter table public.map_shapes enable row level security;
 alter table public.permit_products enable row level security;
 alter table public.cabin_products enable row level security;
@@ -776,6 +828,7 @@ alter table public.sponsors enable row level security;
 alter table public.sponsor_assets enable row level security;
 alter table public.sponsor_placements enable row level security;
 alter table public.push_subscriptions enable row level security;
+alter table public.notification_delivery_logs enable row level security;
 
 create policy venues_public_read on public.venues for select using (active);
 create policy venues_manager_all on public.venues for all using (
@@ -807,6 +860,13 @@ create policy pegs_manager_all on public.pegs for all using (
 
 create policy map_layers_public_read on public.map_layers for select using (enabled and visibility = 'public');
 create policy map_layers_manager_all on public.map_layers for all using (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+) with check (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+);
+
+create policy map_facilities_public_read on public.map_facilities for select using (visibility = 'public');
+create policy map_facilities_manager_all on public.map_facilities for all using (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
 ) with check (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
@@ -1115,5 +1175,10 @@ create policy push_subscriptions_own_read on public.push_subscriptions for selec
 create policy push_subscriptions_own_insert on public.push_subscriptions for insert with check (user_id = auth.uid() or user_id is null);
 create policy push_subscriptions_own_update on public.push_subscriptions for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy push_subscriptions_manager_read on public.push_subscriptions for select using (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+);
+create policy notification_delivery_logs_manager_all on public.notification_delivery_logs for all using (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+) with check (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
 );

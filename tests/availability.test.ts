@@ -123,6 +123,18 @@ describe('getPegAvailability', () => {
     ).toBe('limited')
   })
 
+  it('treats manually reserved peg status as non-reservable', () => {
+    const result = getPegAvailability(basePeg({ status: 'reserved' }), {
+      closures: [],
+      reservations: [],
+      dateFrom: '2026-06-11',
+    })
+
+    expect(result.status).toBe('reserved')
+    expect(result.reservable).toBe(false)
+    expect(result.reasons).toContain('Miesto je označené ako rezervované správcom.')
+  })
+
   it('keeps spawning periods reservable but requiring approval', () => {
     const result = getPegAvailability(basePeg(), {
       closures: [baseClosure({ reason: 'spawning', title: 'Neresový režim' })],

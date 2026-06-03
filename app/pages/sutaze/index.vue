@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import type { TournamentRequest } from '~/data/pond'
+import type { Sponsor, SponsorLogoVariant, TournamentRequest, TournamentTeamRegistration } from '~/data/pond'
+import type { MapStateResponse } from '~/services/mapApiService'
 import type {
+  TournamentTeamRegistrationSubmissionSuccess,
   TournamentRequestSubmissionSuccess,
   TournamentStateResponse,
 } from '~/services/tournamentApiService'
-import { getValidationMessages, tournamentRequestInputSchema } from '~/schemas/pondSchemas'
+import {
+  getValidationMessages,
+  tournamentRequestInputSchema,
+  tournamentTeamRegistrationInputSchema,
+} from '~/schemas/pondSchemas'
 import {
   enqueueOfflineTournamentRequest,
   getOfflineTournamentRequestQueueErrorMessage,
@@ -15,11 +21,34 @@ import {
   type OfflineTournamentRequestPayload,
   type OfflineTournamentRequestQueueItem,
 } from '~/services/offlineTournamentRequestQueueService'
+import {
+  getMapLayerImageAttributes,
+  getMapShapePoints,
+  getMapShapeStyle,
+  MAP_VIEWBOX_HEIGHT,
+  MAP_VIEWBOX_WIDTH,
+} from '~/utils/map'
+import {
+  getTournamentMapCoverage,
+  getTournamentSectorMapRows,
+  getTournamentSectorShapes,
+} from '~/utils/tournamentMap'
+import {
+  getTournamentLeaderboard,
+  getTournamentLeaderboardStats,
+} from '~/utils/tournamentLeaderboard'
 
 useHead({ title: 'Súťaže' })
 
+const route = useRoute()
+
 const {
   getLakeName,
+  lakes,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
+  pegs,
   tournaments: seedTournaments,
   tournamentCatches: seedTournamentCatches,
   tournamentMarshals: seedTournamentMarshals,
@@ -30,7 +59,10 @@ const {
   tournamentRequestStatusLabels,
   tournamentRequestTypeLabels,
   tournamentRuleChecks: seedTournamentRuleChecks,
+  tournamentTeamRegistrations: seedTournamentTeamRegistrations,
+  tournamentTeamRegistrationStatusLabels,
 } = usePondData()
+const { activeSponsors } = await useSponsorState({ key: 'public-tournament-sponsor-state' })
 
 const fallbackTournamentState = (): TournamentStateResponse => ({
   ok: true,
@@ -39,6 +71,7 @@ const fallbackTournamentState = (): TournamentStateResponse => ({
   tournamentPenalties: seedTournamentPenalties,
   tournamentRequests: seedTournamentRequests,
   tournamentRuleChecks: seedTournamentRuleChecks,
+  tournamentTeamRegistrations: seedTournamentTeamRegistrations,
   tournaments: seedTournaments,
   updatedAt: 'seed',
 })
@@ -49,6 +82,21 @@ const { data: tournamentState, refresh: refreshTournamentState } = await useAsyn
     default: fallbackTournamentState,
   },
 )
+const fallbackMapState = (): MapStateResponse => ({
+  ok: true,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
+  pegs,
+  updatedAt: 'seed',
+})
+const { data: mapState } = await useAsyncData<MapStateResponse>(
+  'public-tournament-map-state',
+  () => $fetch<MapStateResponse>('/api/map'),
+  {
+    default: fallbackMapState,
+  },
+)
 
 const liveTournaments = computed(() => tournamentState.value?.tournaments ?? seedTournaments)
 const liveTournamentCatches = computed(() => tournamentState.value?.tournamentCatches ?? seedTournamentCatches)
@@ -56,7 +104,43 @@ const liveTournamentMarshals = computed(() => tournamentState.value?.tournamentM
 const liveTournamentPenalties = computed(() => tournamentState.value?.tournamentPenalties ?? seedTournamentPenalties)
 const liveTournamentRequests = computed(() => tournamentState.value?.tournamentRequests ?? seedTournamentRequests)
 const liveTournamentRuleChecks = computed(() => tournamentState.value?.tournamentRuleChecks ?? seedTournamentRuleChecks)
-const activeTournament = computed(() => liveTournaments.value[0] ?? seedTournaments[0]!)
+const liveTournamentTeamRegistrations = computed(() =>
+  tournamentState.value?.tournamentTeamRegistrations ?? seedTournamentTeamRegistrations,
+)
+const liveMapLayers = computed(() => mapState.value.mapLayers)
+const liveMapShapes = computed(() => mapState.value.mapShapes)
+const requestedTournamentId = computed(() =>
+  Array.isArray(route.query.turnaj) ? route.query.turnaj[0] : route.query.turnaj,
+)
+const activeTournament = computed(() =>
+  liveTournaments.value.find((tournament) => tournament.id === requestedTournamentId.value)
+  ?? liveTournaments.value[0]
+  ?? seedTournaments[0]!,
+)
+const activeTournamentLake = computed(() => lakes.find((lake) => lake.slug === activeTournament.value.lake))
+const activeTournamentBackgroundLayer = computed(() =>
+  liveMapLayers.value.find((layer) => layer.lake === activeTournament.value.lake && layer.kind === 'background' && layer.enabled),
+)
+const activeTournamentBackgroundImage = computed(() =>
+  activeTournamentBackgroundLayer.value?.source ?? activeTournamentLake.value?.mapImage ?? '/images/velky-cetin-sutazna-mapa.jpg',
+)
+const activeTournamentSectorShapes = computed(() =>
+  getTournamentSectorShapes(liveMapShapes.value, activeTournament.value),
+)
+const sectorMapRows = computed(() =>
+  getTournamentSectorMapRows(activeTournament.value, liveMapShapes.value),
+)
+const sectorMapCoverage = computed(() => getTournamentMapCoverage(sectorMapRows.value))
+const sectorShapeById = computed(() =>
+  new Map(
+    sectorMapRows.value
+      .filter((row) => row.shape)
+      .map((row) => [row.sector.id, row.shape!]),
+  ),
+)
+const tournamentMapImageAttributes = computed(() =>
+  getMapLayerImageAttributes(activeTournamentBackgroundLayer.value?.imageSettings),
+)
 const requestForm = reactive<{
   sectorId: string
   type: TournamentRequest['type']
@@ -66,8 +150,31 @@ const requestForm = reactive<{
   type: 'catch-measurement',
   description: '',
 })
+const teamRegistrationForm = reactive<{
+  city: string
+  contactEmail: string
+  contactName: string
+  contactPhone: string
+  memberCount: number
+  note: string
+  preferredSectorId: string
+  teamName: string
+}>({
+  city: '',
+  contactEmail: '',
+  contactName: '',
+  contactPhone: '',
+  memberCount: 2,
+  note: '',
+  preferredSectorId: activeTournament.value.sectors.find((sector) => !sector.team)?.id
+    ?? activeTournament.value.sectors[0]?.id
+    ?? '',
+  teamName: '',
+})
 const requestSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const requestSubmitMessage = ref('')
+const teamRegistrationStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const teamRegistrationMessage = ref('')
 const offlineRequestQueue = ref<OfflineTournamentRequestQueueItem[]>([])
 const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
 const offlineSyncMessage = ref('')
@@ -87,11 +194,34 @@ const requestValidation = computed(() =>
   }),
 )
 const requestValidationMessages = computed(() => getValidationMessages(requestValidation.value))
+const teamRegistrationValidation = computed(() =>
+  tournamentTeamRegistrationInputSchema.safeParse({
+    city: teamRegistrationForm.city,
+    contactEmail: teamRegistrationForm.contactEmail,
+    contactName: teamRegistrationForm.contactName,
+    contactPhone: teamRegistrationForm.contactPhone,
+    memberCount: teamRegistrationForm.memberCount,
+    note: teamRegistrationForm.note,
+    preferredSectorId: teamRegistrationForm.preferredSectorId,
+    teamName: teamRegistrationForm.teamName,
+    tournamentId: activeTournament.value.id,
+  }),
+)
+const teamRegistrationValidationMessages = computed(() => getValidationMessages(teamRegistrationValidation.value))
 
 const activeRequests = computed(() =>
   liveTournamentRequests.value.filter(
     (request) => request.tournamentId === activeTournament.value.id && request.status !== 'resolved',
   ),
+)
+const tournamentTeamRegistrations = computed(() =>
+  liveTournamentTeamRegistrations.value.filter((registration) => registration.tournamentId === activeTournament.value.id),
+)
+const pendingTeamRegistrationCount = computed(() =>
+  tournamentTeamRegistrations.value.filter((registration) => registration.status === 'submitted').length,
+)
+const approvedTeamRegistrationCount = computed(() =>
+  tournamentTeamRegistrations.value.filter((registration) => registration.status === 'approved').length,
 )
 const pendingMeasurements = computed(() =>
   liveTournamentCatches.value.filter(
@@ -103,14 +233,53 @@ const activePenalties = computed(() =>
     (penalty) => penalty.tournamentId === activeTournament.value.id && penalty.status === 'active',
   ),
 )
-const totalWeight = computed(() =>
-  activeTournament.value.sectors.reduce((sum, sector) => sum + sector.weightKg, 0),
+const tournamentLeaderboard = computed(() =>
+  getTournamentLeaderboard(activeTournament.value, liveTournamentCatches.value),
 )
+const leaderboardStats = computed(() =>
+  getTournamentLeaderboardStats(tournamentLeaderboard.value),
+)
+const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournament.value.id}/leaderboard`)
+const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
 const selectedSector = computed(() =>
   activeTournament.value.sectors.find((sector) => sector.id === requestForm.sectorId),
 )
+const selectedPreferredSector = computed(() =>
+  activeTournament.value.sectors.find((sector) => sector.id === teamRegistrationForm.preferredSectorId),
+)
 const selectedMarshal = computed(() =>
   liveTournamentMarshals.value.find((marshal) => marshal.assignedSectorIds.includes(requestForm.sectorId)),
+)
+const tournamentSponsors = computed(() =>
+  getSponsorsForPlacement(activeSponsors.value, {
+    placementType: 'tournament',
+    tournamentId: activeTournament.value.id,
+  }),
+)
+const scoreboardSponsors = computed(() =>
+  getSponsorsForPlacementWithFallback(
+    activeSponsors.value,
+    {
+      placementType: 'scoreboard',
+      tournamentId: activeTournament.value.id,
+    },
+    [{
+      placementType: 'tournament',
+      tournamentId: activeTournament.value.id,
+    }],
+  ),
+)
+const sectorSponsorEntries = computed(() =>
+  activeTournament.value.sectors
+    .map((sector) => ({
+      sector,
+      sponsors: getSponsorsForPlacement(activeSponsors.value, {
+        placementType: 'sector',
+        sectorId: sector.id,
+        tournamentId: activeTournament.value.id,
+      }),
+    }))
+    .filter((entry) => entry.sponsors.length > 0),
 )
 
 const sectorById = (id: string) =>
@@ -119,11 +288,23 @@ const sectorById = (id: string) =>
 const marshalById = (id?: string) =>
   liveTournamentMarshals.value.find((marshal) => marshal.id === id)
 
+const sponsorLogo = (sponsor: Sponsor, placementType: SponsorLogoVariant['placementType']) =>
+  getSponsorLogo(sponsor, placementType)
+
+const formatWeight = (value: number) =>
+  value.toLocaleString('sk-SK', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
+  })
+
 const requestsForSector = (sectorId: string) =>
   activeRequests.value.filter((request) => request.sectorId === sectorId)
 
 const hasActivePenalty = (sectorId: string) =>
   activePenalties.value.some((penalty) => penalty.sectorId === sectorId)
+
+const hasMapShapeForSector = (sectorId: string) =>
+  sectorShapeById.value.has(sectorId)
 
 const requestStatusClass = (status: TournamentRequest['status']) => {
   switch (status) {
@@ -148,6 +329,21 @@ const catchStatusLabel = (status: string) => {
       return 'sporné'
     default:
       return status
+  }
+}
+
+const registrationStatusClass = (status: TournamentTeamRegistration['status']) => {
+  switch (status) {
+    case 'approved':
+      return 'bg-success-500/10 text-success-700'
+    case 'submitted':
+      return 'bg-info-500/10 text-info-700'
+    case 'waitlisted':
+      return 'bg-warning-500/10 text-warning-700'
+    case 'rejected':
+      return 'bg-error-500/10 text-error-700'
+    default:
+      return 'bg-muted text-foreground-muted'
   }
 }
 
@@ -304,6 +500,39 @@ const submitRequest = async () => {
   }
 }
 
+const submitTeamRegistration = async () => {
+  const validation = teamRegistrationValidation.value
+  if (!validation.success) {
+    teamRegistrationStatus.value = 'error'
+    teamRegistrationMessage.value = teamRegistrationValidationMessages.value[0] ?? 'Skontrolujte prihlášku tímu.'
+    return
+  }
+
+  teamRegistrationStatus.value = 'submitting'
+  teamRegistrationMessage.value = ''
+
+  try {
+    const result = await $fetch<TournamentTeamRegistrationSubmissionSuccess>('/api/tournament-team-registrations', {
+      body: validation.data,
+      method: 'POST',
+    })
+
+    teamRegistrationStatus.value = 'success'
+    teamRegistrationMessage.value = `${result.message} ID: ${result.registration.id}.`
+    teamRegistrationForm.teamName = ''
+    teamRegistrationForm.contactName = ''
+    teamRegistrationForm.contactPhone = ''
+    teamRegistrationForm.contactEmail = ''
+    teamRegistrationForm.city = ''
+    teamRegistrationForm.note = ''
+    await refreshTournamentState()
+  }
+  catch (error) {
+    teamRegistrationStatus.value = 'error'
+    teamRegistrationMessage.value = getApiErrorMessage(error)
+  }
+}
+
 function handleOnline() {
   isOnline.value = true
   void syncOfflineRequestQueue({ silent: true })
@@ -341,6 +570,22 @@ watch(requestValidation, () => {
     requestSubmitMessage.value = ''
   }
 })
+watch(teamRegistrationValidation, () => {
+  if (teamRegistrationStatus.value !== 'submitting') {
+    teamRegistrationStatus.value = 'idle'
+    teamRegistrationMessage.value = ''
+  }
+})
+watch(activeTournament, (tournament) => {
+  if (!tournament.sectors.some((sector) => sector.id === requestForm.sectorId)) {
+    requestForm.sectorId = tournament.sectors[1]?.id ?? tournament.sectors[0]?.id ?? ''
+  }
+  if (!tournament.sectors.some((sector) => sector.id === teamRegistrationForm.preferredSectorId)) {
+    teamRegistrationForm.preferredSectorId = tournament.sectors.find((sector) => !sector.team)?.id
+      ?? tournament.sectors[0]?.id
+      ?? ''
+  }
+})
 </script>
 
 <template>
@@ -367,19 +612,59 @@ watch(requestValidation, () => {
           </div>
 
           <div class="bg-primary-950 relative aspect-[4/3] overflow-hidden">
-            <img
-              src="/images/velky-cetin-sutazna-mapa.jpg"
-              alt="Súťažná mapa Veľký Cetín"
-              class="absolute inset-0 h-full w-full object-cover opacity-90"
-              loading="lazy"
+            <svg
+              class="absolute inset-0 h-full w-full"
+              :viewBox="`0 0 ${MAP_VIEWBOX_WIDTH} ${MAP_VIEWBOX_HEIGHT}`"
+              role="img"
+              :aria-label="`Súťažná mapa ${activeTournament.name}`"
             >
-            <div class="absolute inset-0 bg-linear-to-t from-primary-950/35 to-transparent" />
+              <image
+                v-if="activeTournamentBackgroundImage"
+                :href="activeTournamentBackgroundImage"
+                :aria-label="`Mapa ${getLakeName(activeTournament.lake)}`"
+                :x="tournamentMapImageAttributes.x"
+                :y="tournamentMapImageAttributes.y"
+                :width="tournamentMapImageAttributes.width"
+                :height="tournamentMapImageAttributes.height"
+                :preserveAspectRatio="tournamentMapImageAttributes.preserveAspectRatio"
+                :opacity="tournamentMapImageAttributes.opacity"
+              />
+              <g v-else>
+                <rect width="100" height="75" fill="#d7f1ff" />
+                <ellipse cx="50" cy="37.5" rx="42" ry="23" fill="#48b9f5" opacity="0.75" />
+                <ellipse cx="50" cy="37.5" rx="21" ry="10" fill="#116199" opacity="0.22" />
+              </g>
+
+              <polygon
+                v-for="shape in activeTournamentSectorShapes"
+                :key="shape.id"
+                :points="getMapShapePoints(shape)"
+                :fill="getMapShapeStyle(shape.tone).fill"
+                :stroke="getMapShapeStyle(shape.tone).stroke"
+                :stroke-dasharray="shape.sectorId ? undefined : '2 1.4'"
+                stroke-width="0.7"
+              />
+
+              <rect width="100" height="75" fill="url(#tournament-map-fade)" />
+              <defs>
+                <linearGradient id="tournament-map-fade" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#062523" stop-opacity="0" />
+                  <stop offset="100%" stop-color="#062523" stop-opacity="0.38" />
+                </linearGradient>
+              </defs>
+            </svg>
             <button
               v-for="sector in activeTournament.sectors"
               :key="sector.id"
               type="button"
-              class="map-dot-shadow absolute flex h-12 min-w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-accent-400 px-2 text-sm font-black text-primary-950 ring-2 ring-white transition-transform hover:scale-105"
-              :class="hasActivePenalty(sector.id) ? 'bg-error-500 text-white' : ''"
+              class="map-dot-shadow absolute flex h-12 min-w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md px-2 text-sm font-black ring-2 ring-white transition-transform hover:scale-105"
+              :class="
+                hasActivePenalty(sector.id)
+                  ? 'bg-error-500 text-white'
+                  : hasMapShapeForSector(sector.id)
+                    ? 'bg-accent-400 text-primary-950'
+                    : 'bg-white/90 text-primary-950'
+              "
               :style="{ left: `${sector.x}%`, top: `${sector.y}%` }"
               :aria-label="sector.label"
               @click="requestForm.sectorId = sector.id"
@@ -392,6 +677,60 @@ watch(requestValidation, () => {
                 {{ requestsForSector(sector.id).length }}
               </span>
             </button>
+            <div class="absolute right-4 bottom-4 rounded-md bg-primary-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
+              {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }} sektorov z mapy
+            </div>
+          </div>
+
+          <div
+            v-if="tournamentSponsors.length > 0"
+            class="border-t border-border bg-white p-4"
+          >
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase text-primary-700">Partneri súťaže</p>
+                <p class="text-foreground-muted mt-0.5 text-sm">Zobrazujú sa podľa slotu nastaveného v administrácii sponzorov.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <div
+                  v-for="sponsor in tournamentSponsors"
+                  :key="sponsor.id"
+                  class="flex h-12 min-w-28 items-center gap-2 rounded-md border border-border bg-muted px-3"
+                >
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-xs font-black text-accent-300">
+                    <img
+                      v-if="sponsorLogo(sponsor, 'tournament').url"
+                      :src="sponsorLogo(sponsor, 'tournament').url"
+                      :alt="sponsorLogo(sponsor, 'tournament').alt"
+                      class="h-full w-full bg-white object-contain p-1"
+                    >
+                    <span v-else>{{ sponsorLogo(sponsor, 'tournament').text }}</span>
+                  </span>
+                  <span class="truncate text-xs font-bold">{{ sponsor.name }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="sectorSponsorEntries.length > 0"
+            class="border-t border-border bg-primary-50 p-4"
+          >
+            <p class="text-xs font-bold uppercase text-primary-700">Sektoroví partneri</p>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <div
+                v-for="entry in sectorSponsorEntries"
+                :key="entry.sector.id"
+                class="flex items-center gap-2 rounded-md bg-white px-3 py-2"
+              >
+                <span class="rounded-md bg-primary-900 px-2 py-1 text-xs font-black text-accent-300">
+                  {{ entry.sector.label }}
+                </span>
+                <span class="truncate text-sm font-semibold">
+                  {{ entry.sponsors.map((sponsor) => sponsor.name).join(', ') }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -407,7 +746,247 @@ watch(requestValidation, () => {
             </div>
             <div class="border-border bg-surface rounded-card border p-5">
               <p class="text-foreground-muted text-sm">Priebežná váha</p>
-              <p class="mt-2 text-3xl font-bold">{{ totalWeight }} kg</p>
+              <p class="mt-2 text-3xl font-bold">{{ formatWeight(leaderboardStats.totalScoreWeightKg) }} kg</p>
+            </div>
+          </div>
+
+          <div class="border-border bg-surface rounded-card border p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Live výsledkovka</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Poradie podľa súťažného skóre zo sektorov.
+                </p>
+              </div>
+              <div class="flex flex-col items-end gap-2">
+                <span class="rounded-md bg-success-500/10 px-2.5 py-1 text-xs font-bold text-success-700">
+                  {{ leaderboardStats.activeTeamCount }} tímov
+                </span>
+                <a
+                  :href="leaderboardFeedUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                >
+                  <UIcon name="i-heroicons-rss" class="h-3.5 w-3.5" />
+                  JSON feed
+                </a>
+                <NuxtLink
+                  :to="leaderboardKioskUrl"
+                  class="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent-100 px-2 text-xs font-bold text-accent-700 transition-colors hover:bg-accent-200"
+                >
+                  <UIcon name="i-heroicons-presentation-chart-bar" class="h-3.5 w-3.5" />
+                  Kiosk
+                </NuxtLink>
+              </div>
+            </div>
+
+            <div class="mt-4 overflow-hidden rounded-md border border-border">
+              <div
+                v-for="row in tournamentLeaderboard"
+                :key="row.sectorId"
+                class="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-border bg-white px-3 py-3 last:border-b-0"
+                :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-50' : ''"
+              >
+                <span
+                  class="flex h-8 min-w-8 items-center justify-center rounded-md text-sm font-black"
+                  :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-400 text-primary-950' : 'bg-muted text-foreground-muted'"
+                >
+                  {{ row.rank }}.
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate font-bold">{{ row.team }}</p>
+                  <p class="text-foreground-muted mt-0.5 truncate text-xs">
+                    {{ row.sectorLabel }} · overené {{ row.verifiedCatchCount }} · čaká {{ row.pendingCatchCount + row.disputedCatchCount }}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
+                  <p class="text-foreground-muted text-xs">
+                    max {{ formatWeight(row.largestCatchKg) }} kg
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-foreground-muted mt-3 text-xs">
+              Overené úlovky: {{ leaderboardStats.totalVerifiedCatchCount }} · čaká/sporné:
+              {{ leaderboardStats.pendingReviewCatchCount }}.
+            </p>
+          </div>
+
+          <div class="border-border bg-surface rounded-card border p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Prihlásiť tím</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Organizátor dostane kontakt, počet členov a preferovaný sektor.
+                </p>
+              </div>
+              <span class="rounded-md bg-info-500/10 px-2.5 py-1 text-xs font-bold text-info-700">
+                {{ pendingTeamRegistrationCount }} čaká
+              </span>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-2 text-center">
+              <div class="rounded-md bg-muted px-3 py-2">
+                <p class="text-xs font-semibold text-foreground-muted">schválené</p>
+                <p class="font-black">{{ approvedTeamRegistrationCount }}</p>
+              </div>
+              <div class="rounded-md bg-muted px-3 py-2">
+                <p class="text-xs font-semibold text-foreground-muted">prihlášky</p>
+                <p class="font-black">{{ tournamentTeamRegistrations.length }}</p>
+              </div>
+            </div>
+
+            <form class="mt-5 space-y-4" @submit.prevent="submitTeamRegistration">
+              <label class="block">
+                <span class="text-sm font-semibold">Názov tímu</span>
+                <input
+                  v-model="teamRegistrationForm.teamName"
+                  maxlength="120"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  placeholder="Napr. Cetín Carp Juniors"
+                >
+              </label>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Kontaktná osoba</span>
+                  <input
+                    v-model="teamRegistrationForm.contactName"
+                    maxlength="100"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="Meno a priezvisko"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Telefón</span>
+                  <input
+                    v-model="teamRegistrationForm.contactPhone"
+                    maxlength="32"
+                    inputmode="tel"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="+421..."
+                  >
+                </label>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">E-mail</span>
+                  <input
+                    v-model="teamRegistrationForm.contactEmail"
+                    maxlength="120"
+                    inputmode="email"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="voliteľné"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Počet členov</span>
+                  <input
+                    v-model.number="teamRegistrationForm.memberCount"
+                    type="number"
+                    min="1"
+                    max="8"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  >
+                </label>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Mesto</span>
+                  <input
+                    v-model="teamRegistrationForm.city"
+                    maxlength="80"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="voliteľné"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Preferovaný sektor</span>
+                  <select
+                    v-model="teamRegistrationForm.preferredSectorId"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  >
+                    <option value="">Bez preferencie</option>
+                    <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
+                      {{ sector.label }} · {{ sector.team || 'voľný' }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="block">
+                <span class="text-sm font-semibold">Poznámka</span>
+                <textarea
+                  v-model="teamRegistrationForm.note"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Napr. preferovaný príchod, veková kategória, vybavenie..."
+                  class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                />
+              </label>
+
+              <div class="rounded-md bg-muted p-4 text-sm">
+                <p class="font-bold">{{ selectedPreferredSector?.label ?? 'Bez preferencie sektora' }}</p>
+                <p class="text-foreground-muted mt-1">
+                  {{ selectedPreferredSector?.team ? `Aktuálne evidovaný tím: ${selectedPreferredSector.team}` : 'Organizátor sektor potvrdí po kontrole kapacity.' }}
+                </p>
+              </div>
+
+              <ValidationSummary
+                :messages="teamRegistrationValidationMessages"
+                valid-title="Prihláška je pripravená"
+                valid-description="Po odoslaní ju organizátor uvidí v internom súťažnom dispečingu."
+              />
+
+              <p
+                v-if="teamRegistrationMessage"
+                class="rounded-md px-3 py-2 text-sm font-semibold"
+                :class="
+                  teamRegistrationStatus === 'success'
+                    ? 'bg-success-500/10 text-success-700'
+                    : 'bg-error-500/10 text-error-700'
+                "
+              >
+                {{ teamRegistrationMessage }}
+              </p>
+
+              <UButton
+                type="submit"
+                icon="i-heroicons-user-plus"
+                block
+                :disabled="!teamRegistrationValidation.success || teamRegistrationStatus === 'submitting'"
+                :loading="teamRegistrationStatus === 'submitting'"
+              >
+                Odoslať prihlášku tímu
+              </UButton>
+            </form>
+
+            <div v-if="tournamentTeamRegistrations.length > 0" class="mt-5 space-y-2">
+              <div
+                v-for="registration in tournamentTeamRegistrations.slice(0, 3)"
+                :key="registration.id"
+                class="rounded-md border border-border bg-white p-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-bold">{{ registration.teamName }}</p>
+                    <p class="text-foreground-muted mt-0.5 text-xs">
+                      {{ registration.contactName }} · {{ registration.memberCount }} členovia
+                    </p>
+                  </div>
+                  <span
+                    class="w-fit rounded-md px-2 py-1 text-xs font-bold"
+                    :class="registrationStatusClass(registration.status)"
+                  >
+                    {{ tournamentTeamRegistrationStatusLabels[registration.status] }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -617,7 +1196,33 @@ watch(requestValidation, () => {
         </div>
 
         <div class="border-border bg-surface rounded-card border p-5">
-          <h2 class="text-lg font-bold">Meranie a evidencia úlovkov</h2>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-lg font-bold">Meranie a evidencia úlovkov</h2>
+              <p class="text-foreground-muted mt-1 text-sm">Verejná výsledkovka používa samostatný sponzorský slot, prípadne partnerov súťaže.</p>
+            </div>
+            <div
+              v-if="scoreboardSponsors.length > 0"
+              class="flex flex-wrap gap-2 sm:justify-end"
+            >
+              <div
+                v-for="sponsor in scoreboardSponsors"
+                :key="sponsor.id"
+                class="flex h-10 min-w-24 items-center gap-2 rounded-md border border-border bg-white px-2"
+              >
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded bg-primary-900 text-[10px] font-black text-accent-300">
+                  <img
+                    v-if="sponsorLogo(sponsor, 'scoreboard').url"
+                    :src="sponsorLogo(sponsor, 'scoreboard').url"
+                    :alt="sponsorLogo(sponsor, 'scoreboard').alt"
+                    class="h-full w-full bg-white object-contain p-0.5"
+                  >
+                  <span v-else>{{ sponsorLogo(sponsor, 'scoreboard').text }}</span>
+                </span>
+                <span class="truncate text-[11px] font-bold">{{ sponsor.name }}</span>
+              </div>
+            </div>
+          </div>
           <div class="mt-4 overflow-hidden rounded-md border border-border">
             <div
               v-for="catchItem in liveTournamentCatches"

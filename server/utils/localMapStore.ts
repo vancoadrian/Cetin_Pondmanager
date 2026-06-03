@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { MapLayer, MapShape, Peg } from '~/data/pond'
-import { mapLayers, mapShapes, pegs } from '~/data/pond'
+import type { MapFacility, MapLayer, MapShape, Peg } from '~/data/pond'
+import { mapFacilities, mapLayers, mapShapes, pegs } from '~/data/pond'
 
 export interface LocalMapState {
+  mapFacilities: MapFacility[]
   mapLayers: MapLayer[]
   mapShapes: MapShape[]
   pegs: Peg[]
@@ -17,7 +18,10 @@ export function resolveLocalMapStorePath() {
 }
 
 function cloneMapLayers(items: MapLayer[]) {
-  return items.map((layer) => ({ ...layer }))
+  return items.map((layer) => ({
+    ...layer,
+    imageSettings: layer.imageSettings ? { ...layer.imageSettings } : undefined,
+  }))
 }
 
 function cloneMapShapes(items: MapShape[]) {
@@ -27,12 +31,37 @@ function cloneMapShapes(items: MapShape[]) {
   }))
 }
 
+function mergeMapShapesWithSeedMetadata(items: MapShape[]) {
+  const seedShapeMap = new Map(mapShapes.map((shape) => [shape.id, shape]))
+  const existingShapeIds = new Set(items.map((shape) => shape.id))
+  const migratedShapes = items.map((shape) => {
+    const seedShape = seedShapeMap.get(shape.id)
+    if (!seedShape) return shape
+
+    return {
+      ...shape,
+      sectorId: shape.sectorId ?? seedShape.sectorId,
+      tournamentId: shape.tournamentId ?? seedShape.tournamentId,
+    }
+  })
+
+  return [
+    ...migratedShapes,
+    ...mapShapes.filter((shape) => !existingShapeIds.has(shape.id)),
+  ]
+}
+
+function cloneMapFacilities(items: MapFacility[]) {
+  return items.map((facility) => ({ ...facility }))
+}
+
 function clonePegs(items: Peg[]) {
   return items.map((peg) => ({ ...peg }))
 }
 
 export function createSeedMapState(updatedAt = new Date(0).toISOString()): LocalMapState {
   return {
+    mapFacilities: cloneMapFacilities(mapFacilities),
     mapLayers: cloneMapLayers(mapLayers),
     mapShapes: cloneMapShapes(mapShapes),
     pegs: clonePegs(pegs),
@@ -41,7 +70,7 @@ export function createSeedMapState(updatedAt = new Date(0).toISOString()): Local
   }
 }
 
-function isMapState(value: unknown): value is LocalMapState {
+function isMapState(value: unknown): value is Omit<LocalMapState, 'mapFacilities'> & { mapFacilities?: MapFacility[] } {
   const candidate = value as Partial<LocalMapState>
 
   return (
@@ -59,7 +88,17 @@ export async function readLocalMapState(filePath = resolveLocalMapStorePath()): 
     const parsed: unknown = JSON.parse(raw)
 
     if (isMapState(parsed)) {
-      return parsed
+      const migratedState = {
+        ...parsed,
+        mapFacilities: cloneMapFacilities(parsed.mapFacilities ?? mapFacilities),
+        mapShapes: cloneMapShapes(mergeMapShapesWithSeedMetadata(parsed.mapShapes)),
+      }
+
+      if (migratedState.mapShapes.length !== parsed.mapShapes.length || JSON.stringify(migratedState.mapShapes) !== JSON.stringify(parsed.mapShapes)) {
+        return writeLocalMapState(migratedState, filePath)
+      }
+
+      return migratedState
     }
   }
   catch (error) {
@@ -76,10 +115,11 @@ export async function readLocalMapState(filePath = resolveLocalMapStorePath()): 
 }
 
 export async function writeLocalMapState(
-  state: Pick<LocalMapState, 'mapLayers' | 'mapShapes' | 'pegs'>,
+  state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
   filePath = resolveLocalMapStorePath(),
 ): Promise<LocalMapState> {
   const nextState: LocalMapState = {
+    mapFacilities: cloneMapFacilities(state.mapFacilities),
     mapLayers: cloneMapLayers(state.mapLayers),
     mapShapes: cloneMapShapes(state.mapShapes),
     pegs: clonePegs(state.pegs),

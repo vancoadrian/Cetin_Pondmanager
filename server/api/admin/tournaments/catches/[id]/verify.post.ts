@@ -27,32 +27,34 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await writeLocalTournamentState(result)
-  await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
-      actorId: 'admin',
-      actorLabel: 'Admin',
-      actorRole: 'manager',
-    }),
-    action: result.catchItem.status === 'disputed'
-      ? 'tournament.catch.disputed'
-      : 'tournament.catch.verified',
-    area: 'tournaments',
-    details: {
-      lengthCm: result.catchItem.lengthCm,
-      sectorId: result.catchItem.sectorId,
-      species: result.catchItem.species,
-      status: result.catchItem.status,
-      verifiedByMarshalId: result.catchItem.verifiedByMarshalId,
-      weightKg: result.catchItem.weightKg,
-    },
-    entityId: result.catchItem.id,
-    entityLabel: `${result.catchItem.team} · ${result.catchItem.species}`,
-    entityType: 'tournament_catch',
-    severity: result.catchItem.status === 'disputed' ? 'warning' : 'info',
-    summary: result.message,
-    tournamentId: result.catchItem.tournamentId,
-  })
+  if (!result.idempotentReplay) {
+    await writeLocalTournamentState(result)
+    await appendLocalAuditEvent({
+      ...resolveAuditActor(event, {
+        actorId: 'admin',
+        actorLabel: 'Admin',
+        actorRole: 'manager',
+      }),
+      action: result.catchItem.status === 'disputed'
+        ? 'tournament.catch.disputed'
+        : 'tournament.catch.verified',
+      area: 'tournaments',
+      details: {
+        lengthCm: result.catchItem.lengthCm,
+        sectorId: result.catchItem.sectorId,
+        species: result.catchItem.species,
+        status: result.catchItem.status,
+        verifiedByMarshalId: result.catchItem.verifiedByMarshalId,
+        weightKg: result.catchItem.weightKg,
+      },
+      entityId: result.catchItem.id,
+      entityLabel: `${result.catchItem.team} · ${result.catchItem.species}`,
+      entityType: 'tournament_catch',
+      severity: result.catchItem.status === 'disputed' ? 'warning' : 'info',
+      summary: result.message,
+      tournamentId: result.catchItem.tournamentId,
+    })
+  }
   setResponseStatus(event, result.statusCode)
 
   return result

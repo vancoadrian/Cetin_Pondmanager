@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateSponsorLogoDrawBox,
   getSponsorLogoVariantTargets,
+  normalizeSponsorLogoFocusPercent,
 } from '~/app/utils/sponsorLogoVariants'
 
 describe('sponsor logo variant helpers', () => {
@@ -82,5 +83,10 @@ describe('sponsor logo variant helpers', () => {
 
     expect(leftBox.source.x).toBe(75)
     expect(farRightBox.source.x).toBe(750)
+  })
+
+  it('normalizes visual crop editor focus to bounded slider steps', () => {
+    expect(normalizeSponsorLogoFocusPercent({ x: 48, y: 103 })).toEqual({ x: 50, y: 100 })
+    expect(normalizeSponsorLogoFocusPercent({ x: -2, y: 7 }, 10)).toEqual({ x: 0, y: 10 })
   })
 })

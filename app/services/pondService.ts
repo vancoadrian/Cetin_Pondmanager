@@ -10,6 +10,7 @@ export function createPondService(repository: PondRepository = createMockPondRep
     getPegLabel: repository.getPegLabel,
     getLakeBySlug: (slug: LakeSlug) => snapshot.lakes.find((lake) => lake.slug === slug),
     listPegsByLake: (slug: LakeSlug) => snapshot.pegs.filter((peg) => peg.lake === slug),
+    listMapFacilitiesByLake: (slug: LakeSlug) => snapshot.mapFacilities.filter((facility) => facility.lake === slug),
     listMapLayersByLake: (slug: LakeSlug) => snapshot.mapLayers.filter((layer) => layer.lake === slug),
     listMapShapesByLake: (slug: LakeSlug) => snapshot.mapShapes.filter((shape) => shape.lake === slug),
     listReservationsByLake: (slug: LakeSlug) =>

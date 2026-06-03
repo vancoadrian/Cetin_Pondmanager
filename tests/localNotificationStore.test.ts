@@ -28,6 +28,7 @@ describe('localNotificationStore', () => {
     expect(state.version).toBe(1)
     expect(state.alerts.length).toBeGreaterThan(0)
     expect(state.broadcasts).toEqual([])
+    expect(state.deliveryLogs).toEqual([])
     expect(state.subscriptions).toEqual([])
   })
 
@@ -56,15 +57,30 @@ describe('localNotificationStore', () => {
         title: 'Info',
         validUntil: 'dnes 20:00',
       }],
+      deliveryLogs: [{
+        attemptedAt: '2026-05-20T12:01:00.000Z',
+        broadcastId: 'broadcast-test',
+        deviceLabel: 'Test zariadenie',
+        endpoint: 'mock://rybolov-cetin/test',
+        id: 'delivery-test',
+        message: 'Mock doručenie.',
+        provider: 'mock',
+        status: 'sent',
+        subscriptionId: 'push-test',
+      }],
       subscriptions: [{
+        audienceRole: 'marshal',
         createdAt: '2026-05-20T12:00:00.000Z',
         deviceLabel: 'Test zariadenie',
         enabled: true,
         endpoint: 'mock://rybolov-cetin/test',
         id: 'push-test',
         lastSeenAt: '2026-05-20T12:00:00.000Z',
+        marshalId: 'marshal-1',
         permission: 'granted',
+        sectorIds: ['a2'],
         topics: ['service'],
+        tournamentIds: ['eccj-2026'],
         updatedAt: '2026-05-20T12:00:00.000Z',
         userAgent: 'Vitest',
       }],
@@ -74,10 +90,18 @@ describe('localNotificationStore', () => {
 
     expect(reread.alerts[0]?.id).toBe('alert-test')
     expect(reread.broadcasts[0]?.id).toBe('broadcast-test')
+    expect(reread.deliveryLogs[0]).toMatchObject({
+      broadcastId: 'broadcast-test',
+      status: 'sent',
+      subscriptionId: 'push-test',
+    })
     expect(reread.subscriptions[0]).toMatchObject({
       endpoint: 'mock://rybolov-cetin/test',
       enabled: true,
+      marshalId: 'marshal-1',
+      sectorIds: ['a2'],
       topics: ['service'],
+      tournamentIds: ['eccj-2026'],
     })
   })
 })

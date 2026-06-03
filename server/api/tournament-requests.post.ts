@@ -1,8 +1,20 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { submitTournamentRequest } from '~/services/tournamentApiService'
+import { tournamentRequestTypeLabels } from '~/data/pond'
 import { resolveAuditActor } from '../utils/auditActor'
 import { appendLocalAuditEvent } from '../utils/localAuditLogStore'
 import { appendLocalTournamentRequest, readLocalTournamentState } from '../utils/localTournamentStore'
+import { tryAppendTournamentNotificationBroadcast } from '../utils/tournamentNotificationDispatcher'
+
+function notificationBody(value: string) {
+  return value.length > 280 ? `${value.slice(0, 277)}...` : value
+}
+
+function marshalIdsForSector(state: Awaited<ReturnType<typeof readLocalTournamentState>>, sectorId: string) {
+  return state.tournamentMarshals
+    .filter((marshal) => marshal.assignedSectorIds.includes(sectorId))
+    .map((marshal) => marshal.id)
+}
 
 export default defineEventHandler(async (event) => {
   const state = await readLocalTournamentState()
@@ -38,6 +50,45 @@ export default defineEventHandler(async (event) => {
     summary: `${result.request.team} poslali hlásenie zo sektora ${result.request.sectorId.toUpperCase()}.`,
     tournamentId: result.request.tournamentId,
   })
+  const notification = await tryAppendTournamentNotificationBroadcast({
+    body: notificationBody(`${result.request.team} · sektor ${result.request.sectorId.toUpperCase()}: ${tournamentRequestTypeLabels[result.request.type]}. ${result.request.description}`),
+    createdBy: 'Súťažný dispečing',
+    marshalIds: marshalIdsForSector(state, result.request.sectorId),
+    reason: result.request.type === 'catch-measurement'
+      ? 'privolanie kontrolóra'
+      : 'súťažné hlásenie tímu',
+    requestId: result.request.id,
+    roles: ['tournament_organizer', 'marshal'],
+    sectorIds: [result.request.sectorId],
+    title: result.request.type === 'catch-measurement'
+      ? 'Tím žiada kontrolóra'
+      : 'Nové súťažné hlásenie',
+    tournamentId: result.request.tournamentId,
+  })
+  if (notification) {
+    await appendLocalAuditEvent({
+      actorId: 'system',
+      actorLabel: 'Súťažný dispečing',
+      actorRole: 'system',
+      action: 'notification.tournament.created',
+      area: 'tournaments',
+      details: {
+        broadcastId: notification.broadcast.id,
+        recipientCount: notification.broadcast.recipientCount,
+        requestId: result.request.id,
+        targetAudience: notification.broadcast.targetAudience
+          ? JSON.stringify(notification.broadcast.targetAudience)
+          : null,
+        targetTopics: notification.broadcast.targetTopics,
+      },
+      entityId: notification.broadcast.id,
+      entityLabel: notification.broadcast.title,
+      entityType: 'notification_broadcast',
+      severity: 'info',
+      summary: `Dispečing pripravil notifikáciu pre hlásenie tímu ${result.request.team}.`,
+      tournamentId: result.request.tournamentId,
+    })
+  }
   setResponseStatus(event, result.statusCode)
 
   return result

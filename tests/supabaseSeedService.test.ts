@@ -7,6 +7,7 @@ import {
   contactInfo,
   lakeClosures,
   lakes,
+  mapFacilities,
   mapLayers,
   mapShapes,
   pegs,
@@ -42,6 +43,7 @@ const createSource = (): SupabaseSeedSource => ({
   contactInfo,
   lakeClosures,
   lakes,
+  mapFacilities,
   mapLayers,
   mapShapes,
   pegs,
@@ -83,15 +85,21 @@ describe('supabaseSeedService', () => {
       timezone: 'Europe/Bratislava',
     })
     expect(payload.tables.lakes).toHaveLength(lakes.length)
+    expect(payload.tables.map_facilities).toHaveLength(mapFacilities.length)
     expect(payload.tables.pegs).toHaveLength(pegs.length)
     expect(payload.tables.reservations).toHaveLength(reservations.length)
     expect(payload.tables.payment_methods).toHaveLength(paymentMethods.length)
     expect(payload.tables.catch_photos).toHaveLength(catchPhotos.length)
     expect(payload.tables.tournament_sectors).toHaveLength(tournaments[0]!.sectors.length)
     expect(payload.tables.tournament_teams).toHaveLength(tournaments[0]!.sectors.filter((sector) => sector.team).length)
+    expect(payload.tables.map_layers[0]?.image_settings).toMatchObject({
+      fit: 'cover',
+      opacity: 0.9,
+    })
     expect(payload.tables.cabin_product_pegs).toHaveLength(
       cabinProducts.reduce((sum, cabin) => sum + cabin.pegIds.length, 0),
     )
+    expect(payload.tables.map_shapes.some((shape) => shape.tournament_sector_id)).toBe(true)
     expect(payload.tables.venues[0]?.contact).toMatchObject({
       managerName: contactInfo.managerName,
       phoneDisplay: contactInfo.phoneDisplay,
@@ -108,6 +116,89 @@ describe('supabaseSeedService', () => {
     expect(validation).toEqual({
       messages: [],
       ok: true,
+    })
+  })
+
+  it('exports sponsor asset crop metadata for generated logo variants', () => {
+    const source = createSource()
+    source.sponsors = source.sponsors.map((sponsor, index) =>
+      index === 0
+        ? {
+            ...sponsor,
+            logoVariants: [{
+              cropPreset: {
+                focusXPercent: 35,
+                focusYPercent: 70,
+                mode: 'cover',
+                paddingPercent: 8,
+                sourceFileName: 'source.png',
+                sourceHeight: 500,
+                sourceWidth: 1200,
+              },
+              fileName: 'homepage.png',
+              height: 240,
+              mimeType: 'image/png',
+              placementType: 'homepage',
+              sizeBytes: 5,
+              storagePath: 'sponsor-assets/homepage.png',
+              url: '/api/sponsor-assets/homepage',
+              variantId: 'homepage',
+              width: 720,
+            }],
+          }
+        : sponsor,
+    )
+    const payload = buildSupabaseSeedPayload(source, {
+      baseDate: '2026-05-17',
+      generatedAt: '2026-05-17T12:00:00.000Z',
+    })
+
+    const asset = payload.tables.sponsor_assets.find((item) => item.storage_path === 'sponsor-assets/homepage.png')
+    expect(asset?.metadata).toEqual({
+      cropPreset: {
+        focusXPercent: 35,
+        focusYPercent: 70,
+        mode: 'cover',
+        paddingPercent: 8,
+        sourceFileName: 'source.png',
+        sourceHeight: 500,
+        sourceWidth: 1200,
+      },
+      kind: 'variant',
+      placementType: 'homepage',
+    })
+  })
+
+  it('exports reusable sponsor source logos as source assets', () => {
+    const source = createSource()
+    source.sponsors = source.sponsors.map((sponsor, index) =>
+      index === 0
+        ? {
+            ...sponsor,
+            logoSourceAssetId: 'source-carpgear',
+            logoSourceFileName: 'carpgear-source.png',
+            logoSourceHeight: 420,
+            logoSourceMimeType: 'image/png',
+            logoSourceSizeBytes: 5,
+            logoSourceStoragePath: 'sponsor-assets/source-carpgear.png',
+            logoSourceUrl: '/api/sponsor-assets/source-carpgear',
+            logoSourceWidth: 1280,
+          }
+        : sponsor,
+    )
+    const payload = buildSupabaseSeedPayload(source, {
+      baseDate: '2026-05-17',
+      generatedAt: '2026-05-17T12:00:00.000Z',
+    })
+
+    const asset = payload.tables.sponsor_assets.find((item) => item.storage_path === 'sponsor-assets/source-carpgear.png')
+    expect(asset?.alt_text).toBe('carpgear-source.png')
+    expect(asset?.metadata).toEqual({
+      height: 420,
+      kind: 'source',
+      mimeType: 'image/png',
+      originalFileName: 'carpgear-source.png',
+      width: 1280,
     })
   })
 

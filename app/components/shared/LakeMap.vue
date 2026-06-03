@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import type { LakeClosure, MapShape, Peg, Reservation } from '~/data/pond'
+import type { LakeClosure, MapFacility, MapLayerImageSettings, MapShape, Peg, Reservation } from '~/data/pond'
 import { getPegAvailability } from '~/utils/availability'
 import {
+  getMapFacilityShortLabel,
+  getMapFacilityStyle,
+  getMapLayerImageAttributes,
   getMapMarkerStyle,
   getMapPointLabel,
   getMapShapePoints,
@@ -13,8 +16,10 @@ import {
 
 const props = defineProps<{
   closures?: LakeClosure[]
+  facilities?: MapFacility[]
   title: string
   image?: string
+  imageSettings?: MapLayerImageSettings
   points: Peg[]
   reservations?: Reservation[]
   shapes?: MapShape[]
@@ -25,15 +30,20 @@ const emit = defineEmits<{
   select: [peg: Peg]
 }>()
 
-const { lakeClosures, mapShapes, reservations: seedReservations } = usePondData()
+const { lakeClosures, mapFacilities, mapShapes, reservations: seedReservations } = usePondData()
 
 const activeClosures = computed(() => props.closures ?? lakeClosures)
 const activeReservations = computed(() => props.reservations ?? seedReservations)
 const selectedPeg = computed(() => props.points.find((point) => point.id === props.selectedId) ?? props.points[0])
 const currentLakeSlug = computed(() => props.points[0]?.lake)
 const currentShapes = computed(() => props.shapes ?? mapShapes)
+const currentFacilities = computed(() => props.facilities ?? mapFacilities)
+const imageAttributes = computed(() => getMapLayerImageAttributes(props.imageSettings))
 const visibleShapes = computed(() =>
   currentShapes.value.filter((shape) => shape.lake === currentLakeSlug.value && shape.visibility === 'public'),
+)
+const visibleFacilities = computed(() =>
+  currentFacilities.value.filter((facility) => facility.lake === currentLakeSlug.value && facility.visibility === 'public'),
 )
 const selectedAvailability = computed(() =>
   selectedPeg.value
@@ -86,12 +96,12 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
             v-if="image"
             :href="image"
             :aria-label="title"
-            x="0"
-            y="0"
-            :width="MAP_VIEWBOX_WIDTH"
-            :height="MAP_VIEWBOX_HEIGHT"
-            preserveAspectRatio="xMidYMid slice"
-            opacity="0.92"
+            :x="imageAttributes.x"
+            :y="imageAttributes.y"
+            :width="imageAttributes.width"
+            :height="imageAttributes.height"
+            :preserveAspectRatio="imageAttributes.preserveAspectRatio"
+            :opacity="imageAttributes.opacity"
           />
           <g v-else>
             <rect width="100" height="75" fill="#d7f1ff" />
@@ -116,6 +126,35 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
               <stop offset="100%" stop-color="#062523" stop-opacity="0.24" />
             </linearGradient>
           </defs>
+
+          <g
+            v-for="facility in visibleFacilities"
+            :key="facility.id"
+            pointer-events="none"
+          >
+            <rect
+              :x="facility.x - 3.2"
+              :y="toSvgY(facility.y) - 3.2"
+              width="6.4"
+              height="6.4"
+              rx="1.6"
+              :fill="getMapFacilityStyle(facility).fill"
+              :stroke="getMapFacilityStyle(facility).stroke"
+              stroke-width="0.9"
+              filter="url(#map-marker-shadow)"
+            />
+            <text
+              :x="facility.x"
+              :y="toSvgY(facility.y) + 0.32"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              font-size="1.95"
+              font-weight="900"
+              :fill="getMapFacilityStyle(facility).text"
+            >
+              {{ getMapFacilityShortLabel(facility.type) }}
+            </text>
+          </g>
 
           <g
             v-for="point in points"

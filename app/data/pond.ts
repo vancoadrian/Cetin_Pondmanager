@@ -203,6 +203,26 @@ export interface Tournament {
   sectors: TournamentSector[]
 }
 
+export type TournamentTeamRegistrationStatus = 'submitted' | 'approved' | 'waitlisted' | 'rejected'
+
+export interface TournamentTeamRegistration {
+  id: string
+  tournamentId: string
+  teamName: string
+  contactName: string
+  contactPhone: string
+  contactEmail?: string
+  memberCount: number
+  city?: string
+  preferredSectorId?: string
+  assignedSectorId?: string
+  note: string
+  status: TournamentTeamRegistrationStatus
+  createdAt: string
+  reviewedAt?: string
+  reviewNote?: string
+}
+
 export interface TournamentMarshal {
   id: string
   name: string
@@ -238,6 +258,7 @@ export interface TournamentCatch {
   status: 'waiting' | 'verified' | 'disputed'
   photoLabel: string
   notes: string
+  verificationClientMutationId?: string
 }
 
 export interface TournamentPenalty {
@@ -254,6 +275,7 @@ export interface TournamentPenalty {
   startsAt?: string
   endsAt?: string
   status: 'active' | 'served' | 'appealed'
+  clientMutationId?: string
 }
 
 export interface TournamentRuleCheck {
@@ -264,12 +286,33 @@ export interface TournamentRuleCheck {
   checkedAt: string
   result: 'ok' | 'warning' | 'penalty'
   note: string
+  clientMutationId?: string
 }
 
 export type AlertSeverity = 'storm' | 'info' | 'service' | 'water'
 export type PushSubscriptionTopic = 'reservations' | 'service' | 'tournaments' | 'weather'
 export type PushSubscriptionPermission = 'denied' | 'granted' | 'unknown'
 export type NotificationBroadcastStatus = 'failed' | 'prepared' | 'sent' | 'skipped'
+export type NotificationDeliveryProvider = 'disabled' | 'mock' | 'web-push'
+export type NotificationDeliveryStatus = 'failed' | 'prepared' | 'sent' | 'skipped'
+export type NotificationAudienceRole =
+  | 'accountant'
+  | 'angler'
+  | 'manager'
+  | 'marshal'
+  | 'owner'
+  | 'tournament_organizer'
+  | 'tournament_team'
+  | 'worker'
+
+export interface NotificationAudience {
+  marshalIds?: string[]
+  reason?: string
+  requestId?: string
+  roles?: NotificationAudienceRole[]
+  sectorIds?: string[]
+  tournamentId?: string
+}
 
 export interface Alert {
   id: string
@@ -282,14 +325,18 @@ export interface Alert {
 export interface PushSubscriptionRecord {
   id: string
   auth?: string
+  audienceRole?: NotificationAudienceRole
   createdAt: string
   deviceLabel: string
   enabled: boolean
   endpoint: string
   lastSeenAt: string
+  marshalId?: string
   p256dh?: string
   permission: PushSubscriptionPermission
+  sectorIds?: string[]
   topics: PushSubscriptionTopic[]
+  tournamentIds?: string[]
   updatedAt: string
   userAgent: string
 }
@@ -304,9 +351,22 @@ export interface NotificationBroadcast {
   recipientCount: number
   severity: AlertSeverity
   status: NotificationBroadcastStatus
+  targetAudience?: NotificationAudience
   targetTopics: PushSubscriptionTopic[]
   title: string
   validUntil: string
+}
+
+export interface NotificationDeliveryLog {
+  id: string
+  attemptedAt: string
+  broadcastId: string
+  deviceLabel: string
+  endpoint: string
+  message: string
+  provider: NotificationDeliveryProvider
+  status: NotificationDeliveryStatus
+  subscriptionId: string
 }
 
 export interface ContactInfo {
@@ -415,15 +475,50 @@ export interface MapCoordinate {
   y: number
 }
 
+export type MapLayerImageFit = 'contain' | 'cover' | 'stretch'
+
+export interface MapLayerImageSettings {
+  fit: MapLayerImageFit
+  offsetX: number
+  offsetY: number
+  opacity: number
+  scale: number
+}
+
 export interface MapLayer {
   id: string
   lake: LakeSlug
   name: string
   kind: 'background' | 'pegs' | 'cabins' | 'sectors' | 'service'
   source?: string
+  imageSettings?: MapLayerImageSettings
   visibility: 'public' | 'internal' | 'competition'
   editable: boolean
   enabled: boolean
+}
+
+export type MapFacilityType =
+  | 'electricity'
+  | 'entry'
+  | 'first-aid'
+  | 'other'
+  | 'parking'
+  | 'reception'
+  | 'shower'
+  | 'storage'
+  | 'toilet'
+  | 'waste'
+  | 'wood'
+
+export interface MapFacility {
+  id: string
+  lake: LakeSlug
+  label: string
+  type: MapFacilityType
+  x: number
+  y: number
+  visibility: 'public' | 'internal' | 'competition'
+  notes: string
 }
 
 export interface MapShape {
@@ -432,11 +527,14 @@ export interface MapShape {
   label: string
   type: 'shoreline' | 'island' | 'zone' | 'sector' | 'service'
   points: MapCoordinate[]
+  sectorId?: string
+  tournamentId?: string
   visibility: 'public' | 'internal' | 'competition'
   tone: 'water' | 'reed' | 'warning' | 'service' | 'sector'
 }
 
 export interface SponsorLogoVariant {
+  cropPreset?: SponsorLogoVariantCropPreset
   fileName?: string
   height?: number
   mimeType?: 'image/jpeg' | 'image/png' | 'image/webp'
@@ -449,6 +547,16 @@ export interface SponsorLogoVariant {
   width?: number
 }
 
+export interface SponsorLogoVariantCropPreset {
+  focusXPercent: number
+  focusYPercent: number
+  mode: 'contain' | 'cover'
+  paddingPercent: number
+  sourceFileName?: string
+  sourceHeight?: number
+  sourceWidth?: number
+}
+
 export interface Sponsor {
   id: string
   name: string
@@ -458,6 +566,15 @@ export interface Sponsor {
   logoFileName?: string
   logoHeight?: number
   logoMimeType?: 'image/jpeg' | 'image/png' | 'image/webp'
+  logoSourceAssetId?: string
+  logoSourceFileName?: string
+  logoSourceHeight?: number
+  logoSourceMimeType?: 'image/jpeg' | 'image/png' | 'image/webp'
+  logoSourceSizeBytes?: number
+  logoSourceStoragePath?: string
+  logoSourceUpdatedAt?: string
+  logoSourceUrl?: string
+  logoSourceWidth?: number
   logoSizeBytes?: number
   logoStoragePath?: string
   logoUpdatedAt?: string
@@ -880,6 +997,13 @@ export const mapLayers: MapLayer[] = [
     name: 'Podklad jazera',
     kind: 'background',
     source: '/images/source-web/velky-cetin-map-original.jpg',
+    imageSettings: {
+      fit: 'cover',
+      offsetX: 0,
+      offsetY: 0,
+      opacity: 0.9,
+      scale: 1,
+    },
     visibility: 'public',
     editable: false,
     enabled: true,
@@ -925,6 +1049,13 @@ export const mapLayers: MapLayer[] = [
     lake: 'strkovisko-kocka',
     name: 'Generovaný podklad',
     kind: 'background',
+    imageSettings: {
+      fit: 'cover',
+      offsetX: 0,
+      offsetY: 0,
+      opacity: 0.9,
+      scale: 1,
+    },
     visibility: 'public',
     editable: false,
     enabled: true,
@@ -986,12 +1117,125 @@ export const mapShapes: MapShape[] = [
     label: 'Súťažná línia sektorov A-B',
     type: 'sector',
     tone: 'sector',
+    tournamentId: 'eccj-2026',
     visibility: 'competition',
     points: [
       { x: 68, y: 30 },
       { x: 83, y: 56 },
       { x: 57, y: 66 },
       { x: 45, y: 40 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-a1',
+    lake: 'velky-cetin',
+    label: 'Sektor A1',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'a1',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 72, y: 58 },
+      { x: 84, y: 58 },
+      { x: 84, y: 70 },
+      { x: 72, y: 70 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-a2',
+    lake: 'velky-cetin',
+    label: 'Sektor A2',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'a2',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 68, y: 42 },
+      { x: 80, y: 42 },
+      { x: 80, y: 54 },
+      { x: 68, y: 54 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-a3',
+    lake: 'velky-cetin',
+    label: 'Sektor A3',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'a3',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 55, y: 56 },
+      { x: 67, y: 56 },
+      { x: 67, y: 68 },
+      { x: 55, y: 68 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-b1',
+    lake: 'velky-cetin',
+    label: 'Sektor B1',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'b1',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 42, y: 53 },
+      { x: 54, y: 53 },
+      { x: 54, y: 65 },
+      { x: 42, y: 65 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-b4',
+    lake: 'velky-cetin',
+    label: 'Sektor B4',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'b4',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 37, y: 22 },
+      { x: 49, y: 22 },
+      { x: 49, y: 34 },
+      { x: 37, y: 34 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-c2',
+    lake: 'velky-cetin',
+    label: 'Sektor C2',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'c2',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 19, y: 62 },
+      { x: 31, y: 62 },
+      { x: 31, y: 74 },
+      { x: 19, y: 74 },
+    ],
+  },
+  {
+    id: 'shape-vc-sector-d3',
+    lake: 'velky-cetin',
+    label: 'Sektor D3',
+    type: 'sector',
+    tone: 'sector',
+    sectorId: 'd3',
+    tournamentId: 'eccj-2026',
+    visibility: 'competition',
+    points: [
+      { x: 9, y: 33 },
+      { x: 21, y: 33 },
+      { x: 21, y: 45 },
+      { x: 9, y: 45 },
     ],
   },
   {
@@ -1024,6 +1268,99 @@ export const mapShapes: MapShape[] = [
       { x: 43, y: 72 },
       { x: 18, y: 61 },
     ],
+  },
+]
+
+export const mapFacilities: MapFacility[] = [
+  {
+    id: 'facility-vc-reception',
+    lake: 'velky-cetin',
+    label: 'Recepcia a nástup',
+    type: 'reception',
+    x: 9,
+    y: 72,
+    visibility: 'public',
+    notes: 'Prvé miesto kontaktu pri príchode, kontrola rezervácie a povolenky.',
+  },
+  {
+    id: 'facility-vc-entry',
+    lake: 'velky-cetin',
+    label: 'Vjazd k revíru',
+    type: 'entry',
+    x: 6,
+    y: 66,
+    visibility: 'public',
+    notes: 'Vjazd pre rybárov, zásobovanie a obsluhu revíru.',
+  },
+  {
+    id: 'facility-vc-toilet',
+    lake: 'velky-cetin',
+    label: 'WC',
+    type: 'toilet',
+    x: 13,
+    y: 69,
+    visibility: 'public',
+    notes: 'Verejne dostupné WC pri zázemí revíru.',
+  },
+  {
+    id: 'facility-vc-shower',
+    lake: 'velky-cetin',
+    label: 'Sprchy',
+    type: 'shower',
+    x: 16,
+    y: 72,
+    visibility: 'public',
+    notes: 'Sprchy pre pobytové rezervácie a súťažné tímy.',
+  },
+  {
+    id: 'facility-vc-wood',
+    lake: 'velky-cetin',
+    label: 'Drevo',
+    type: 'wood',
+    x: 21,
+    y: 70,
+    visibility: 'internal',
+    notes: 'Sklad bedničiek dreva a doplnkov k chatám.',
+  },
+  {
+    id: 'facility-vc-electric',
+    lake: 'velky-cetin',
+    label: 'Elektrická rozvodňa',
+    type: 'electricity',
+    x: 29,
+    y: 68,
+    visibility: 'internal',
+    notes: 'Technický bod pre obsluhu a servis.',
+  },
+  {
+    id: 'facility-vc-storage',
+    lake: 'velky-cetin',
+    label: 'Sklad výbavy',
+    type: 'storage',
+    x: 11,
+    y: 64,
+    visibility: 'internal',
+    notes: 'Podberáky, podložky, vážiace saky a servisná výbava.',
+  },
+  {
+    id: 'facility-sk-parking',
+    lake: 'strkovisko-kocka',
+    label: 'Parkovanie Kocka',
+    type: 'parking',
+    x: 11,
+    y: 72,
+    visibility: 'public',
+    notes: 'Parkovanie pri menšom jazere.',
+  },
+  {
+    id: 'facility-sk-waste',
+    lake: 'strkovisko-kocka',
+    label: 'Odpad',
+    type: 'waste',
+    x: 18,
+    y: 70,
+    visibility: 'public',
+    notes: 'Zberné miesto na odpad po výprave.',
   },
 ]
 
@@ -1551,6 +1888,13 @@ export const tournamentRequestStatusLabels = {
   resolved: 'vyriešené',
 } as const
 
+export const tournamentTeamRegistrationStatusLabels = {
+  approved: 'schválené',
+  rejected: 'zamietnuté',
+  submitted: 'nová prihláška',
+  waitlisted: 'čaká v poradovníku',
+} as const
+
 export const tournamentPenaltyTypeLabels = {
   warning: 'napomenutie',
   'fishing-pause': 'stop lovu',
@@ -1586,6 +1930,55 @@ export const tournamentMarshals: TournamentMarshal[] = [
     phone: '+421 900 111 203',
     assignedSectorIds: ['c2', 'd3'],
     status: 'available',
+  },
+]
+
+export const tournamentTeamRegistrations: TournamentTeamRegistration[] = [
+  {
+    id: 'ttr-1001',
+    tournamentId: 'eccj-2026',
+    teamName: 'Junior Team A',
+    contactName: 'Tomáš Adamec',
+    contactPhone: '+421 900 222 101',
+    contactEmail: 'junior-a@example.com',
+    memberCount: 2,
+    city: 'Nitra',
+    preferredSectorId: 'a1',
+    assignedSectorId: 'a1',
+    note: 'Tím má potvrdený štart a sektor A1.',
+    status: 'approved',
+    createdAt: '12. 5. 2026 18:15',
+    reviewedAt: '13. 5. 2026 09:20',
+    reviewNote: 'Potvrdené organizátorom.',
+  },
+  {
+    id: 'ttr-1002',
+    tournamentId: 'eccj-2026',
+    teamName: 'Dolná Nitra Carp',
+    contactName: 'Marek Baláž',
+    contactPhone: '+421 900 222 102',
+    contactEmail: 'dnc@example.com',
+    memberCount: 3,
+    city: 'Šurany',
+    preferredSectorId: 'c2',
+    note: 'Preferujú miesto s rýchlym prístupom ku kontrole.',
+    status: 'submitted',
+    createdAt: 'dnes 09:12',
+  },
+  {
+    id: 'ttr-1003',
+    tournamentId: 'eccj-2026',
+    teamName: 'River Kids',
+    contactName: 'Lenka Rybárová',
+    contactPhone: '+421 900 222 103',
+    memberCount: 2,
+    city: 'Nové Zámky',
+    preferredSectorId: 'd3',
+    note: 'Čakajú na uvoľnenie sektora alebo náhradný tím.',
+    status: 'waitlisted',
+    createdAt: 'dnes 10:05',
+    reviewedAt: 'dnes 11:00',
+    reviewNote: 'Zatiaľ poradovník, kontaktovať pri zmene.',
   },
 ]
 

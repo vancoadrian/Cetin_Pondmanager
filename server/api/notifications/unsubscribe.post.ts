@@ -20,6 +20,7 @@ export default defineEventHandler(async (event): Promise<PushUnsubscribeSuccess>
   await writeLocalNotificationState({
     alerts: state.alerts,
     broadcasts: state.broadcasts,
+    deliveryLogs: state.deliveryLogs,
     subscriptions: result.subscriptions,
   })
   setResponseStatus(event, result.statusCode)

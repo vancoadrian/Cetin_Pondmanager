@@ -7,6 +7,7 @@ import type {
   TournamentPenalty,
   TournamentRequest,
   TournamentRuleCheck,
+  TournamentTeamRegistration,
 } from '~/data/pond'
 import {
   tournamentCatches,
@@ -14,6 +15,7 @@ import {
   tournamentPenalties,
   tournamentRequests,
   tournamentRuleChecks,
+  tournamentTeamRegistrations,
   tournaments,
 } from '~/data/pond'
 import type { TournamentWorkflowState } from '~/services/tournamentApiService'
@@ -58,6 +60,10 @@ function cloneChecks(items: TournamentRuleCheck[]) {
   return items.map((check) => ({ ...check }))
 }
 
+function cloneTeamRegistrations(items: TournamentTeamRegistration[]) {
+  return items.map((registration) => ({ ...registration }))
+}
+
 export function createSeedTournamentState(updatedAt = new Date(0).toISOString()): LocalTournamentState {
   return {
     tournamentCatches: cloneCatches(tournamentCatches),
@@ -65,6 +71,7 @@ export function createSeedTournamentState(updatedAt = new Date(0).toISOString())
     tournamentPenalties: clonePenalties(tournamentPenalties),
     tournamentRequests: cloneRequests(tournamentRequests),
     tournamentRuleChecks: cloneChecks(tournamentRuleChecks),
+    tournamentTeamRegistrations: cloneTeamRegistrations(tournamentTeamRegistrations),
     tournaments: cloneTournaments(tournaments),
     updatedAt,
     version: 1,
@@ -86,6 +93,15 @@ function isTournamentState(value: unknown): value is LocalTournamentState {
   )
 }
 
+function normalizeLocalTournamentState(value: LocalTournamentState): LocalTournamentState {
+  return {
+    ...value,
+    tournamentTeamRegistrations: Array.isArray(value.tournamentTeamRegistrations)
+      ? value.tournamentTeamRegistrations
+      : cloneTeamRegistrations(tournamentTeamRegistrations),
+  }
+}
+
 export async function readLocalTournamentState(
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
@@ -94,7 +110,7 @@ export async function readLocalTournamentState(
     const parsed: unknown = JSON.parse(raw)
 
     if (isTournamentState(parsed)) {
-      return parsed
+      return normalizeLocalTournamentState(parsed)
     }
   }
   catch (error) {
@@ -120,6 +136,7 @@ export async function writeLocalTournamentState(
     tournamentPenalties: clonePenalties(state.tournamentPenalties),
     tournamentRequests: cloneRequests(state.tournamentRequests),
     tournamentRuleChecks: cloneChecks(state.tournamentRuleChecks),
+    tournamentTeamRegistrations: cloneTeamRegistrations(state.tournamentTeamRegistrations),
     tournaments: cloneTournaments(state.tournaments),
     updatedAt: new Date().toISOString(),
     version: 1,
@@ -144,6 +161,27 @@ export async function appendLocalTournamentRequest(
       tournamentPenalties: currentState.tournamentPenalties,
       tournamentRequests: [request, ...currentState.tournamentRequests],
       tournamentRuleChecks: currentState.tournamentRuleChecks,
+      tournamentTeamRegistrations: currentState.tournamentTeamRegistrations,
+      tournaments: currentState.tournaments,
+    },
+    filePath,
+  )
+}
+
+export async function appendLocalTournamentTeamRegistration(
+  registration: TournamentTeamRegistration,
+  filePath = resolveLocalTournamentStorePath(),
+): Promise<LocalTournamentState> {
+  const currentState = await readLocalTournamentState(filePath)
+
+  return writeLocalTournamentState(
+    {
+      tournamentCatches: currentState.tournamentCatches,
+      tournamentMarshals: currentState.tournamentMarshals,
+      tournamentPenalties: currentState.tournamentPenalties,
+      tournamentRequests: currentState.tournamentRequests,
+      tournamentRuleChecks: currentState.tournamentRuleChecks,
+      tournamentTeamRegistrations: [registration, ...currentState.tournamentTeamRegistrations],
       tournaments: currentState.tournaments,
     },
     filePath,

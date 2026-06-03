@@ -20,6 +20,8 @@ Detailnejší popis je v `docs/database.md`.
 | `venues` | prevádzkovateľ alebo samostatné nasadenie |
 | `lakes` | jazerá, pravidlá, režim, vybavenie |
 | `pegs` | lovné miesta, chaty, kapacita, pozícia na mape |
+| `map_facilities` | servisné body mapy, napríklad WC, sprchy, sklad, drevo, rozvodňa, vjazd, recepcia |
+| `map_shapes` | polygonové plochy mapy, napríklad voda, zákazy, sektory a servisné zóny vrátane väzby na súťažný sektor |
 | `users` | používatelia, kontakt, stav účtu |
 | `user_roles` | roly owner, manager, tournament_organizer, marshal, tournament_team, accountant, worker, angler |
 | `payment_methods` | zapínateľné spôsoby platby: hotovosť, prevod, budúca brána |
@@ -39,6 +41,7 @@ Detailnejší popis je v `docs/database.md`.
 | `sponsors` | partneri revíru alebo súťaže |
 | `sponsor_placements` | umiestnenie partnerov: homepage, sektor, súťaž, výsledkovka |
 | `push_subscriptions` | web push odbery zariadení |
+| `notification_delivery_logs` | stav doručenia notifikácií po zariadeniach |
 | `audit_events` | audit stopa lokálnych a produkčných mutácií |
 
 ## Roly
@@ -60,11 +63,11 @@ Detailnejší popis je v `docs/database.md`.
 Public časť obsahuje prehľad revíru, mapu, obsadenosť, pravidlá, kontakt, sponzorov a verejné súťažné informácie.
 Interná časť obsahuje admin dashboard, uzávierky, schvaľovanie rezervácií, požičovňu, notifikácie, sponzorské umiestnenia a súťažný dispečing.
 
-Sponzorský modul používa lokálny store `.data/rybolov-cetin/sponsor-state.json`. Public API `/api/sponsors` vracia iba aktívnych partnerov, admin API `/api/admin/sponsors` vracia celý zoznam a `PUT /api/admin/sponsors` zapisuje zmeny vrátane audit udalosti. Logo upload zapisuje súbory do `.data/rybolov-cetin/sponsor-assets/` a verejne ich servuje cez `/api/sponsor-assets/:id`; text loga ostáva fallback. Upload posiela aj šírku a výšku obrázka, takže validácia vie odlíšiť homepage, footer, výsledkovku, sektor a bežnú stránku sponzorov. `getSponsorLogo()` vyberá najprv variant pre konkrétne umiestnenie, potom všeobecný variant a potom hlavné logo. `sponsorLogoVariants` drží jednotné cieľové rozmery a výpočet canvas draw boxu pre hromadné generovanie variantov v admine vrátane X/Y ohniska pri cover oreze. Štruktúrované polia umiestnenia v prototype pripravujú budúcu tabuľku `sponsor_placements`: typ umiestnenia, poradie, platnosť od-do, súťaž a sektor.
+Sponzorský modul používa lokálny store `.data/rybolov-cetin/sponsor-state.json`. Public API `/api/sponsors` vracia iba aktívnych partnerov, admin API `/api/admin/sponsors` vracia celý zoznam a `PUT /api/admin/sponsors` zapisuje zmeny vrátane audit udalosti. Logo upload zapisuje súbory do `.data/rybolov-cetin/sponsor-assets/` a verejne ich servuje cez `/api/sponsor-assets/:id`; text loga ostáva fallback. Upload posiela aj šírku a výšku obrázka, takže validácia vie odlíšiť homepage, footer, výsledkovku, sektor a bežnú stránku sponzorov. `getSponsorLogo()` vyberá najprv variant pre konkrétne umiestnenie, potom všeobecný variant a potom hlavné logo. `sponsorPlacements` filtruje aktívnych partnerov pre súťažné sloty `tournament`, `sector` a `scoreboard`; používajú ho verejné súťaže aj admin dispečing. `sponsorLogoVariants` drží jednotné cieľové rozmery a výpočet canvas draw boxu pre hromadné generovanie variantov v admine vrátane X/Y ohniska pri cover oreze; admin UI vie ohnisko nastaviť posuvníkmi alebo priamo v náhľade cez pointer eventy. Zdrojové logo pre generovanie variantov sa dá uložiť ako samostatný lokálny asset a znovu použiť po reloade. Vygenerovaný variant ukladá `cropPreset`, takže lokálny store aj Supabase seed vedia zachovať spôsob vzniku assetu. Štruktúrované polia umiestnenia v prototype pripravujú budúcu tabuľku `sponsor_placements`: typ umiestnenia, poradie, platnosť od-do, súťaž a sektor.
 
-Notifikačná vrstva má prechodový lokálny store `.data/rybolov-cetin/notification-state.json`. Verejná PWA stránka ukladá odbery zariadení cez `/api/notifications/subscribe`, vie ich vypnúť cez `/api/notifications/unsubscribe` a číta aktívne oznamy cez `/api/notifications`. Admin `/admin/notifikacie` pripravuje nový verejný oznam a mock broadcast cez `/api/admin/notifications/broadcast`; broadcast zatiaľ počíta cieľové odbery podľa okruhov a zapisuje audit udalosť, reálny Web Push dispatcher príde po doplnení VAPID kľúčov.
+Notifikačná vrstva má prechodový lokálny store `.data/rybolov-cetin/notification-state.json`. Verejná PWA stránka ukladá odbery zariadení cez `/api/notifications/subscribe`, vie ich vypnúť cez `/api/notifications/unsubscribe` a číta aktívne oznamy cez `/api/notifications`. Klientsky odber používa browser Push API, service worker a verejný VAPID kľúč; ak chýba podpora browsera alebo kľúč, stránka ostane funkčná cez mock fallback a zobrazí dôvod. Public subscribe orezáva internú audience vrstvu; mock interné odbery s rolou, turnajom, sektormi a kontrolórom vytvára iba admin endpoint `/api/admin/notifications/subscriptions`. Admin `/admin/notifikacie` pripravuje nový verejný oznam a mock broadcast cez `/api/admin/notifications/broadcast`; broadcast počíta cieľové odbery podľa okruhov a voliteľnej internej audience (`roles`, `tournamentId`, `sectorIds`, `marshalIds`), spúšťa delivery provider `mock`, `disabled` alebo `web-push`, zapisuje delivery log po zariadeniach a audit udalosť. Web Push provider používa serverový `web-push` adaptér s VAPID nastavením, TTL, timeoutom a urgenciou z env; admin obrazovka zároveň ukazuje diagnostiku provideru, chýbajúce VAPID premenné a stav pripravenosti reálneho odosielania. VAPID pár sa dá vygenerovať cez `pnpm push:vapid`. Súťažný dispečing používa rovnaký dispatcher pri novom tímovom hlásení a pri priradení kontrolóra: hlásenie tímu cieli organizátora a kontrolórov daného sektora, priradenie cieli konkrétneho kontrolóra.
 
-Offline režim je riešený v app shelli cez `ConnectionStatusBanner`, stránkou `/offline` a Workbox runtime cache. Verejné API pre výstrahy, mapu, rezervácie, úlovky a súťaže používa `NetworkFirst` cache s krátkym timeoutom, obrázky revíru používajú `StaleWhileRevalidate`. Verejné formuláre používajú spoločnú IndexedDB databázu `rybolov-cetin-offline` cez `offlineQueueDb`, ktorá drží samostatné store pre rezervácie, úlovky a súťažné hlásenia. Sieťové zlyhanie bez HTTP statusu uloží validovaný payload do zariadenia, návrat online stavu spustí opakované odoslanie na `POST /api/reservations`, `POST /api/catches` alebo `POST /api/tournament-requests` a záznam zostáva vo fronte, ak ho server odmietne validáciou. Stránka `/offline` je zároveň centrum fronty: vie spočítať všetky čakajúce položky, zvýrazniť položky na kontrolu, zobraziť počet pokusov a poslednú chybu, prekliknúť späť do formulára, odstrániť jednotlivé položky a ručne spustiť hromadné odoslanie. `useOfflineQueueSummary` číta počty front pre app shell a `OFFLINE_QUEUE_CHANGED_EVENT` aktualizuje header badge po lokálnych zmenách fronty.
+Offline režim je riešený v app shelli cez `ConnectionStatusBanner`, stránkou `/offline` a Workbox runtime cache. Verejné API pre výstrahy, mapu, rezervácie, úlovky a súťaže používa `NetworkFirst` cache s krátkym timeoutom, obrázky revíru používajú `StaleWhileRevalidate`. Verejné formuláre a admin súťažný dispečing používajú spoločnú IndexedDB databázu `rybolov-cetin-offline` cez `offlineQueueDb`, ktorá drží samostatné store pre rezervácie, úlovky, súťažné hlásenia a kontrolórske admin úkony. Sieťové zlyhanie bez HTTP statusu uloží validovaný payload do zariadenia, návrat online stavu spustí opakované odoslanie na `POST /api/reservations`, `POST /api/catches`, `POST /api/tournament-requests` alebo príslušný admin endpoint pre overenie váženia, trest a kontrolu pravidiel; záznam zostáva vo fronte, ak ho server odmietne validáciou. Kontrolórske admin úkony majú `clientMutationId`, takže opakovaný sync neprepíše váženie novým časom a nevytvorí duplicitný trest, kontrolu ani audit udalosť. Stránka `/offline` je zároveň centrum fronty: vie spočítať všetky čakajúce položky, zvýrazniť položky na kontrolu, zobraziť počet pokusov a poslednú chybu, prekliknúť späť do príslušného formulára, odstrániť jednotlivé položky a ručne spustiť hromadné odoslanie. `useOfflineQueueSummary` číta počty front pre app shell a `OFFLINE_QUEUE_CHANGED_EVENT` aktualizuje header badge po lokálnych zmenách fronty.
 V prototype je interná časť mocknutá cez cookie login. Spoločná access matrix v `app/utils/adminAccess.ts` riadi admin navigáciu, dashboardové popisy prístupov a route guard pre interné moduly. `useAdminModuleAccess()` premieta režimy `plný`, `prevádzka` a `prehľad` do prvých zápisových akcií vo všetkých hlavných admin moduloch; exporty úlovkov ostávajú dostupné aj pre účtovnícky read-only režim. Rovnakú matrix používa `server/utils/adminAccessGuard.ts` pre `/api/admin/*`, takže server rozlišuje neprihlásený stav `401` a nedostatočné oprávnenie `403`. Produkčne ju nahradí auth, role-based access control a row-level security.
 
 ## Dátová vrstva v prototype
@@ -107,17 +110,22 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `POST /api/admin/catch-reports/run-due` spustí splatné týždenné a mesačné reporty, aktualizuje lokálny store a zapíše audit udalosť.
 - `GET/POST /api/cron/catch-reports/run-due` spustí rovnaký plánovač pre hostingový cron, ale iba so správnym `Authorization: Bearer <secret>` alebo `x-rybolov-cron-secret`.
 - `GET /api/notifications` vracia verejné oznamy a počet aktívnych PWA odberov.
-- `POST /api/notifications/subscribe` uloží alebo aktualizuje PWA odber zariadenia.
+- `POST /api/notifications/subscribe` uloží alebo aktualizuje verejný PWA odber zariadenia a ignoruje internú rolu alebo súťažný scope.
 - `POST /api/notifications/unsubscribe` vypne uložený PWA odber zariadenia.
 - `GET /api/admin/notifications` vracia interný stav oznamov, odberov a broadcastov.
 - `POST /api/admin/notifications/broadcast` vytvorí verejný oznam, mock broadcast a audit udalosť.
+- `POST /api/admin/notifications/subscriptions` uloží alebo aktualizuje mock interný odber pre rolu, turnaj, sektor alebo kontrolóra.
 - `POST /api/logbooks` vytvorí aktívny osobný, skupinový alebo súťažný zápisník výpravy.
 - `GET /api/tournaments` vracia lokálny stav súťaží, kontrolórov, hlásení, vážení, trestov a kontrol.
-- `POST /api/tournament-requests` validuje tímové hlásenie a uloží ho do súťažného dispečingu.
-- `POST /api/admin/tournaments/requests/:id/action` priraďuje kontrolóra alebo uzatvára hlásenie.
-- `POST /api/admin/tournaments/catches/:id/verify` overuje čakajúce súťažné váženie.
-- `POST /api/admin/tournaments/penalties` vytvorí trest a zrkadlí ho do kontroly pravidiel.
-- `POST /api/admin/tournaments/rule-checks` vytvorí samostatnú kontrolu pravidiel sektora.
+- `GET /api/tournaments/:id/leaderboard` vracia public JSON feed výsledkovky pre externú obrazovku alebo integráciu.
+- `POST /api/tournament-requests` validuje tímové hlásenie, uloží ho do súťažného dispečingu a pripraví mock notifikačný broadcast pre súťažný okruh.
+- `GET /api/admin/tournaments/:id/leaderboard-export` vráti CSV export aktuálnej výsledkovky.
+- `GET /api/admin/tournaments/:id/organizer-export` vráti širší CSV balík pre organizátora: výsledkovku, váženia, tresty, hlásenia, kontroly, prihlášky tímov a kontrolórov.
+- `PUT /api/admin/tournaments/:id/sectors` uloží operačné nastavenia súťažných sektorov, tímov, váh a bodových pozícií.
+- `POST /api/admin/tournaments/requests/:id/action` priraďuje kontrolóra alebo uzatvára hlásenie; priradenie pripraví mock notifikačný broadcast pre kontrolórsky tok.
+- `POST /api/admin/tournaments/catches/:id/verify` overuje čakajúce súťažné váženie; pri rovnakom `clientMutationId` vráti pôvodné overenie.
+- `POST /api/admin/tournaments/penalties` vytvorí trest a zrkadlí ho do kontroly pravidiel; pri rovnakom `clientMutationId` nevytvorí duplicitu.
+- `POST /api/admin/tournaments/rule-checks` vytvorí samostatnú kontrolu pravidiel sektora; pri rovnakom `clientMutationId` nevytvorí duplicitu.
 - `GET /api/admin/audit` vracia posledné audit udalosti pre internú obrazovku `/admin/audit`.
 
 Admin endpointy sú chránené mock access guardom podľa rovnakej matrix ako UI. Endpointy sú stále backend-agnostické. Ich zmysel je ustáliť kontrakt pred tým, než sa lokálny JSON store nahradí Supabase repository.
@@ -134,6 +142,7 @@ Aktuálne validované vstupy:
 - admin korekcia úlovku,
 - admin rozhodnutie o úlovku,
 - skupinový zápisník výpravy,
+- nastavenia súťažných sektorov,
 - súťažné hlásenie tímu,
 - súťažný trest,
 - kontrola pravidiel v sektore,
@@ -162,7 +171,11 @@ Aktuálne pokrytie je sústredené na čistú doménovú logiku a kontrakty, kto
 - `tests/localClosureStore.test.ts` kontroluje JSON store pre uzávierky, sezóny a servisné blokácie.
 - `tests/localCatchReportStore.test.ts` kontroluje JSON store pre uložené reporty úlovkov.
 - `tests/localCatchPhotoStore.test.ts` kontroluje lokálne uloženie a načítanie binárnych fotiek úlovkov.
-- `tests/tournamentApiService.test.ts` kontroluje lokálny API kontrakt pre súťažné hlásenia, priradenie kontrolóra, overenie váženia, tresty a kontroly pravidiel.
+- `tests/tournamentApiService.test.ts` kontroluje lokálny API kontrakt pre súťažné hlásenia, priradenie kontrolóra, overenie váženia, tresty, kontroly pravidiel a idempotentný retry kontrolórskych úkonov.
+- `tests/notificationService.test.ts` kontroluje verejné a interné push odbery, orezanie interného scope z public vstupu, počítanie príjemcov broadcastu a delivery log podľa provideru.
+- `tests/tournamentNotificationDispatcher.test.ts` kontroluje prípravu mock súťažného broadcastu podľa odberu okruhu `tournaments` aj interného audience scope.
+- `tests/tournamentExport.test.ts` kontroluje organizačný CSV export súťaže a jeho súhrn.
+- `tests/offlineTournamentAdminActionQueueService.test.ts` kontroluje offline frontu pre admin overenie váženia, tresty a kontroly pravidiel.
 - `tests/localTournamentStore.test.ts` kontroluje JSON store pre súťažný dispečing.
 - `tests/auditLogService.test.ts` kontroluje tvorbu a filtrovanie audit udalostí.
 - `tests/localAuditLogStore.test.ts` kontroluje JSON store pre lokálny audit log.
@@ -189,4 +202,4 @@ Tento smer je zámerný: logika, ktorú neskôr presunieme na Supabase mutácie 
 2. Pripojiť Supabase env premenné a auth client, keď bude projekt vytvorený.
 3. Pridať Supabase repository implementáciu za existujúci `pondService`.
 4. Pridať upload fotiek úlovkov do Supabase Storage.
-5. Pridať VAPID kľúče a reálne odosielanie push notifikácií.
+5. Nastaviť produkčné VAPID kľúče a otestovať reálne browser push endpointy.

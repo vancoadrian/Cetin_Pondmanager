@@ -10,6 +10,7 @@ const requiredTables = [
   'venues',
   'lakes',
   'pegs',
+  'map_facilities',
   'map_layers',
   'map_shapes',
   'reservations',
@@ -39,6 +40,7 @@ const requiredTables = [
   'sponsors',
   'sponsor_placements',
   'push_subscriptions',
+  'notification_delivery_logs',
   'user_roles',
   'audit_events',
 ]
@@ -69,6 +71,11 @@ describe('Supabase core migration', () => {
     expect(migrationSql).toContain('reservations_manager_all')
     expect(migrationSql).toContain('tournament_requests_staff_all')
     expect(migrationSql).toContain('push_subscriptions_own_insert')
+    expect(migrationSql).toContain('image_settings jsonb not null default')
+    expect(migrationSql).toContain('target_audience jsonb not null default')
+    expect(migrationSql).toContain('audience_scope jsonb not null default')
+    expect(migrationSql).toContain('provider text not null check')
+    expect(migrationSql).toContain('status text not null check')
   })
 
   it('defines the relationships needed by availability, rentals and catches', () => {
@@ -87,6 +94,7 @@ describe('Supabase core migration', () => {
     expect(migrationSql).toContain('closure_id uuid not null references public.lake_closures(id)')
     expect(migrationSql).toContain('catch_record_id uuid references public.catch_records(id)')
     expect(migrationSql).toContain('tournament_id uuid not null references public.tournaments(id)')
+    expect(migrationSql).toContain('add column tournament_sector_id uuid references public.tournament_sectors(id)')
   })
 
   it('adds indexes for the high-traffic calendar and operations queries', () => {
@@ -94,12 +102,16 @@ describe('Supabase core migration', () => {
       'reservations_venue_dates_idx',
       'payment_methods_venue_enabled_idx',
       'reservations_peg_dates_idx',
+      'map_facilities_lake_type_idx',
       'rental_bookings_item_dates_idx',
       'lake_closures_venue_dates_idx',
       'catch_records_lake_caught_at_idx',
+      'map_shapes_tournament_sector_idx',
       'tournament_requests_status_idx',
       'audit_events_venue_created_idx',
       'push_subscriptions_venue_enabled_idx',
+      'push_subscriptions_audience_scope_idx',
+      'notification_delivery_logs_venue_attempted_idx',
     ]
 
     for (const index of expectedIndexes) {

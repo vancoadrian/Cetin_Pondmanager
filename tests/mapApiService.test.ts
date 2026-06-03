@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mapLayers, mapShapes, pegs } from '~/app/data/pond'
+import { mapFacilities, mapLayers, mapShapes, pegs } from '~/app/data/pond'
 import { saveMapState } from '~/app/services/mapApiService'
 
 const currentState = {
+  mapFacilities,
   mapLayers,
   mapShapes,
   pegs,
@@ -13,6 +14,8 @@ describe('saveMapState', () => {
     const result = saveMapState(
       {
         enabledLayerIds: ['layer-vc-background', 'layer-vc-pegs'],
+        mapFacilities,
+        mapShapes,
         pegs: pegs.map((peg) =>
           peg.id === 'vc-03'
             ? {
@@ -46,10 +49,49 @@ describe('saveMapState', () => {
     expect(result.updatedAt).toBe('2026-05-17T10:00:00.000Z')
   })
 
+  it('persists background image fit settings for known map layers', () => {
+    const result = saveMapState(
+      {
+        enabledLayerIds: mapLayers.map((layer) => layer.id),
+        mapFacilities,
+        mapLayers: mapLayers.map((layer) =>
+          layer.id === 'layer-vc-background'
+            ? {
+                ...layer,
+                imageSettings: {
+                  fit: 'contain',
+                  offsetX: 8,
+                  offsetY: -4,
+                  opacity: 0.75,
+                  scale: 1.2,
+                },
+              }
+            : layer,
+        ),
+        mapShapes,
+        pegs,
+      },
+      currentState,
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Map layer settings should be valid.')
+
+    expect(result.mapLayers.find((layer) => layer.id === 'layer-vc-background')?.imageSettings).toMatchObject({
+      fit: 'contain',
+      offsetX: 8,
+      offsetY: -4,
+      opacity: 0.75,
+      scale: 1.2,
+    })
+  })
+
   it('removes cabin-only reservation rules from shore points', () => {
     const result = saveMapState(
       {
         enabledLayerIds: mapLayers.map((layer) => layer.id),
+        mapFacilities,
+        mapShapes,
         pegs: pegs.map((peg) =>
           peg.id === 'vc-04'
             ? {
@@ -69,16 +111,107 @@ describe('saveMapState', () => {
     expect(result.messages).toContain('Brehové miesto nemôže vyžadovať rezerváciu chaty.')
   })
 
-  it('rejects unknown map points and layers', () => {
+  it('persists newly drawn pegs, facilities and shapes', () => {
+    const result = saveMapState(
+      {
+        enabledLayerIds: mapLayers.map((layer) => layer.id),
+        mapFacilities: [
+          ...mapFacilities,
+          {
+            id: 'facility-vc-new-entry',
+            lake: 'velky-cetin',
+            label: 'Nový vjazd',
+            notes: 'Nový vstup do areálu.',
+            type: 'entry',
+            visibility: 'public',
+            x: 12,
+            y: 69,
+          },
+        ],
+        mapShapes: [
+          ...mapShapes,
+          {
+            id: 'shape-vc-new-sector',
+            lake: 'velky-cetin',
+            label: 'Nový sektor',
+            points: [
+              { x: 22, y: 30 },
+              { x: 36, y: 31 },
+              { x: 34, y: 42 },
+            ],
+            tone: 'sector',
+            type: 'sector',
+            visibility: 'competition',
+          },
+        ],
+        pegs: [
+          ...pegs,
+          {
+            capacity: 2,
+            id: 'peg-vc-new-shore',
+            lake: 'velky-cetin',
+            label: 'Nové miesto',
+            notes: 'Miesto vytvorené editorom.',
+            status: 'free',
+            type: 'shore',
+            x: 20,
+            y: 20,
+          },
+        ],
+      },
+      currentState,
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('New map items should be valid.')
+
+    expect(result.pegs.find((peg) => peg.id === 'peg-vc-new-shore')).toBeTruthy()
+    expect(result.mapFacilities.find((facility) => facility.id === 'facility-vc-new-entry')).toBeTruthy()
+    expect(result.mapShapes.find((shape) => shape.id === 'shape-vc-new-sector')).toBeTruthy()
+  })
+
+  it('allows newly drawn map items and rejects unknown layers', () => {
     const result = saveMapState(
       {
         enabledLayerIds: ['layer-vc-background', 'missing-layer'],
+        mapFacilities: [
+          ...mapFacilities,
+          {
+            id: 'facility-vc-new-shower',
+            lake: 'velky-cetin',
+            label: 'Nové sprchy',
+            notes: 'Nový servisný bod.',
+            type: 'shower',
+            visibility: 'public',
+            x: 34,
+            y: 68,
+          },
+        ],
+        mapShapes: [
+          ...mapShapes,
+          {
+            id: 'shape-vc-new-ban',
+            lake: 'velky-cetin',
+            label: 'Dočasný zákaz',
+            points: [
+              { x: 20, y: 20 },
+              { x: 30, y: 20 },
+              { x: 30, y: 30 },
+            ],
+            tone: 'warning',
+            type: 'zone',
+            visibility: 'internal',
+          },
+        ],
         pegs: [
           ...pegs,
           {
             capacity: 2,
             id: 'missing-peg',
             label: 'Nový bod mimo editora',
+            lake: 'velky-cetin',
+            notes: 'Nové miesto pridané v editore.',
+            status: 'free',
             type: 'shore',
             x: 20,
             y: 20,
@@ -89,9 +222,25 @@ describe('saveMapState', () => {
     )
 
     expect(result.ok).toBe(false)
-    if (result.ok) throw new Error('Unknown references should be invalid.')
+    if (result.ok) throw new Error('Unknown layer should be invalid.')
 
-    expect(result.messages).toContain('Neznámy bod mapy: missing-peg.')
     expect(result.messages).toContain('Neznáma vrstva mapy: missing-layer.')
+  })
+
+  it('rejects duplicate ids in editable map collections', () => {
+    const result = saveMapState(
+      {
+        enabledLayerIds: mapLayers.map((layer) => layer.id),
+        mapFacilities,
+        mapShapes,
+        pegs: [pegs[0]!, pegs[0]!],
+      },
+      currentState,
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Duplicate ids should be invalid.')
+
+    expect(result.messages).toContain(`Duplicitné lovné miesto na mape: ${pegs[0]!.id}.`)
   })
 })

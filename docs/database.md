@@ -13,9 +13,14 @@ Prvý seed export aktuálnych mock dát vzniká cez `pnpm seed:export` do `supab
 - `venues` reprezentuje samostatnú inštanciu jedného majiteľa alebo prevádzkovateľa.
 - `lakes` patria pod venue, takže jedna inštancia môže mať 1 až X jazier.
 - `pegs` patria pod jazero a nesú mapovú pozíciu, kapacitu, typ miesto/chata a pravidlo `requires_cabin_reservation`.
+- `map_layers` držia obrázkový alebo SVG podklad vrátane `image_settings` pre napasovanie obrázka.
+- `map_facilities` patria pod jazero a držia servisné body ako WC, sprchy, sklad, drevo, elektrická rozvodňa, vjazd alebo recepcia.
+- `map_shapes` patria pod jazero a držia polygonové plochy pre vodnú oblasť, zákaz, súťažný sektor alebo servisnú zónu; sektorový polygon sa môže voliteľne viazať na `tournaments` a `tournament_sectors`.
 - `user_roles` viaže používateľa na venue, prípadne jazero alebo súťaž.
 
 Roly sú: `owner`, `manager`, `tournament_organizer`, `marshal`, `tournament_team`, `accountant`, `worker`, `angler`.
+
+Notifikačný kontrakt počíta s verejnými oznamami v `alerts`, topicmi v `target_topics` a interným cieľovaním v `target_audience`. `push_subscriptions` nesú bežné push údaje aj `topics`, `audience_role` a `audience_scope`, aby bolo možné cieliť súťažné správy na organizátora, kontrolóra, konkrétne sektory alebo konkrétneho kontrolóra. `notification_delivery_logs` drží stav doručenia po zariadeniach, provider, endpoint, hlášku a čas pokusu.
 
 ## Prevádzka revíru
 
@@ -49,7 +54,7 @@ Súťažný model obsahuje:
 - tresty,
 - kontroly pravidiel.
 
-Tým je pokrytý scenár, kde tím požiada o príchod kontrolóra, kontrolór váži úlovok, zapíše trest alebo rieši hlásenie porušenia pravidiel.
+Tým je pokrytý scenár, kde tím požiada o príchod kontrolóra, kontrolór váži úlovok, zapíše trest alebo rieši hlásenie porušenia pravidiel. `tournament_catches.verification_client_mutation_id`, `tournament_penalties.client_mutation_id` a `tournament_rule_checks.client_mutation_id` majú unikátne indexy v rámci súťaže, aby offline retry kontrolórskych úkonov nevytváral duplicity.
 
 ## RLS princíp
 

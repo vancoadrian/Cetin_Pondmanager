@@ -1,9 +1,16 @@
-import type { MapLayer, MapShape, Peg } from '~/data/pond'
-import { getValidationMessages, mapPointDraftSchema } from '~/schemas/pondSchemas'
+import type { MapFacility, MapLayer, MapShape, Peg } from '~/data/pond'
+import {
+  getValidationMessages,
+  mapFacilityInputSchema,
+  mapLayerInputSchema,
+  mapPegInputSchema,
+  mapShapeInputSchema,
+} from '~/schemas/pondSchemas'
 
 export interface MapStateResponse {
   ok: true
   mapLayers: MapLayer[]
+  mapFacilities: MapFacility[]
   mapShapes: MapShape[]
   pegs: Peg[]
   updatedAt: string
@@ -24,21 +31,34 @@ export type MapSaveResult = MapSaveFailure | MapSaveSuccess
 
 interface ParsedMapSavePayload {
   enabledLayerIds: string[]
-  pegs: Array<{
-    capacity: number
-    id: string
-    label: string
-    requiresCabinReservation?: boolean
-    type: Peg['type']
-    x: number
-    y: number
-  }>
+  mapLayers: MapLayer[]
+  mapFacilities: MapFacility[]
+  mapShapes: MapShape[]
+  pegs: Peg[]
 }
 
-function isMapSavePayload(value: unknown): value is { enabledLayerIds: unknown[], pegs: unknown[] } {
-  const candidate = value as Partial<{ enabledLayerIds: unknown[], pegs: unknown[] }>
+function isMapSavePayload(value: unknown): value is {
+  enabledLayerIds: unknown[]
+  mapLayers?: unknown[]
+  mapFacilities?: unknown[]
+  mapShapes?: unknown[]
+  pegs: unknown[]
+} {
+  const candidate = value as Partial<{
+    enabledLayerIds: unknown[]
+    mapLayers: unknown[]
+    mapFacilities: unknown[]
+    mapShapes: unknown[]
+    pegs: unknown[]
+  }>
 
-  return Array.isArray(candidate.enabledLayerIds) && Array.isArray(candidate.pegs)
+  return (
+    Array.isArray(candidate.enabledLayerIds) &&
+    Array.isArray(candidate.pegs) &&
+    (candidate.mapLayers === undefined || Array.isArray(candidate.mapLayers)) &&
+    (candidate.mapFacilities === undefined || Array.isArray(candidate.mapFacilities)) &&
+    (candidate.mapShapes === undefined || Array.isArray(candidate.mapShapes))
+  )
 }
 
 function unique(values: string[]) {
@@ -63,12 +83,48 @@ function parseMapSavePayload(rawInput: unknown): MapSaveFailure | { ok: true, pa
     .map((id) => id.trim())
 
   const parsedPegs: ParsedMapSavePayload['pegs'] = []
+  const parsedLayers: ParsedMapSavePayload['mapLayers'] = []
+  const parsedFacilities: ParsedMapSavePayload['mapFacilities'] = []
+  const parsedShapes: ParsedMapSavePayload['mapShapes'] = []
   const messages: string[] = []
 
+  for (const rawLayer of rawInput.mapLayers ?? []) {
+    const result = mapLayerInputSchema.safeParse(rawLayer)
+    if (result.success) {
+      parsedLayers.push(result.data)
+      continue
+    }
+
+    messages.push(...getValidationMessages(result))
+  }
+
   for (const rawPeg of rawInput.pegs) {
-    const result = mapPointDraftSchema.safeParse(rawPeg)
+    const result = mapPegInputSchema.safeParse(rawPeg)
     if (result.success) {
       parsedPegs.push(result.data)
+      continue
+    }
+
+    messages.push(...getValidationMessages(result))
+  }
+
+  for (const rawFacility of rawInput.mapFacilities ?? []) {
+    const result = mapFacilityInputSchema.safeParse(rawFacility)
+    if (result.success) {
+      parsedFacilities.push(result.data)
+      continue
+    }
+
+    messages.push(...getValidationMessages(result))
+  }
+
+  for (const rawShape of rawInput.mapShapes ?? []) {
+    const result = mapShapeInputSchema.safeParse(rawShape)
+    if (result.success) {
+      parsedShapes.push({
+        ...result.data,
+        points: result.data.points.map((point) => ({ ...point })),
+      })
       continue
     }
 
@@ -83,9 +139,25 @@ function parseMapSavePayload(rawInput: unknown): MapSaveFailure | { ok: true, pa
     ok: true,
     payload: {
       enabledLayerIds: unique(enabledLayerIds),
+      mapLayers: parsedLayers,
+      mapFacilities: parsedFacilities,
+      mapShapes: parsedShapes,
       pegs: parsedPegs,
     },
   }
+}
+
+function duplicateIds(items: Array<{ id: string }>) {
+  const seenIds = new Set<string>()
+
+  return items
+    .map((item) => item.id)
+    .filter((id) => {
+      if (seenIds.has(id)) return true
+      seenIds.add(id)
+
+      return false
+    })
 }
 
 export function saveMapState(
@@ -96,46 +168,60 @@ export function saveMapState(
   const parsed = parseMapSavePayload(rawInput)
   if (!parsed.ok) return parsed
 
-  const knownPegIds = new Set(currentState.pegs.map((peg) => peg.id))
   const knownLayerIds = new Set(currentState.mapLayers.map((layer) => layer.id))
-  const unknownPegIds = parsed.payload.pegs.filter((peg) => !knownPegIds.has(peg.id)).map((peg) => peg.id)
   const unknownLayerIds = parsed.payload.enabledLayerIds.filter((id) => !knownLayerIds.has(id))
+  const unknownSubmittedLayerIds = parsed.payload.mapLayers
+    .map((layer) => layer.id)
+    .filter((id) => !knownLayerIds.has(id))
+  const duplicateLayerIds = duplicateIds(parsed.payload.mapLayers)
+  const duplicatePegIds = duplicateIds(parsed.payload.pegs)
+  const duplicateFacilityIds = duplicateIds(parsed.payload.mapFacilities)
+  const duplicateShapeIds = duplicateIds(parsed.payload.mapShapes)
 
-  if (unknownPegIds.length > 0 || unknownLayerIds.length > 0) {
+  if (
+    unknownLayerIds.length > 0 ||
+    unknownSubmittedLayerIds.length > 0 ||
+    duplicateLayerIds.length > 0 ||
+    duplicatePegIds.length > 0 ||
+    duplicateFacilityIds.length > 0 ||
+    duplicateShapeIds.length > 0
+  ) {
     return failure([
-      ...unknownPegIds.map((id) => `Neznámy bod mapy: ${id}.`),
       ...unknownLayerIds.map((id) => `Neznáma vrstva mapy: ${id}.`),
+      ...unknownSubmittedLayerIds.map((id) => `Neznáma upravovaná vrstva mapy: ${id}.`),
+      ...duplicateLayerIds.map((id) => `Duplicitná vrstva mapy: ${id}.`),
+      ...duplicatePegIds.map((id) => `Duplicitné lovné miesto na mape: ${id}.`),
+      ...duplicateFacilityIds.map((id) => `Duplicitný servisný bod na mape: ${id}.`),
+      ...duplicateShapeIds.map((id) => `Duplicitná zóna na mape: ${id}.`),
     ])
   }
 
-  const updateById = new Map(parsed.payload.pegs.map((peg) => [peg.id, peg]))
   const enabledLayerIds = new Set(parsed.payload.enabledLayerIds)
+  const submittedLayers = new Map(parsed.payload.mapLayers.map((layer) => [layer.id, layer]))
 
   return {
     ok: true,
-    mapLayers: currentState.mapLayers.map((layer) => ({
-      ...layer,
-      enabled: enabledLayerIds.has(layer.id),
-    })),
-    mapShapes: currentState.mapShapes.map((shape) => ({
+    mapLayers: currentState.mapLayers.map((layer) => {
+      const submittedLayer = submittedLayers.get(layer.id)
+
+      return {
+        ...layer,
+        enabled: enabledLayerIds.has(layer.id),
+        imageSettings: layer.kind === 'background'
+          ? submittedLayer?.imageSettings ?? layer.imageSettings
+          : undefined,
+      }
+    }),
+    mapFacilities: parsed.payload.mapFacilities.map((facility) => ({ ...facility })),
+    mapShapes: parsed.payload.mapShapes.map((shape) => ({
       ...shape,
       points: shape.points.map((point) => ({ ...point })),
     })),
     message: 'Mapa je uložená do lokálneho store.',
-    pegs: currentState.pegs.map((peg) => {
-      const update = updateById.get(peg.id)
-      if (!update) return { ...peg }
-
-      return {
-        ...peg,
-        capacity: update.capacity,
-        label: update.label,
-        requiresCabinReservation: update.type === 'cabin' ? Boolean(update.requiresCabinReservation) : undefined,
-        type: update.type,
-        x: update.x,
-        y: update.y,
-      }
-    }),
+    pegs: parsed.payload.pegs.map((peg) => ({
+      ...peg,
+      requiresCabinReservation: peg.type === 'cabin' ? Boolean(peg.requiresCabinReservation) : undefined,
+    })),
     statusCode: 200,
     updatedAt,
   }

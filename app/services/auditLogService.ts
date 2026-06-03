@@ -67,6 +67,7 @@ export const auditActionLabels: Record<string, string> = {
   'tournament.request.created': 'Nové hlásenie',
   'tournament.request.resolved': 'Hlásenie uzavreté',
   'tournament.rule_check.created': 'Kontrola pravidiel',
+  'tournament.sectors.updated': 'Sektory upravené',
   'trip_logbook.created': 'Nový zápisník',
 }
 

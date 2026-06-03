@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
 
   const state = await readLocalMapState()
   const result = saveMapState(await readBody(event), {
+    mapFacilities: state.mapFacilities,
     mapLayers: state.mapLayers,
     mapShapes: state.mapShapes,
     pegs: state.pegs,
@@ -24,6 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const storedState = await writeLocalMapState({
+    mapFacilities: result.mapFacilities,
     mapLayers: result.mapLayers,
     mapShapes: result.mapShapes,
     pegs: result.pegs,
@@ -38,6 +40,7 @@ export default defineEventHandler(async (event) => {
     area: 'map',
     details: {
       layerCount: result.mapLayers.length,
+      facilityCount: result.mapFacilities.length,
       pegCount: result.pegs.length,
       shapeCount: result.mapShapes.length,
     },

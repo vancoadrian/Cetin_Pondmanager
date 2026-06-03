@@ -7,6 +7,7 @@ export default defineEventHandler(async (): Promise<MapStateResponse> => {
 
   return {
     ok: true,
+    mapFacilities: state.mapFacilities,
     mapLayers: state.mapLayers,
     mapShapes: state.mapShapes,
     pegs: state.pegs,

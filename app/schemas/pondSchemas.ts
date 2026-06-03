@@ -19,6 +19,7 @@ export const catchPhotoUploadSchema = z.object({
   'Fotka nemá platný dátový formát.',
 )
 export const MAX_SPONSOR_LOGO_BYTES = 2 * 1024 * 1024
+export const MAX_MAP_BACKGROUND_BYTES = 10 * 1024 * 1024
 export const sponsorLogoPlacementRules = {
   footer: {
     label: 'footer',
@@ -85,6 +86,21 @@ export const sponsorLogoUploadSchema = z.object({
 }).refine(
   (value) => value.dataUrl.startsWith(`data:${value.mimeType};base64,`),
   'Logo nemá platný dátový formát.',
+)
+export const mapBackgroundUploadSchema = z.object({
+  dataUrl: z.string().startsWith('data:image/', 'Podklad mapy musí byť obrázok.'),
+  fileName: z.string().trim().min(1, 'Podklad mapy nemá názov súboru.').max(120),
+  lake: lakeSlugSchema,
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp'], {
+    message: 'Podporované sú iba JPG, PNG alebo WebP podklady mapy.',
+  }),
+  sizeBytes: z.coerce.number().int().min(1, 'Podklad mapy je prázdny.').max(
+    MAX_MAP_BACKGROUND_BYTES,
+    'Podklad mapy môže mať najviac 10 MB.',
+  ),
+}).refine(
+  (value) => value.dataUrl.startsWith(`data:${value.mimeType};base64,`),
+  'Podklad mapy nemá platný dátový formát.',
 )
 const phoneSchema = z
   .string()
@@ -235,11 +251,18 @@ export const catchSavedReportInputSchema = z.object({
 
 export const pushSubscriptionInputSchema = z.object({
   auth: z.string().trim().optional(),
+  audienceRole: z.enum(['accountant', 'angler', 'manager', 'marshal', 'owner', 'tournament_organizer', 'tournament_team', 'worker']).optional(),
   deviceLabel: z.string().trim().max(80, 'Názov zariadenia môže mať najviac 80 znakov.').optional(),
   endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
+  marshalId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().optional(),
+  ),
   p256dh: z.string().trim().optional(),
   permission: z.enum(['denied', 'granted', 'unknown']).default('unknown'),
+  sectorIds: z.array(z.string().trim().min(1)).default([]),
   topics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).default(['weather', 'service']),
+  tournamentIds: z.array(z.string().trim().min(1)).default([]),
   userAgent: z.string().trim().max(240).optional(),
 })
 
@@ -252,6 +275,22 @@ export const paymentMethodSettingsInputSchema = z.object({
     enabled: z.boolean(),
     id: z.string().trim().min(1, 'Chýba identifikátor platobnej metódy.'),
   })).min(1, 'Upravte aspoň jednu platobnú metódu.'),
+})
+
+export const cabinProductInputSchema = z.object({
+  capacity: z.coerce.number().int('Kapacita chaty musí byť celé číslo.').min(1, 'Kapacita chaty musí byť aspoň 1.').max(12, 'Kapacita chaty môže byť najviac 12 osôb.'),
+  equipment: z.array(z.string().trim().min(1, 'Výbava chaty nemôže byť prázdna.').max(80, 'Položka výbavy môže mať najviac 80 znakov.')).max(24, 'Chata môže mať najviac 24 položiek výbavy.').default([]),
+  extraPersonFeeEur: z.coerce.number().min(0, 'Poplatok za ďalšiu osobu nemôže byť záporný.').max(1000, 'Poplatok za ďalšiu osobu je príliš vysoký.').optional(),
+  id: z.string().trim().min(1, 'Chýba identifikátor chaty.'),
+  label: z.string().trim().min(2, 'Názov chaty musí mať aspoň 2 znaky.').max(100, 'Názov chaty môže mať najviac 100 znakov.'),
+  minimumHours: z.coerce.number().int('Minimum hodín musí byť celé číslo.').min(1, 'Minimum hodín musí byť aspoň 1.').max(720, 'Minimum hodín môže byť najviac 720.'),
+  pegIds: z.array(z.string().trim().min(1, 'Chýba identifikátor lovného miesta.')).default([]),
+  pricePer24hEur: z.coerce.number().min(0, 'Cena chaty nemôže byť záporná.').max(10000, 'Cena chaty je príliš vysoká.'),
+  requiresPermitNote: z.string().trim().max(500, 'Poznámka k povolenkám môže mať najviac 500 znakov.').default(''),
+})
+
+export const cabinCatalogSettingsInputSchema = z.object({
+  cabinProducts: z.array(cabinProductInputSchema).min(1, 'Upravte aspoň jednu chatu.'),
 })
 
 export const rentalCatalogSettingsInputSchema = z.object({
@@ -280,7 +319,17 @@ export const rentalCatalogSettingsInputSchema = z.object({
 })
 
 const sponsorPlacementTypeSchema = z.enum(['homepage', 'footer', 'sponsors', 'tournament', 'sector', 'scoreboard'])
+const sponsorLogoVariantCropPresetSchema = z.object({
+  focusXPercent: z.coerce.number().int('Ohnisko X musí byť celé percento.').min(0, 'Ohnisko X nemôže byť záporné.').max(100, 'Ohnisko X môže byť najviac 100 %.'),
+  focusYPercent: z.coerce.number().int('Ohnisko Y musí byť celé percento.').min(0, 'Ohnisko Y nemôže byť záporné.').max(100, 'Ohnisko Y môže byť najviac 100 %.'),
+  mode: z.enum(['contain', 'cover']).default('contain'),
+  paddingPercent: z.coerce.number().int('Odsadenie musí byť celé percento.').min(0, 'Odsadenie nemôže byť záporné.').max(30, 'Odsadenie môže byť najviac 30 %.'),
+  sourceFileName: z.string().trim().min(1).max(120).optional(),
+  sourceHeight: z.coerce.number().int().min(1).max(10000).optional(),
+  sourceWidth: z.coerce.number().int().min(1).max(10000).optional(),
+})
 const sponsorLogoVariantInputSchema = z.object({
+  cropPreset: sponsorLogoVariantCropPresetSchema.optional(),
   logoUpload: sponsorLogoUploadSchema.optional(),
   placementType: sponsorPlacementTypeSchema,
   removeLogo: z.boolean().default(false),
@@ -289,12 +338,14 @@ const sponsorInputSchema = z.object({
   active: z.boolean(),
   description: z.string().trim().min(8, 'Popis sponzora musí mať aspoň 8 znakov.').max(240, 'Popis sponzora môže mať najviac 240 znakov.'),
   id: z.string().trim().min(1, 'Chýba identifikátor sponzora.'),
+  logoVariantSourceUpload: sponsorLogoUploadSchema.optional(),
   logoUpload: sponsorLogoUploadSchema.optional(),
   logoVariants: z.array(sponsorLogoVariantInputSchema).default([]),
   logoText: z.string().trim().min(1, 'Doplňte skratku alebo text loga.').max(6, 'Text loga môže mať najviac 6 znakov.'),
   name: z.string().trim().min(2, 'Názov sponzora musí mať aspoň 2 znaky.').max(100, 'Názov sponzora môže mať najviac 100 znakov.'),
   placement: z.string().trim().min(3, 'Umiestnenie musí mať aspoň 3 znaky.').max(140, 'Umiestnenie môže mať najviac 140 znakov.'),
   placementType: sponsorPlacementTypeSchema.default('sponsors'),
+  removeLogoVariantSource: z.boolean().default(false),
   removeLogo: z.boolean().default(false),
   sectorId: z.string().trim().optional(),
   sortOrder: z.coerce.number().int('Poradie musí byť celé číslo.').min(1, 'Poradie musí byť aspoň 1.').max(999, 'Poradie môže byť najviac 999.').default(100),
@@ -394,6 +445,14 @@ export const sponsorSettingsInputSchema = z.object({
 export const notificationBroadcastInputSchema = z.object({
   body: z.string().trim().min(10, 'Text notifikácie musí mať aspoň 10 znakov.').max(280, 'Text notifikácie môže mať najviac 280 znakov.'),
   severity: z.enum(['storm', 'info', 'service', 'water']),
+  targetAudience: z.object({
+    marshalIds: z.array(z.string().trim().min(1)).default([]),
+    reason: z.string().trim().max(160).optional(),
+    requestId: z.string().trim().optional(),
+    roles: z.array(z.enum(['accountant', 'angler', 'manager', 'marshal', 'owner', 'tournament_organizer', 'tournament_team', 'worker'])).default([]),
+    sectorIds: z.array(z.string().trim().min(1)).default([]),
+    tournamentId: z.string().trim().optional(),
+  }).optional(),
   targetTopics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).min(1, 'Vyberte aspoň jeden okruh notifikácie.'),
   title: z.string().trim().min(3, 'Nadpis musí mať aspoň 3 znaky.').max(80, 'Nadpis môže mať najviac 80 znakov.'),
   validUntil: z.string().trim().min(3, 'Doplňte platnosť výstrahy.').max(60, 'Platnosť môže mať najviac 60 znakov.'),
@@ -446,8 +505,68 @@ export const tournamentRequestInputSchema = z
     }
   })
 
+export const tournamentTeamRegistrationInputSchema = z.object({
+  city: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(80, 'Mesto môže mať najviac 80 znakov.').optional(),
+  ),
+  contactEmail: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.').optional(),
+  ),
+  contactName: z.string().trim().min(3, 'Kontaktné meno musí mať aspoň 3 znaky.').max(100, 'Kontaktné meno môže mať najviac 100 znakov.'),
+  contactPhone: z.string().trim().min(7, 'Telefón musí mať aspoň 7 znakov.').max(32, 'Telefón môže mať najviac 32 znakov.').regex(/^[+\d\s]+$/, 'Telefón môže obsahovať iba čísla, medzery a znak +.'),
+  memberCount: z.coerce.number().int('Počet členov musí byť celé číslo.').min(1, 'Tím musí mať aspoň jedného člena.').max(8, 'Tím môže mať najviac 8 členov.'),
+  note: z.string().trim().max(500, 'Poznámka môže mať najviac 500 znakov.'),
+  preferredSectorId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().optional(),
+  ),
+  teamName: z.string().trim().min(3, 'Názov tímu musí mať aspoň 3 znaky.').max(120, 'Názov tímu môže mať najviac 120 znakov.'),
+  tournamentId: z.string().trim().min(1, 'Chýba identifikátor súťaže.'),
+})
+
+export const tournamentTeamRegistrationDecisionInputSchema = z.object({
+  action: z.enum(['approve', 'reject', 'waitlist']),
+  assignedSectorId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().optional(),
+  ),
+  registrationId: z.string().trim().min(1, 'Chýba ID prihlášky.'),
+  reviewNote: z.string().trim().max(500, 'Poznámka môže mať najviac 500 znakov.'),
+}).superRefine((value, ctx) => {
+  if (value.action === 'approve' && !value.assignedSectorId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Pri schválení tímu vyberte sektor.',
+      path: ['assignedSectorId'],
+    })
+  }
+})
+
+export const tournamentSectorSettingsInputSchema = z.object({
+  sectors: z.array(
+    z.object({
+      id: z.string().trim().min(1, 'Chýba ID sektora.'),
+      label: z.string().trim().min(1, 'Sektor musí mať označenie.').max(16, 'Označenie sektora môže mať najviac 16 znakov.'),
+      team: z.preprocess(
+        (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+        z.string().trim().max(120, 'Názov tímu môže mať najviac 120 znakov.').optional(),
+      ),
+      weightKg: z.coerce.number().min(0, 'Váha sektora nemôže byť záporná.').max(9999, 'Váha sektora je príliš vysoká.'),
+      x: z.coerce.number().min(0, 'X sektora musí byť v rozsahu 0 až 100.').max(100, 'X sektora musí byť v rozsahu 0 až 100.'),
+      y: z.coerce.number().min(0, 'Y sektora musí byť v rozsahu 0 až 100.').max(100, 'Y sektora musí byť v rozsahu 0 až 100.'),
+    }),
+  ).min(1, 'Doplňte aspoň jeden sektor súťaže.'),
+  tournamentId: z.string().trim().min(1, 'Chýba identifikátor súťaže.'),
+})
+
 export const tournamentPenaltyInputSchema = z
   .object({
+    clientMutationId: z.preprocess(
+      (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+      z.string().trim().min(1, 'Chýba ID offline úkonu.').max(160, 'ID offline úkonu je príliš dlhé.').optional(),
+    ),
     durationHours: z.coerce.number().int('Trvanie musí byť celé číslo.').min(1, 'Trvanie musí byť aspoň 1 hodina.').max(24, 'Trvanie môže byť najviac 24 hodín.').optional(),
     marshalId: z.string().min(1, 'Vyberte kontrolóra.'),
     reason: z.string().trim().min(10, 'Doplňte dôvod trestu aspoň 10 znakmi.').max(500, 'Dôvod trestu môže mať najviac 500 znakov.'),
@@ -475,6 +594,10 @@ export const tournamentPenaltyInputSchema = z
   })
 
 export const tournamentRuleCheckInputSchema = z.object({
+  clientMutationId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().min(1, 'Chýba ID offline úkonu.').max(160, 'ID offline úkonu je príliš dlhé.').optional(),
+  ),
   marshalId: z.string().min(1, 'Vyberte kontrolóra.'),
   note: z.string().trim().min(8, 'Doplňte poznámku ku kontrole aspoň 8 znakmi.').max(500, 'Poznámka môže mať najviac 500 znakov.'),
   result: z.enum(['ok', 'warning', 'penalty']),
@@ -482,8 +605,27 @@ export const tournamentRuleCheckInputSchema = z.object({
   tournamentId: z.string().min(1, 'Chýba identifikátor súťaže.'),
 })
 
-export const mapPointDraftSchema = z
-  .object({
+export const mapLayerImageSettingsSchema = z.object({
+  fit: z.enum(['contain', 'cover', 'stretch']).default('cover'),
+  offsetX: z.coerce.number().min(-50, 'Posun X podkladu môže byť najviac -50 až 50.').max(50, 'Posun X podkladu môže byť najviac -50 až 50.').default(0),
+  offsetY: z.coerce.number().min(-50, 'Posun Y podkladu môže byť najviac -50 až 50.').max(50, 'Posun Y podkladu môže byť najviac -50 až 50.').default(0),
+  opacity: z.coerce.number().min(0.2, 'Priehľadnosť podkladu musí byť aspoň 20 %.').max(1, 'Priehľadnosť podkladu môže byť najviac 100 %.').default(0.9),
+  scale: z.coerce.number().min(0.5, 'Mierka podkladu musí byť aspoň 50 %.').max(2.5, 'Mierka podkladu môže byť najviac 250 %.').default(1),
+})
+
+export const mapLayerInputSchema = z.object({
+  editable: z.boolean(),
+  enabled: z.boolean(),
+  id: z.string().trim().min(1, 'Chýba ID vrstvy mapy.'),
+  imageSettings: mapLayerImageSettingsSchema.optional(),
+  kind: z.enum(['background', 'pegs', 'cabins', 'sectors', 'service']),
+  lake: lakeSlugSchema,
+  name: z.string().trim().min(2, 'Názov vrstvy musí mať aspoň 2 znaky.').max(90),
+  source: z.string().trim().optional(),
+  visibility: z.enum(['public', 'internal', 'competition']),
+})
+
+const mapPointBaseSchema = z.object({
     capacity: z.coerce.number().int('Kapacita musí byť celé číslo.').min(1, 'Kapacita musí byť aspoň 1.').max(12),
     id: z.string().min(1, 'Chýba ID bodu mapy.'),
     label: z.string().trim().min(2, 'Názov miesta musí mať aspoň 2 znaky.'),
@@ -492,6 +634,8 @@ export const mapPointDraftSchema = z
     x: z.coerce.number().min(0, 'X musí byť v rozsahu 0 až 100.').max(100, 'X musí byť v rozsahu 0 až 100.'),
     y: z.coerce.number().min(0, 'Y musí byť v rozsahu 0 až 100.').max(100, 'Y musí byť v rozsahu 0 až 100.'),
   })
+
+export const mapPointDraftSchema = mapPointBaseSchema
   .superRefine((value, ctx) => {
     if (value.type === 'shore' && value.requiresCabinReservation) {
       ctx.addIssue({
@@ -501,6 +645,54 @@ export const mapPointDraftSchema = z
       })
     }
   })
+
+export const mapPegInputSchema = mapPointBaseSchema.extend({
+  lake: lakeSlugSchema,
+  notes: z.string().trim().max(500, 'Poznámka k bodu mapy môže mať najviac 500 znakov.').default(''),
+  status: z.enum(['free', 'reserved', 'weekend-free', 'maintenance']).default('free'),
+}).superRefine((value, ctx) => {
+  if (value.type === 'shore' && value.requiresCabinReservation) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Brehové miesto nemôže vyžadovať rezerváciu chaty.',
+      path: ['requiresCabinReservation'],
+    })
+  }
+})
+
+export const mapFacilityInputSchema = z.object({
+  id: z.string().trim().min(1, 'Chýba ID servisného bodu.'),
+  label: z.string().trim().min(2, 'Názov servisného bodu musí mať aspoň 2 znaky.').max(80),
+  lake: lakeSlugSchema,
+  notes: z.string().trim().max(500, 'Poznámka k servisnému bodu môže mať najviac 500 znakov.').default(''),
+  type: z.enum(['electricity', 'entry', 'first-aid', 'other', 'parking', 'reception', 'shower', 'storage', 'toilet', 'waste', 'wood']),
+  visibility: z.enum(['public', 'internal', 'competition']).default('internal'),
+  x: z.coerce.number().min(0, 'X musí byť v rozsahu 0 až 100.').max(100, 'X musí byť v rozsahu 0 až 100.'),
+  y: z.coerce.number().min(0, 'Y musí byť v rozsahu 0 až 100.').max(100, 'Y musí byť v rozsahu 0 až 100.'),
+})
+
+const mapShapePointSchema = z.object({
+  x: z.coerce.number().min(0, 'X bodu zóny musí byť v rozsahu 0 až 100.').max(100, 'X bodu zóny musí byť v rozsahu 0 až 100.'),
+  y: z.coerce.number().min(0, 'Y bodu zóny musí byť v rozsahu 0 až 100.').max(100, 'Y bodu zóny musí byť v rozsahu 0 až 100.'),
+})
+
+export const mapShapeInputSchema = z.object({
+  id: z.string().trim().min(1, 'Chýba ID zóny mapy.'),
+  label: z.string().trim().min(2, 'Názov zóny musí mať aspoň 2 znaky.').max(120),
+  lake: lakeSlugSchema,
+  points: z.array(mapShapePointSchema).min(3, 'Zóna musí mať aspoň 3 body.').max(24, 'Zóna môže mať najviac 24 bodov.'),
+  sectorId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().min(1).optional(),
+  ),
+  tone: z.enum(['water', 'reed', 'warning', 'service', 'sector']),
+  tournamentId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().min(1).optional(),
+  ),
+  type: z.enum(['shoreline', 'island', 'zone', 'sector', 'service']),
+  visibility: z.enum(['public', 'internal', 'competition']),
+})
 
 export const reservationDecisionInputSchema = z.object({
   decisionMode: z.enum(['approve', 'call', 'reject']),

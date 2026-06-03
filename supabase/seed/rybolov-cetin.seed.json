@@ -10,8 +10,9 @@
       "lake_closure_pegs": 1,
       "lake_closures": 4,
       "lakes": 2,
+      "map_facilities": 9,
       "map_layers": 8,
-      "map_shapes": 5,
+      "map_shapes": 12,
       "payment_methods": 3,
       "pegs": 12,
       "permit_products": 3,
@@ -21,6 +22,7 @@
       "reservation_extras": 4,
       "reservation_items": 13,
       "reservations": 3,
+      "sponsor_assets": 0,
       "sponsor_placements": 4,
       "sponsors": 4,
       "tournament_catches": 3,
@@ -62,6 +64,17 @@
     "lakes": {
       "velky-cetin": "76df028a-aee5-5dbf-8fe6-3c1195354118",
       "strkovisko-kocka": "650523ec-45a5-57a3-8efc-5a698f1702b3"
+    },
+    "mapFacilities": {
+      "facility-vc-reception": "359a6f61-1b0f-5726-9309-213ea0e5c2b2",
+      "facility-vc-entry": "6a6c3c69-f192-5e52-bd52-efdcb58e39a0",
+      "facility-vc-toilet": "0b74bc2d-4a00-50f6-ab66-04600e94dc97",
+      "facility-vc-shower": "df43db53-528f-55fa-89c8-6360845eac32",
+      "facility-vc-wood": "9df109a7-4d19-5e36-99c7-d3981bc7c0a4",
+      "facility-vc-electric": "cfe54cb6-7c4a-595c-ab54-91c4b8f5aed5",
+      "facility-vc-storage": "c3449a69-a02a-5b60-8765-8c2ede8a9ef4",
+      "facility-sk-parking": "204aea49-165d-5365-a992-190185fc6947",
+      "facility-sk-waste": "79590366-eb13-52d1-b6ab-8e2f65319ce5"
     },
     "pegs": {
       "vc-01": "6f1d7fc2-61c8-592b-bfb4-8d499fdeedff",
@@ -105,6 +118,7 @@
       "r-1002": "f9f71a9f-cb86-525e-b396-164c6262f163",
       "r-1003": "2bffe217-0c59-5730-89af-0db90521f15d"
     },
+    "sponsorAssets": {},
     "sponsors": {
       "sponsor-carpgear": "67611eed-e14b-5b21-a390-4c564d2e9a9c",
       "sponsor-baits": "20d36595-53ee-50c4-84e8-e41511fe027f",
@@ -465,11 +479,119 @@
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91"
       }
     ],
+    "map_facilities": [
+      {
+        "id": "359a6f61-1b0f-5726-9309-213ea0e5c2b2",
+        "label": "Recepcia a nástup",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 9,
+        "map_y": 72,
+        "notes": "Prvé miesto kontaktu pri príchode, kontrola rezervácie a povolenky.",
+        "type": "reception",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      },
+      {
+        "id": "6a6c3c69-f192-5e52-bd52-efdcb58e39a0",
+        "label": "Vjazd k revíru",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 6,
+        "map_y": 66,
+        "notes": "Vjazd pre rybárov, zásobovanie a obsluhu revíru.",
+        "type": "entry",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      },
+      {
+        "id": "0b74bc2d-4a00-50f6-ab66-04600e94dc97",
+        "label": "WC",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 13,
+        "map_y": 69,
+        "notes": "Verejne dostupné WC pri zázemí revíru.",
+        "type": "toilet",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      },
+      {
+        "id": "df43db53-528f-55fa-89c8-6360845eac32",
+        "label": "Sprchy",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 16,
+        "map_y": 72,
+        "notes": "Sprchy pre pobytové rezervácie a súťažné tímy.",
+        "type": "shower",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      },
+      {
+        "id": "9df109a7-4d19-5e36-99c7-d3981bc7c0a4",
+        "label": "Drevo",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 21,
+        "map_y": 70,
+        "notes": "Sklad bedničiek dreva a doplnkov k chatám.",
+        "type": "wood",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "internal"
+      },
+      {
+        "id": "cfe54cb6-7c4a-595c-ab54-91c4b8f5aed5",
+        "label": "Elektrická rozvodňa",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 29,
+        "map_y": 68,
+        "notes": "Technický bod pre obsluhu a servis.",
+        "type": "electricity",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "internal"
+      },
+      {
+        "id": "c3449a69-a02a-5b60-8765-8c2ede8a9ef4",
+        "label": "Sklad výbavy",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "map_x": 11,
+        "map_y": 64,
+        "notes": "Podberáky, podložky, vážiace saky a servisná výbava.",
+        "type": "storage",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "internal"
+      },
+      {
+        "id": "204aea49-165d-5365-a992-190185fc6947",
+        "label": "Parkovanie Kocka",
+        "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
+        "map_x": 11,
+        "map_y": 72,
+        "notes": "Parkovanie pri menšom jazere.",
+        "type": "parking",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      },
+      {
+        "id": "79590366-eb13-52d1-b6ab-8e2f65319ce5",
+        "label": "Odpad",
+        "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
+        "map_x": 18,
+        "map_y": 70,
+        "notes": "Zberné miesto na odpad po výprave.",
+        "type": "waste",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "public"
+      }
+    ],
     "map_layers": [
       {
         "editable": false,
         "enabled": true,
         "id": "7a37fbdd-d4e0-5041-83b3-007fc0cee0bd",
+        "image_settings": {
+          "fit": "cover",
+          "offsetX": 0,
+          "offsetY": 0,
+          "opacity": 0.9,
+          "scale": 1
+        },
         "kind": "background",
         "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "name": "Podklad jazera",
@@ -482,6 +604,7 @@
         "editable": true,
         "enabled": true,
         "id": "316ca73e-213d-5ca7-9a48-c29a7e9acffd",
+        "image_settings": {},
         "kind": "pegs",
         "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "name": "Lovné miesta",
@@ -494,6 +617,7 @@
         "editable": true,
         "enabled": true,
         "id": "35cf4bb3-3aa2-5795-b656-a603d965feb2",
+        "image_settings": {},
         "kind": "cabins",
         "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "name": "Chaty",
@@ -506,6 +630,7 @@
         "editable": true,
         "enabled": false,
         "id": "854d15fb-49b5-5790-9ddc-91580fe31449",
+        "image_settings": {},
         "kind": "sectors",
         "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "name": "Súťažné sektory",
@@ -518,6 +643,7 @@
         "editable": true,
         "enabled": true,
         "id": "ee9a78b3-d334-54be-ba2c-4fe71c9ee9ce",
+        "image_settings": {},
         "kind": "service",
         "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "name": "Servis a uzávierky",
@@ -530,6 +656,13 @@
         "editable": false,
         "enabled": true,
         "id": "006d9546-ebfe-556c-b763-368e59bb1d94",
+        "image_settings": {
+          "fit": "cover",
+          "offsetX": 0,
+          "offsetY": 0,
+          "opacity": 0.9,
+          "scale": 1
+        },
         "kind": "background",
         "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
         "name": "Generovaný podklad",
@@ -542,6 +675,7 @@
         "editable": true,
         "enabled": true,
         "id": "4d00eda2-833d-542e-86f2-f27037262742",
+        "image_settings": {},
         "kind": "pegs",
         "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
         "name": "Lovné miesta",
@@ -554,6 +688,7 @@
         "editable": true,
         "enabled": false,
         "id": "3c2a9166-6b4e-52a2-846f-9919bb38628b",
+        "image_settings": {},
         "kind": "service",
         "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
         "name": "Servisné body",
@@ -595,6 +730,8 @@
             "y": 47
           }
         ],
+        "tournament_id": null,
+        "tournament_sector_id": null,
         "tone": "reed",
         "type": "island",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
@@ -623,6 +760,8 @@
             "y": 45
           }
         ],
+        "tournament_id": null,
+        "tournament_sector_id": null,
         "tone": "warning",
         "type": "zone",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
@@ -651,6 +790,218 @@
             "y": 40
           }
         ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": null,
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "ff153e31-dfec-50cd-aa01-c5048aef55f1",
+        "label": "Sektor A1",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 72,
+            "y": 58
+          },
+          {
+            "x": 84,
+            "y": 58
+          },
+          {
+            "x": 84,
+            "y": 70
+          },
+          {
+            "x": 72,
+            "y": 70
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "d5a36e48-c6ed-5dfa-b1bf-0c9dbf63aa55",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "ab859da8-9132-58b9-b0ec-6747ee49410a",
+        "label": "Sektor A2",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 68,
+            "y": 42
+          },
+          {
+            "x": 80,
+            "y": 42
+          },
+          {
+            "x": 80,
+            "y": 54
+          },
+          {
+            "x": 68,
+            "y": 54
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "be92bce1-dcd0-54e8-8c4b-995a9d39bbf6",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "43e38b16-6c7b-5cc9-82b3-073ecf29a0ea",
+        "label": "Sektor A3",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 55,
+            "y": 56
+          },
+          {
+            "x": 67,
+            "y": 56
+          },
+          {
+            "x": 67,
+            "y": 68
+          },
+          {
+            "x": 55,
+            "y": 68
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "3e7d0439-056a-500a-83bc-8e7e6865e45e",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "922cf08c-b3a2-571e-9222-96a5e3bc3d79",
+        "label": "Sektor B1",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 42,
+            "y": 53
+          },
+          {
+            "x": 54,
+            "y": 53
+          },
+          {
+            "x": 54,
+            "y": 65
+          },
+          {
+            "x": 42,
+            "y": 65
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "a4430af2-3b63-594c-9e35-6ea37b9ac878",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "65dd7944-1361-5070-aa5b-9bd13aa60399",
+        "label": "Sektor B4",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 37,
+            "y": 22
+          },
+          {
+            "x": 49,
+            "y": 22
+          },
+          {
+            "x": 49,
+            "y": 34
+          },
+          {
+            "x": 37,
+            "y": 34
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "c48c2533-8eb7-5376-8640-542383335732",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "83933298-fefa-5c6f-96e1-9d4100c62328",
+        "label": "Sektor C2",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 19,
+            "y": 62
+          },
+          {
+            "x": 31,
+            "y": 62
+          },
+          {
+            "x": 31,
+            "y": 74
+          },
+          {
+            "x": 19,
+            "y": 74
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "3e4f0e1d-3bce-526e-944f-65c38007e0a3",
+        "tone": "sector",
+        "type": "sector",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
+        "visibility": "competition"
+      },
+      {
+        "id": "47d07bf6-516f-55e0-b680-ab6e151b5dc2",
+        "label": "Sektor D3",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "layer_id": null,
+        "points": [
+          {
+            "x": 9,
+            "y": 33
+          },
+          {
+            "x": 21,
+            "y": 33
+          },
+          {
+            "x": 21,
+            "y": 45
+          },
+          {
+            "x": 9,
+            "y": 45
+          }
+        ],
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
+        "tournament_sector_id": "e392165e-a426-5e33-80c2-70b195e9ac59",
         "tone": "sector",
         "type": "sector",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
@@ -679,6 +1030,8 @@
             "y": 70
           }
         ],
+        "tournament_id": null,
+        "tournament_sector_id": null,
         "tone": "service",
         "type": "service",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
@@ -719,6 +1072,8 @@
             "y": 61
           }
         ],
+        "tournament_id": null,
+        "tournament_sector_id": null,
         "tone": "water",
         "type": "shoreline",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
@@ -1409,7 +1764,7 @@
         "lake_id": null,
         "placement": "súťažná mapa, sektor B4",
         "sponsor_id": "51c7c2b6-21ba-5058-97c4-ee93d0d1f885",
-        "tournament_id": null,
+        "tournament_id": "0bd2f4b5-603f-5fa5-95a4-61530afc5eab",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91"
       }
     ],
@@ -1455,6 +1810,7 @@
         "website": null
       }
     ],
+    "sponsor_assets": [],
     "tournament_catches": [
       {
         "caught_at": "2026-05-17T10:42:00+02:00",

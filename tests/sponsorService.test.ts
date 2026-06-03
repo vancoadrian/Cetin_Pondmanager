@@ -138,6 +138,49 @@ describe('updateSponsorSettings', () => {
     }])
   })
 
+  it('creates reusable source logo metadata for generated variants', () => {
+    const upload = {
+      dataUrl: 'data:image/png;base64,aGVsbG8=',
+      fileName: 'carpgear-source.png',
+      height: 420,
+      mimeType: 'image/png' as const,
+      sizeBytes: 5,
+      width: 1280,
+    }
+    const result = updateSponsorSettings(
+      {
+        sponsors: [{
+          ...sponsor(),
+          logoVariantSourceUpload: upload,
+        }],
+      },
+      {
+        sponsors: [sponsor()],
+      },
+      '2026-05-21T10:45:30.000Z',
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Sponsor update should be valid.')
+
+    expect(result.sponsors[0]).toMatchObject({
+      logoSourceAssetId: 'logo-source-sponsor-carpgear-20260521104530',
+      logoSourceFileName: 'carpgear-source.png',
+      logoSourceHeight: 420,
+      logoSourceMimeType: 'image/png',
+      logoSourceSizeBytes: 5,
+      logoSourceStoragePath: 'sponsor-assets/logo-source-sponsor-carpgear-20260521104530.png',
+      logoSourceUpdatedAt: '2026-05-21T10:45:30.000Z',
+      logoSourceUrl: '/api/sponsor-assets/logo-source-sponsor-carpgear-20260521104530',
+      logoSourceWidth: 1280,
+    })
+    expect(result.logoUploads).toContainEqual({
+      sponsorId: 'sponsor-carpgear',
+      storagePath: 'sponsor-assets/logo-source-sponsor-carpgear-20260521104530.png',
+      upload,
+    })
+  })
+
   it('creates placement-specific logo variants and returns write payloads for them', () => {
     const result = updateSponsorSettings(
       {
@@ -189,6 +232,101 @@ describe('updateSponsorSettings', () => {
         sizeBytes: 5,
         width: 900,
       },
+    })
+  })
+
+  it('stores crop preset metadata for generated logo variants', () => {
+    const cropPreset = {
+      focusXPercent: 35,
+      focusYPercent: 70,
+      mode: 'cover' as const,
+      paddingPercent: 8,
+      sourceFileName: 'carpgear-source.png',
+      sourceHeight: 500,
+      sourceWidth: 1200,
+    }
+    const result = updateSponsorSettings(
+      {
+        sponsors: [{
+          ...sponsor(),
+          logoVariants: [{
+            cropPreset,
+            logoUpload: {
+              dataUrl: 'data:image/png;base64,aGVsbG8=',
+              fileName: 'homepage.png',
+              height: 240,
+              mimeType: 'image/png',
+              sizeBytes: 5,
+              width: 720,
+            },
+            placementType: 'homepage',
+          }],
+        }],
+      },
+      {
+        sponsors: [sponsor()],
+      },
+      '2026-05-21T11:40:00.000Z',
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Sponsor update should be valid.')
+
+    expect(result.sponsors[0]?.logoVariants?.[0]?.cropPreset).toEqual(cropPreset)
+  })
+
+  it('updates existing logo variant crop preset without replacing the asset', () => {
+    const result = updateSponsorSettings(
+      {
+        sponsors: [{
+          ...sponsor(),
+          logoVariants: [{
+            cropPreset: {
+              focusXPercent: 80,
+              focusYPercent: 45,
+              mode: 'cover',
+              paddingPercent: 4,
+            },
+            placementType: 'homepage',
+          }],
+        }],
+      },
+      {
+        sponsors: [sponsor({
+          logoVariants: [{
+            cropPreset: {
+              focusXPercent: 50,
+              focusYPercent: 50,
+              mode: 'contain',
+              paddingPercent: 8,
+            },
+            fileName: 'homepage.webp',
+            height: 300,
+            mimeType: 'image/webp',
+            placementType: 'homepage',
+            sizeBytes: 5,
+            storagePath: 'sponsor-assets/logo-homepage.webp',
+            url: '/api/sponsor-assets/logo-homepage',
+            variantId: 'logo-homepage',
+            width: 900,
+          }],
+        })],
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Sponsor update should be valid.')
+
+    expect(result.logoUploads).toEqual([])
+    expect(result.sponsors[0]?.logoVariants?.[0]).toMatchObject({
+      cropPreset: {
+        focusXPercent: 80,
+        focusYPercent: 45,
+        mode: 'cover',
+        paddingPercent: 4,
+      },
+      url: '/api/sponsor-assets/logo-homepage',
+      variantId: 'logo-homepage',
     })
   })
 
@@ -289,6 +427,51 @@ describe('updateSponsorSettings', () => {
     expect(removed.ok).toBe(true)
     if (!removed.ok) throw new Error('Sponsor update should be valid.')
     expect(removed.sponsors[0]?.logoUrl).toBeUndefined()
+  })
+
+  it('preserves and removes reusable source logo metadata', () => {
+    const existingSponsor = sponsor({
+      logoSourceAssetId: 'logo-source-sponsor-carpgear-old',
+      logoSourceFileName: 'source-old.png',
+      logoSourceHeight: 420,
+      logoSourceMimeType: 'image/png',
+      logoSourceSizeBytes: 15,
+      logoSourceStoragePath: 'sponsor-assets/logo-source-sponsor-carpgear-old.png',
+      logoSourceUpdatedAt: '2026-05-20T10:00:00.000Z',
+      logoSourceUrl: '/api/sponsor-assets/logo-source-sponsor-carpgear-old',
+      logoSourceWidth: 1280,
+    })
+
+    const preserved = updateSponsorSettings(
+      {
+        sponsors: [{
+          ...sponsor(),
+          name: 'CarpGear Pro SK',
+        }],
+      },
+      {
+        sponsors: [existingSponsor],
+      },
+    )
+    const removed = updateSponsorSettings(
+      {
+        sponsors: [{
+          ...sponsor(),
+          removeLogoVariantSource: true,
+        }],
+      },
+      {
+        sponsors: [existingSponsor],
+      },
+    )
+
+    expect(preserved.ok).toBe(true)
+    if (!preserved.ok) throw new Error('Sponsor update should be valid.')
+    expect(preserved.sponsors[0]?.logoSourceUrl).toBe('/api/sponsor-assets/logo-source-sponsor-carpgear-old')
+
+    expect(removed.ok).toBe(true)
+    if (!removed.ok) throw new Error('Sponsor update should be valid.')
+    expect(removed.sponsors[0]?.logoSourceUrl).toBeUndefined()
   })
 
   it('removes a placement-specific logo variant without removing the primary logo', () => {

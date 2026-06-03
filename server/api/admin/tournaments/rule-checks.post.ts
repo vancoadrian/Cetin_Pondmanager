@@ -19,27 +19,29 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await writeLocalTournamentState(result)
-  await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
-      actorId: 'admin',
-      actorLabel: 'Admin',
-      actorRole: 'manager',
-    }),
-    action: 'tournament.rule_check.created',
-    area: 'tournaments',
-    details: {
-      marshalId: result.check.marshalId,
-      result: result.check.result,
-      sectorId: result.check.sectorId,
-    },
-    entityId: result.check.id,
-    entityLabel: result.check.sectorId.toUpperCase(),
-    entityType: 'tournament_rule_check',
-    severity: result.check.result === 'ok' ? 'info' : 'warning',
-    summary: result.check.note,
-    tournamentId: result.check.tournamentId,
-  })
+  if (!result.idempotentReplay) {
+    await writeLocalTournamentState(result)
+    await appendLocalAuditEvent({
+      ...resolveAuditActor(event, {
+        actorId: 'admin',
+        actorLabel: 'Admin',
+        actorRole: 'manager',
+      }),
+      action: 'tournament.rule_check.created',
+      area: 'tournaments',
+      details: {
+        marshalId: result.check.marshalId,
+        result: result.check.result,
+        sectorId: result.check.sectorId,
+      },
+      entityId: result.check.id,
+      entityLabel: result.check.sectorId.toUpperCase(),
+      entityType: 'tournament_rule_check',
+      severity: result.check.result === 'ok' ? 'info' : 'warning',
+      summary: result.check.note,
+      tournamentId: result.check.tournamentId,
+    })
+  }
   setResponseStatus(event, result.statusCode)
 
   return result

@@ -121,6 +121,12 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
     return buildResult('closed', reasons, sourceIds)
   }
 
+  if (peg.status === 'reserved') {
+    reasons.push('Miesto je označené ako rezervované správcom.')
+    sourceIds.push(peg.id)
+    return buildResult('reserved', reasons, sourceIds)
+  }
+
   if (peg.status === 'maintenance') {
     reasons.push('Miesto je označené ako údržba.')
     sourceIds.push(peg.id)

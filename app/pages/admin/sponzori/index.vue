@@ -5,6 +5,7 @@ import type { SponsorLogoUpload, SponsorMutationSuccess } from '~/services/spons
 import {
   calculateSponsorLogoDrawBox,
   getSponsorLogoVariantTargets,
+  normalizeSponsorLogoFocusPercent,
   sponsorLogoVariantPlacementOrder,
   type SponsorLogoVariantMode,
 } from '~/utils/sponsorLogoVariants'
@@ -25,12 +26,14 @@ type SponsorDraft = Omit<Sponsor, 'logoVariants'> & {
   logoVariantSourceDataUrl?: string
   logoVariantSourceFileName?: string
   logoVariantSourcePreviewUrl?: string
+  logoVariantSourceUpload?: SponsorLogoUpload
   logoVariantSourceHeight?: number
   logoVariantSourceWidth?: number
   logoVariantGenerateMode?: SponsorLogoVariantMode
   logoVariantGeneratePadding?: number
   logoVariants?: SponsorLogoVariantDraft[]
   removeLogo?: boolean
+  removeLogoVariantSource?: boolean
 }
 
 const { tournaments } = usePondData()
@@ -174,10 +177,16 @@ function sponsorLogoPreview(sponsor: SponsorDraft) {
 }
 
 function createLogoVariantDrafts(variants: SponsorLogoVariant[] = []): SponsorLogoVariantDraft[] {
-  return logoVariantPlacementTypes.map((placementType) => ({
-    ...variants.find((variant) => variant.placementType === placementType),
-    placementType,
-  }))
+  return logoVariantPlacementTypes.map((placementType) => {
+    const variant = variants.find((item) => item.placementType === placementType)
+
+    return {
+      ...variant,
+      generateFocusX: variant?.cropPreset?.focusXPercent,
+      generateFocusY: variant?.cropPreset?.focusYPercent,
+      placementType,
+    }
+  })
 }
 
 function getLogoVariantDraft(sponsor: SponsorDraft, placementType: SponsorPlacementType) {
@@ -225,30 +234,101 @@ function logoVariantTargetSummary() {
 }
 
 function sponsorLogoVariantSourcePreview(sponsor: SponsorDraft) {
-  return sponsor.logoVariantSourcePreviewUrl || sponsor.logoVariantSourceDataUrl || sponsorLogoPreview(sponsor)
+  return sponsor.logoVariantSourcePreviewUrl
+    || sponsor.logoVariantSourceDataUrl
+    || sponsor.logoSourceUrl
+    || sponsorLogoPreview(sponsor)
 }
 
 function sponsorLogoVariantSourceDimensions(sponsor: SponsorDraft) {
-  const width = sponsor.logoVariantSourceWidth ?? sponsor.logoUpload?.width ?? sponsor.logoWidth
-  const height = sponsor.logoVariantSourceHeight ?? sponsor.logoUpload?.height ?? sponsor.logoHeight
+  const width = sponsor.logoVariantSourceWidth
+    ?? sponsor.logoVariantSourceUpload?.width
+    ?? sponsor.logoSourceWidth
+    ?? sponsor.logoUpload?.width
+    ?? sponsor.logoWidth
+  const height = sponsor.logoVariantSourceHeight
+    ?? sponsor.logoVariantSourceUpload?.height
+    ?? sponsor.logoSourceHeight
+    ?? sponsor.logoUpload?.height
+    ?? sponsor.logoHeight
 
   return width && height ? `${width} x ${height} px` : ''
 }
 
 function sponsorLogoVariantGenerateMode(sponsor: SponsorDraft): SponsorLogoVariantMode {
-  return sponsor.logoVariantGenerateMode ?? 'contain'
+  return sponsor.logoVariantGenerateMode
+    ?? sponsor.logoVariants?.find((variant) => variant.cropPreset)?.cropPreset?.mode
+    ?? 'contain'
 }
 
 function sponsorLogoVariantGeneratePadding(sponsor: SponsorDraft) {
-  return sponsor.logoVariantGeneratePadding ?? 8
+  return sponsor.logoVariantGeneratePadding
+    ?? sponsor.logoVariants?.find((variant) => variant.cropPreset)?.cropPreset?.paddingPercent
+    ?? 8
 }
 
 function logoVariantFocusX(variant: SponsorLogoVariantDraft) {
-  return variant.generateFocusX ?? 50
+  return variant.generateFocusX ?? variant.cropPreset?.focusXPercent ?? 50
 }
 
 function logoVariantFocusY(variant: SponsorLogoVariantDraft) {
-  return variant.generateFocusY ?? 50
+  return variant.generateFocusY ?? variant.cropPreset?.focusYPercent ?? 50
+}
+
+function logoVariantTarget(placementType: SponsorPlacementType) {
+  return logoVariantTargets.find((target) => target.placementType === placementType)
+    ?? {
+        height: sponsorLogoPlacementRules.sponsors.minHeight,
+        label: sponsorLogoPlacementRules.sponsors.label,
+        placementType: 'sponsors' as const,
+        ratio: sponsorLogoPlacementRules.sponsors.minWidth / sponsorLogoPlacementRules.sponsors.minHeight,
+        width: sponsorLogoPlacementRules.sponsors.minWidth,
+      }
+}
+
+function logoVariantCropPreviewStyle(sponsor: SponsorDraft, variant: SponsorLogoVariantDraft) {
+  const target = logoVariantTarget(variant.placementType)
+  const source = sponsorLogoVariantSourcePreview(sponsor)
+
+  return {
+    aspectRatio: `${target.width} / ${target.height}`,
+    backgroundImage: source ? `url(${source})` : undefined,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: `${logoVariantFocusX(variant)}% ${logoVariantFocusY(variant)}%`,
+    backgroundSize: sponsorLogoVariantGenerateMode(sponsor) === 'cover' ? 'cover' : 'contain',
+  }
+}
+
+function canUseLogoVariantCropEditor(sponsor: SponsorDraft) {
+  return canOperateSponsors.value && Boolean(sponsorLogoVariantSourcePreview(sponsor))
+}
+
+function setLogoVariantFocusFromPointer(variant: SponsorLogoVariantDraft, event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  const focus = normalizeSponsorLogoFocusPercent({
+    x: ((event.clientX - rect.left) / rect.width) * 100,
+    y: ((event.clientY - rect.top) / rect.height) * 100,
+  })
+  variant.generateFocusX = focus.x
+  variant.generateFocusY = focus.y
+}
+
+function handleLogoVariantFocusPointerDown(variant: SponsorLogoVariantDraft, event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+
+  target.setPointerCapture?.(event.pointerId)
+  setLogoVariantFocusFromPointer(variant, event)
+}
+
+function handleLogoVariantFocusPointerMove(variant: SponsorLogoVariantDraft, event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target?.hasPointerCapture?.(event.pointerId)) return
+
+  setLogoVariantFocusFromPointer(variant, event)
 }
 
 function logoRuleViolation(upload: SponsorLogoUpload, placementType: SponsorPlacementType) {
@@ -332,6 +412,25 @@ function sponsorLogoVariantFileName(sourceName: string, placementType: SponsorPl
   return `${cleanBase}-${placementType}.png`
 }
 
+function createLogoVariantCropPreset(
+  sponsor: SponsorDraft,
+  variant: SponsorLogoVariantDraft,
+  image: HTMLImageElement,
+): NonNullable<SponsorLogoVariant['cropPreset']> {
+  const preset: NonNullable<SponsorLogoVariant['cropPreset']> = {
+    focusXPercent: logoVariantFocusX(variant),
+    focusYPercent: logoVariantFocusY(variant),
+    mode: sponsorLogoVariantGenerateMode(sponsor),
+    paddingPercent: sponsorLogoVariantGeneratePadding(sponsor),
+    sourceHeight: sponsor.logoVariantSourceHeight ?? sponsor.logoSourceHeight ?? sponsor.logoUpload?.height ?? sponsor.logoHeight ?? image.naturalHeight,
+    sourceWidth: sponsor.logoVariantSourceWidth ?? sponsor.logoSourceWidth ?? sponsor.logoUpload?.width ?? sponsor.logoWidth ?? image.naturalWidth,
+  }
+  const sourceFileName = sponsor.logoVariantSourceFileName || sponsor.logoSourceFileName || sponsor.logoFileName
+  if (sourceFileName) preset.sourceFileName = sourceFileName
+
+  return preset
+}
+
 async function renderSponsorLogoVariantUpload(
   image: HTMLImageElement,
   sourceFileName: string,
@@ -394,7 +493,17 @@ async function renderSponsorLogoVariantUpload(
   return upload
 }
 
-function applySponsorLogoVariantUpload(variant: SponsorLogoVariantDraft, upload: SponsorLogoUpload) {
+function applySponsorLogoVariantUpload(
+  variant: SponsorLogoVariantDraft,
+  upload: SponsorLogoUpload,
+  cropPreset?: SponsorLogoVariant['cropPreset'],
+) {
+  if (cropPreset) {
+    variant.cropPreset = cropPreset
+  }
+  else {
+    delete variant.cropPreset
+  }
   variant.fileName = upload.fileName
   variant.height = upload.height
   variant.logoPreviewUrl = upload.dataUrl
@@ -486,14 +595,43 @@ async function handleSponsorLogoVariantSourceFile(sponsor: SponsorDraft, event: 
     sponsor.logoVariantSourceFileName = file.name
     sponsor.logoVariantSourceHeight = dimensions.height
     sponsor.logoVariantSourcePreviewUrl = dataUrl
+    sponsor.logoVariantSourceUpload = {
+      dataUrl,
+      fileName: file.name,
+      height: dimensions.height,
+      mimeType: file.type as SponsorLogoUpload['mimeType'],
+      sizeBytes: file.size,
+      width: dimensions.width,
+    }
     sponsor.logoVariantSourceWidth = dimensions.width
     sponsor.logoVariantGenerateMode = sponsor.logoVariantGenerateMode ?? 'contain'
     sponsor.logoVariantGeneratePadding = sponsor.logoVariantGeneratePadding ?? 8
+    sponsor.removeLogoVariantSource = false
     markSponsorDraftSuccess(`Zdroj ${file.name} je pripravený pre generovanie variantov.`)
   }
   catch (error) {
     markSponsorDraftError(error instanceof Error ? error.message : 'Zdrojové logo sa nepodarilo pripraviť.')
   }
+}
+
+function clearSponsorLogoVariantSource(sponsor: SponsorDraft) {
+  sponsor.logoSourceAssetId = undefined
+  sponsor.logoSourceFileName = undefined
+  sponsor.logoSourceHeight = undefined
+  sponsor.logoSourceMimeType = undefined
+  sponsor.logoSourceSizeBytes = undefined
+  sponsor.logoSourceStoragePath = undefined
+  sponsor.logoSourceUpdatedAt = undefined
+  sponsor.logoSourceUrl = undefined
+  sponsor.logoSourceWidth = undefined
+  sponsor.logoVariantSourceDataUrl = ''
+  sponsor.logoVariantSourceFileName = ''
+  sponsor.logoVariantSourceHeight = undefined
+  sponsor.logoVariantSourcePreviewUrl = ''
+  sponsor.logoVariantSourceUpload = undefined
+  sponsor.logoVariantSourceWidth = undefined
+  sponsor.removeLogoVariantSource = true
+  markSponsorDraftSuccess('Zdroj pre varianty bude po uložení odstránený. Hlavné logo ostane fallback.')
 }
 
 async function generateSponsorLogoVariants(sponsor: SponsorDraft) {
@@ -507,7 +645,7 @@ async function generateSponsorLogoVariants(sponsor: SponsorDraft) {
 
   try {
     const image = await loadImageElement(source)
-    const sourceFileName = sponsor.logoVariantSourceFileName || sponsor.logoFileName || `${sponsor.id}.png`
+    const sourceFileName = sponsor.logoVariantSourceFileName || sponsor.logoSourceFileName || sponsor.logoFileName || `${sponsor.id}.png`
     const mode = sponsorLogoVariantGenerateMode(sponsor)
     const padding = sponsorLogoVariantGeneratePadding(sponsor)
 
@@ -521,7 +659,7 @@ async function generateSponsorLogoVariants(sponsor: SponsorDraft) {
         padding,
         { x: logoVariantFocusX(variant), y: logoVariantFocusY(variant) },
       )
-      applySponsorLogoVariantUpload(variant, upload)
+      applySponsorLogoVariantUpload(variant, upload, createLogoVariantCropPreset(sponsor, variant, image))
     }
 
     markSponsorDraftSuccess(`Vygenerovaných ${logoVariantPlacementTypes.length} variantov pre ${sponsor.name}. Uložte sponzorov.`)
@@ -542,7 +680,7 @@ async function regenerateSponsorLogoVariant(sponsor: SponsorDraft, placementType
 
   try {
     const image = await loadImageElement(source)
-    const sourceFileName = sponsor.logoVariantSourceFileName || sponsor.logoFileName || `${sponsor.id}.png`
+    const sourceFileName = sponsor.logoVariantSourceFileName || sponsor.logoSourceFileName || sponsor.logoFileName || `${sponsor.id}.png`
     const variant = getLogoVariantDraft(sponsor, placementType)
     const upload = await renderSponsorLogoVariantUpload(
       image,
@@ -552,7 +690,7 @@ async function regenerateSponsorLogoVariant(sponsor: SponsorDraft, placementType
       sponsorLogoVariantGeneratePadding(sponsor),
       { x: logoVariantFocusX(variant), y: logoVariantFocusY(variant) },
     )
-    applySponsorLogoVariantUpload(variant, upload)
+    applySponsorLogoVariantUpload(variant, upload, createLogoVariantCropPreset(sponsor, variant, image))
     markSponsorDraftSuccess(`Variant ${placementTypeLabels[placementType]} je prepočítaný podľa ohniska. Uložte sponzorov.`)
   }
   catch (error) {
@@ -744,7 +882,9 @@ async function saveSponsorSettings() {
           id: sponsor.id,
           logoText: sponsor.logoText,
           logoUpload: sponsor.logoUpload,
+          logoVariantSourceUpload: sponsor.logoVariantSourceUpload,
           logoVariants: (sponsor.logoVariants ?? []).map((variant) => ({
+            cropPreset: variant.cropPreset,
             logoUpload: variant.logoUpload,
             placementType: variant.placementType,
             removeLogo: variant.removeLogo ?? false,
@@ -753,6 +893,7 @@ async function saveSponsorSettings() {
           placement: sponsor.placement,
           placementType: sponsor.placementType ?? 'sponsors',
           removeLogo: sponsor.removeLogo ?? false,
+          removeLogoVariantSource: sponsor.removeLogoVariantSource ?? false,
           sectorId: sponsor.sectorId ?? '',
           sortOrder: sponsor.sortOrder ?? 100,
           tier: sponsor.tier,
@@ -1084,7 +1225,7 @@ async function saveSponsorSettings() {
                     <div class="min-w-0">
                       <p class="text-xs font-bold">Zdroj pre varianty</p>
                       <p class="text-foreground-muted truncate text-[11px]">
-                        {{ sponsor.logoVariantSourceFileName || sponsor.logoFileName || 'hlavné logo alebo nový zdroj' }}
+                        {{ sponsor.logoVariantSourceFileName || sponsor.logoSourceFileName || sponsor.logoFileName || 'hlavné logo alebo nový zdroj' }}
                       </p>
                       <p v-if="sponsorLogoVariantSourceDimensions(sponsor)" class="mt-0.5 text-[11px] font-semibold text-primary-800">
                         {{ sponsorLogoVariantSourceDimensions(sponsor) }}
@@ -1109,6 +1250,18 @@ async function saveSponsorSettings() {
                         @change="handleSponsorLogoVariantSourceFile(sponsor, $event)"
                       >
                     </label>
+                    <UButton
+                      v-if="sponsor.logoVariantSourceUpload || sponsor.logoSourceUrl"
+                      type="button"
+                      icon="i-heroicons-x-mark"
+                      color="error"
+                      variant="ghost"
+                      size="xs"
+                      :disabled="!canOperateSponsors"
+                      @click="clearSponsorLogoVariantSource(sponsor)"
+                    >
+                      Odobrať zdroj
+                    </UButton>
                     <label class="block">
                       <span class="sr-only">Režim variantov</span>
                       <select
@@ -1176,9 +1329,33 @@ async function saveSponsorSettings() {
                         <p v-if="logoVariantDimensions(variant)" class="mt-0.5 text-[11px] font-semibold text-primary-800">
                           {{ logoVariantDimensions(variant) }}
                         </p>
+                        <p v-if="variant.cropPreset" class="mt-0.5 text-[11px] font-semibold text-success-700">
+                          Orez {{ variant.cropPreset.mode === 'cover' ? 'vyplniť' : 'celé' }} · {{ variant.cropPreset.focusXPercent }} / {{ variant.cropPreset.focusYPercent }} %
+                        </p>
                       </div>
                     </div>
                     <div class="mt-3 rounded-md border border-border bg-muted p-2">
+                      <button
+                        type="button"
+                        class="relative mb-3 w-full touch-none overflow-hidden rounded-md border border-border bg-white bg-center shadow-inner disabled:cursor-not-allowed disabled:opacity-60"
+                        :aria-label="`Nastaviť ohnisko variantu ${placementTypeLabels[variant.placementType]}`"
+                        :disabled="!canUseLogoVariantCropEditor(sponsor)"
+                        :style="logoVariantCropPreviewStyle(sponsor, variant)"
+                        @pointerdown="handleLogoVariantFocusPointerDown(variant, $event)"
+                        @pointermove="handleLogoVariantFocusPointerMove(variant, $event)"
+                      >
+                        <span
+                          class="absolute h-4 w-4 rounded-full border-2 border-white bg-accent-500 shadow-[0_0_0_1px_rgba(9,56,52,0.8)]"
+                          :style="{
+                            left: `${logoVariantFocusX(variant)}%`,
+                            top: `${logoVariantFocusY(variant)}%`,
+                            transform: 'translate(-50%, -50%)',
+                          }"
+                        />
+                        <span class="absolute inset-x-0 top-1/2 border-t border-white/70" />
+                        <span class="absolute inset-y-0 left-1/2 border-l border-white/70" />
+                        <span class="sr-only">Kliknutím alebo potiahnutím nastavíte ohnisko orezu.</span>
+                      </button>
                       <div class="grid gap-2 sm:grid-cols-2">
                         <label class="block">
                           <span class="flex items-center justify-between text-[11px] font-semibold text-foreground-muted">

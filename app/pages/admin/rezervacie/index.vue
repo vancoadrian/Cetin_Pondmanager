@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LakeSlug, PaymentMethod, RentalBooking, Reservation } from '~/data/pond'
+import type { MapStateResponse } from '~/services/mapApiService'
 import type { PaymentMethodMutationSuccess } from '~/services/paymentMethodService'
 import type {
   ReservationDecisionSuccess,
@@ -14,9 +15,12 @@ import { getRentalAvailability } from '~/utils/rentals'
 useHead({ title: 'Admin rezervácie' })
 
 const {
-  cabinProducts,
+  cabinProducts: seedCabinProducts,
   getLakeName,
   getPegLabel,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
   pegs,
   permitProducts,
   rentalBookings,
@@ -36,6 +40,22 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
     default: fallbackReservationState,
   },
 )
+const fallbackMapState = (): MapStateResponse => ({
+  ok: true,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
+  pegs,
+  updatedAt: 'seed',
+})
+const { data: mapState } = await useAsyncData<MapStateResponse>(
+  'admin-reservation-map-state',
+  () => $fetch<MapStateResponse>('/api/map'),
+  {
+    default: fallbackMapState,
+  },
+)
+const { liveCabinProducts } = await useCabinCatalogState({ admin: true, key: 'admin-reservation-cabin-catalog-state' })
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-reservation-closure-state' })
 const {
   enabledPaymentMethods,
@@ -83,9 +103,17 @@ const adminReservationSubmitMessage = ref('')
 const paymentMethodSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const paymentMethodSubmitMessage = ref('')
 const paymentMethodDraft = ref<PaymentMethod[]>([])
+const livePegs = computed(() => mapState.value?.pegs ?? pegs)
+const activeCabinProducts = computed(() =>
+  liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts,
+)
 
 function getFirstPegId(lake: LakeSlug) {
-  return pegs.find((peg) => peg.lake === lake)?.id ?? ''
+  return livePegs.value.find((peg) => peg.lake === lake)?.id ?? ''
+}
+
+function getLivePegLabel(pegId: string) {
+  return livePegs.value.find((peg) => peg.id === pegId)?.label ?? getPegLabel(pegId)
 }
 
 const createDefaultAdminReservationDraft = () => ({
@@ -151,13 +179,13 @@ const reservationStats = computed(() => ({
 }))
 
 const adminReservationPegs = computed(() =>
-  pegs.filter((peg) => peg.lake === adminReservationDraft.lake),
+  livePegs.value.filter((peg) => peg.lake === adminReservationDraft.lake),
 )
 const adminReservationSelectedPeg = computed(() =>
   adminReservationPegs.value.find((peg) => peg.id === adminReservationDraft.pegId),
 )
 const adminReservationCabin = computed(() =>
-  cabinProducts.find((cabin) => cabin.pegIds.includes(adminReservationDraft.pegId)),
+  activeCabinProducts.value.find((cabin) => cabin.pegIds.includes(adminReservationDraft.pegId)),
 )
 const adminReservationAvailableExtras = computed(() =>
   activeReservationExtras.value.filter((extra) => {
@@ -207,6 +235,12 @@ watch(
   },
 )
 
+watch(adminReservationPegs, (rows) => {
+  if (!rows.some((peg) => peg.id === adminReservationDraft.pegId)) {
+    adminReservationDraft.pegId = rows[0]?.id ?? ''
+  }
+})
+
 watch(
   adminReservationAvailableExtras,
   (extras) => {
@@ -248,7 +282,7 @@ const conflictingClosures = computed(() =>
   liveClosures.value.filter((closure) => closure.affectsReservations),
 )
 const pegAvailabilityRows = computed(() =>
-  pegs
+  livePegs.value
     .filter((peg) => selectedLake.value === 'all' || peg.lake === selectedLake.value)
     .map((peg) => ({
       availability: getPegAvailability(peg, { closures: liveClosures.value, reservations: adminReservations.value }),
@@ -278,7 +312,7 @@ const calendarGridTemplate = computed(() =>
 const calendarTableMinWidth = computed(() =>
   `${160 + calendarDays.value.length * (calendarMode.value === 'month' ? 88 : 104)}px`,
 )
-const calendarLakePegs = computed(() => pegs.filter((peg) => peg.lake === calendarLake.value))
+const calendarLakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === calendarLake.value))
 const calendarRows = computed(() =>
   calendarLakePegs.value.map((peg) => ({
     peg,
@@ -330,7 +364,7 @@ const calendarSummary = computed(() => {
 })
 
 const selectedPeg = computed(() =>
-  selectedReservation.value ? pegs.find((peg) => peg.id === selectedReservation.value?.pegId) : undefined,
+  selectedReservation.value ? livePegs.value.find((peg) => peg.id === selectedReservation.value?.pegId) : undefined,
 )
 const selectedPermit = computed(() =>
   permitProducts.find((permit) => permit.id === selectedReservation.value?.permitId),
@@ -339,10 +373,10 @@ const selectedCabin = computed(() => {
   const reservation = selectedReservation.value
   if (!reservation) return undefined
   if (reservation.cabinProductId) {
-    return cabinProducts.find((cabin) => cabin.id === reservation.cabinProductId)
+    return activeCabinProducts.value.find((cabin) => cabin.id === reservation.cabinProductId)
   }
 
-  return cabinProducts.find((cabin) => cabin.pegIds.includes(reservation.pegId))
+  return activeCabinProducts.value.find((cabin) => cabin.pegIds.includes(reservation.pegId))
 })
 const selectedExtras = computed(() =>
   liveReservationExtras.value.filter((extra) => selectedReservation.value?.extraIds.includes(extra.id)),
@@ -1110,7 +1144,7 @@ async function savePaymentMethodSettings() {
                 <div>
                   <p class="font-bold">{{ reservation.guest }}</p>
                   <p class="text-foreground-muted text-sm">
-                    {{ getLakeName(reservation.lake) }} · {{ getPegLabel(reservation.pegId) }}
+                    {{ getLakeName(reservation.lake) }} · {{ getLivePegLabel(reservation.pegId) }}
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -1162,7 +1196,7 @@ async function savePaymentMethodSettings() {
             <div class="mt-5 grid gap-3 sm:grid-cols-2">
               <div class="rounded-md bg-muted p-3">
                 <p class="text-foreground-muted text-xs">Miesto</p>
-                <p class="font-semibold">{{ getPegLabel(selectedReservation.pegId) }}</p>
+                <p class="font-semibold">{{ getLivePegLabel(selectedReservation.pegId) }}</p>
                 <p v-if="selectedPeg" class="text-foreground-muted mt-1 text-xs">{{ selectedPeg.notes }}</p>
               </div>
               <div class="rounded-md bg-muted p-3">

@@ -6,11 +6,14 @@ export default defineEventHandler(async (event) => {
   const assetId = getRouterParam(event, 'id') ?? ''
   const state = await readLocalSponsorState()
   const sponsor = state.sponsors.find((item) =>
-    item.logoAssetId === assetId || item.logoVariants?.some((variant) => variant.variantId === assetId),
+    item.logoAssetId === assetId
+    || item.logoSourceAssetId === assetId
+    || item.logoVariants?.some((variant) => variant.variantId === assetId),
   )
   const variant = sponsor?.logoVariants?.find((item) => item.variantId === assetId)
-  const logoStoragePath = variant?.storagePath ?? sponsor?.logoStoragePath
-  const logoMimeType = variant?.mimeType ?? sponsor?.logoMimeType
+  const isSource = sponsor?.logoSourceAssetId === assetId
+  const logoStoragePath = variant?.storagePath ?? (isSource ? sponsor?.logoSourceStoragePath : sponsor?.logoStoragePath)
+  const logoMimeType = variant?.mimeType ?? (isSource ? sponsor?.logoSourceMimeType : sponsor?.logoMimeType)
 
   if (!logoMimeType || !logoStoragePath) {
     throw createError({

@@ -5,11 +5,12 @@ import { getPegAvailability } from '~/utils/availability'
 
 useHead({ title: 'Mapa lovných miest' })
 
-const { lakes, mapLayers, mapShapes, pegs, reservations } = usePondData()
+const { lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations } = usePondData()
 const { liveClosures } = await useClosureState({ key: 'public-map-closure-state' })
 
 const fallbackMapState = (): MapStateResponse => ({
   ok: true,
+  mapFacilities,
   mapLayers,
   mapShapes,
   pegs,
@@ -28,12 +29,16 @@ const selectedPegId = ref('vc-03')
 
 const currentLake = computed(() => lakes.find((lake) => lake.slug === selectedLake.value) ?? lakes[0]!)
 const livePegs = computed(() => mapState.value.pegs)
+const liveMapFacilities = computed(() => mapState.value.mapFacilities)
 const liveMapLayers = computed(() => mapState.value.mapLayers)
 const liveMapShapes = computed(() => mapState.value.mapShapes)
-const activeBackgroundImage = computed(() =>
+const activeBackgroundLayer = computed(() =>
   liveMapLayers.value.find(
     (layer) => layer.lake === selectedLake.value && layer.kind === 'background' && layer.enabled,
-  )?.source ?? currentLake.value.mapImage,
+  ),
+)
+const activeBackgroundImage = computed(() =>
+  activeBackgroundLayer.value?.source ?? currentLake.value.mapImage,
 )
 const lakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === selectedLake.value))
 const availabilityRows = computed(() =>
@@ -92,7 +97,9 @@ function selectPeg(peg: Peg) {
       <LakeMap
         :title="currentLake.name"
         :image="activeBackgroundImage"
+        :image-settings="activeBackgroundLayer?.imageSettings"
         :closures="liveClosures"
+        :facilities="liveMapFacilities"
         :points="lakePegs"
         :reservations="reservations"
         :shapes="liveMapShapes"

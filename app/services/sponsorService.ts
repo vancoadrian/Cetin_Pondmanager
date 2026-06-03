@@ -105,6 +105,10 @@ function createLogoVariantAssetId(sponsorId: string, placementType: SponsorLogoV
   return `logo-${safeAssetPart(sponsorId)}-${safeAssetPart(placementType)}-${compactTimestamp(now)}`
 }
 
+function createLogoSourceAssetId(sponsorId: string, now: string) {
+  return `logo-source-${safeAssetPart(sponsorId)}-${compactTimestamp(now)}`
+}
+
 function copyLogoFields(target: Sponsor, source?: Sponsor) {
   if (!source?.logoUrl) return
 
@@ -119,6 +123,20 @@ function copyLogoFields(target: Sponsor, source?: Sponsor) {
   target.logoWidth = source.logoWidth
 }
 
+function copyLogoSourceFields(target: Sponsor, source?: Sponsor) {
+  if (!source?.logoSourceUrl) return
+
+  target.logoSourceAssetId = source.logoSourceAssetId
+  target.logoSourceFileName = source.logoSourceFileName
+  target.logoSourceHeight = source.logoSourceHeight
+  target.logoSourceMimeType = source.logoSourceMimeType
+  target.logoSourceSizeBytes = source.logoSourceSizeBytes
+  target.logoSourceStoragePath = source.logoSourceStoragePath
+  target.logoSourceUpdatedAt = source.logoSourceUpdatedAt
+  target.logoSourceUrl = source.logoSourceUrl
+  target.logoSourceWidth = source.logoSourceWidth
+}
+
 function copyLogoVariants(source?: Sponsor) {
   return source?.logoVariants?.map((variant) => ({ ...variant })) ?? []
 }
@@ -128,6 +146,7 @@ function createLogoVariant(
   placementType: SponsorLogoVariant['placementType'],
   upload: SponsorLogoUpload,
   now: string,
+  cropPreset?: SponsorLogoVariant['cropPreset'],
 ) {
   const variantId = createLogoVariantAssetId(sponsorId, placementType, now)
   const storagePath = `sponsor-assets/${variantId}.${extensionForMimeType(upload.mimeType)}`
@@ -143,6 +162,7 @@ function createLogoVariant(
     variantId,
     width: upload.width,
   }
+  if (cropPreset) variant.cropPreset = cropPreset
 
   return {
     storagePath,
@@ -238,6 +258,30 @@ export function updateSponsorSettings(
       copyLogoFields(nextSponsor, existingSponsor)
     }
 
+    if (sponsor.logoVariantSourceUpload) {
+      const upload = sponsor.logoVariantSourceUpload as SponsorLogoUpload
+      const sourceAssetId = createLogoSourceAssetId(sponsor.id, now)
+      const storagePath = `sponsor-assets/${sourceAssetId}.${extensionForMimeType(upload.mimeType)}`
+
+      nextSponsor.logoSourceAssetId = sourceAssetId
+      nextSponsor.logoSourceFileName = upload.fileName
+      nextSponsor.logoSourceHeight = upload.height
+      nextSponsor.logoSourceMimeType = upload.mimeType
+      nextSponsor.logoSourceSizeBytes = upload.sizeBytes
+      nextSponsor.logoSourceStoragePath = storagePath
+      nextSponsor.logoSourceUpdatedAt = now
+      nextSponsor.logoSourceUrl = `/api/sponsor-assets/${sourceAssetId}`
+      nextSponsor.logoSourceWidth = upload.width
+      logoUploads.push({
+        sponsorId: sponsor.id,
+        storagePath,
+        upload,
+      })
+    }
+    else if (!sponsor.removeLogoVariantSource) {
+      copyLogoSourceFields(nextSponsor, existingSponsor)
+    }
+
     const variantMap = new Map(
       copyLogoVariants(existingSponsor).map((variant) => [variant.placementType, variant]),
     )
@@ -250,7 +294,7 @@ export function updateSponsorSettings(
       if (!variantInput.logoUpload) continue
 
       const upload = variantInput.logoUpload as SponsorLogoUpload
-      const nextVariant = createLogoVariant(sponsor.id, variantInput.placementType, upload, now)
+      const nextVariant = createLogoVariant(sponsor.id, variantInput.placementType, upload, now, variantInput.cropPreset)
       variantMap.set(variantInput.placementType, nextVariant.variant)
       logoUploads.push({
         placementType: variantInput.placementType,
@@ -258,6 +302,19 @@ export function updateSponsorSettings(
         storagePath: nextVariant.storagePath,
         upload,
       })
+      continue
+    }
+
+    for (const variantInput of sponsor.logoVariants) {
+      if (variantInput.removeLogo || variantInput.logoUpload || !variantInput.cropPreset) continue
+
+      const existingVariant = variantMap.get(variantInput.placementType)
+      if (existingVariant) {
+        variantMap.set(variantInput.placementType, {
+          ...existingVariant,
+          cropPreset: variantInput.cropPreset,
+        })
+      }
     }
 
     const logoVariants = [...variantMap.values()].sort((first, second) =>

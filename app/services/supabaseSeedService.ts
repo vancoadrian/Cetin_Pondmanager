@@ -6,6 +6,7 @@ import type {
   ContactInfo,
   Lake,
   LakeClosure,
+  MapFacility,
   MapLayer,
   MapShape,
   PaymentMethod,
@@ -43,6 +44,7 @@ export interface SupabaseSeedSource {
   contactInfo: ContactInfo
   lakeClosures: LakeClosure[]
   lakes: Lake[]
+  mapFacilities: MapFacility[]
   mapLayers: MapLayer[]
   mapShapes: MapShape[]
   pegs: Peg[]
@@ -252,24 +254,66 @@ export function buildSupabaseSeedPayload(
     (marshal) => rowId('tournament_marshals', marshal.id),
   )
   const sponsorIds = mapBy(source.sponsors, (sponsor) => sponsor.id, (sponsor) => rowId('sponsors', sponsor.id))
-  const sponsorAssetRefs = source.sponsors.flatMap((sponsor) => [
-    ...(sponsor.logoStoragePath
-      ? [{
-          altText: sponsor.logoFileName ?? `Logo ${sponsor.name}`,
-          id: sponsor.logoAssetId ?? sponsor.id,
-          sponsorId: sponsor.id,
-          storagePath: sponsor.logoStoragePath,
-        }]
-      : []),
-    ...(sponsor.logoVariants ?? [])
-      .filter((variant) => variant.storagePath)
-      .map((variant) => ({
+  const sponsorAssetRefs: {
+    altText: string
+    id: string
+    metadata: SeedValue
+    sponsorId: string
+    storagePath: string
+  }[] = []
+  for (const sponsor of source.sponsors) {
+    if (sponsor.logoStoragePath) {
+      sponsorAssetRefs.push({
+        altText: sponsor.logoFileName ?? `Logo ${sponsor.name}`,
+        id: sponsor.logoAssetId ?? sponsor.id,
+        metadata: { kind: 'primary' },
+        sponsorId: sponsor.id,
+        storagePath: sponsor.logoStoragePath,
+      })
+    }
+
+    if (sponsor.logoSourceStoragePath) {
+      sponsorAssetRefs.push({
+        altText: sponsor.logoSourceFileName ?? `Zdrojové logo ${sponsor.name}`,
+        id: sponsor.logoSourceAssetId ?? `${sponsor.id}-source`,
+        metadata: {
+          height: sponsor.logoSourceHeight ?? null,
+          kind: 'source',
+          mimeType: sponsor.logoSourceMimeType ?? null,
+          originalFileName: sponsor.logoSourceFileName ?? null,
+          width: sponsor.logoSourceWidth ?? null,
+        },
+        sponsorId: sponsor.id,
+        storagePath: sponsor.logoSourceStoragePath,
+      })
+    }
+
+    for (const variant of sponsor.logoVariants ?? []) {
+      if (!variant.storagePath) continue
+
+      sponsorAssetRefs.push({
         altText: variant.fileName ?? `Logo ${sponsor.name} ${variant.placementType}`,
         id: variant.variantId ?? `${sponsor.id}-${variant.placementType}`,
+        metadata: {
+          cropPreset: variant.cropPreset
+            ? {
+                focusXPercent: variant.cropPreset.focusXPercent,
+                focusYPercent: variant.cropPreset.focusYPercent,
+                mode: variant.cropPreset.mode,
+                paddingPercent: variant.cropPreset.paddingPercent,
+                sourceFileName: variant.cropPreset.sourceFileName ?? null,
+                sourceHeight: variant.cropPreset.sourceHeight ?? null,
+                sourceWidth: variant.cropPreset.sourceWidth ?? null,
+              }
+            : null,
+          kind: 'variant',
+          placementType: variant.placementType,
+        },
         sponsorId: sponsor.id,
-        storagePath: variant.storagePath!,
-      })),
-  ])
+        storagePath: variant.storagePath,
+      })
+    }
+  }
   const sponsorAssetIds = mapBy(
     sponsorAssetRefs,
     (asset) => asset.id,
@@ -399,10 +443,22 @@ export function buildSupabaseSeedPayload(
       summary: lake.summary,
       venue_id: venueId,
     })),
+    map_facilities: source.mapFacilities.map((facility) => ({
+      id: rowId('map_facilities', facility.id),
+      label: facility.label,
+      lake_id: lakeIds[facility.lake]!,
+      map_x: facility.x,
+      map_y: facility.y,
+      notes: facility.notes,
+      type: snakeValue(facility.type),
+      venue_id: venueId,
+      visibility: facility.visibility,
+    })),
     map_layers: source.mapLayers.map((layer, index) => ({
       editable: layer.editable,
       enabled: layer.enabled,
       id: rowId('map_layers', layer.id),
+      image_settings: layer.imageSettings ?? {},
       kind: layer.kind,
       lake_id: lakeIds[layer.lake]!,
       name: layer.name,
@@ -417,6 +473,10 @@ export function buildSupabaseSeedPayload(
       lake_id: lakeIds[shape.lake]!,
       layer_id: null,
       points: shape.points.map((point) => ({ x: point.x, y: point.y })),
+      tournament_id: shape.tournamentId ? tournamentIds[shape.tournamentId] ?? null : null,
+      tournament_sector_id: shape.tournamentId && shape.sectorId
+        ? tournamentSectorIds[`${shape.tournamentId}:${shape.sectorId}`] ?? null
+        : null,
       tone: shape.tone,
       type: shape.type,
       venue_id: venueId,
@@ -597,6 +657,7 @@ export function buildSupabaseSeedPayload(
     sponsor_assets: sponsorAssetRefs.map((asset) => ({
       alt_text: asset.altText,
       id: sponsorAssetIds[asset.id]!,
+      metadata: asset.metadata,
       sponsor_id: sponsorIds[asset.sponsorId]!,
       storage_path: asset.storagePath,
     })),
@@ -781,6 +842,7 @@ export function buildSupabaseSeedPayload(
     catchRecords: catchRecordIds,
     catchPhotos: mapBy(source.catchPhotos, (photo) => photo.id, (photo) => rowId('catch_photos', photo.id)),
     lakes: lakeIds,
+    mapFacilities: mapBy(source.mapFacilities, (facility) => facility.id, (facility) => rowId('map_facilities', facility.id)),
     pegs: pegIds,
     paymentMethods: paymentMethodIds,
     permitProducts: permitProductIds,
@@ -852,6 +914,9 @@ export function validateSupabaseSeedPayload(payload: SupabaseSeedPayload) {
   const requiredTables = [
     'venues',
     'lakes',
+    'map_facilities',
+    'map_layers',
+    'map_shapes',
     'pegs',
     'reservations',
     'payment_methods',

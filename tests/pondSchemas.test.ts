@@ -4,12 +4,19 @@ import {
   catchModerationInputSchema,
   catchRecordInputSchema,
   getValidationMessages,
+  mapBackgroundUploadSchema,
+  mapFacilityInputSchema,
+  mapLayerImageSettingsSchema,
   mapPointDraftSchema,
+  mapShapeInputSchema,
   reservationRequestSchema,
   sponsorSettingsInputSchema,
   tournamentPenaltyInputSchema,
   tournamentRequestInputSchema,
   tournamentRuleCheckInputSchema,
+  tournamentSectorSettingsInputSchema,
+  tournamentTeamRegistrationDecisionInputSchema,
+  tournamentTeamRegistrationInputSchema,
   tripLogbookInputSchema,
 } from '~/app/schemas/pondSchemas'
 
@@ -183,6 +190,29 @@ describe('sponsorSettingsInputSchema', () => {
     expect(result.data.sponsors[0]?.logoUpload?.fileName).toBe('logo.webp')
   })
 
+  it('accepts a reusable variant source logo without placement ratio validation', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoVariantSourceUpload: {
+          dataUrl: 'data:image/png;base64,aGVsbG8=',
+          fileName: 'source-square.png',
+          height: 500,
+          mimeType: 'image/png',
+          sizeBytes: 5,
+          width: 500,
+        },
+        placementType: 'scoreboard',
+        tournamentId: 'eccj-2026',
+      }],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Sponsor source logo should be valid.')
+
+    expect(result.data.sponsors[0]?.logoVariantSourceUpload?.fileName).toBe('source-square.png')
+  })
+
   it('rejects unsupported sponsor logo uploads', () => {
     const result = sponsorSettingsInputSchema.safeParse({
       sponsors: [{
@@ -234,6 +264,15 @@ describe('sponsorSettingsInputSchema', () => {
       sponsors: [{
         ...validSponsor,
         logoVariants: [{
+          cropPreset: {
+            focusXPercent: 40,
+            focusYPercent: 60,
+            mode: 'cover',
+            paddingPercent: 8,
+            sourceFileName: 'homepage-source.png',
+            sourceHeight: 400,
+            sourceWidth: 1200,
+          },
           logoUpload: {
             dataUrl: 'data:image/png;base64,aGVsbG8=',
             fileName: 'homepage.png',
@@ -251,6 +290,7 @@ describe('sponsorSettingsInputSchema', () => {
     if (!result.success) throw new Error('Sponsor logo variant should be valid.')
 
     expect(result.data.sponsors[0]?.logoVariants[0]?.placementType).toBe('homepage')
+    expect(result.data.sponsors[0]?.logoVariants[0]?.cropPreset?.focusXPercent).toBe(40)
   })
 
   it('rejects duplicate sponsor logo variant targets', () => {
@@ -268,6 +308,28 @@ describe('sponsorSettingsInputSchema', () => {
     if (result.success) throw new Error('Duplicate logo variants should be invalid.')
 
     expect(getValidationMessages(result)).toContain('Variant loga je v požiadavke duplicitný: footer.')
+  })
+
+  it('rejects invalid sponsor logo crop preset coordinates', () => {
+    const result = sponsorSettingsInputSchema.safeParse({
+      sponsors: [{
+        ...validSponsor,
+        logoVariants: [{
+          cropPreset: {
+            focusXPercent: 120,
+            focusYPercent: 50,
+            mode: 'cover',
+            paddingPercent: 8,
+          },
+          placementType: 'homepage',
+        }],
+      }],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Crop preset should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Ohnisko X môže byť najviac 100 %.')
   })
 })
 
@@ -402,6 +464,69 @@ describe('tournamentRequestInputSchema', () => {
   })
 })
 
+describe('tournamentTeamRegistrationInputSchema', () => {
+  it('trims contact data and coerces member count', () => {
+    const result = tournamentTeamRegistrationInputSchema.safeParse({
+      city: '  Nitra  ',
+      contactEmail: 'team@example.com',
+      contactName: '  Martin Kontakt  ',
+      contactPhone: '+421 900 123 456',
+      memberCount: '3',
+      note: '',
+      preferredSectorId: '',
+      teamName: '  Junior Carp  ',
+      tournamentId: 'eccj-2026',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Team registration should be valid.')
+
+    expect(result.data).toMatchObject({
+      city: 'Nitra',
+      contactName: 'Martin Kontakt',
+      memberCount: 3,
+      preferredSectorId: undefined,
+      teamName: 'Junior Carp',
+    })
+  })
+
+  it('rejects malformed team contact fields', () => {
+    const result = tournamentTeamRegistrationInputSchema.safeParse({
+      contactEmail: 'nie je email',
+      contactName: 'AB',
+      contactPhone: 'volaj vecer',
+      memberCount: 0,
+      note: '',
+      teamName: 'T',
+      tournamentId: 'eccj-2026',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Team registration should be invalid.')
+
+    const messages = getValidationMessages(result)
+    expect(messages).toContain('E-mail nemá platný formát.')
+    expect(messages).toContain('Kontaktné meno musí mať aspoň 3 znaky.')
+    expect(messages).toContain('Telefón môže obsahovať iba čísla, medzery a znak +.')
+    expect(messages).toContain('Tím musí mať aspoň jedného člena.')
+  })
+})
+
+describe('tournamentTeamRegistrationDecisionInputSchema', () => {
+  it('requires a sector when approving a team registration', () => {
+    const result = tournamentTeamRegistrationDecisionInputSchema.safeParse({
+      action: 'approve',
+      registrationId: 'ttr-1',
+      reviewNote: '',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Team registration decision should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Pri schválení tímu vyberte sektor.')
+  })
+})
+
 describe('tournamentPenaltyInputSchema', () => {
   it('requires duration and rod count for rod-reduction penalties', () => {
     const result = tournamentPenaltyInputSchema.safeParse({
@@ -430,6 +555,58 @@ describe('tournamentPenaltyInputSchema', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe('tournamentSectorSettingsInputSchema', () => {
+  it('normalizes empty team names and coerces numeric map values', () => {
+    const result = tournamentSectorSettingsInputSchema.safeParse({
+      sectors: [
+        {
+          id: 'a1',
+          label: 'A1',
+          team: '',
+          weightKg: '12.5',
+          x: '77.2',
+          y: '64.1',
+        },
+      ],
+      tournamentId: 'eccj-2026',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Tournament sector settings should be valid.')
+
+    expect(result.data.sectors[0]).toMatchObject({
+      team: undefined,
+      weightKg: 12.5,
+      x: 77.2,
+      y: 64.1,
+    })
+  })
+
+  it('rejects overlong labels and map coordinates outside percent bounds', () => {
+    const result = tournamentSectorSettingsInputSchema.safeParse({
+      sectors: [
+        {
+          id: 'a1',
+          label: 'Sektor mimo limitu',
+          team: 'Junior Team A',
+          weightKg: 0,
+          x: 101,
+          y: -1,
+        },
+      ],
+      tournamentId: 'eccj-2026',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Tournament sector settings should be invalid.')
+
+    const messages = getValidationMessages(result)
+    expect(messages).toContain('Označenie sektora môže mať najviac 16 znakov.')
+    expect(messages).toContain('X sektora musí byť v rozsahu 0 až 100.')
+    expect(messages).toContain('Y sektora musí byť v rozsahu 0 až 100.')
   })
 })
 
@@ -488,5 +665,132 @@ describe('mapPointDraftSchema', () => {
     expect(messages).toContain('X musí byť v rozsahu 0 až 100.')
     expect(messages).toContain('Y musí byť v rozsahu 0 až 100.')
     expect(messages).toContain('Brehové miesto nemôže vyžadovať rezerváciu chaty.')
+  })
+})
+
+describe('mapBackgroundUploadSchema', () => {
+  it('accepts a supported map background upload', () => {
+    const result = mapBackgroundUploadSchema.safeParse({
+      dataUrl: 'data:image/webp;base64,aGVsbG8=',
+      fileName: 'map.webp',
+      lake: 'velky-cetin',
+      mimeType: 'image/webp',
+      sizeBytes: 5,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects mismatched upload data urls', () => {
+    const result = mapBackgroundUploadSchema.safeParse({
+      dataUrl: 'data:image/png;base64,aGVsbG8=',
+      fileName: 'map.jpg',
+      lake: 'velky-cetin',
+      mimeType: 'image/jpeg',
+      sizeBytes: 5,
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Map background upload should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Podklad mapy nemá platný dátový formát.')
+  })
+})
+
+describe('mapLayerImageSettingsSchema', () => {
+  it('accepts background image fitting settings', () => {
+    const result = mapLayerImageSettingsSchema.safeParse({
+      fit: 'contain',
+      offsetX: 12,
+      offsetY: -6,
+      opacity: 0.65,
+      scale: 1.4,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects background image settings outside editor limits', () => {
+    const result = mapLayerImageSettingsSchema.safeParse({
+      fit: 'cover',
+      offsetX: 60,
+      offsetY: 0,
+      opacity: 1.4,
+      scale: 3,
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Map background image settings should be invalid.')
+
+    const messages = getValidationMessages(result)
+    expect(messages).toContain('Posun X podkladu môže byť najviac -50 až 50.')
+    expect(messages).toContain('Priehľadnosť podkladu môže byť najviac 100 %.')
+    expect(messages).toContain('Mierka podkladu môže byť najviac 250 %.')
+  })
+})
+
+describe('mapFacilityInputSchema', () => {
+  it('accepts service points placed on the map', () => {
+    const result = mapFacilityInputSchema.safeParse({
+      id: 'facility-vc-shower',
+      lake: 'velky-cetin',
+      label: 'Sprchy',
+      notes: 'Verejne dostupné sprchy.',
+      type: 'shower',
+      visibility: 'public',
+      x: '18.5',
+      y: '71.2',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Map facility should be valid.')
+
+    expect(result.data.x).toBe(18.5)
+  })
+})
+
+describe('mapShapeInputSchema', () => {
+  it('accepts editable polygon areas with at least three points', () => {
+    const result = mapShapeInputSchema.safeParse({
+      id: 'shape-vc-ban',
+      lake: 'velky-cetin',
+      label: 'Dočasný zákaz',
+      points: [
+        { x: 20, y: 20 },
+        { x: 32, y: 20 },
+        { x: 32, y: 33 },
+      ],
+      tone: 'warning',
+      type: 'zone',
+      visibility: 'internal',
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts optional tournament sector links on competition polygons', () => {
+    const result = mapShapeInputSchema.safeParse({
+      id: 'shape-vc-sector-a1',
+      lake: 'velky-cetin',
+      label: 'Sektor A1',
+      points: [
+        { x: 72, y: 58 },
+        { x: 84, y: 58 },
+        { x: 84, y: 70 },
+      ],
+      sectorId: 'a1',
+      tone: 'sector',
+      tournamentId: 'eccj-2026',
+      type: 'sector',
+      visibility: 'competition',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Competition sector shape should be valid.')
+
+    expect(result.data).toMatchObject({
+      sectorId: 'a1',
+      tournamentId: 'eccj-2026',
+    })
   })
 })

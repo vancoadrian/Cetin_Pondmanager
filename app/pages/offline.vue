@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { CatchSubmissionSuccess } from '~/services/catchApiService'
 import type { ReservationSubmissionSuccess } from '~/services/reservationApiService'
-import type { TournamentRequestSubmissionSuccess } from '~/services/tournamentApiService'
+import type {
+  TournamentCatchVerificationSuccess,
+  TournamentPenaltySubmissionSuccess,
+  TournamentRequestSubmissionSuccess,
+  TournamentRuleCheckSubmissionSuccess,
+} from '~/services/tournamentApiService'
 import {
   getOfflineCatchQueueErrorMessage,
   markOfflineCatchAttempt,
@@ -17,6 +22,14 @@ import {
   type OfflineReservationQueueItem,
 } from '~/services/offlineReservationQueueService'
 import {
+  getOfflineTournamentAdminActionQueueErrorMessage,
+  markOfflineTournamentAdminActionAttempt,
+  readOfflineTournamentAdminActionQueue,
+  removeOfflineTournamentAdminAction,
+  withTournamentAdminActionClientMutationId,
+  type OfflineTournamentAdminActionQueueItem,
+} from '~/services/offlineTournamentAdminActionQueueService'
+import {
   getOfflineTournamentRequestQueueErrorMessage,
   markOfflineTournamentRequestAttempt,
   readOfflineTournamentRequestQueue,
@@ -29,12 +42,14 @@ useHead({ title: 'Offline režim' })
 const {
   getLakeName,
   getPegLabel,
+  tournamentPenaltyTypeLabels,
   tournamentRequestTypeLabels,
 } = usePondData()
 
 const offlineReservations = ref<OfflineReservationQueueItem[]>([])
 const offlineCatches = ref<OfflineCatchQueueItem[]>([])
 const offlineTournamentRequests = ref<OfflineTournamentRequestQueueItem[]>([])
+const offlineTournamentAdminActions = ref<OfflineTournamentAdminActionQueueItem[]>([])
 const isOnline = ref(true)
 const queueLoadError = ref('')
 const syncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
@@ -68,12 +83,16 @@ const offlineItems = [
 ]
 
 const totalQueued = computed(() =>
-  offlineReservations.value.length + offlineCatches.value.length + offlineTournamentRequests.value.length,
+  offlineReservations.value.length +
+  offlineCatches.value.length +
+  offlineTournamentRequests.value.length +
+  offlineTournamentAdminActions.value.length,
 )
 const issueCount = computed(() =>
   offlineReservations.value.filter((item) => item.lastError).length +
   offlineCatches.value.filter((item) => item.lastError).length +
-  offlineTournamentRequests.value.filter((item) => item.lastError).length,
+  offlineTournamentRequests.value.filter((item) => item.lastError).length +
+  offlineTournamentAdminActions.value.filter((item) => item.lastError).length,
 )
 
 const queueSections = computed(() => [
@@ -97,6 +116,13 @@ const queueSections = computed(() => [
     icon: 'i-heroicons-flag',
     label: 'Súťažné hlásenia',
     to: '/sutaze',
+  },
+  {
+    count: offlineTournamentAdminActions.value.length,
+    description: 'Overenie váženia, tresty a kontroly sektorov čakajúce na admin dispečing.',
+    icon: 'i-heroicons-clipboard-document-check',
+    label: 'Kontrolórske úkony',
+    to: '/admin/sutaze',
   },
 ])
 
@@ -130,30 +156,60 @@ function getQueueStatusClass(item: { attempts: number, lastError?: string }) {
   return 'bg-primary-50 text-primary-800'
 }
 
-function getQueueActionCopy(kind: 'catch' | 'reservation' | 'tournament-request') {
+function getQueueActionCopy(kind: 'admin-tournament-action' | 'catch' | 'reservation' | 'tournament-request') {
   if (kind === 'reservation') {
     return 'Skontroluj termín, miesto alebo dostupnosť výbavy v rezervačnom formulári.'
   }
   if (kind === 'catch') {
     return 'Skontroluj jazero, lovné miesto alebo väzbu na zápisník v denníku úlovkov.'
   }
+  if (kind === 'admin-tournament-action') {
+    return 'Skontroluj súťažný stav, sektor, kontrolóra alebo konkrétny úlovok v admin dispečingu.'
+  }
 
   return 'Skontroluj sektor, typ hlásenia alebo popis v súťažnom formulári.'
+}
+
+function getAdminTournamentActionLabel(item: OfflineTournamentAdminActionQueueItem) {
+  if (item.payload.kind === 'catch-verification') {
+    return item.payload.payload.status === 'verified'
+      ? 'Overenie váženia'
+      : 'Sporné váženie'
+  }
+  if (item.payload.kind === 'penalty') {
+    return tournamentPenaltyTypeLabels[item.payload.payload.type]
+  }
+
+  return item.payload.payload.result === 'ok'
+    ? 'Kontrola sektora OK'
+    : item.payload.payload.result === 'warning'
+      ? 'Napomenutie pri kontrole'
+      : 'Kontrola s trestom'
+}
+
+function getAdminTournamentActionTarget(item: OfflineTournamentAdminActionQueueItem) {
+  if (item.payload.kind === 'catch-verification') {
+    return `úlovok ${item.payload.payload.catchId}`
+  }
+
+  return `sektor ${item.payload.payload.sectorId.toUpperCase()}`
 }
 
 async function refreshOfflineQueues() {
   if (!import.meta.client) return
 
   try {
-    const [reservations, catches, tournamentRequests] = await Promise.all([
+    const [reservations, catches, tournamentRequests, tournamentAdminActions] = await Promise.all([
       readOfflineReservationQueue(),
       readOfflineCatchQueue(),
       readOfflineTournamentRequestQueue(),
+      readOfflineTournamentAdminActionQueue(),
     ])
 
     offlineReservations.value = reservations
     offlineCatches.value = catches
     offlineTournamentRequests.value = tournamentRequests
+    offlineTournamentAdminActions.value = tournamentAdminActions
     queueLoadError.value = ''
   }
   catch (error) {
@@ -161,7 +217,7 @@ async function refreshOfflineQueues() {
   }
 }
 
-async function discardQueuedItem(kind: 'catch' | 'reservation' | 'tournament-request', id: string) {
+async function discardQueuedItem(kind: 'admin-tournament-action' | 'catch' | 'reservation' | 'tournament-request', id: string) {
   try {
     if (kind === 'reservation') {
       await removeOfflineReservation(id)
@@ -169,8 +225,11 @@ async function discardQueuedItem(kind: 'catch' | 'reservation' | 'tournament-req
     else if (kind === 'catch') {
       await removeOfflineCatch(id)
     }
-    else {
+    else if (kind === 'tournament-request') {
       await removeOfflineTournamentRequest(id)
+    }
+    else {
+      await removeOfflineTournamentAdminAction(id)
     }
 
     await refreshOfflineQueues()
@@ -246,6 +305,46 @@ async function syncAllQueues() {
     }
   }
 
+  for (const item of [...offlineTournamentAdminActions.value]) {
+    try {
+      const payload = withTournamentAdminActionClientMutationId(item.payload, { id: item.id })
+
+      if (payload.kind === 'catch-verification') {
+        await $fetch<TournamentCatchVerificationSuccess>(
+          `/api/admin/tournaments/catches/${payload.payload.catchId}/verify`,
+          {
+            body: {
+              marshalId: payload.payload.marshalId,
+              clientMutationId: payload.payload.clientMutationId,
+              status: payload.payload.status,
+            },
+            method: 'POST',
+          },
+        )
+      }
+      else if (payload.kind === 'penalty') {
+        await $fetch<TournamentPenaltySubmissionSuccess>('/api/admin/tournaments/penalties', {
+          body: payload.payload,
+          method: 'POST',
+        })
+      }
+      else {
+        await $fetch<TournamentRuleCheckSubmissionSuccess>('/api/admin/tournaments/rule-checks', {
+          body: payload.payload,
+          method: 'POST',
+        })
+      }
+      await removeOfflineTournamentAdminAction(item.id)
+      syncedCount += 1
+    }
+    catch (error) {
+      await markOfflineTournamentAdminActionAttempt(
+        item.id,
+        getOfflineTournamentAdminActionQueueErrorMessage(error),
+      )
+    }
+  }
+
   await refreshOfflineQueues()
   syncStatus.value = totalQueued.value > 0 ? 'error' : 'success'
   syncMessage.value = totalQueued.value > 0
@@ -285,7 +384,7 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="PWA"
       title="Offline režim"
-      description="Aplikácia používa uloženú verziu stránok a dát. Čakajúce rezervácie, úlovky a súťažné hlásenia vieš skontrolovať a odoslať z jedného miesta."
+      description="Aplikácia používa uloženú verziu stránok a dát. Čakajúce rezervácie, úlovky, súťažné hlásenia a kontrolórske úkony vieš skontrolovať a odoslať z jedného miesta."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -315,7 +414,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Čaká v zariadení</p>
           <p class="mt-2 text-3xl font-bold">{{ totalQueued }}</p>
@@ -371,7 +470,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-3">
+      <div class="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <section class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -568,6 +667,69 @@ onBeforeUnmount(() => {
             v-else
             title="Bez čakajúcich hlásení"
             description="Súťažný formulár nemá v tomto zariadení uložený offline odosielací rad."
+          />
+        </section>
+
+        <section class="rounded-card border border-border bg-surface p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold">Kontrolórske úkony</h2>
+              <p class="text-foreground-muted mt-1 text-sm">
+                Váženia, tresty a kontroly sektorov z admin dispečingu.
+              </p>
+            </div>
+            <UButton to="/admin/sutaze" icon="i-heroicons-shield-check" size="sm" variant="soft">
+              Admin
+            </UButton>
+          </div>
+
+          <div v-if="offlineTournamentAdminActions.length" class="mt-4 space-y-3">
+            <div
+              v-for="item in offlineTournamentAdminActions"
+              :key="item.id"
+              class="rounded-md border bg-white p-3"
+              :class="item.lastError ? 'border-error-500/30' : 'border-border'"
+            >
+              <div class="min-w-0">
+                <p class="truncate font-bold">{{ getAdminTournamentActionLabel(item) }}</p>
+                <p class="text-foreground-muted mt-1 text-sm">{{ getAdminTournamentActionTarget(item) }}</p>
+                <p class="text-foreground-muted mt-1 text-xs">{{ formatDateTime(item.createdAt) }}</p>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  class="rounded-md px-2 py-1 text-xs font-bold"
+                  :class="getQueueStatusClass(item)"
+                >
+                  {{ getQueueStatusLabel(item) }}
+                </span>
+                <span class="text-foreground-muted text-xs font-semibold">
+                  {{ getAttemptLabel(item.attempts) }}
+                </span>
+              </div>
+              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
+                <p class="font-bold">{{ item.lastError }}</p>
+                <p class="mt-1">{{ getQueueActionCopy('admin-tournament-action') }}</p>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <UButton to="/admin/sutaze" icon="i-heroicons-pencil-square" size="xs" variant="soft">
+                  Skontrolovať
+                </UButton>
+                <UButton
+                  icon="i-heroicons-trash"
+                  color="error"
+                  size="xs"
+                  variant="ghost"
+                  @click="discardQueuedItem('admin-tournament-action', item.id)"
+                >
+                  Odstrániť
+                </UButton>
+              </div>
+            </div>
+          </div>
+          <AppState
+            v-else
+            title="Bez čakajúcich kontrolórskych úkonov"
+            description="Admin súťažný dispečing nemá v tomto zariadení uložený offline odosielací rad."
           />
         </section>
       </div>

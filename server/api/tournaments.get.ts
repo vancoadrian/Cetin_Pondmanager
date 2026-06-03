@@ -12,6 +12,7 @@ export default defineEventHandler(async (): Promise<TournamentStateResponse> => 
     tournamentPenalties: state.tournamentPenalties,
     tournamentRequests: state.tournamentRequests,
     tournamentRuleChecks: state.tournamentRuleChecks,
+    tournamentTeamRegistrations: state.tournamentTeamRegistrations,
     tournaments: state.tournaments,
     updatedAt: state.updatedAt,
   }

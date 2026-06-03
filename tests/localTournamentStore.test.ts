@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  appendLocalTournamentTeamRegistration,
   appendLocalTournamentRequest,
   readLocalTournamentState,
   writeLocalTournamentState,
@@ -51,6 +52,22 @@ describe('localTournamentStore', () => {
     expect(reread.tournamentRequests[0]?.id).toBe('tr-test-persisted')
   })
 
+  it('persists appended tournament team registrations', async () => {
+    const filePath = await createStorePath()
+    const state = await readLocalTournamentState(filePath)
+    const registration = {
+      ...state.tournamentTeamRegistrations[0]!,
+      id: 'ttr-test-persisted',
+      status: 'submitted' as const,
+      teamName: 'Persisted Team',
+    }
+
+    await appendLocalTournamentTeamRegistration(registration, filePath)
+    const reread = await readLocalTournamentState(filePath)
+
+    expect(reread.tournamentTeamRegistrations[0]?.id).toBe('ttr-test-persisted')
+  })
+
   it('persists admin changes to marshals and requests', async () => {
     const filePath = await createStorePath()
     const state = await readLocalTournamentState(filePath)
@@ -67,6 +84,7 @@ describe('localTournamentStore', () => {
             ? { ...request, status: 'resolved' }
             : request,
         ),
+        tournamentTeamRegistrations: state.tournamentTeamRegistrations,
       },
       filePath,
     )

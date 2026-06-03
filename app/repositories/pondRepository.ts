@@ -9,6 +9,7 @@ import {
   infoSections,
   lakeClosures,
   lakes,
+  mapFacilities,
   mapLayers,
   mapShapes,
   occupancyLegend,
@@ -30,6 +31,8 @@ import {
   tournamentRequestStatusLabels,
   tournamentRequestTypeLabels,
   tournamentRuleChecks,
+  tournamentTeamRegistrations,
+  tournamentTeamRegistrationStatusLabels,
   tournaments,
   tripLogbookEntries,
   tripLogbookModeLabels,
@@ -53,6 +56,7 @@ const pondSeedSnapshot = {
   infoSections,
   lakeClosures,
   lakes,
+  mapFacilities,
   mapLayers,
   mapShapes,
   occupancyLegend,
@@ -74,6 +78,8 @@ const pondSeedSnapshot = {
   tournamentRequestStatusLabels,
   tournamentRequestTypeLabels,
   tournamentRuleChecks,
+  tournamentTeamRegistrations,
+  tournamentTeamRegistrationStatusLabels,
   tournaments,
   tripLogbookEntries,
   tripLogbookModeLabels,
@@ -94,6 +100,6 @@ export function createMockPondRepository(snapshot: PondSnapshot = pondSeedSnapsh
   return {
     getSnapshot: () => snapshot,
     getLakeName,
-    getPegLabel,
+    getPegLabel: (id: string) => snapshot.pegs.find((peg) => peg.id === id)?.label ?? getPegLabel(id),
   }
 }

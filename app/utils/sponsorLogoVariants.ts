@@ -28,6 +28,11 @@ export interface SponsorLogoFocusPoint {
   y: number
 }
 
+export interface SponsorLogoFocusPercent {
+  x: number
+  y: number
+}
+
 export const sponsorLogoVariantPlacementOrder: SponsorLogoVariant['placementType'][] = [
   'homepage',
   'footer',
@@ -55,6 +60,18 @@ export function getSponsorLogoVariantTargets(
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+export function normalizeSponsorLogoFocusPercent(
+  focus: SponsorLogoFocusPercent,
+  step = 5,
+): SponsorLogoFocusPercent {
+  const safeStep = step > 0 ? step : 1
+
+  return {
+    x: clamp(Math.round(focus.x / safeStep) * safeStep, 0, 100),
+    y: clamp(Math.round(focus.y / safeStep) * safeStep, 0, 100),
+  }
 }
 
 export function calculateSponsorLogoDrawBox(

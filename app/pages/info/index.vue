@@ -2,18 +2,23 @@
 useHead({ title: 'Pravidlá a výbava' })
 
 const {
-  cabinProducts,
+  cabinProducts: seedCabinProducts,
   contactInfo,
   infoSections,
   permitProducts,
   requiredEquipment,
 } = usePondData()
 
+const { liveCabinProducts } = await useCabinCatalogState({ key: 'info-cabin-catalog-state' })
 const { livePaymentMethods: sortedPaymentMethods } = await usePaymentMethodState({ key: 'info-payment-method-state' })
 const {
   activeRentalItems,
   activeReservationExtras,
 } = await useRentalCatalogState({ key: 'info-rental-catalog-state' })
+
+const displayedCabinProducts = computed(() =>
+  liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts,
+)
 </script>
 
 <template>
@@ -146,7 +151,7 @@ const {
             <h2 class="text-lg font-bold">Chaty pri lovných miestach</h2>
             <div class="mt-5 grid gap-3 md:grid-cols-2">
               <article
-                v-for="cabin in cabinProducts"
+                v-for="cabin in displayedCabinProducts"
                 :key="cabin.id"
                 class="rounded-md border border-border bg-white p-4"
               >

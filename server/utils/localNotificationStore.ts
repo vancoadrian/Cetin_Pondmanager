@@ -32,6 +32,7 @@ function isNotificationState(value: unknown): value is LocalNotificationState {
     typeof candidate.updatedAt === 'string' &&
     Array.isArray(candidate.alerts) &&
     (candidate.broadcasts === undefined || Array.isArray(candidate.broadcasts)) &&
+    (candidate.deliveryLogs === undefined || Array.isArray(candidate.deliveryLogs)) &&
     (candidate.subscriptions === undefined || Array.isArray(candidate.subscriptions))
   )
 }
@@ -48,6 +49,7 @@ export async function readLocalNotificationState(
         ...cloneNotificationState({
           alerts: parsed.alerts,
           broadcasts: parsed.broadcasts ?? [],
+          deliveryLogs: parsed.deliveryLogs ?? [],
           subscriptions: parsed.subscriptions ?? [],
         }),
         updatedAt: parsed.updatedAt,

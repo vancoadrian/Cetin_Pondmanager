@@ -4,6 +4,15 @@ import type {
   PushSubscriptionMutationSuccess,
   PushUnsubscribeSuccess,
 } from '~/services/notificationService'
+import {
+  createMockPushSubscriptionPayload,
+  createWebPushSubscribeOptions,
+  createWebPushSubscriptionPayload,
+  getClientPushSupport,
+  PUSH_ENDPOINT_STORAGE_KEY,
+  type ClientPushMode,
+  type ClientPushSupport,
+} from '~/services/pushSubscriptionClient'
 
 useHead({ title: 'Výstrahy' })
 
@@ -25,72 +34,68 @@ const { data: notificationState, refresh: refreshNotifications } = await useAsyn
 )
 
 const notificationStatus = ref<'unknown' | 'granted' | 'denied' | 'unsupported'>('unknown')
+const pushSupport = ref<ClientPushSupport>({
+  mode: 'mock',
+  reason: 'missing-notification',
+})
 const requesting = ref(false)
 const subscriptionEndpoint = ref('')
 const subscriptionSubmitMessage = ref('')
 const subscriptionSubmitStatus = ref<'idle' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
 const activeSubscriptionCount = computed(() => notificationState.value?.subscriptionCount ?? 0)
+const pushModeLabel: Record<ClientPushMode, string> = {
+  mock: 'mock fallback',
+  'web-push': 'reálny Web Push',
+}
+const pushSupportReasonLabels: Record<ClientPushSupport['reason'], string> = {
+  'missing-notification': 'Prehliadač nepodporuje notifikácie.',
+  'missing-push-manager': 'Prehliadač nepodporuje Push API.',
+  'missing-service-worker': 'Service worker nie je dostupný.',
+  'missing-vapid-public-key': 'Chýba verejný VAPID kľúč v konfigurácii.',
+  ready: 'Browser endpoint sa uloží ako reálny Web Push odber.',
+}
 
 onMounted(() => {
+  const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
+  pushSupport.value = getClientPushSupport({
+    hasNotification: 'Notification' in window,
+    hasPushManager: 'PushManager' in window,
+    hasServiceWorker: 'serviceWorker' in navigator,
+    vapidPublicKey,
+  })
+
   if (!('Notification' in window)) {
     notificationStatus.value = 'unsupported'
     return
   }
   notificationStatus.value = Notification.permission as 'granted' | 'denied' | 'unknown'
-  subscriptionEndpoint.value = localStorage.getItem('rybolov_cetin_push_endpoint') ?? ''
+  subscriptionEndpoint.value = localStorage.getItem(PUSH_ENDPOINT_STORAGE_KEY) ?? ''
 })
 
-function urlBase64ToUint8Array(value: string) {
-  const padding = '='.repeat((4 - value.length % 4) % 4)
-  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-
-  for (let index = 0; index < rawData.length; index += 1) {
-    outputArray[index] = rawData.charCodeAt(index)
-  }
-
-  return outputArray
-}
-
-function getStoredMockEndpoint() {
-  const existingEndpoint = localStorage.getItem('rybolov_cetin_mock_push_endpoint')
-  if (existingEndpoint) return existingEndpoint
-
-  const endpoint = `mock://rybolov-cetin/${crypto.randomUUID()}`
-  localStorage.setItem('rybolov_cetin_mock_push_endpoint', endpoint)
-
-  return endpoint
-}
-
 async function createSubscriptionPayload(permission: NotificationPermission) {
+  const normalizedPermission = permission === 'granted'
+    ? 'granted'
+    : permission === 'denied' ? 'denied' : 'unknown'
   const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
-  const canUseRealPush = 'serviceWorker' in navigator && 'PushManager' in window && vapidPublicKey
+  pushSupport.value = getClientPushSupport({
+    hasNotification: 'Notification' in window,
+    hasPushManager: 'PushManager' in window,
+    hasServiceWorker: 'serviceWorker' in navigator,
+    vapidPublicKey,
+  })
 
-  if (canUseRealPush) {
+  if (pushSupport.value.mode === 'web-push') {
     const registration = await navigator.serviceWorker.ready
     const existingSubscription = await registration.pushManager.getSubscription()
     const subscription = existingSubscription ?? await registration.pushManager.subscribe({
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-      userVisibleOnly: true,
+      ...createWebPushSubscribeOptions(vapidPublicKey),
     })
-    const payload = subscription.toJSON()
 
-    return {
-      auth: payload.keys?.auth,
-      endpoint: subscription.endpoint,
-      p256dh: payload.keys?.p256dh,
-      permission,
-    }
+    return createWebPushSubscriptionPayload(subscription, normalizedPermission)
   }
 
-  return {
-    auth: 'mock-auth',
-    endpoint: getStoredMockEndpoint(),
-    p256dh: 'mock-p256dh',
-    permission,
-  }
+  return createMockPushSubscriptionPayload(localStorage, normalizedPermission, () => crypto.randomUUID())
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -132,14 +137,14 @@ async function requestNotifications() {
       body: {
         ...subscriptionPayload,
         deviceLabel: 'Web PWA zariadenie',
-        topics: ['weather', 'service', 'reservations'],
+        topics: ['weather', 'service', 'reservations', 'tournaments'],
         userAgent: navigator.userAgent,
       },
       method: 'POST',
     })
 
     subscriptionEndpoint.value = result.subscription.endpoint
-    localStorage.setItem('rybolov_cetin_push_endpoint', result.subscription.endpoint)
+    localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, result.subscription.endpoint)
     subscriptionSubmitStatus.value = 'success'
     subscriptionSubmitMessage.value = result.message
     await refreshNotifications()
@@ -172,7 +177,7 @@ async function disableNotifications() {
       method: 'POST',
     })
 
-    localStorage.removeItem('rybolov_cetin_push_endpoint')
+    localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
     subscriptionEndpoint.value = ''
     subscriptionSubmitStatus.value = 'success'
     subscriptionSubmitMessage.value = result.message
@@ -198,6 +203,12 @@ function alertClass(severity: string) {
     default:
       return 'bg-primary-50 text-primary-700'
   }
+}
+
+function pushModeClass() {
+  return pushSupport.value.mode === 'web-push'
+    ? 'bg-success-500/10 text-success-700'
+    : 'bg-warning-500/10 text-warning-700'
 }
 </script>
 
@@ -237,6 +248,17 @@ function alertClass(severity: string) {
             <p class="text-foreground-muted mt-1 text-xs">
               Aktívne odbery: {{ activeSubscriptionCount }}
             </p>
+            <div class="mt-3 rounded-md border border-border bg-white px-3 py-2">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-foreground-muted text-xs font-semibold uppercase">Režim odberu</p>
+                <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="pushModeClass()">
+                  {{ pushModeLabel[pushSupport.mode] }}
+                </span>
+              </div>
+              <p class="text-foreground-muted mt-2 text-xs">
+                {{ pushSupportReasonLabels[pushSupport.reason] }}
+              </p>
+            </div>
           </div>
 
           <div class="mt-5 grid gap-2 sm:grid-cols-2">

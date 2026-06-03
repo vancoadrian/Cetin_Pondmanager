@@ -6,7 +6,7 @@ PWA prototyp pre správu rybárskeho revíru Štrkovisko Kocka a Veľký Cetín.
 
 - Verejný dashboard s výstrahou, obsadenosťou, mapou a poslednými úlovkami.
 - Obrazovka revírov pre dve susedné jazerá.
-- Interaktívna mapa lovných miest a chát.
+- Interaktívna mapa lovných miest, chát, servisných bodov a polygonových zón.
 - Rezervačný prototyp s obsadenosťou, miestami a formulárom žiadosti.
 - Denník úlovkov s miestom, mierou, váhou, nástrahou, časom, skupinovým zápisníkom, admin schválením, interným reportom a budúcou AI vrstvou.
 - Súťažná mapa sektorov pre kaprárske preteky s kontrolórmi, hláseniami, vážením a trestami.
@@ -45,7 +45,7 @@ Pilotné dáta sú v `app/data/pond.ts`. Sú zámerne typované, aby sa dali nes
 
 Rezervačný workflow už používa aj lokálny runtime stav v `.data/rybolov-cetin/reservation-state.json`. Súbor sa pri prvom API volaní vytvorí zo seed dát, potom doň pribúdajú webové žiadosti a admin rozhodnutia.
 
-Mapový editor používa `.data/rybolov-cetin/map-state.json`. Admin úpravy bodov a aktívnych vrstiev sa ukladajú cez `PUT /api/admin/map`, public mapa číta rovnaký stav cez `GET /api/map`.
+Mapový editor používa `.data/rybolov-cetin/map-state.json` a nahraté podklady ukladá do `.data/rybolov-cetin/map-assets/`. Admin úpravy lovných miest, chát, servisných bodov, polygonových plôch a aktívnych vrstiev sa ukladajú cez `PUT /api/admin/map`, public mapa číta rovnaký stav cez `GET /api/map`.
 
 Notifikácie používajú `.data/rybolov-cetin/notification-state.json`. Verejná stránka číta oznamy cez `GET /api/notifications`, PWA odber uloží cez `POST /api/notifications/subscribe` a vypne cez `POST /api/notifications/unsubscribe`. Admin obrazovka `/admin/notifikacie` číta interný stav cez `GET /api/admin/notifications` a pripraví nový oznam cez `POST /api/admin/notifications/broadcast`; zatiaľ ide o mock dispatcher s audit stopou, pripravený na Web Push po doplnení `NUXT_PUBLIC_VAPID_PUBLIC_KEY`, `RYBOLOV_VAPID_PRIVATE_KEY` a odosielacieho providera.
 

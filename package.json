@@ -15,6 +15,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "push:vapid": "node scripts/generate-vapid-keys.ts",
     "seed:export": "node scripts/export-supabase-seed.ts",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
@@ -28,12 +29,14 @@
     "tailwindcss": "^4.2.4",
     "vue": "^3.5.0",
     "vue-router": "^5.0.6",
+    "web-push": "^3.6.7",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
     "@nuxt/eslint": "^1.0.0",
     "@types/node": "^22.0.0",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.6",

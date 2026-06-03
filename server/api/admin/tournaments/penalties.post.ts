@@ -19,29 +19,31 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await writeLocalTournamentState(result)
-  await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
-      actorId: 'admin',
-      actorLabel: 'Admin',
-      actorRole: 'manager',
-    }),
-    action: 'tournament.penalty.created',
-    area: 'tournaments',
-    details: {
-      durationHours: result.penalty.durationHours ?? null,
-      rodsLess: result.penalty.rodsLess ?? null,
-      sectorId: result.penalty.sectorId,
-      status: result.penalty.status,
-      type: result.penalty.type,
-    },
-    entityId: result.penalty.id,
-    entityLabel: result.penalty.team,
-    entityType: 'tournament_penalty',
-    severity: result.penalty.type === 'warning' ? 'warning' : 'critical',
-    summary: `${result.penalty.team}: ${result.penalty.reason}`,
-    tournamentId: result.penalty.tournamentId,
-  })
+  if (!result.idempotentReplay) {
+    await writeLocalTournamentState(result)
+    await appendLocalAuditEvent({
+      ...resolveAuditActor(event, {
+        actorId: 'admin',
+        actorLabel: 'Admin',
+        actorRole: 'manager',
+      }),
+      action: 'tournament.penalty.created',
+      area: 'tournaments',
+      details: {
+        durationHours: result.penalty.durationHours ?? null,
+        rodsLess: result.penalty.rodsLess ?? null,
+        sectorId: result.penalty.sectorId,
+        status: result.penalty.status,
+        type: result.penalty.type,
+      },
+      entityId: result.penalty.id,
+      entityLabel: result.penalty.team,
+      entityType: 'tournament_penalty',
+      severity: result.penalty.type === 'warning' ? 'warning' : 'critical',
+      summary: `${result.penalty.team}: ${result.penalty.reason}`,
+      tournamentId: result.penalty.tournamentId,
+    })
+  }
   setResponseStatus(event, result.statusCode)
 
   return result

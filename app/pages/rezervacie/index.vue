@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LakeSlug } from '~/data/pond'
+import type { MapStateResponse } from '~/services/mapApiService'
 import type {
   ReservationStateResponse,
   ReservationSubmissionSuccess,
@@ -21,11 +22,14 @@ import { getRentalAvailability } from '~/utils/rentals'
 useHead({ title: 'Rezervácie' })
 
 const {
-  cabinProducts,
+  cabinProducts: seedCabinProducts,
   contactInfo,
   getLakeName,
   getPegLabel,
   lakes,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
   pegs,
   permitProducts,
   rentalBookings,
@@ -46,6 +50,22 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
     default: fallbackReservationState,
   },
 )
+const fallbackMapState = (): MapStateResponse => ({
+  ok: true,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
+  pegs,
+  updatedAt: 'seed',
+})
+const { data: mapState } = await useAsyncData<MapStateResponse>(
+  'public-reservation-map-state',
+  () => $fetch<MapStateResponse>('/api/map'),
+  {
+    default: fallbackMapState,
+  },
+)
+const { liveCabinProducts } = await useCabinCatalogState({ key: 'public-reservation-cabin-catalog-state' })
 const { liveClosures } = await useClosureState({ key: 'public-reservation-closure-state' })
 const { enabledPaymentMethods } = await usePaymentMethodState({ key: 'public-reservation-payment-state' })
 const {
@@ -73,7 +93,8 @@ let offlineSyncInProgress = false
 
 const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
 const liveRentalBookings = computed(() => reservationState.value?.rentalBookings ?? rentalBookings)
-const lakePegs = computed(() => pegs.filter((peg) => peg.lake === selectedLake.value))
+const livePegs = computed(() => mapState.value?.pegs ?? pegs)
+const lakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === selectedLake.value))
 const availabilityRows = computed(() =>
   lakePegs.value.map((peg) => ({
     availability: getPegAvailability(peg, {
@@ -96,7 +117,7 @@ const freeCabins = computed(() =>
 const blockedPegs = computed(() =>
   availabilityRows.value.filter((row) => !row.availability.reservable),
 )
-const selectedPeg = computed(() => pegs.find((peg) => peg.id === selectedPegId.value))
+const selectedPeg = computed(() => livePegs.value.find((peg) => peg.id === selectedPegId.value))
 const selectedAvailability = computed(() =>
   selectedPeg.value
     ? getPegAvailability(selectedPeg.value, {
@@ -111,7 +132,8 @@ const selectedPermit = computed(
   () => permitProducts.find((permit) => permit.id === selectedPermitId.value) ?? permitProducts[2]!,
 )
 const selectedCabin = computed(() =>
-  cabinProducts.find((cabin) => cabin.pegIds.includes(selectedPegId.value)),
+  (liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts)
+    .find((cabin) => cabin.pegIds.includes(selectedPegId.value)),
 )
 const availableExtras = computed(() =>
   activeReservationExtras.value.filter((extra) => {
@@ -189,6 +211,9 @@ const createReservationPayload = (data: OfflineReservationPayload): OfflineReser
 
 const getQueueFallbackErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Offline rezerváciu sa nepodarilo uložiť v zariadení.'
+
+const getLivePegLabel = (pegId: string) =>
+  livePegs.value.find((peg) => peg.id === pegId)?.label ?? getPegLabel(pegId)
 
 async function refreshOfflineReservationQueue() {
   if (!import.meta.client) return
@@ -363,6 +388,12 @@ onBeforeUnmount(() => {
 watch(selectedLake, () => {
   selectedPegId.value = lakePegs.value[0]?.id ?? ''
   cleanSelectedExtras()
+})
+
+watch(lakePegs, (rows) => {
+  if (!rows.some((peg) => peg.id === selectedPegId.value)) {
+    selectedPegId.value = rows[0]?.id ?? ''
+  }
 })
 
 watch(selectedPegId, () => {
@@ -598,7 +629,7 @@ watch(
                 >
                   <div class="min-w-0">
                     <p class="truncate font-bold">
-                      {{ item.payload.contactName }} · {{ getPegLabel(item.payload.pegId) }}
+                      {{ item.payload.contactName }} · {{ getLivePegLabel(item.payload.pegId) }}
                     </p>
                     <p class="text-foreground-muted mt-0.5 text-xs">
                       {{ item.payload.dateFrom }} až {{ item.payload.dateTo }} ·
@@ -912,7 +943,7 @@ watch(
             <h2 class="text-lg font-bold">Aktuálne rezervácie</h2>
             <div class="mt-4 space-y-3">
               <div v-for="reservation in liveReservations" :key="reservation.id" class="bg-muted rounded-md p-3">
-                <p class="font-semibold">{{ getPegLabel(reservation.pegId) }}</p>
+                <p class="font-semibold">{{ getLivePegLabel(reservation.pegId) }}</p>
                 <p class="text-foreground-muted text-sm">
                   {{ getLakeName(reservation.lake) }} · {{ reservation.from }} až {{ reservation.to }}
                 </p>

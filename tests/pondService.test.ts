@@ -182,6 +182,7 @@ describe('createPondService', () => {
       infoSections: [],
       lakeClosures,
       lakes,
+      mapFacilities: [],
       mapLayers: [],
       mapShapes: [],
       occupancyLegend: [],
@@ -203,6 +204,8 @@ describe('createPondService', () => {
       tournamentRequestStatusLabels: {},
       tournamentRequestTypeLabels: {},
       tournamentRuleChecks: [],
+      tournamentTeamRegistrations: [],
+      tournamentTeamRegistrationStatusLabels: {},
       tournaments: [],
       tripLogbookEntries: [],
       tripLogbookModeLabels: {},
@@ -220,6 +223,7 @@ describe('createPondService', () => {
     expect(service.getLakeName('strkovisko-kocka')).toBe('Štrkovisko Kocka')
     expect(service.getPegLabel('vc-01')).toBe('Miesto 1')
     expect(service.listPegsByLake('velky-cetin')).toHaveLength(1)
+    expect(service.listMapFacilitiesByLake('velky-cetin')).toEqual([])
     expect(service.listMapLayersByLake('velky-cetin')).toEqual([])
     expect(service.listMapShapesByLake('velky-cetin')).toEqual([])
   })
