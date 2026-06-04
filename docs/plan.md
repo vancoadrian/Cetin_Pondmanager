@@ -87,8 +87,8 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 ## Fáza 6: PWA a notifikácie
 
 - Pripraviť VAPID kľúče. Env miesta pre public/private kľúč sú pripravené, `pnpm push:vapid` generuje pár kľúčov a `/admin/notifikacie` ukazuje diagnostiku provideru aj chýbajúce premenné.
-- Zaviesť `push_subscriptions`. Prvá lokálna verzia odberov je hotová cez `.data/rybolov-cetin/notification-state.json`; verejná PWA stránka vie vytvoriť reálny browser Web Push odber pri dostupnom service workeri a VAPID kľúči, inak použije mock fallback. Admin notifikácie vedia vytvoriť mock interný odber podľa roly, turnaja, sektora a kontrolóra.
-- Posielať výstrahy pred búrkou, servisné oznamy, zmeny rezervácie a súťažné udalosti. Mock broadcast pre výstrahy a oznamy je hotový v `/admin/notifikacie`; tímové hlásenia a priradenie kontrolóra už automaticky pripravujú broadcast do okruhu `tournaments` vrátane internej audience podľa roly, turnaja, sektora a konkrétneho kontrolóra. Public subscribe interné role neukladá. Delivery log po zariadeniach, provider režimy `mock`, `disabled`, `web-push`, serverový `web-push` adaptér a admin diagnostika sú pripravené; produkcia potrebuje doplniť VAPID kľúče, zapnúť provider a otestovať reálne browser endpointy.
+- Zaviesť `push_subscriptions`. Prvá lokálna verzia odberov je hotová cez `.data/rybolov-cetin/notification-state.json`; verejná PWA stránka vie vytvoriť reálny browser Web Push odber pri dostupnom service workeri a VAPID kľúči, inak použije mock fallback. Admin notifikácie vedia vytvoriť mock interný odber podľa roly, turnaja, sektora a kontrolóra, filtrovať odbery podľa stavu, typu a okruhu a vypnúť konkrétny odber zariadenia bez mazania histórie.
+- Posielať výstrahy pred búrkou, servisné oznamy, zmeny rezervácie a súťažné udalosti. Mock broadcast pre výstrahy a oznamy je hotový v `/admin/notifikacie`; tímové hlásenia a priradenie kontrolóra už automaticky pripravujú broadcast do okruhu `tournaments` vrátane internej audience podľa roly, turnaja, sektora a konkrétneho kontrolóra. Public subscribe interné role neukladá. Delivery log po zariadeniach, provider režimy `mock`, `disabled`, `web-push`, serverový `web-push` adaptér, admin diagnostika, interný testovací broadcast bez verejného alertu, filtrovanie verejných vs. testovacích broadcastov a údržba starých interných testov sú pripravené; produkcia potrebuje doplniť VAPID kľúče, zapnúť provider a otestovať reálne browser endpointy.
 - Podporiť offline-friendly obrazovky pri vode. `/offline`, stavový banner pripojenia, header badge čakajúcich položiek, runtime cache pre kľúčové public API a centrum všetkých čakajúcich offline položiek sú hotové vrátane chybového stavu, počtu pokusov a preklikov do príslušných formulárov.
 - Pridať offline mutačnú frontu pre úlovky. Prvá verzia je hotová cez klientsku IndexedDB frontu, ktorá pri sieťovom zlyhaní podrží validovaný úlovok aj s fotkou v zariadení a po návrate internetu ho odošle na `POST /api/catches`.
 - Pridať offline mutačnú frontu pre súťažné hlásenia tímov. Prvá verzia je hotová cez klientsku IndexedDB frontu, ktorá pri výpadku podrží privolanie kontrolóra, hlásenie porušenia alebo technickú pomoc a po návrate internetu ho odošle na `POST /api/tournament-requests`.
@@ -97,9 +97,10 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 
 ## Fáza 7: Produkčné nasadenie
 
-- Nastaviť environmenty dev/stage/prod.
-- Pridať monitoring a error reporting.
-- Rozšíriť testy pre budúce Supabase mutácie a API routes. Prvá Vitest sada pre availability, rental, reservation workflow, rezervačné API, closure API/store, lokálny store, audit log, Zod formuláre, service kontrakty a mock RBAC guardy je hotová.
+- Nastaviť environmenty dev/stage/prod. Prvá readiness vrstva je hotová cez `RYBOLOV_ENVIRONMENT`, `.env.example`, health check `environment-readiness` a panel „Environment pripravenosť“ v `/admin/system`.
+- Pridať monitoring a error reporting. Prvá verzia je hotová cez `/api/health`, admin modul `/admin/system`, lokálny `error-log.json` a klientsky reporter pre Vue/runtime chyby.
+- Pridať zálohu lokálneho runtime stavu pred Supabase. Prvá verzia je hotová cez `/api/admin/data-export`, manifest/inline asset režimy a panel lokálnych dát v `/admin/system`.
+- Rozšíriť testy pre budúce Supabase mutácie a API routes. Prvá Vitest sada pre availability, rental, reservation workflow, rezervačné API, closure API/store, lokálny store, audit log, error log, observability kontrakt, Zod formuláre, service kontrakty a mock RBAC guardy je hotová.
 - Pripraviť import dát zo súčasných tabuliek alebo ručných zoznamov. Prvý JSON seed export z mock dát je hotový.
 - Prejsť obsah a ceny so správcom revíru.
 

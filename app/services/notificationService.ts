@@ -14,6 +14,9 @@ import {
 import {
   getValidationMessages,
   notificationBroadcastInputSchema,
+  notificationTestCleanupInputSchema,
+  notificationTestBroadcastInputSchema,
+  pushSubscriptionAdminDisableInputSchema,
   pushSubscriptionInputSchema,
   pushUnsubscribeInputSchema,
 } from '~/schemas/pondSchemas'
@@ -86,9 +89,37 @@ export interface NotificationBroadcastSuccess {
   subscriptions: PushSubscriptionRecord[]
 }
 
+export interface NotificationTestBroadcastSuccess {
+  broadcast: NotificationBroadcast
+  broadcasts: NotificationBroadcast[]
+  deliveryLogs: NotificationDeliveryLog[]
+  message: string
+  ok: true
+  statusCode: 201
+  subscriptions: PushSubscriptionRecord[]
+}
+
+export interface NotificationTestCleanupSuccess {
+  alerts: Alert[]
+  broadcasts: NotificationBroadcast[]
+  cutoffAt: string
+  deliveryLogs: NotificationDeliveryLog[]
+  keepRecentTestBroadcasts: number
+  keptRecentTestBroadcastCount: number
+  message: string
+  ok: true
+  olderThanDays: number
+  removedDeliveryLogCount: number
+  removedTestBroadcastCount: number
+  statusCode: 200
+  subscriptions: PushSubscriptionRecord[]
+}
+
 export type PushSubscriptionMutationResult = PushSubscriptionMutationSuccess | NotificationValidationFailure
 export type PushUnsubscribeResult = PushUnsubscribeSuccess | NotificationValidationFailure
 export type NotificationBroadcastResult = NotificationBroadcastSuccess | NotificationValidationFailure
+export type NotificationTestBroadcastResult = NotificationTestBroadcastSuccess | NotificationValidationFailure
+export type NotificationTestCleanupResult = NotificationTestCleanupSuccess | NotificationValidationFailure
 
 export interface NotificationDeliveryRunOptions {
   hasVapidConfig?: boolean
@@ -155,6 +186,12 @@ function compactTimestamp(value: string) {
   return date.toISOString().replace(/\D/g, '').slice(0, 14)
 }
 
+function timestampOrZero(value: string) {
+  const timestamp = Date.parse(value)
+
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
 function uniqueId(baseId: string, existingIds: Set<string>) {
   if (!existingIds.has(baseId)) return baseId
 
@@ -182,6 +219,20 @@ function createBroadcastId(alertId: string, state: NotificationState, now: strin
   const baseId = `broadcast-${compactTimestamp(now)}-${slugify(alertId).slice(0, 28)}`
 
   return uniqueId(baseId, new Set(state.broadcasts.map((item) => item.id)))
+}
+
+function createTestBroadcastAlertId(title: string, state: NotificationState, now: string) {
+  const baseId = `test-${compactTimestamp(now)}-${slugify(title).slice(0, 32)}`
+
+  return uniqueId(baseId, new Set(state.broadcasts.map((item) => item.alertId)))
+}
+
+export function isInternalNotificationAlertId(alertId: string) {
+  return alertId.startsWith('test-')
+}
+
+export function isInternalNotificationBroadcast(broadcast: Pick<NotificationBroadcast, 'alertId'>) {
+  return isInternalNotificationAlertId(broadcast.alertId)
 }
 
 function createDeliveryLogId(
@@ -422,6 +473,39 @@ export function disablePushSubscription(
   }
 }
 
+export function disablePushSubscriptionById(
+  rawInput: unknown,
+  state: NotificationState = createEmptyNotificationState(),
+  now = new Date().toISOString(),
+): PushSubscriptionMutationResult {
+  const inputResult = pushSubscriptionAdminDisableInputSchema.safeParse(rawInput)
+  if (!inputResult.success) {
+    return failure(getValidationMessages(inputResult))
+  }
+
+  const input = inputResult.data
+  const existingSubscription = state.subscriptions.find((subscription) => subscription.id === input.subscriptionId)
+  if (!existingSubscription) {
+    return failure(['Odber notifikácií sa nenašiel.'], 404)
+  }
+
+  const subscription: PushSubscriptionRecord = {
+    ...existingSubscription,
+    enabled: false,
+    lastSeenAt: now,
+    permission: 'denied',
+    updatedAt: now,
+  }
+
+  return {
+    message: `Odber zariadenia ${subscription.deviceLabel} je vypnutý.`,
+    ok: true,
+    statusCode: 200,
+    subscription,
+    subscriptions: state.subscriptions.map((item) => item.id === subscription.id ? subscription : item),
+  }
+}
+
 export function createNotificationBroadcast(
   rawInput: unknown,
   state: NotificationState = createEmptyNotificationState(),
@@ -482,6 +566,104 @@ export function createNotificationBroadcast(
   }
 }
 
+export function createNotificationTestBroadcast(
+  rawInput: unknown,
+  state: NotificationState = createEmptyNotificationState(),
+  createdBy = 'Správca',
+  now = new Date().toISOString(),
+): NotificationTestBroadcastResult {
+  const inputResult = notificationTestBroadcastInputSchema.safeParse(rawInput)
+  if (!inputResult.success) {
+    return failure(getValidationMessages(inputResult))
+  }
+
+  const input = inputResult.data
+  const targetTopics = unique(input.targetTopics)
+  const recipientCount = getBroadcastRecipientCount(state.subscriptions, targetTopics)
+  const alertId = createTestBroadcastAlertId(input.title, state, now)
+  const broadcast: NotificationBroadcast = {
+    alertId,
+    body: input.body,
+    createdAt: now,
+    createdBy,
+    id: createBroadcastId(alertId, state, now),
+    message: recipientCount > 0
+      ? `Testovací broadcast pripravený pre ${recipientCount} odberov.`
+      : 'Test nemá žiadny aktívny odber pre zvolené okruhy.',
+    recipientCount,
+    severity: 'info',
+    status: recipientCount > 0 ? 'prepared' : 'skipped',
+    targetTopics,
+    title: input.title,
+    validUntil: 'interný test',
+  }
+
+  return {
+    broadcast,
+    broadcasts: [broadcast, ...state.broadcasts].slice(0, 100),
+    deliveryLogs: state.deliveryLogs,
+    message: broadcast.message,
+    ok: true,
+    statusCode: 201,
+    subscriptions: state.subscriptions,
+  }
+}
+
+export function cleanupNotificationTestBroadcasts(
+  rawInput: unknown,
+  state: NotificationState = createEmptyNotificationState(),
+  now = new Date().toISOString(),
+): NotificationTestCleanupResult {
+  const inputResult = notificationTestCleanupInputSchema.safeParse(rawInput ?? {})
+  if (!inputResult.success) {
+    return failure(getValidationMessages(inputResult))
+  }
+
+  const input = inputResult.data
+  const nowMs = timestampOrZero(now) || Date.now()
+  const cutoffMs = nowMs - input.olderThanDays * 24 * 60 * 60 * 1000
+  const cutoffAt = new Date(cutoffMs).toISOString()
+  const sortedTestBroadcasts = state.broadcasts
+    .filter((broadcast) => isInternalNotificationBroadcast(broadcast))
+    .sort((a, b) => timestampOrZero(b.createdAt) - timestampOrZero(a.createdAt))
+  const keptRecentTestBroadcastIds = new Set(
+    sortedTestBroadcasts
+      .slice(0, input.keepRecentTestBroadcasts)
+      .map((broadcast) => broadcast.id),
+  )
+  const removedTestBroadcastIds = new Set(
+    sortedTestBroadcasts
+      .filter((broadcast) =>
+        !keptRecentTestBroadcastIds.has(broadcast.id) &&
+        timestampOrZero(broadcast.createdAt) < cutoffMs,
+      )
+      .map((broadcast) => broadcast.id),
+  )
+
+  const broadcasts = state.broadcasts.filter((broadcast) => !removedTestBroadcastIds.has(broadcast.id))
+  const deliveryLogs = state.deliveryLogs.filter((log) => !removedTestBroadcastIds.has(log.broadcastId))
+  const removedDeliveryLogCount = state.deliveryLogs.length - deliveryLogs.length
+  const removedTestBroadcastCount = state.broadcasts.length - broadcasts.length
+
+  return {
+    alerts: state.alerts,
+    broadcasts,
+    cutoffAt,
+    deliveryLogs,
+    keepRecentTestBroadcasts: input.keepRecentTestBroadcasts,
+    keptRecentTestBroadcastCount: keptRecentTestBroadcastIds.size,
+    message: removedTestBroadcastCount > 0
+      ? `Údržba vyčistila ${removedTestBroadcastCount} testovacích broadcastov a ${removedDeliveryLogCount} delivery logov.`
+      : 'Údržba testov nenašla žiadny starý interný broadcast na vyčistenie.',
+    ok: true,
+    olderThanDays: input.olderThanDays,
+    removedDeliveryLogCount,
+    removedTestBroadcastCount,
+    statusCode: 200,
+    subscriptions: state.subscriptions,
+  }
+}
+
 function createDeliveryLogMessage(
   provider: NotificationDeliveryProvider,
   hasVapidConfig: boolean,
@@ -524,6 +706,7 @@ function createDeliveryLogMessage(
 export function summarizeNotificationDeliveryLogs(
   logs: NotificationDeliveryLog[],
   recipientCount: number,
+  emptyMessage = 'Notifikácia je uložená ako verejný oznam, zatiaľ nie je aktívny žiadny odber.',
 ) {
   const sentCount = logs.filter((log) => log.status === 'sent').length
   const failedCount = logs.filter((log) => log.status === 'failed').length
@@ -532,7 +715,7 @@ export function summarizeNotificationDeliveryLogs(
 
   if (recipientCount === 0) {
     return {
-      message: 'Notifikácia je uložená ako verejný oznam, zatiaľ nie je aktívny žiadny odber.',
+      message: emptyMessage,
       status: 'skipped' as const,
     }
   }
@@ -598,7 +781,10 @@ export function runNotificationDelivery(
       subscriptionId: subscription.id,
     }
   })
-  const deliverySummary = summarizeNotificationDeliveryLogs(deliveryLogs, recipients.length)
+  const emptyMessage = isInternalNotificationBroadcast(broadcast)
+    ? 'Test nemá žiadny aktívny odber pre zvolené okruhy.'
+    : undefined
+  const deliverySummary = summarizeNotificationDeliveryLogs(deliveryLogs, recipients.length, emptyMessage)
 
   return {
     broadcast: {

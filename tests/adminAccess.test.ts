@@ -20,7 +20,7 @@ describe('admin access matrix', () => {
   it('limits accountant to finance and reporting oriented modules', () => {
     const modules = getAdminModulesForRole('accountant').map((module) => module.id)
 
-    expect(modules).toEqual(['dashboard', 'reservations', 'catches', 'rentals', 'tournaments', 'sponsors', 'audit'])
+    expect(modules).toEqual(['dashboard', 'reservations', 'catches', 'rentals', 'tournaments', 'sponsors', 'system', 'audit'])
     expect(canAccessAdminPath('accountant', '/admin/mapa')).toBe(false)
     expect(canAccessAdminPath('accountant', '/admin/rezervacie')).toBe(true)
   })
@@ -53,6 +53,7 @@ describe('admin access matrix', () => {
     expect(canOperateAdminModule('organizer', 'notifications')).toBe(true)
     expect(canManageAdminModule('organizer', 'notifications')).toBe(false)
     expect(canOperateAdminModule('accountant', 'sponsors')).toBe(false)
+    expect(canOperateAdminModule('accountant', 'system')).toBe(false)
     expect(canOperateAdminModule('worker', 'rentals')).toBe(true)
     expect(canManageAdminModule('worker', 'closures')).toBe(false)
   })

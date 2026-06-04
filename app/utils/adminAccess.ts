@@ -12,6 +12,7 @@ export type AdminModuleId =
   | 'tournaments'
   | 'notifications'
   | 'sponsors'
+  | 'system'
   | 'audit'
 
 export interface AdminModuleDefinition {
@@ -188,6 +189,18 @@ export const adminModules: AdminModuleDefinition[] = [
       owner: 'full',
       manager: 'operate',
       organizer: 'operate',
+      accountant: 'read',
+    },
+  },
+  {
+    id: 'system',
+    label: 'Systém',
+    to: '/admin/system',
+    icon: 'i-heroicons-heart',
+    description: 'Health checky, lokálny error reporting a produkčná pripravenosť.',
+    access: {
+      owner: 'full',
+      manager: 'read',
       accountant: 'read',
     },
   },

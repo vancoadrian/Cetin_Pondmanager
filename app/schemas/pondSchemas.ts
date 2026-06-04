@@ -270,6 +270,10 @@ export const pushUnsubscribeInputSchema = z.object({
   endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
 })
 
+export const pushSubscriptionAdminDisableInputSchema = z.object({
+  subscriptionId: z.string().trim().min(1, 'Chýba ID odberu notifikácií.'),
+})
+
 export const paymentMethodSettingsInputSchema = z.object({
   methods: z.array(z.object({
     enabled: z.boolean(),
@@ -456,6 +460,17 @@ export const notificationBroadcastInputSchema = z.object({
   targetTopics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).min(1, 'Vyberte aspoň jeden okruh notifikácie.'),
   title: z.string().trim().min(3, 'Nadpis musí mať aspoň 3 znaky.').max(80, 'Nadpis môže mať najviac 80 znakov.'),
   validUntil: z.string().trim().min(3, 'Doplňte platnosť výstrahy.').max(60, 'Platnosť môže mať najviac 60 znakov.'),
+})
+
+export const notificationTestBroadcastInputSchema = z.object({
+  body: z.string().trim().min(10, 'Text testu musí mať aspoň 10 znakov.').max(180, 'Text testu môže mať najviac 180 znakov.'),
+  targetTopics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).min(1, 'Vyberte aspoň jeden okruh testu.'),
+  title: z.string().trim().min(3, 'Nadpis testu musí mať aspoň 3 znaky.').max(80, 'Nadpis testu môže mať najviac 80 znakov.'),
+})
+
+export const notificationTestCleanupInputSchema = z.object({
+  keepRecentTestBroadcasts: z.coerce.number().int('Počet ponechaných testov musí byť celé číslo.').min(0, 'Počet ponechaných testov nemôže byť záporný.').max(50, 'Naraz ponechajte najviac 50 testov.').default(10),
+  olderThanDays: z.coerce.number().int('Počet dní musí byť celé číslo.').min(0, 'Počet dní nemôže byť záporný.').max(365, 'Retencia môže byť najviac 365 dní.').default(7),
 })
 
 export const lakeClosureInputSchema = z.object({

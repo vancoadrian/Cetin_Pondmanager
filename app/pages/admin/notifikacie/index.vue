@@ -2,10 +2,13 @@
 import type {
   NotificationBroadcastSuccess,
   NotificationStateResponse,
+  NotificationTestBroadcastSuccess,
+  NotificationTestCleanupSuccess,
   PushSubscriptionMutationSuccess,
 } from '~/services/notificationService'
 import {
   formatNotificationAudience,
+  isInternalNotificationBroadcast,
   notificationAudienceRoleLabels,
   pushSubscriptionTopicLabels,
 } from '~/services/notificationService'
@@ -18,6 +21,11 @@ import type {
 } from '~/data/pond'
 
 useHead({ title: 'Admin notifikácie' })
+
+type NotificationTimelineFilter = 'all' | 'public' | 'test'
+type NotificationSubscriptionScopeFilter = 'all' | 'internal' | 'public'
+type NotificationSubscriptionStatusFilter = 'active' | 'all' | 'disabled'
+type NotificationSubscriptionTopicFilter = PushSubscriptionTopic | 'all'
 
 const { tournaments, tournamentMarshals } = usePondData()
 const fallbackDeliveryDiagnostics: NotificationStateResponse['deliveryDiagnostics'] = {
@@ -65,6 +73,21 @@ const broadcastForm = reactive({
 })
 const broadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const broadcastSubmitMessage = ref('')
+const broadcastFilter = ref<NotificationTimelineFilter>('all')
+const testBroadcastForm = reactive({
+  body: 'Toto je interný test doručenia notifikácie Rybolov Cetín.',
+  targetTopics: ['weather', 'service', 'reservations', 'tournaments'] as PushSubscriptionTopic[],
+  title: 'Test Web Push doručenia',
+})
+const testBroadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const testBroadcastSubmitMessage = ref('')
+const deliveryFilter = ref<NotificationTimelineFilter>('all')
+const testCleanupForm = reactive({
+  keepRecentTestBroadcasts: 10,
+  olderThanDays: 7,
+})
+const testCleanupSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const testCleanupSubmitMessage = ref('')
 const defaultTournament = tournaments[0]
 const defaultMarshal = tournamentMarshals[0]
 const mockSubscriptionForm = reactive({
@@ -77,6 +100,12 @@ const mockSubscriptionForm = reactive({
 })
 const mockSubscriptionSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const mockSubscriptionSubmitMessage = ref('')
+const subscriptionActionId = ref('')
+const subscriptionActionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const subscriptionActionMessage = ref('')
+const subscriptionScopeFilter = ref<NotificationSubscriptionScopeFilter>('all')
+const subscriptionStatusFilter = ref<NotificationSubscriptionStatusFilter>('active')
+const subscriptionTopicFilter = ref<NotificationSubscriptionTopicFilter>('all')
 
 const alerts = computed(() => notificationState.value?.alerts ?? [])
 const broadcasts = computed(() => notificationState.value?.broadcasts ?? [])
@@ -84,6 +113,7 @@ const deliveryDiagnostics = computed(() => notificationState.value?.deliveryDiag
 const deliveryLogs = computed(() => notificationState.value?.deliveryLogs ?? [])
 const subscriptions = computed(() => notificationState.value?.subscriptions ?? [])
 const enabledSubscriptions = computed(() => subscriptions.value.filter((subscription) => subscription.enabled))
+const disabledSubscriptions = computed(() => subscriptions.value.filter((subscription) => !subscription.enabled))
 const availableTopics: PushSubscriptionTopic[] = ['weather', 'service', 'reservations', 'tournaments']
 const internalAudienceRoles: NotificationAudienceRole[] = [
   'owner',
@@ -111,6 +141,67 @@ const isMockSectorScopedRole = computed(() =>
 )
 const mockSubscriptionEndpointPreview = computed(() => createMockSubscriptionEndpoint())
 const missingDeliveryConfig = computed(() => deliveryDiagnostics.value.missingConfigKeys)
+const timelineFilters: { label: string, value: NotificationTimelineFilter }[] = [
+  { label: 'Všetko', value: 'all' },
+  { label: 'Verejné', value: 'public' },
+  { label: 'Testy', value: 'test' },
+]
+const subscriptionStatusFilters: { label: string, value: NotificationSubscriptionStatusFilter }[] = [
+  { label: 'Aktívne', value: 'active' },
+  { label: 'Všetky', value: 'all' },
+  { label: 'Vypnuté', value: 'disabled' },
+]
+const subscriptionScopeFilters: { label: string, value: NotificationSubscriptionScopeFilter }[] = [
+  { label: 'Všetky', value: 'all' },
+  { label: 'Verejné', value: 'public' },
+  { label: 'Interné', value: 'internal' },
+]
+const subscriptionTopicFilters: { label: string, value: NotificationSubscriptionTopicFilter }[] = [
+  { label: 'Všetky', value: 'all' },
+  ...availableTopics.map((topic) => ({
+    label: pushSubscriptionTopicLabels[topic],
+    value: topic,
+  })),
+]
+const broadcastById = computed(() => new Map(broadcasts.value.map((broadcast) => [broadcast.id, broadcast])))
+const publicBroadcasts = computed(() => broadcasts.value.filter((broadcast) => !isTestBroadcast(broadcast)))
+const testBroadcasts = computed(() => broadcasts.value.filter((broadcast) => isTestBroadcast(broadcast)))
+const internalSubscriptions = computed(() => subscriptions.value.filter((subscription) => isInternalSubscription(subscription)))
+const publicSubscriptions = computed(() => subscriptions.value.filter((subscription) => !isInternalSubscription(subscription)))
+const publicDeliveryLogs = computed(() =>
+  deliveryLogs.value.filter((delivery) => {
+    const broadcast = broadcastById.value.get(delivery.broadcastId)
+
+    return broadcast ? !isTestBroadcast(broadcast) : false
+  }),
+)
+const testDeliveryLogs = computed(() =>
+  deliveryLogs.value.filter((delivery) => {
+    const broadcast = broadcastById.value.get(delivery.broadcastId)
+
+    return broadcast ? isTestBroadcast(broadcast) : false
+  }),
+)
+const filteredBroadcasts = computed(() =>
+  broadcasts.value.filter((broadcast) => matchesTimelineFilter(getBroadcastTimelineKind(broadcast), broadcastFilter.value)),
+)
+const filteredDeliveryLogs = computed(() =>
+  deliveryLogs.value.filter((delivery) => {
+    if (deliveryFilter.value === 'all') return true
+
+    const broadcast = broadcastById.value.get(delivery.broadcastId)
+    if (!broadcast) return false
+
+    return matchesTimelineFilter(getBroadcastTimelineKind(broadcast), deliveryFilter.value)
+  }),
+)
+const filteredSubscriptions = computed(() =>
+  subscriptions.value.filter((subscription) =>
+    matchesSubscriptionStatusFilter(subscription, subscriptionStatusFilter.value) &&
+    matchesSubscriptionScopeFilter(subscription, subscriptionScopeFilter.value) &&
+    matchesSubscriptionTopicFilter(subscription, subscriptionTopicFilter.value),
+  ),
+)
 
 function severityClass(severity: AlertSeverity) {
   if (severity === 'storm') return 'bg-error-500/10 text-error-700'
@@ -153,6 +244,114 @@ function formatDurationSeconds(value: number) {
 
 function formatTopics(topics: PushSubscriptionTopic[]) {
   return topics.map((topic) => pushSubscriptionTopicLabels[topic]).join(', ')
+}
+
+function isTestBroadcast(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  return isInternalNotificationBroadcast(broadcast)
+}
+
+function getBroadcastTimelineKind(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  return isTestBroadcast(broadcast) ? 'test' : 'public'
+}
+
+function matchesTimelineFilter(kind: Exclude<NotificationTimelineFilter, 'all'>, filter: NotificationTimelineFilter) {
+  return filter === 'all' || kind === filter
+}
+
+function getBroadcastFilterCount(filter: NotificationTimelineFilter) {
+  if (filter === 'public') return publicBroadcasts.value.length
+  if (filter === 'test') return testBroadcasts.value.length
+
+  return broadcasts.value.length
+}
+
+function getDeliveryFilterCount(filter: NotificationTimelineFilter) {
+  if (filter === 'public') return publicDeliveryLogs.value.length
+  if (filter === 'test') return testDeliveryLogs.value.length
+
+  return deliveryLogs.value.length
+}
+
+function timelineFilterButtonClass(isActive: boolean) {
+  return isActive
+    ? 'border-primary-700 bg-primary-700 text-white'
+    : 'border-border bg-white text-foreground-muted hover:border-primary-700 hover:text-primary-700'
+}
+
+function isInternalSubscription(subscription: NotificationStateResponse['subscriptions'][number]) {
+  return Boolean(
+    subscription.audienceRole ||
+    subscription.marshalId ||
+    subscription.sectorIds?.length ||
+    subscription.tournamentIds?.length,
+  )
+}
+
+function matchesSubscriptionStatusFilter(
+  subscription: NotificationStateResponse['subscriptions'][number],
+  filter: NotificationSubscriptionStatusFilter,
+) {
+  if (filter === 'active') return subscription.enabled
+  if (filter === 'disabled') return !subscription.enabled
+
+  return true
+}
+
+function matchesSubscriptionScopeFilter(
+  subscription: NotificationStateResponse['subscriptions'][number],
+  filter: NotificationSubscriptionScopeFilter,
+) {
+  if (filter === 'internal') return isInternalSubscription(subscription)
+  if (filter === 'public') return !isInternalSubscription(subscription)
+
+  return true
+}
+
+function matchesSubscriptionTopicFilter(
+  subscription: NotificationStateResponse['subscriptions'][number],
+  filter: NotificationSubscriptionTopicFilter,
+) {
+  return filter === 'all' || subscription.topics.includes(filter)
+}
+
+function getSubscriptionStatusFilterCount(filter: NotificationSubscriptionStatusFilter) {
+  if (filter === 'active') return enabledSubscriptions.value.length
+  if (filter === 'disabled') return disabledSubscriptions.value.length
+
+  return subscriptions.value.length
+}
+
+function getSubscriptionScopeFilterCount(filter: NotificationSubscriptionScopeFilter) {
+  if (filter === 'internal') return internalSubscriptions.value.length
+  if (filter === 'public') return publicSubscriptions.value.length
+
+  return subscriptions.value.length
+}
+
+function getSubscriptionTopicFilterCount(filter: NotificationSubscriptionTopicFilter) {
+  if (filter === 'all') return subscriptions.value.length
+
+  return subscriptions.value.filter((subscription) => subscription.topics.includes(filter)).length
+}
+
+function broadcastEmptyMessage() {
+  if (broadcastFilter.value === 'public') return 'Pre verejný filter zatiaľ nie je pripravený žiadny oznam.'
+  if (broadcastFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je pripravený žiadny interný broadcast.'
+
+  return 'Zatiaľ nie je pripravený žiadny broadcast.'
+}
+
+function deliveryEmptyMessage() {
+  if (deliveryFilter.value === 'public') return 'Pre verejný filter zatiaľ nie je zaevidované žiadne doručenie.'
+  if (deliveryFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je zaevidované žiadne doručenie.'
+
+  return 'Zatiaľ nie je zaevidované žiadne doručenie.'
+}
+
+function subscriptionEmptyMessage() {
+  if (subscriptions.value.length === 0) return 'Zatiaľ nie je uložený žiadny push odber.'
+
+  return 'Pre zvolený filter zatiaľ nie je uložený žiadny odber.'
 }
 
 function formatSubscriptionAudience(subscription: NotificationStateResponse['subscriptions'][number]) {
@@ -244,6 +443,63 @@ async function submitBroadcast() {
   }
 }
 
+async function submitTestBroadcast() {
+  if (!canOperateNotifications.value) {
+    testBroadcastSubmitStatus.value = 'error'
+    testBroadcastSubmitMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+  if (testBroadcastForm.targetTopics.length === 0) {
+    testBroadcastSubmitStatus.value = 'error'
+    testBroadcastSubmitMessage.value = 'Vyberte aspoň jeden okruh testu.'
+    return
+  }
+
+  testBroadcastSubmitStatus.value = 'submitting'
+  testBroadcastSubmitMessage.value = ''
+
+  try {
+    const result = await $fetch<NotificationTestBroadcastSuccess>('/api/admin/notifications/test-broadcast', {
+      body: testBroadcastForm,
+      method: 'POST',
+    })
+
+    testBroadcastSubmitStatus.value = 'success'
+    testBroadcastSubmitMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    testBroadcastSubmitStatus.value = 'error'
+    testBroadcastSubmitMessage.value = getApiErrorMessage(error, 'Test doručenia sa nepodarilo spustiť.')
+  }
+}
+
+async function submitTestCleanup() {
+  if (!canOperateNotifications.value) {
+    testCleanupSubmitStatus.value = 'error'
+    testCleanupSubmitMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+
+  testCleanupSubmitStatus.value = 'submitting'
+  testCleanupSubmitMessage.value = ''
+
+  try {
+    const result = await $fetch<NotificationTestCleanupSuccess>('/api/admin/notifications/test-cleanup', {
+      body: testCleanupForm,
+      method: 'POST',
+    })
+
+    testCleanupSubmitStatus.value = 'success'
+    testCleanupSubmitMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    testCleanupSubmitStatus.value = 'error'
+    testCleanupSubmitMessage.value = getApiErrorMessage(error, 'Údržbu testov sa nepodarilo spustiť.')
+  }
+}
+
 async function submitMockSubscription() {
   if (!canOperateNotifications.value) {
     mockSubscriptionSubmitStatus.value = 'error'
@@ -284,6 +540,34 @@ async function submitMockSubscription() {
   catch (error) {
     mockSubscriptionSubmitStatus.value = 'error'
     mockSubscriptionSubmitMessage.value = getApiErrorMessage(error, 'Mock odber sa nepodarilo uložiť.')
+  }
+}
+
+async function disableAdminSubscription(subscription: NotificationStateResponse['subscriptions'][number]) {
+  if (!canOperateNotifications.value) {
+    subscriptionActionId.value = subscription.id
+    subscriptionActionStatus.value = 'error'
+    subscriptionActionMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+
+  subscriptionActionId.value = subscription.id
+  subscriptionActionStatus.value = 'submitting'
+  subscriptionActionMessage.value = ''
+
+  try {
+    const result = await $fetch<PushSubscriptionMutationSuccess>(
+      `/api/admin/notifications/subscriptions/${subscription.id}/disable`,
+      { method: 'POST' },
+    )
+
+    subscriptionActionStatus.value = 'success'
+    subscriptionActionMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    subscriptionActionStatus.value = 'error'
+    subscriptionActionMessage.value = getApiErrorMessage(error, 'Odber sa nepodarilo vypnúť.')
   }
 }
 
@@ -360,12 +644,16 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Broadcasty</p>
           <p class="mt-2 text-3xl font-bold">{{ broadcasts.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">mock dispatcher log</p>
+          <p class="text-foreground-muted mt-1 text-sm">
+            {{ publicBroadcasts.length }} verejné · {{ testBroadcasts.length }} testy
+          </p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Doručenia</p>
           <p class="mt-2 text-3xl font-bold">{{ deliveryLogs.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">záznamy po zariadeniach</p>
+          <p class="text-foreground-muted mt-1 text-sm">
+            {{ publicDeliveryLogs.length }} verejné · {{ testDeliveryLogs.length }} testy
+          </p>
         </div>
       </div>
 
@@ -420,6 +708,136 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
 
       <div class="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div class="space-y-6">
+          <div class="rounded-card border border-border bg-surface p-5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Test doručenia</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Spustí interný broadcast bez pridania verejného oznamu do výstrah.
+                </p>
+              </div>
+              <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
+                bez public alertu
+              </span>
+            </div>
+
+            <fieldset :disabled="!canOperateNotifications" class="contents">
+              <div class="mt-5 grid gap-3">
+                <label class="block">
+                  <span class="text-sm font-semibold">Nadpis</span>
+                  <input
+                    v-model="testBroadcastForm.title"
+                    type="text"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Text</span>
+                  <textarea
+                    v-model="testBroadcastForm.body"
+                    rows="3"
+                    class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <div>
+                  <p class="text-sm font-semibold">Okruhy testu</p>
+                  <div class="mt-2 flex flex-wrap gap-3 text-sm">
+                    <label v-for="topic in availableTopics" :key="topic" class="flex items-center gap-2">
+                      <input
+                        v-model="testBroadcastForm.targetTopics"
+                        :value="topic"
+                        type="checkbox"
+                        class="h-4 w-4 accent-primary-700"
+                      >
+                      {{ pushSubscriptionTopicLabels[topic] }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </fieldset>
+
+            <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <UButton
+                icon="i-heroicons-signal"
+                :disabled="!canOperateNotifications"
+                :loading="testBroadcastSubmitStatus === 'submitting'"
+                @click="submitTestBroadcast"
+              >
+                Spustiť test
+              </UButton>
+              <p
+                v-if="testBroadcastSubmitMessage"
+                class="text-sm font-semibold"
+                :class="testBroadcastSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
+              >
+                {{ testBroadcastSubmitMessage }}
+              </p>
+            </div>
+          </div>
+
+          <div class="rounded-card border border-border bg-surface p-5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Údržba testov</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Vyčistí staré interné testovacie broadcasty a ich delivery logy.
+                </p>
+              </div>
+              <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
+                len testy
+              </span>
+            </div>
+
+            <fieldset :disabled="!canOperateNotifications" class="contents">
+              <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Staršie ako dní</span>
+                  <input
+                    v-model.number="testCleanupForm.olderThanDays"
+                    type="number"
+                    min="0"
+                    max="365"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Ponechať posledné testy</span>
+                  <input
+                    v-model.number="testCleanupForm.keepRecentTestBroadcasts"
+                    type="number"
+                    min="0"
+                    max="50"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                </label>
+              </div>
+            </fieldset>
+
+            <p class="mt-3 rounded-md bg-muted px-3 py-2 text-sm text-foreground-muted">
+              Aktuálne: {{ testBroadcasts.length }} testov · {{ testDeliveryLogs.length }} testovacích doručení
+            </p>
+
+            <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <UButton
+                icon="i-heroicons-trash"
+                color="neutral"
+                variant="soft"
+                :disabled="!canOperateNotifications"
+                :loading="testCleanupSubmitStatus === 'submitting'"
+                @click="submitTestCleanup"
+              >
+                Vyčistiť staré testy
+              </UButton>
+              <p
+                v-if="testCleanupSubmitMessage"
+                class="text-sm font-semibold"
+                :class="testCleanupSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
+              >
+                {{ testCleanupSubmitMessage }}
+              </p>
+            </div>
+          </div>
+
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Nová notifikácia</h2>
             <p class="text-foreground-muted mt-1 text-sm">
@@ -614,12 +1032,39 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
 
         <div class="space-y-6">
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Posledné broadcasty</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Posledné broadcasty</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Verejné oznamy a interné testy sú oddelené pre čistejšiu prevádzku.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="filter in timelineFilters"
+                  :key="`broadcast-${filter.value}`"
+                  type="button"
+                  class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                  :class="timelineFilterButtonClass(broadcastFilter === filter.value)"
+                  @click="broadcastFilter = filter.value"
+                >
+                  {{ filter.label }} · {{ getBroadcastFilterCount(filter.value) }}
+                </button>
+              </div>
+            </div>
             <div class="mt-4 space-y-3">
-              <article v-for="broadcast in broadcasts.slice(0, 5)" :key="broadcast.id" class="rounded-md border border-border bg-white p-4">
+              <article v-for="broadcast in filteredBroadcasts.slice(0, 5)" :key="broadcast.id" class="rounded-md border border-border bg-white p-4">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 class="font-bold">{{ broadcast.title }}</h3>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h3 class="font-bold">{{ broadcast.title }}</h3>
+                      <span
+                        v-if="isTestBroadcast(broadcast)"
+                        class="rounded-md bg-muted px-2 py-0.5 text-xs font-bold text-foreground-muted"
+                      >
+                        interný test
+                      </span>
+                    </div>
                     <p class="text-foreground-muted mt-1 text-sm">{{ broadcast.message }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">
                       {{ formatTopics(broadcast.targetTopics) }} · {{ broadcast.recipientCount }} odberov
@@ -633,16 +1078,35 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   </span>
                 </div>
               </article>
-              <p v-if="broadcasts.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
-                Zatiaľ nie je pripravený žiadny broadcast.
+              <p v-if="filteredBroadcasts.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
+                {{ broadcastEmptyMessage() }}
               </p>
             </div>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Doručenia</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Doručenia</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Logy po zariadeniach s rovnakým filtrom ako broadcasty.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="filter in timelineFilters"
+                  :key="`delivery-${filter.value}`"
+                  type="button"
+                  class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                  :class="timelineFilterButtonClass(deliveryFilter === filter.value)"
+                  @click="deliveryFilter = filter.value"
+                >
+                  {{ filter.label }} · {{ getDeliveryFilterCount(filter.value) }}
+                </button>
+              </div>
+            </div>
             <div class="mt-4 space-y-3">
-              <article v-for="delivery in deliveryLogs.slice(0, 6)" :key="delivery.id" class="rounded-md border border-border bg-white p-4">
+              <article v-for="delivery in filteredDeliveryLogs.slice(0, 6)" :key="delivery.id" class="rounded-md border border-border bg-white p-4">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-semibold">{{ delivery.deviceLabel }}</p>
@@ -656,16 +1120,75 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   </span>
                 </div>
               </article>
-              <p v-if="deliveryLogs.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
-                Zatiaľ nie je zaevidované žiadne doručenie.
+              <p v-if="filteredDeliveryLogs.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
+                {{ deliveryEmptyMessage() }}
               </p>
             </div>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Odbery zariadení</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Odbery zariadení</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Filtrovanie podľa stavu, typu a odoberaného okruhu.
+                </p>
+              </div>
+              <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
+                {{ filteredSubscriptions.length }} / {{ subscriptions.length }}
+              </span>
+            </div>
+
+            <div class="mt-4 grid gap-3">
+              <div>
+                <p class="text-foreground-muted text-xs font-semibold uppercase">Stav</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    v-for="filter in subscriptionStatusFilters"
+                    :key="`subscription-status-${filter.value}`"
+                    type="button"
+                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    :class="timelineFilterButtonClass(subscriptionStatusFilter === filter.value)"
+                    @click="subscriptionStatusFilter = filter.value"
+                  >
+                    {{ filter.label }} · {{ getSubscriptionStatusFilterCount(filter.value) }}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p class="text-foreground-muted text-xs font-semibold uppercase">Typ</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    v-for="filter in subscriptionScopeFilters"
+                    :key="`subscription-scope-${filter.value}`"
+                    type="button"
+                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    :class="timelineFilterButtonClass(subscriptionScopeFilter === filter.value)"
+                    @click="subscriptionScopeFilter = filter.value"
+                  >
+                    {{ filter.label }} · {{ getSubscriptionScopeFilterCount(filter.value) }}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p class="text-foreground-muted text-xs font-semibold uppercase">Okruh</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    v-for="filter in subscriptionTopicFilters"
+                    :key="`subscription-topic-${filter.value}`"
+                    type="button"
+                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    :class="timelineFilterButtonClass(subscriptionTopicFilter === filter.value)"
+                    @click="subscriptionTopicFilter = filter.value"
+                  >
+                    {{ filter.label }} · {{ getSubscriptionTopicFilterCount(filter.value) }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div class="mt-4 space-y-3">
-              <article v-for="subscription in subscriptions.slice(0, 6)" :key="subscription.id" class="rounded-md bg-muted p-4">
+              <article v-for="subscription in filteredSubscriptions.slice(0, 6)" :key="subscription.id" class="rounded-md bg-muted p-4">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-semibold">{{ subscription.deviceLabel }}</p>
@@ -674,17 +1197,44 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     <p v-if="formatSubscriptionAudience(subscription)" class="text-foreground-muted mt-1 text-xs">
                       {{ formatSubscriptionAudience(subscription) }}
                     </p>
+                    <p
+                      v-if="subscriptionActionId === subscription.id && subscriptionActionMessage"
+                      class="mt-2 text-xs font-semibold"
+                      :class="subscriptionActionStatus === 'error' ? 'text-error-700' : 'text-success-700'"
+                    >
+                      {{ subscriptionActionMessage }}
+                    </p>
                   </div>
-                  <span
-                    class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                    :class="subscription.enabled ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-                  >
-                    {{ subscription.enabled ? 'aktívny' : 'vypnutý' }}
-                  </span>
+                  <div class="flex w-fit flex-col items-start gap-2 sm:items-end">
+                    <span
+                      class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
+                      :class="subscription.enabled ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
+                    >
+                      {{ subscription.enabled ? 'aktívny' : 'vypnutý' }}
+                    </span>
+                    <UButton
+                      v-if="subscription.enabled"
+                      icon="i-heroicons-bell-slash"
+                      size="xs"
+                      color="neutral"
+                      variant="soft"
+                      :disabled="!canOperateNotifications"
+                      :loading="subscriptionActionId === subscription.id && subscriptionActionStatus === 'submitting'"
+                      @click="disableAdminSubscription(subscription)"
+                    >
+                      Vypnúť odber
+                    </UButton>
+                  </div>
                 </div>
               </article>
-              <p v-if="subscriptions.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
-                Zatiaľ nie je uložený žiadny push odber.
+              <p
+                v-if="filteredSubscriptions.length > 6"
+                class="text-foreground-muted text-xs"
+              >
+                Zobrazených 6 z {{ filteredSubscriptions.length }} odberov pre zvolený filter.
+              </p>
+              <p v-if="filteredSubscriptions.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
+                {{ subscriptionEmptyMessage() }}
               </p>
             </div>
           </div>

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cleanupNotificationTestBroadcasts,
   createEmptyNotificationState,
   createNotificationBroadcast,
+  createNotificationTestBroadcast,
   disablePushSubscription,
+  disablePushSubscriptionById,
+  isInternalNotificationBroadcast,
   runNotificationDelivery,
   savePushSubscription,
   stripPushSubscriptionAudienceScope,
@@ -143,6 +147,34 @@ describe('notificationService', () => {
     expect(result.subscriptions[0]?.enabled).toBe(false)
   })
 
+  it('disables a stored subscription by id for admin device management', () => {
+    const created = savePushSubscription({
+      endpoint: 'mock://rybolov-cetin/internal-manager-device',
+      permission: 'granted',
+      topics: ['service', 'weather'],
+    }, createEmptyNotificationState(), now)
+    if (!created.ok) throw new Error('Subscription should be valid.')
+    const result = disablePushSubscriptionById({
+      subscriptionId: created.subscription.id,
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: created.subscriptions,
+    }, '2026-05-20T13:00:00.000Z')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Admin subscription disable should be valid.')
+
+    expect(result.subscription).toMatchObject({
+      enabled: false,
+      id: created.subscription.id,
+      permission: 'denied',
+    })
+    expect(result.message).toContain(created.subscription.deviceLabel)
+    expect(result.subscriptions[0]?.enabled).toBe(false)
+  })
+
   it('creates a public alert and broadcast for matching enabled subscriptions', () => {
     const weatherSubscription = savePushSubscription({
       endpoint: 'mock://rybolov-cetin/weather-device',
@@ -186,6 +218,173 @@ describe('notificationService', () => {
     })
     expect(result.alerts).toHaveLength(1)
     expect(result.broadcasts).toHaveLength(1)
+  })
+
+  it('creates an internal test broadcast without adding a public alert', () => {
+    const subscription = savePushSubscription({
+      endpoint: 'mock://rybolov-cetin/weather-device',
+      permission: 'granted',
+      topics: ['weather'],
+    }, createEmptyNotificationState(), now)
+    if (!subscription.ok) throw new Error('Subscription should be valid.')
+    const state: NotificationState = {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: subscription.subscriptions,
+    }
+    const result = createNotificationTestBroadcast({
+      body: 'Toto je interný test doručenia notifikácie.',
+      targetTopics: ['weather'],
+      title: 'Test Web Push',
+    }, state, 'Správca', now)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Test broadcast should be valid.')
+
+    expect(result.broadcast).toMatchObject({
+      alertId: expect.stringContaining('test-'),
+      message: 'Testovací broadcast pripravený pre 1 odberov.',
+      recipientCount: 1,
+      severity: 'info',
+      status: 'prepared',
+      targetTopics: ['weather'],
+      validUntil: 'interný test',
+    })
+    expect(state.alerts).toEqual([])
+    expect(result.broadcasts).toHaveLength(1)
+  })
+
+  it('recognizes internal test broadcasts for admin filtering', () => {
+    const state: NotificationState = {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }
+    const testBroadcast = createNotificationTestBroadcast({
+      body: 'Toto je interný test doručenia notifikácie.',
+      targetTopics: ['weather'],
+      title: 'Test Web Push',
+    }, state, 'Správca', now)
+    const publicBroadcast = createNotificationBroadcast({
+      body: 'O 18:30 sa očakáva prechod búrkového pásma, skontrolujte bivaky.',
+      severity: 'storm',
+      targetTopics: ['weather'],
+      title: 'Výstraha pred búrkou',
+      validUntil: 'dnes 21:00',
+    }, state, 'Správca', now)
+
+    if (!testBroadcast.ok || !publicBroadcast.ok) throw new Error('Broadcasts should be valid.')
+
+    expect(isInternalNotificationBroadcast(testBroadcast.broadcast)).toBe(true)
+    expect(isInternalNotificationBroadcast(publicBroadcast.broadcast)).toBe(false)
+  })
+
+  it('cleans old internal test broadcasts and their delivery logs only', () => {
+    const oldTest = createNotificationTestBroadcast({
+      body: 'Toto je starý interný test doručenia notifikácie.',
+      targetTopics: ['weather'],
+      title: 'Starý test Web Push',
+    }, createEmptyNotificationState(), 'Správca', '2026-05-01T10:00:00.000Z')
+    const recentTest = createNotificationTestBroadcast({
+      body: 'Toto je novší interný test doručenia notifikácie.',
+      targetTopics: ['weather'],
+      title: 'Novší test Web Push',
+    }, createEmptyNotificationState(), 'Správca', '2026-05-19T10:00:00.000Z')
+    const publicBroadcast = createNotificationBroadcast({
+      body: 'O 18:30 sa očakáva prechod búrkového pásma, skontrolujte bivaky.',
+      severity: 'storm',
+      targetTopics: ['weather'],
+      title: 'Výstraha pred búrkou',
+      validUntil: 'dnes 21:00',
+    }, createEmptyNotificationState(), 'Správca', '2026-05-01T10:00:00.000Z')
+
+    if (!oldTest.ok || !recentTest.ok || !publicBroadcast.ok) throw new Error('Broadcasts should be valid.')
+
+    const state: NotificationState = {
+      alerts: publicBroadcast.alerts,
+      broadcasts: [recentTest.broadcast, oldTest.broadcast, publicBroadcast.broadcast],
+      deliveryLogs: [
+        {
+          attemptedAt: '2026-05-01T10:05:00.000Z',
+          broadcastId: oldTest.broadcast.id,
+          deviceLabel: 'Starý test mobil',
+          endpoint: 'mock://rybolov-cetin/old-test',
+          id: 'delivery-old-test',
+          message: 'Mock doručenie.',
+          provider: 'mock',
+          status: 'sent',
+          subscriptionId: 'push-old-test',
+        },
+        {
+          attemptedAt: '2026-05-19T10:05:00.000Z',
+          broadcastId: recentTest.broadcast.id,
+          deviceLabel: 'Novší test mobil',
+          endpoint: 'mock://rybolov-cetin/recent-test',
+          id: 'delivery-recent-test',
+          message: 'Mock doručenie.',
+          provider: 'mock',
+          status: 'sent',
+          subscriptionId: 'push-recent-test',
+        },
+        {
+          attemptedAt: '2026-05-01T10:05:00.000Z',
+          broadcastId: publicBroadcast.broadcast.id,
+          deviceLabel: 'Verejný mobil',
+          endpoint: 'mock://rybolov-cetin/public',
+          id: 'delivery-public',
+          message: 'Mock doručenie.',
+          provider: 'mock',
+          status: 'sent',
+          subscriptionId: 'push-public',
+        },
+      ],
+      subscriptions: [],
+    }
+    const result = cleanupNotificationTestBroadcasts({
+      keepRecentTestBroadcasts: 1,
+      olderThanDays: 7,
+    }, state, now)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Cleanup should be valid.')
+
+    expect(result.removedTestBroadcastCount).toBe(1)
+    expect(result.removedDeliveryLogCount).toBe(1)
+    expect(result.broadcasts.map((broadcast) => broadcast.id)).toEqual([
+      recentTest.broadcast.id,
+      publicBroadcast.broadcast.id,
+    ])
+    expect(result.deliveryLogs.map((log) => log.id)).toEqual(['delivery-recent-test', 'delivery-public'])
+    expect(result.alerts).toEqual(publicBroadcast.alerts)
+  })
+
+  it('keeps no-recipient test broadcasts internal in delivery summary wording', () => {
+    const state: NotificationState = {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }
+    const result = createNotificationTestBroadcast({
+      body: 'Toto je interný test bez príjemcu notifikácie.',
+      targetTopics: ['weather'],
+      title: 'Test bez odberu',
+    }, state, 'Správca', now)
+    if (!result.ok) throw new Error('Test broadcast should be valid.')
+
+    const delivery = runNotificationDelivery(result.broadcast, state, {
+      now,
+      provider: 'mock',
+    })
+
+    expect(delivery.broadcast).toMatchObject({
+      message: 'Test nemá žiadny aktívny odber pre zvolené okruhy.',
+      recipientCount: 0,
+      status: 'skipped',
+    })
+    expect(delivery.deliveryLogs).toEqual([])
   })
 
   it('targets tournament broadcasts by internal role, tournament and marshal scope', () => {
