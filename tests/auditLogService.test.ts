@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAuditEvent, filterAuditEvents } from '~/app/services/auditLogService'
+import { auditActionLabels, createAuditEvent, filterAuditEvents } from '~/app/services/auditLogService'
 
 const baseEventInput = {
   action: 'tournament.penalty.created',
@@ -47,5 +47,13 @@ describe('auditLogService', () => {
 
     expect(filterAuditEvents([reservationEvent, tournamentEvent], { area: 'reservations' })).toEqual([reservationEvent])
     expect(filterAuditEvents([reservationEvent, tournamentEvent], { limit: 1 })).toEqual([reservationEvent])
+  })
+
+  it('labels local backup audit actions', () => {
+    expect(auditActionLabels['system.data_backup.downloaded']).toBe('Safety backup stiahnutý')
+    expect(auditActionLabels['system.data_backup.loaded']).toBe('Safety backup načítaný')
+    expect(auditActionLabels['system.data_export.downloaded']).toBe('Backup stiahnutý')
+    expect(auditActionLabels['system.data_import.previewed']).toBe('Backup skontrolovaný')
+    expect(auditActionLabels['system.data_import.restored']).toBe('Backup obnovený')
   })
 })

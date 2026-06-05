@@ -39,7 +39,36 @@ describe('catchApiService', () => {
     expect(result.logbook.owner).toBe('Marek H.')
     expect(result.logbook.members).toHaveLength(2)
     expect(result.logbook.members[0]?.role).toBe('owner')
-    expect(result.logbook.shareCode).toMatch(/^CETIN-/)
+    expect(result.logbook.shareCode).toMatch(/^CETIN-CHAT-[2-9A-HJ-NP-Z]{6}$/)
+  })
+
+  it('retries share code generation when a random suffix collides', () => {
+    const state = createState()
+    state.tripLogbooks.push({
+      ...state.tripLogbooks[0]!,
+      id: 'logbook-random-collision',
+      shareCode: 'CETIN-CHAT-ABC123',
+      title: 'Chata collision',
+    })
+    const randomParts = ['abc-123', 'def456']
+    const result = submitTripLogbook(
+      {
+        lake: 'velky-cetin',
+        memberNames: ['Marek H.', 'Tomáš K.'],
+        mode: 'group',
+        pegIds: ['vc-03'],
+        title: 'Chata 3 test',
+      },
+      state,
+      undefined,
+      '2026-05-17T10:00:00.000Z',
+      () => randomParts.shift() ?? 'zzz999',
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Logbook should be valid.')
+
+    expect(result.logbook.shareCode).toBe('CETIN-CHAT-DEF456')
   })
 
   it('stores a catch and links it to a compatible active logbook', () => {

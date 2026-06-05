@@ -45,14 +45,56 @@ export interface TripLogbookSubmissionSuccess {
   statusCode: 201
 }
 
+export interface TripLogbookLookupSuccess {
+  catchPhotos: CatchPhoto[]
+  catches: CatchRecord[]
+  logbook: TripLogbook
+  message: string
+  ok: true
+  statusCode: 200
+  tripLogbookEntries: TripLogbookEntry[]
+}
+
 export type CatchSubmissionResult = ApiValidationFailure | CatchSubmissionSuccess
+export type TripLogbookLookupResult = ApiValidationFailure | TripLogbookLookupSuccess
 export type TripLogbookSubmissionResult = ApiValidationFailure | TripLogbookSubmissionSuccess
+type ShareCodeRandomPartFactory = () => string
 
 export interface CatchPhotoUpload {
   dataUrl: string
   fileName: string
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
   sizeBytes: number
+}
+
+const SHARE_CODE_RANDOM_LENGTH = 6
+const SHARE_CODE_RANDOM_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+const SHARE_CODE_MAX_ATTEMPTS = 32
+
+function sanitizePublicCatch(catchItem: CatchRecord): CatchRecord {
+  const publicCatch = { ...catchItem }
+  delete publicCatch.reviewNote
+  delete publicCatch.reviewedAt
+  delete publicCatch.reviewedBy
+
+  return publicCatch
+}
+
+export function filterPublicCatchWorkflowState(state: CatchWorkflowState): CatchWorkflowState {
+  const approvedCatchIds = new Set(
+    state.catches
+      .filter((catchItem) => catchItem.status === 'approved')
+      .map((catchItem) => catchItem.id),
+  )
+
+  return {
+    catchPhotos: state.catchPhotos.filter((photo) => approvedCatchIds.has(photo.catchId)),
+    catches: state.catches
+      .filter((catchItem) => approvedCatchIds.has(catchItem.id))
+      .map(sanitizePublicCatch),
+    tripLogbookEntries: [],
+    tripLogbooks: [],
+  }
 }
 
 function unique(values: string[]) {
@@ -128,20 +170,57 @@ function createLogbookId(title: string, state: CatchWorkflowState, now: string) 
   return uniqueId(baseId, new Set(state.tripLogbooks.map((logbook) => logbook.id)))
 }
 
-function createShareCode(logbook: Pick<TripLogbook, 'lake' | 'title'>, state: CatchWorkflowState) {
+function createSecureShareCodeRandomPart() {
+  const cryptoApi = globalThis.crypto
+
+  if (cryptoApi?.getRandomValues) {
+    const values = new Uint32Array(SHARE_CODE_RANDOM_LENGTH)
+    cryptoApi.getRandomValues(values)
+
+    return [...values]
+      .map((value) => SHARE_CODE_RANDOM_ALPHABET[value % SHARE_CODE_RANDOM_ALPHABET.length])
+      .join('')
+  }
+
+  return Array.from({ length: SHARE_CODE_RANDOM_LENGTH }, () =>
+    SHARE_CODE_RANDOM_ALPHABET[Math.floor(Math.random() * SHARE_CODE_RANDOM_ALPHABET.length)])
+    .join('')
+}
+
+function normalizeShareCodeRandomPart(value: string) {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, SHARE_CODE_RANDOM_LENGTH)
+}
+
+function createShareCode(
+  logbook: Pick<TripLogbook, 'lake' | 'title'>,
+  state: CatchWorkflowState,
+  randomPartFactory: ShareCodeRandomPartFactory = createSecureShareCodeRandomPart,
+) {
   const prefix = logbook.lake === 'velky-cetin' ? 'CETIN' : 'KOCKA'
   const titlePart = slugify(logbook.title).replaceAll('-', '').slice(0, 4).toUpperCase() || 'RYBA'
-  const baseCode = `${prefix}-${titlePart}`
-  const existingCodes = new Set(state.tripLogbooks.map((item) => item.shareCode))
+  const existingCodes = new Set(state.tripLogbooks.map((item) => item.shareCode.toUpperCase()))
 
-  if (!existingCodes.has(baseCode)) return baseCode
+  for (let attempt = 0; attempt < SHARE_CODE_MAX_ATTEMPTS; attempt += 1) {
+    const randomPart = normalizeShareCodeRandomPart(randomPartFactory())
+
+    if (randomPart.length < SHARE_CODE_RANDOM_LENGTH) continue
+
+    const candidate = `${prefix}-${titlePart}-${randomPart}`
+    if (!existingCodes.has(candidate)) return candidate
+  }
+
+  const fallbackBase = `${prefix}-${titlePart}-LOCAL`
+  if (!existingCodes.has(fallbackBase)) return fallbackBase
 
   let index = 2
-  while (existingCodes.has(`${baseCode}-${index}`)) {
+  while (existingCodes.has(`${fallbackBase}-${index}`)) {
     index += 1
   }
 
-  return `${baseCode}-${index}`
+  return `${fallbackBase}-${index}`
 }
 
 export function submitCatchRecord(
@@ -270,6 +349,7 @@ export function submitTripLogbook(
   state: CatchWorkflowState,
   service: PondService = pondService,
   now = new Date().toISOString(),
+  shareCodeRandomPartFactory: ShareCodeRandomPartFactory = createSecureShareCodeRandomPart,
 ): TripLogbookSubmissionResult {
   const inputResult = tripLogbookInputSchema.safeParse(rawInput)
   if (!inputResult.success) {
@@ -314,7 +394,7 @@ export function submitTripLogbook(
     note: 'Lokálne vytvorený zápisník výpravy. Dáta sa neskôr dajú migrovať do účtov a pozvánok.',
     owner: input.memberNames[0]!,
     pegIds: input.pegIds,
-    shareCode: createShareCode(logbookDraft, state),
+    shareCode: createShareCode(logbookDraft, state, shareCodeRandomPartFactory),
     status: 'active',
     to: toDate.toISOString(),
   }
@@ -324,5 +404,37 @@ export function submitTripLogbook(
     message: `Zápisník ${logbook.shareCode} je uložený lokálne.`,
     ok: true,
     statusCode: 201,
+  }
+}
+
+export function lookupTripLogbookByShareCode(
+  rawCode: unknown,
+  state: CatchWorkflowState,
+): TripLogbookLookupResult {
+  const shareCode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : ''
+  if (!shareCode) {
+    return failure(['Chýba kód zápisníka.'], 400)
+  }
+
+  const logbook = state.tripLogbooks.find((item) => item.shareCode.toUpperCase() === shareCode)
+  if (!logbook) {
+    return failure(['Zápisník s týmto kódom sa nenašiel.'], 404)
+  }
+
+  const tripLogbookEntries = state.tripLogbookEntries.filter((entry) => entry.logbookId === logbook.id)
+  const catchIds = new Set(tripLogbookEntries.map((entry) => entry.catchId).filter(Boolean))
+  const catches = state.catches
+    .filter((catchItem) => catchIds.has(catchItem.id))
+    .map(sanitizePublicCatch)
+  const catchPhotos = state.catchPhotos.filter((photo) => catchIds.has(photo.catchId))
+
+  return {
+    catchPhotos,
+    catches,
+    logbook,
+    message: `Zápisník ${logbook.shareCode} je otvorený.`,
+    ok: true,
+    statusCode: 200,
+    tripLogbookEntries,
   }
 }

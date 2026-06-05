@@ -20,10 +20,10 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 - Admin rezervácie: prvý schvaľovací detail ukazuje kontakt, miesto, chatu, výbavu, doplnky, konflikty a internú poznámku; uloženie rozhodnutia už ide cez mock service/composable workflow. Správca vie vytvoriť telefonickú alebo osobnú rezerváciu priamo v adminovi.
 - Admin kalendár: týždňová aj mesačná mriežka obsadenosti po miestach a chatách v `/admin/rezervacie`; na mobile je dostupný denný súhrn bez širokej tabuľky.
 - Úlovky: verejný denník doplnený o mock skupinové zápisníky výprav.
-- Úlovky: verejne sa zobrazujú až po schválení správcom; nové public zápisy sú v stave `pending` a `/admin/ulovky` ich vie schváliť, ponechať v kontrole alebo zamietnuť.
+- Úlovky: verejne sa zobrazujú až po schválení správcom; nové public zápisy sú v stave `pending`, public `GET /api/catches` vracia iba schválené úlovky a `/admin/ulovky` ich cez chránené `GET /api/admin/catches` vie schváliť, ponechať v kontrole alebo zamietnuť.
 - Úlovky: `/admin/ulovky` vie pred zverejnením opraviť chybné údaje a ponechať, presunúť alebo odpojiť väzbu na zápisník výpravy.
 - Úlovkové dáta: `/admin/ulovky` má prvý interný report podľa druhu, miesta, nástrahy, jazera, váhy a času.
-- Fotky úlovkov: verejný formulár ukladá JPG/PNG/WebP fotku do lokálneho mock storage a vytvára AI-ready metadata.
+- Fotky úlovkov: verejný formulár ukladá JPG/PNG/WebP fotku do lokálneho mock storage a vytvára AI-ready metadata; public fotka je dostupná až po schválení úlovku, admin ju vidí počas moderácie.
 - Uložené reporty: `/admin/ulovky` vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre správcu, majiteľa alebo účtovníka, vygenerovať z neho aktuálny reportový payload, pripraviť e-mailový draft s CSV prílohami a ručne spustiť plánovač splatných týždenných alebo mesačných reportov.
 - Platby: pripravené sú vypínateľné metódy hotovosť, bankový prevod a budúca platobná brána; aktuálne sa dajú prepínať v admin rezerváciách cez lokálny payment store.
 - Rezervačné API: verejná rezervácia má `GET/POST /api/reservations`, admin vytvorenie má `POST /api/admin/reservations` a admin rozhodnutie má `POST /api/admin/reservations/:id/decision`.
@@ -67,8 +67,8 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 ## Fáza 4: Úlovky a rybárske dáta
 
 - Pridať používateľské zápisníky výprav. Prvá public obrazovka je v prototype a zapisuje lokálne cez API.
-- Podporiť skupinové výpravy, kde si partia zapisuje úlovky do spoločnej tabuľky. Lokálny store, API a UI pre vytvorenie zápisníka sú pripravené.
-- Verejné zobrazovanie úlovkov viazať na schválenie správcom; zápisník má fungovať aj cez link alebo kód bez účtu. Prvý admin schvaľovací workflow je hotový v `/admin/ulovky`.
+- Podporiť skupinové výpravy, kde si partia zapisuje úlovky do spoločnej tabuľky. Lokálny store, API a UI pre vytvorenie zápisníka sú pripravené; public stránka vie zápisník otvoriť kódom bez toho, aby `GET /api/catches` vracal všetky share kódy. Nové share kódy majú prefix jazera, krátky názvový diel a náhodný suffix.
+- Verejné zobrazovanie úlovkov viazať na schválenie správcom; zápisník má fungovať aj cez link alebo kód bez účtu. Prvý admin schvaľovací workflow je hotový v `/admin/ulovky` a public API už nevracia pending ani zamietnuté úlovky.
 - Rozšíriť admin schvaľovanie o úpravu chybného miesta, času alebo nástrahy pred zverejnením. Korekcia vrátane väzby na zápisník je hotová.
 - Vytvoriť analytiku podľa miesta, času, nástrahy, počasia a ryby. Interný report má filtre, výber sezónneho okna z pravidiel revíru, surový CSV export, manažérsky CSV export trendových signálov, prvé agregácie počasia, sezónne porovnanie aktuálneho obdobia s rovnakým obdobím minulý rok, mesačný trend, trend podľa druhu ryby a trend kombinácie druh + lovné miesto; nové úlovky dostávajú automatický mock weather snapshot cez provider pripravený na reálne API.
 - Pridať upload fotiek a úložisko. Prvá lokálna verzia je hotová cez `.data/rybolov-cetin/catch-photos/`.
@@ -99,7 +99,7 @@ Projekt nemá zostať viazaný iba na Cetín. Produkčný smer je samostatná in
 
 - Nastaviť environmenty dev/stage/prod. Prvá readiness vrstva je hotová cez `RYBOLOV_ENVIRONMENT`, `.env.example`, health check `environment-readiness` a panel „Environment pripravenosť“ v `/admin/system`.
 - Pridať monitoring a error reporting. Prvá verzia je hotová cez `/api/health`, admin modul `/admin/system`, lokálny `error-log.json` a klientsky reporter pre Vue/runtime chyby.
-- Pridať zálohu lokálneho runtime stavu pred Supabase. Prvá verzia je hotová cez `/api/admin/data-export`, manifest/inline asset režimy a panel lokálnych dát v `/admin/system`.
+- Pridať zálohu lokálneho runtime stavu pred Supabase. Prvá verzia je hotová cez `/api/admin/data-export`, manifest/inline asset režimy a panel lokálnych dát v `/admin/system`; nové exporty majú SHA-256 integritný odtlačok a bezpečný import preview cez `/api/admin/data-import/preview` ho overuje pred restore. Restore cez `/api/admin/data-import/restore` vyžaduje frázu `OBNOVIT DATA` aj safety backup aktuálneho stavu. `/admin/system` zároveň ukazuje posledné audit udalosti exportu, kontroly backupu a obnovy a vie listovať, načítať do kontroly aj stiahnuť automaticky vytvorené safety backupy. Archív safety backupov má dvojkrokovú retenciu cez `/api/admin/data-backups/cleanup`: najprv náhľad, potom zmazanie po fráze `VYCISTIT BACKUPY`.
 - Rozšíriť testy pre budúce Supabase mutácie a API routes. Prvá Vitest sada pre availability, rental, reservation workflow, rezervačné API, closure API/store, lokálny store, audit log, error log, observability kontrakt, Zod formuláre, service kontrakty a mock RBAC guardy je hotová.
 - Pripraviť import dát zo súčasných tabuliek alebo ručných zoznamov. Prvý JSON seed export z mock dát je hotový.
 - Prejsť obsah a ceny so správcom revíru.

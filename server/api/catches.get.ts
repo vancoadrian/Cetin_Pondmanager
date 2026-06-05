@@ -1,16 +1,17 @@
 import { defineEventHandler } from 'h3'
-import type { CatchStateResponse } from '~/services/catchApiService'
+import { filterPublicCatchWorkflowState, type CatchStateResponse } from '~/services/catchApiService'
 import { readLocalCatchState } from '../utils/localCatchStore'
 
 export default defineEventHandler(async (): Promise<CatchStateResponse> => {
   const state = await readLocalCatchState()
+  const publicState = filterPublicCatchWorkflowState(state)
 
   return {
-    catchPhotos: state.catchPhotos,
-    catches: state.catches,
+    catchPhotos: publicState.catchPhotos,
+    catches: publicState.catches,
     ok: true,
-    tripLogbookEntries: state.tripLogbookEntries,
-    tripLogbooks: state.tripLogbooks,
+    tripLogbookEntries: publicState.tripLogbookEntries,
+    tripLogbooks: publicState.tripLogbooks,
     updatedAt: state.updatedAt,
   }
 })

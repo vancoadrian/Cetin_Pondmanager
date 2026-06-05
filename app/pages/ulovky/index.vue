@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import type { LakeSlug } from '~/data/pond'
+import type { LakeSlug, TripLogbook, TripLogbookEntry } from '~/data/pond'
 import type {
   CatchStateResponse,
   CatchSubmissionSuccess,
+  TripLogbookLookupSuccess,
   TripLogbookSubmissionSuccess,
 } from '~/services/catchApiService'
+import { filterPublicCatchWorkflowState } from '~/services/catchApiService'
 import {
   catchRecordInputSchema,
   getValidationMessages,
@@ -40,11 +42,13 @@ const {
 type LogbookMode = keyof typeof tripLogbookModeLabels
 
 const fallbackCatchState = (): CatchStateResponse => ({
-  catches: seedCatches,
-  catchPhotos: seedCatchPhotos,
+  ...filterPublicCatchWorkflowState({
+    catches: seedCatches,
+    catchPhotos: seedCatchPhotos,
+    tripLogbookEntries: seedTripLogbookEntries,
+    tripLogbooks: seedTripLogbooks,
+  }),
   ok: true,
-  tripLogbookEntries: seedTripLogbookEntries,
-  tripLogbooks: seedTripLogbooks,
   updatedAt: 'seed',
 })
 const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
@@ -58,11 +62,16 @@ const { data: catchState, refresh: refreshCatchState } = await useAsyncData<Catc
 const selectedLogbookMode = ref<LogbookMode>('group')
 const selectedLogbookId = ref('')
 const selectedCatchLogbookId = ref('')
+const openedTripLogbooks = ref<TripLogbook[]>([])
+const openedTripLogbookEntries = ref<TripLogbookEntry[]>([])
 const logbookForm = reactive({
   lake: 'velky-cetin' as LakeSlug,
   membersText: 'Marek H.\nTomáš K.\nLenka R.',
   pegId: 'vc-03',
   title: 'Chata 3 - víkend',
+})
+const logbookCodeForm = reactive({
+  code: '',
 })
 const catchForm = reactive({
   angler: 'Marek H.',
@@ -77,6 +86,8 @@ const catchForm = reactive({
 })
 const logbookSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const logbookSubmitMessage = ref('')
+const logbookLookupStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const logbookLookupMessage = ref('')
 const catchSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const catchSubmitMessage = ref('')
 const catchPhotoDraft = ref<{
@@ -102,9 +113,34 @@ const catchPhotoByCatchId = computed(() =>
   new Map(liveCatchPhotos.value.map((photo) => [photo.catchId, photo])),
 )
 const publicCatches = computed(() => liveCatches.value.filter((catchItem) => catchItem.status === 'approved'))
-const pendingCatches = computed(() => liveCatches.value.filter((catchItem) => catchItem.status === 'pending'))
-const liveTripLogbooks = computed(() => catchState.value?.tripLogbooks ?? seedTripLogbooks)
-const liveTripLogbookEntries = computed(() => catchState.value?.tripLogbookEntries ?? seedTripLogbookEntries)
+const liveTripLogbooks = computed(() => {
+  const rows = [
+    ...openedTripLogbooks.value,
+    ...(catchState.value?.tripLogbooks ?? []),
+  ]
+  const seen = new Set<string>()
+
+  return rows.filter((logbook) => {
+    if (seen.has(logbook.id)) return false
+
+    seen.add(logbook.id)
+    return true
+  })
+})
+const liveTripLogbookEntries = computed(() => {
+  const rows = [
+    ...openedTripLogbookEntries.value,
+    ...(catchState.value?.tripLogbookEntries ?? []),
+  ]
+  const seen = new Set<string>()
+
+  return rows.filter((entry) => {
+    if (seen.has(entry.id)) return false
+
+    seen.add(entry.id)
+    return true
+  })
+})
 const logbookPegs = computed(() => pegs.filter((peg) => peg.lake === logbookForm.lake))
 const catchPegs = computed(() => pegs.filter((peg) => peg.lake === catchForm.lake))
 const compatibleLogbooks = computed(() =>
@@ -209,6 +245,30 @@ function formatCatchTime(value: string) {
 
 function getCatchPhoto(catchId: string) {
   return catchPhotoByCatchId.value.get(catchId)
+}
+
+function rememberOpenedLogbook(logbook: TripLogbook, entries: TripLogbookEntry[] = []) {
+  openedTripLogbooks.value = [
+    logbook,
+    ...openedTripLogbooks.value.filter((item) => item.id !== logbook.id),
+  ]
+  if (entries.length > 0) {
+    const nextEntries = [
+      ...entries,
+      ...openedTripLogbookEntries.value.filter((entry) =>
+        !entries.some((nextEntry) => nextEntry.id === entry.id),
+      ),
+    ]
+
+    openedTripLogbookEntries.value = nextEntries
+  }
+}
+
+function rememberOpenedLogbookEntry(entry: TripLogbookEntry) {
+  openedTripLogbookEntries.value = [
+    entry,
+    ...openedTripLogbookEntries.value.filter((item) => item.id !== entry.id),
+  ]
 }
 
 function formatFileSize(bytes: number) {
@@ -361,6 +421,7 @@ async function syncOfflineCatchQueue(options: { silent?: boolean } = {}) {
         })
 
         if (result.logbookEntry) {
+          rememberOpenedLogbookEntry(result.logbookEntry)
           selectedLogbookId.value = result.logbookEntry.logbookId
         }
         await removeOfflineCatch(queuedCatch.id)
@@ -403,6 +464,7 @@ const submitLogbook = async () => {
       method: 'POST',
     })
 
+    rememberOpenedLogbook(result.logbook)
     selectedLogbookId.value = result.logbook.id
     selectedCatchLogbookId.value = result.logbook.id
     catchForm.lake = result.logbook.lake
@@ -415,6 +477,36 @@ const submitLogbook = async () => {
   catch (error) {
     logbookSubmitStatus.value = 'error'
     logbookSubmitMessage.value = getApiErrorMessage(error)
+  }
+}
+
+const openLogbookByCode = async () => {
+  const code = logbookCodeForm.code.trim()
+  if (!code) {
+    logbookLookupStatus.value = 'error'
+    logbookLookupMessage.value = 'Zadajte kód zápisníka.'
+    return
+  }
+
+  logbookLookupStatus.value = 'submitting'
+  logbookLookupMessage.value = ''
+
+  try {
+    const result = await $fetch<TripLogbookLookupSuccess>(`/api/logbooks/${encodeURIComponent(code)}`)
+
+    rememberOpenedLogbook(result.logbook, result.tripLogbookEntries)
+    selectedLogbookId.value = result.logbook.id
+    selectedCatchLogbookId.value = result.logbook.id
+    catchForm.lake = result.logbook.lake
+    catchForm.pegId = result.logbook.pegIds[0] ?? catchForm.pegId
+    catchForm.angler = result.logbook.owner
+    logbookCodeForm.code = result.logbook.shareCode
+    logbookLookupStatus.value = 'success'
+    logbookLookupMessage.value = result.message
+  }
+  catch (error) {
+    logbookLookupStatus.value = 'error'
+    logbookLookupMessage.value = getApiErrorMessage(error)
   }
 }
 
@@ -440,6 +532,7 @@ const submitCatch = async () => {
     })
 
     if (result.logbookEntry) {
+      rememberOpenedLogbookEntry(result.logbookEntry)
       selectedLogbookId.value = result.logbookEntry.logbookId
     }
     catchSubmitStatus.value = 'success'
@@ -546,8 +639,8 @@ watch(catchValidation, () => {
           <p class="mt-2 text-3xl font-bold">{{ biggestCatch?.weightKg ?? 0 }} kg</p>
         </div>
         <div class="border-border bg-surface rounded-card border p-4">
-          <p class="text-foreground-muted text-sm">Čaká na schválenie</p>
-          <p class="mt-2 text-3xl font-bold">{{ pendingCatches.length }}</p>
+          <p class="text-foreground-muted text-sm">Otvorené zápisníky</p>
+          <p class="mt-2 text-3xl font-bold">{{ liveTripLogbooks.length }}</p>
         </div>
       </div>
 
@@ -727,6 +820,44 @@ watch(catchValidation, () => {
         </div>
 
         <aside class="space-y-6">
+          <div class="border-border bg-surface rounded-card border p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Otvoriť zápisník</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Zadajte kód od partie a tabuľka sa otvorí v tomto zariadení.
+                </p>
+              </div>
+              <UIcon name="i-heroicons-key" class="text-primary-800 h-5 w-5" />
+            </div>
+
+            <form class="mt-5 flex flex-col gap-3 sm:flex-row" @submit.prevent="openLogbookByCode">
+              <input
+                v-model="logbookCodeForm.code"
+                class="h-11 flex-1 rounded-md border border-border bg-white px-3 text-sm font-semibold uppercase"
+                placeholder="CETIN-..."
+              >
+              <UButton
+                type="submit"
+                icon="i-heroicons-arrow-right-on-rectangle"
+                :loading="logbookLookupStatus === 'submitting'"
+              >
+                Otvoriť
+              </UButton>
+            </form>
+            <p
+              v-if="logbookLookupMessage"
+              class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
+              :class="
+                logbookLookupStatus === 'success'
+                  ? 'bg-success-500/10 text-success-700'
+                  : 'bg-danger-500/10 text-danger-700'
+              "
+            >
+              {{ logbookLookupMessage }}
+            </p>
+          </div>
+
           <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-start justify-between gap-3">
               <div>

@@ -72,7 +72,7 @@ Základné pravidlá:
 
 ## Audit log
 
-`audit_events` je pripravená tabuľka pre append-only stopu mutácií. Lokálny prototyp už zapisuje rovnaký koncept do `.data/rybolov-cetin/audit-log.json` pri rezerváciách, úlovkoch, zápisníkoch, mapových úpravách a súťažných akciách.
+`audit_events` je pripravená tabuľka pre append-only stopu mutácií. Lokálny prototyp už zapisuje rovnaký koncept do `.data/rybolov-cetin/audit-log.json` pri rezerváciách, úlovkoch, zápisníkoch, mapových úpravách, súťažných akciách a systémových backup/restore úkonoch.
 
 ## Ďalší krok
 

@@ -4,7 +4,7 @@ import { filterAuditEvents, type AuditLogResponse } from '~/services/auditLogSer
 import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalAuditLogState } from '../../utils/localAuditLogStore'
 
-const auditAreas = new Set<AuditArea>(['catches', 'logbooks', 'map', 'rentals', 'reservations', 'system', 'tournaments'])
+const auditAreas = new Set<AuditArea>(['catches', 'logbooks', 'map', 'rentals', 'reservations', 'sponsors', 'system', 'tournaments'])
 
 export default defineEventHandler(async (event): Promise<AuditLogResponse> => {
   requireAdminAccess(event, { moduleId: 'audit' })

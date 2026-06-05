@@ -74,9 +74,10 @@ const fallbackCatchReportState = (): CatchReportStateResponse => ({
   updatedAt: 'seed',
 })
 
+const requestFetch = useRequestFetch()
 const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
   'admin-catch-state',
-  () => $fetch<CatchStateResponse>('/api/catches'),
+  () => requestFetch<CatchStateResponse>('/api/admin/catches'),
   {
     default: fallbackCatchState,
   },

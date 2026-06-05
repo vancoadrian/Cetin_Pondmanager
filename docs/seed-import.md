@@ -33,7 +33,7 @@ Súbor obsahuje:
 
 Supabase projekt ešte nie je založený a časť stĺpcov sa môže pri produkčnej integrácii doladiť. JSON seed je preto bezpečný prechodový kontrakt: dá sa použiť na SQL generátor, seed runner, Edge function alebo ručný import.
 
-Tento seed export je odlišný od runtime zálohy v `/admin/system`. Seed export vychádza zo zdrojových prototypových dát a pripravuje tabuľkový import do Supabase. Admin endpoint `/api/admin/data-export` naopak exportuje aktuálny lokálny stav z `.data/rybolov-cetin/`, vrátane naklikaných rezervácií, úlovkov, sponzorov, mapy, notifikácií, reportov, auditu a voliteľného asset manifestu alebo base64 assetov.
+Tento seed export je odlišný od runtime zálohy v `/admin/system`. Seed export vychádza zo zdrojových prototypových dát a pripravuje tabuľkový import do Supabase. Admin endpoint `/api/admin/data-export` naopak exportuje aktuálny lokálny stav z `.data/rybolov-cetin/`, vrátane naklikaných rezervácií, úlovkov, sponzorov, mapy, notifikácií, reportov, auditu a voliteľného asset manifestu alebo base64 assetov. Runtime backup má SHA-256 integritný odtlačok v `integrity` bloku. Endpoint `/api/admin/data-import/preview` vie takýto backup skontrolovať bez obnovy dát: overí verziu, službu, integritu, store, súčty záznamov a spôsob prenosu assetov. Endpoint `/api/admin/data-import/restore` je určený iba pre lokálny runtime backup, nie pre Supabase seed; vyžaduje frázu `OBNOVIT DATA`, pred zápisom vytvorí safety backup a obnovuje len známe store z plného exportu. Safety backupy sa dajú v admine listovať, načítať do kontroly, stiahnuť cez `/api/admin/data-backups` a čistiť retenciou cez `/api/admin/data-backups/cleanup`.
 
 ## Pokryté oblasti
 

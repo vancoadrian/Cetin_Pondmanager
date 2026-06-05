@@ -29,7 +29,7 @@ Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Inter
 | `/login` | mock | výber role bez hesla |
 | `/admin` | mock | interný dashboard |
 | `/admin/rezervacie` | mock | schvaľovanie a kalendár rezervácií |
-| `/admin/ulovky` | mock | oprava a schvaľovanie verejných úlovkov, presun alebo odpojenie zápisníka, poznámky správcu a interný report |
+| `/admin/ulovky` | mock + chránené API | oprava a schvaľovanie verejných úlovkov, presun alebo odpojenie zápisníka, poznámky správcu a interný report |
 | `/admin/mapa` | mock | SVG editor lovných miest, chát, vrstiev a servisných zón |
 | `/admin/uzavierky` | mock | sezóny, neres, údržba, preteky, mimoriadne uzávierky |
 | `/admin/pozicovna` | mock | tvorba a úprava výbavy, aktívne doplnky, cenníkový text, bezpečné mazanie nepoužitých položiek a priradenie k rezerváciám |
