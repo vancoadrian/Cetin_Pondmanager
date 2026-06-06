@@ -37,6 +37,7 @@ import {
 } from '~/services/offlineTournamentAdminActionQueueService'
 import {
   getTournamentMapCoverage,
+  getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
   getTournamentSectorShapes,
 } from '~/utils/tournamentMap'
@@ -95,7 +96,13 @@ const fallbackMapState = (): MapStateResponse => ({
 })
 const { data: mapState } = await useAsyncData<MapStateResponse>(
   'admin-tournament-map-state',
-  () => $fetch<MapStateResponse>('/api/map'),
+  async () => {
+    try {
+      return await $fetch<MapStateResponse>('/api/admin/map')
+    } catch {
+      return await $fetch<MapStateResponse>('/api/map')
+    }
+  },
   {
     default: fallbackMapState,
   },
@@ -199,6 +206,7 @@ const sectorMapRows = computed(() =>
   getTournamentSectorMapRows(activeTournament.value, liveMapShapes.value),
 )
 const sectorMapCoverage = computed(() => getTournamentMapCoverage(sectorMapRows.value))
+const mapSourceSummary = computed(() => getTournamentMapSourceSummary(mapState.value))
 const sectorDraft = ref<Tournament['sectors']>(activeTournament.value.sectors.map(cloneTournamentSector))
 const sectorSettingsStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const sectorSettingsMessage = ref('')
@@ -1180,7 +1188,18 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-lg font-bold">Mapové pokrytie sektorov</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Súťažné sektory čítajú rovnaké SVG polygony, ktoré správca kreslí v editore mapy.
+              Súťažné sektory čítajú SVG polygony z admin mapy, aby organizátor videl aj pripravené drafty.
+            </p>
+            <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
+              <span
+                class="rounded-md px-2 py-1 font-bold"
+                :class="mapSourceSummary.tone === 'draft'
+                  ? 'bg-warning-500/10 text-warning-900'
+                  : 'bg-success-500/10 text-success-700'"
+              >
+                {{ mapSourceSummary.label }}
+              </span>
+              <span>{{ mapSourceSummary.description }}</span>
             </p>
           </div>
           <div class="flex items-center gap-2">

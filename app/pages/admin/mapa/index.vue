@@ -7,7 +7,7 @@ import {
   mapPegInputSchema,
   mapShapeInputSchema,
 } from '~/schemas/pondSchemas'
-import type { MapSaveSuccess, MapStateResponse } from '~/services/mapApiService'
+import type { MapDraftChangeSummary, MapDraftDiscardSuccess, MapEntityChangeSummary, MapPublishSuccess, MapSaveSuccess, MapStateResponse } from '~/services/mapApiService'
 import type { CabinCatalogMutationSuccess } from '~/services/cabinCatalogService'
 import {
   clampMapPercent,
@@ -22,9 +22,13 @@ useHead({ title: 'Admin mapa' })
 
 type MapEditorSelectionKind = 'facility' | 'peg' | 'shape'
 type MapBackgroundUploadSuccess = {
+  draftChanges?: MapDraftChangeSummary
+  draftUpdatedAt?: string
+  hasUnpublishedChanges?: boolean
   ok: true
   mapLayers: MapLayer[]
   message: string
+  publishedAt?: string
   source: string
   statusCode: 200
   updatedAt: string
@@ -45,17 +49,42 @@ type PegReservationPreset = {
 const { cabinProducts: seedCabinProducts, getLakeName, lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, tournaments } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-map-closure-state' })
 
+function emptyMapEntityChanges(): MapEntityChangeSummary {
+  return {
+    added: 0,
+    addedItems: [],
+    removed: 0,
+    removedItems: [],
+    updated: 0,
+    updatedItems: [],
+  }
+}
+
+function emptyMapDraftChanges(): MapDraftChangeSummary {
+  return {
+    mapFacilities: emptyMapEntityChanges(),
+    mapLayers: emptyMapEntityChanges(),
+    mapShapes: emptyMapEntityChanges(),
+    pegs: emptyMapEntityChanges(),
+    total: 0,
+  }
+}
+
 const fallbackMapState = (): MapStateResponse => ({
+  draftChanges: emptyMapDraftChanges(),
+  draftUpdatedAt: 'seed',
+  hasUnpublishedChanges: false,
   ok: true,
   mapFacilities,
   mapLayers,
   mapShapes,
   pegs,
+  publishedAt: 'seed',
   updatedAt: 'seed',
 })
 const { data: mapState, refresh: refreshMapState } = await useAsyncData<MapStateResponse>(
   'admin-map-state',
-  () => $fetch<MapStateResponse>('/api/map'),
+  () => $fetch<MapStateResponse>('/api/admin/map'),
   {
     default: fallbackMapState,
   },
@@ -94,6 +123,10 @@ const enabledLayerIds = ref(
 )
 const saveStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const saveMessage = ref('')
+const publishStatus = ref<'idle' | 'publishing' | 'success' | 'error'>('idle')
+const publishMessage = ref('')
+const discardStatus = ref<'idle' | 'discarding' | 'success' | 'error'>('idle')
+const discardMessage = ref('')
 const backgroundUploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('idle')
 const backgroundUploadMessage = ref('')
 const cabinCatalogStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
@@ -341,6 +374,46 @@ const draftShape = computed<MapShape | undefined>(() => {
   }
 })
 const canFinishDraftShape = computed(() => draftShapePoints.value.length >= 3)
+const mapPublishStateLabel = computed(() =>
+  mapState.value.hasUnpublishedChanges
+    ? 'Draft čaká na publikovanie'
+    : 'Verejná mapa je aktuálna',
+)
+const draftChangeTotal = computed(() => mapState.value.draftChanges?.total ?? 0)
+const draftChangeRows = computed(() => {
+  const changes = mapState.value.draftChanges ?? emptyMapDraftChanges()
+  return [
+    { label: 'Lovné miesta', summary: changes.pegs },
+    { label: 'Servisné body', summary: changes.mapFacilities },
+    { label: 'Plochy', summary: changes.mapShapes },
+    { label: 'Vrstvy', summary: changes.mapLayers },
+  ]
+    .map((row) => ({
+      ...row,
+      total: row.summary.added + row.summary.updated + row.summary.removed,
+    }))
+    .filter((row) => row.total > 0)
+})
+
+function formatDraftEntityChanges(summary: MapEntityChangeSummary) {
+  return [
+    summary.added > 0 ? `+${summary.added} pridané` : '',
+    summary.updated > 0 ? `${summary.updated} upravené` : '',
+    summary.removed > 0 ? `-${summary.removed} odstránené` : '',
+  ].filter(Boolean).join(' · ')
+}
+
+function formatDraftEntityChangeItems(summary: MapEntityChangeSummary) {
+  const labels = [
+    ...summary.addedItems.map((item) => `+ ${item.label}`),
+    ...summary.updatedItems.map((item) => `~ ${item.label}`),
+    ...summary.removedItems.map((item) => `- ${item.label}`),
+  ]
+
+  if (labels.length <= 4) return labels.join(', ')
+
+  return `${labels.slice(0, 4).join(', ')} a ďalšie ${labels.length - 4}`
+}
 
 watch(
   mapState,
@@ -371,6 +444,10 @@ watch(selectedLake, () => {
   isEditingBackground.value = false
   saveStatus.value = 'idle'
   saveMessage.value = ''
+  publishStatus.value = 'idle'
+  publishMessage.value = ''
+  discardStatus.value = 'idle'
+  discardMessage.value = ''
   resetBackgroundUploadFeedback()
   resetCabinCatalogFeedback()
 })
@@ -691,7 +768,11 @@ async function uploadBackgroundImage(event: Event) {
 
     mapState.value = {
       ...mapState.value,
+      draftUpdatedAt: result.draftUpdatedAt ?? result.updatedAt,
+      draftChanges: result.draftChanges ?? mapState.value.draftChanges ?? emptyMapDraftChanges(),
+      hasUnpublishedChanges: Boolean(result.hasUnpublishedChanges),
       mapLayers: result.mapLayers,
+      publishedAt: result.publishedAt ?? mapState.value.publishedAt,
       updatedAt: result.updatedAt,
     }
     editorMapLayers.value = result.mapLayers.map(cloneMapLayer)
@@ -1171,43 +1252,62 @@ function validateEditorState() {
   return [...new Set(messages)]
 }
 
-async function saveMapChanges() {
+function buildMapSavePayload() {
+  return {
+    enabledLayerIds: enabledLayerIds.value,
+    mapFacilities: editorFacilities.value,
+    mapLayers: editorMapLayers.value,
+    mapShapes: editorShapes.value,
+    pegs: editorPegs.value,
+  }
+}
+
+function mergeMapResponse<T extends MapStateResponse>(result: T, fallback: MapStateResponse = mapState.value): MapStateResponse {
+  return {
+    draftChanges: result.draftChanges ?? fallback.draftChanges ?? emptyMapDraftChanges(),
+    draftUpdatedAt: result.draftUpdatedAt ?? result.updatedAt,
+    hasUnpublishedChanges: Boolean(result.hasUnpublishedChanges),
+    ok: true,
+    mapFacilities: result.mapFacilities,
+    mapLayers: result.mapLayers,
+    mapShapes: result.mapShapes,
+    pegs: result.pegs,
+    publishedAt: result.publishedAt ?? fallback.publishedAt,
+    updatedAt: result.updatedAt,
+  }
+}
+
+function validateMapBeforeMutation() {
   if (!canManageMap.value) {
     saveStatus.value = 'error'
     saveMessage.value = mapReadOnlyMessage.value
-    return
+    return false
   }
 
   const validationMessages = validateEditorState()
   if (validationMessages.length > 0) {
     saveStatus.value = 'error'
     saveMessage.value = validationMessages[0] ?? 'Skontrolujte editor mapy.'
-    return
+    return false
   }
+
+  return true
+}
+
+async function saveMapChanges() {
+  if (!validateMapBeforeMutation()) return
 
   saveStatus.value = 'saving'
   saveMessage.value = ''
+  discardMessage.value = ''
 
   try {
     const result = await $fetch<MapSaveSuccess>('/api/admin/map', {
-      body: {
-        enabledLayerIds: enabledLayerIds.value,
-        mapFacilities: editorFacilities.value,
-        mapLayers: editorMapLayers.value,
-        mapShapes: editorShapes.value,
-        pegs: editorPegs.value,
-      },
+      body: buildMapSavePayload(),
       method: 'PUT',
     })
 
-    mapState.value = {
-      ok: true,
-      mapFacilities: result.mapFacilities,
-      mapLayers: result.mapLayers,
-      mapShapes: result.mapShapes,
-      pegs: result.pegs,
-      updatedAt: result.updatedAt,
-    }
+    mapState.value = mergeMapResponse(result)
     editorMapLayers.value = result.mapLayers.map(cloneMapLayer)
     await refreshMapState()
     saveStatus.value = 'success'
@@ -1216,6 +1316,78 @@ async function saveMapChanges() {
   catch (error) {
     saveStatus.value = 'error'
     saveMessage.value = getApiErrorMessage(error)
+  }
+}
+
+async function publishMapChanges() {
+  if (!validateMapBeforeMutation()) {
+    publishStatus.value = 'error'
+    publishMessage.value = saveMessage.value
+    return
+  }
+
+  publishStatus.value = 'publishing'
+  publishMessage.value = ''
+  saveMessage.value = ''
+  discardMessage.value = ''
+
+  try {
+    await $fetch<MapSaveSuccess>('/api/admin/map', {
+      body: buildMapSavePayload(),
+      method: 'PUT',
+    })
+
+    const result = await $fetch<MapPublishSuccess>('/api/admin/map/publish', {
+      method: 'POST',
+    })
+
+    mapState.value = mergeMapResponse(result)
+    editorMapLayers.value = result.mapLayers.map(cloneMapLayer)
+    await refreshMapState()
+    publishStatus.value = 'success'
+    publishMessage.value = result.message
+  }
+  catch (error) {
+    publishStatus.value = 'error'
+    publishMessage.value = getApiErrorMessage(error)
+  }
+}
+
+async function discardMapDraft() {
+  if (!canManageMap.value) {
+    discardStatus.value = 'error'
+    discardMessage.value = mapReadOnlyMessage.value
+    return
+  }
+
+  const hasLocalOrPublishedDraft = mapState.value.hasUnpublishedChanges || changedItemsCount.value > 0
+  if (
+    hasLocalOrPublishedDraft &&
+    import.meta.client &&
+    !window.confirm('Zahodiť rozpracované zmeny mapy a načítať poslednú verejnú verziu?')
+  ) {
+    return
+  }
+
+  discardStatus.value = 'discarding'
+  discardMessage.value = ''
+  saveMessage.value = ''
+  publishMessage.value = ''
+
+  try {
+    const result = await $fetch<MapDraftDiscardSuccess>('/api/admin/map/discard-draft', {
+      method: 'POST',
+    })
+
+    mapState.value = mergeMapResponse(result)
+    editorMapLayers.value = result.mapLayers.map(cloneMapLayer)
+    await refreshMapState()
+    discardStatus.value = 'success'
+    discardMessage.value = result.message
+  }
+  catch (error) {
+    discardStatus.value = 'error'
+    discardMessage.value = getApiErrorMessage(error)
   }
 }
 </script>
@@ -1970,7 +2142,7 @@ async function saveMapChanges() {
               valid-description="Názov, súradnice a typ sú pripravené na uloženie."
             />
 
-            <div class="mt-4 grid gap-2 sm:grid-cols-3">
+            <div class="mt-4 grid gap-2 sm:grid-cols-5">
               <UButton type="button" icon="i-heroicons-arrow-path" variant="soft" :disabled="!canManageMap" @click="resetSelectedItem">
                 Vrátiť
               </UButton>
@@ -1980,11 +2152,32 @@ async function saveMapChanges() {
               <UButton
                 type="button"
                 icon="i-heroicons-check"
-                :disabled="!canManageMap || !selectedValidationIsValid || saveStatus === 'saving'"
+                :disabled="!canManageMap || !selectedValidationIsValid || saveStatus === 'saving' || discardStatus === 'discarding'"
                 :loading="saveStatus === 'saving'"
                 @click="saveMapChanges"
               >
-                Uložiť
+                Uložiť draft
+              </UButton>
+              <UButton
+                type="button"
+                icon="i-heroicons-arrow-uturn-left"
+                variant="soft"
+                color="warning"
+                :disabled="!canManageMap || (!mapState.hasUnpublishedChanges && changedItemsCount === 0) || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
+                :loading="discardStatus === 'discarding'"
+                @click="discardMapDraft"
+              >
+                Zahodiť draft
+              </UButton>
+              <UButton
+                type="button"
+                icon="i-heroicons-cloud-arrow-up"
+                color="warning"
+                :disabled="!canManageMap || !selectedValidationIsValid || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
+                :loading="publishStatus === 'publishing'"
+                @click="publishMapChanges"
+              >
+                Publikovať
               </UButton>
             </div>
             <p
@@ -1998,10 +2191,33 @@ async function saveMapChanges() {
             >
               {{ saveMessage }}
             </p>
+            <p
+              v-if="publishMessage"
+              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
+              :class="
+                publishStatus === 'success'
+                  ? 'bg-success-500/10 text-success-700'
+                  : 'bg-error-500/10 text-error-700'
+              "
+            >
+              {{ publishMessage }}
+            </p>
+            <p
+              v-if="discardMessage"
+              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
+              :class="
+                discardStatus === 'success'
+                  ? 'bg-success-500/10 text-success-700'
+                  : 'bg-error-500/10 text-error-700'
+              "
+            >
+              {{ discardMessage }}
+            </p>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Súhrn mapy</h2>
+            <p class="text-foreground-muted mt-1 text-sm">{{ mapPublishStateLabel }}</p>
             <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div class="rounded-md bg-muted p-3">
                 <dt class="text-foreground-muted text-xs">Jazero</dt>
@@ -2040,6 +2256,27 @@ async function saveMapChanges() {
                 <dd class="font-semibold">{{ changedItemsCount }}</dd>
               </div>
             </dl>
+            <div v-if="draftChangeTotal > 0" class="mt-5 border-t border-border pt-4">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-semibold">Zmeny oproti verejnej mape</p>
+                <span class="text-foreground-muted text-sm">{{ draftChangeTotal }} položiek</span>
+              </div>
+              <ul class="mt-3 space-y-2 text-sm">
+                <li
+                  v-for="row in draftChangeRows"
+                  :key="row.label"
+                  class="rounded-md bg-muted px-3 py-2"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-foreground-muted">{{ row.label }}</span>
+                    <span class="font-semibold">{{ formatDraftEntityChanges(row.summary) }}</span>
+                  </div>
+                  <p class="text-foreground-muted mt-1 text-xs">
+                    {{ formatDraftEntityChangeItems(row.summary) }}
+                  </p>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">

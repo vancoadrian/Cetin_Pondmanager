@@ -8,15 +8,51 @@ import {
 } from '~/schemas/pondSchemas'
 
 export interface MapStateResponse {
+  draftChanges?: MapDraftChangeSummary
+  draftUpdatedAt?: string
+  hasUnpublishedChanges?: boolean
   ok: true
   mapLayers: MapLayer[]
   mapFacilities: MapFacility[]
   mapShapes: MapShape[]
   pegs: Peg[]
+  publishedAt?: string
   updatedAt: string
 }
 
+export interface MapEntityChangeSummary {
+  added: number
+  addedItems: MapEntityChangeItem[]
+  removed: number
+  removedItems: MapEntityChangeItem[]
+  updated: number
+  updatedItems: MapEntityChangeItem[]
+}
+
+export interface MapEntityChangeItem {
+  id: string
+  label: string
+}
+
+export interface MapDraftChangeSummary {
+  mapFacilities: MapEntityChangeSummary
+  mapLayers: MapEntityChangeSummary
+  mapShapes: MapEntityChangeSummary
+  pegs: MapEntityChangeSummary
+  total: number
+}
+
 export interface MapSaveSuccess extends MapStateResponse {
+  message: string
+  statusCode: 200
+}
+
+export interface MapPublishSuccess extends MapStateResponse {
+  message: string
+  statusCode: 200
+}
+
+export interface MapDraftDiscardSuccess extends MapStateResponse {
   message: string
   statusCode: 200
 }
@@ -28,6 +64,8 @@ export interface MapSaveFailure {
 }
 
 export type MapSaveResult = MapSaveFailure | MapSaveSuccess
+type MapStateSnapshot = Omit<MapStateResponse, 'ok' | 'updatedAt'>
+type MapStateContent = Pick<MapStateResponse, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>
 
 interface ParsedMapSavePayload {
   enabledLayerIds: string[]
@@ -160,9 +198,109 @@ function duplicateIds(items: Array<{ id: string }>) {
     })
 }
 
+function normalizeForDiff(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeForDiff)
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([firstKey], [secondKey]) => firstKey.localeCompare(secondKey))
+        .map(([key, item]) => [key, normalizeForDiff(item)]),
+    )
+  }
+
+  return value
+}
+
+function mapEntityFingerprint(value: unknown) {
+  return JSON.stringify(normalizeForDiff(value))
+}
+
+function getEntityChangeItem(item: { id: string, label?: string, name?: string }): MapEntityChangeItem {
+  return {
+    id: item.id,
+    label: item.label ?? item.name ?? item.id,
+  }
+}
+
+function getEntityChangeSummary<T extends { id: string, label?: string, name?: string }>(draftItems: T[], publishedItems: T[]): MapEntityChangeSummary {
+  const publishedById = new Map(publishedItems.map((item) => [item.id, item]))
+  const draftById = new Map(draftItems.map((item) => [item.id, item]))
+  const addedItems: MapEntityChangeItem[] = []
+  const updatedItems: MapEntityChangeItem[] = []
+
+  for (const draftItem of draftItems) {
+    const publishedItem = publishedById.get(draftItem.id)
+    if (!publishedItem) {
+      addedItems.push(getEntityChangeItem(draftItem))
+      continue
+    }
+
+    if (mapEntityFingerprint(draftItem) !== mapEntityFingerprint(publishedItem)) {
+      updatedItems.push(getEntityChangeItem(draftItem))
+    }
+  }
+
+  const removedItems = publishedItems
+    .filter((item) => !draftById.has(item.id))
+    .map(getEntityChangeItem)
+
+  return {
+    added: addedItems.length,
+    addedItems,
+    removed: removedItems.length,
+    removedItems,
+    updated: updatedItems.length,
+    updatedItems,
+  }
+}
+
+function sumEntityChangeSummary(summary: MapEntityChangeSummary) {
+  return summary.added + summary.removed + summary.updated
+}
+
+export function getMapDraftChangeSummary(draftState: MapStateContent, publishedState: MapStateContent): MapDraftChangeSummary {
+  const summary: Omit<MapDraftChangeSummary, 'total'> = {
+    mapFacilities: getEntityChangeSummary(draftState.mapFacilities, publishedState.mapFacilities),
+    mapLayers: getEntityChangeSummary(draftState.mapLayers, publishedState.mapLayers),
+    mapShapes: getEntityChangeSummary(draftState.mapShapes, publishedState.mapShapes),
+    pegs: getEntityChangeSummary(draftState.pegs, publishedState.pegs),
+  }
+
+  return {
+    ...summary,
+    total: Object.values(summary).reduce((total, item) => total + sumEntityChangeSummary(item), 0),
+  }
+}
+
+function isPublicMapVisibility(value: 'competition' | 'internal' | 'public') {
+  return value !== 'internal'
+}
+
+export function filterPublicMapState(state: MapStateSnapshot): MapStateSnapshot {
+  return {
+    mapFacilities: state.mapFacilities
+      .filter((facility) => isPublicMapVisibility(facility.visibility))
+      .map((facility) => ({ ...facility })),
+    mapLayers: state.mapLayers
+      .filter((layer) => isPublicMapVisibility(layer.visibility))
+      .map((layer) => ({
+        ...layer,
+        imageSettings: layer.imageSettings ? { ...layer.imageSettings } : undefined,
+      })),
+    mapShapes: state.mapShapes
+      .filter((shape) => isPublicMapVisibility(shape.visibility))
+      .map((shape) => ({
+        ...shape,
+        points: shape.points.map((point) => ({ ...point })),
+      })),
+    pegs: state.pegs.map((peg) => ({ ...peg })),
+  }
+}
+
 export function saveMapState(
   rawInput: unknown,
-  currentState: Omit<MapStateResponse, 'ok' | 'updatedAt'>,
+  currentState: MapStateSnapshot,
   updatedAt = new Date().toISOString(),
 ): MapSaveResult {
   const parsed = parseMapSavePayload(rawInput)

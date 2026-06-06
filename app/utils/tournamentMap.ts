@@ -6,6 +6,12 @@ export interface TournamentSectorMapRow {
   shape?: MapShape
 }
 
+export interface TournamentMapSourceSummary {
+  description: string
+  label: string
+  tone: 'draft' | 'published'
+}
+
 export function getTournamentSectorShapes(shapes: MapShape[], tournament: Tournament) {
   return shapes.filter((shape) =>
     shape.type === 'sector' &&
@@ -35,5 +41,28 @@ export function getTournamentMapCoverage(rows: TournamentSectorMapRow[]) {
   return {
     mappedSectorCount: rows.filter((row) => row.mapped).length,
     totalSectorCount: rows.length,
+  }
+}
+
+export function getTournamentMapSourceSummary(mapState: {
+  draftChanges?: { total: number }
+  hasUnpublishedChanges?: boolean
+}): TournamentMapSourceSummary {
+  const draftChangeCount = mapState.draftChanges?.total ?? 0
+
+  if (mapState.hasUnpublishedChanges) {
+    return {
+      description: draftChangeCount > 0
+        ? `Pokrytie ráta aj rozpracované sektorové polygony (${draftChangeCount} nepublikovaných zmien).`
+        : 'Pokrytie ráta aj rozpracované sektorové polygony pred publikovaním.',
+      label: 'draft mapy',
+      tone: 'draft',
+    }
+  }
+
+  return {
+    description: 'Pokrytie zodpovedá publikovanej mape, ktorú vidia rybári.',
+    label: 'publikovaná mapa',
+    tone: 'published',
   }
 }

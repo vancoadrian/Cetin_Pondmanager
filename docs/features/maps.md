@@ -72,10 +72,14 @@ Admin má vedieť:
 - Admin vie pri obrázkovom podklade meniť `cover`, `contain` alebo `stretch`, mierku, X/Y posun a priehľadnosť; podklad vie posúvať aj priamo ťahaním v SVG mape. Rovnaké nastavenie číta aj verejná mapa.
 - `mapLayers`, `mapFacilities` a `mapShapes` sú seednuté v `app/data/pond.ts`.
 - Pomocné mapové funkcie sú v `app/utils/map.ts`.
-- `GET /api/map` vracia aktuálny mapový stav z lokálneho JSON store.
-- `PUT /api/admin/map` ukladá validované lovné miesta, servisné body, polygonové tvary a aktívne vrstvy do `.data/rybolov-cetin/map-state.json`.
+- `GET /api/map` vracia sanitizovaný publikovaný mapový stav z `.data/rybolov-cetin/map-state.json`: public a súťažné vrstvy/tvary/body áno, interné servisné body, interné zóny a interné vrstvy nie.
+- `GET /api/admin/map` vracia plný rozpracovaný mapový stav z `.data/rybolov-cetin/map-draft-state.json`; ak draft ešte neexistuje, vychádza z publikovanej mapy.
+- Admin mapové odpovede nesú `draftChanges`, teda počet aj názvy pridaných, upravených a odstránených vrstiev, miest, servisných bodov a plôch oproti verejnej mape.
+- `PUT /api/admin/map` ukladá validované lovné miesta, servisné body, polygonové tvary a aktívne vrstvy do draftu.
+- `POST /api/admin/map/publish` prepíše publikovanú public mapu aktuálnym draftom a zapíše audit stopu.
+- `POST /api/admin/map/discard-draft` zahodí rozpracovaný draft, načíta späť publikovanú mapu a zapíše audit stopu.
 - `GET /api/cabin-products`, `GET /api/admin/cabin-products` a `PUT /api/admin/cabin-products` držia živý katalóg chát a väzby na mapové miesta v `.data/rybolov-cetin/cabin-catalog-state.json`.
-- `POST /api/admin/map/background` ukladá nový podkladový obrázok mapy.
+- `POST /api/admin/map/background` ukladá nový podkladový obrázok do draftu mapy; `/api/map-assets/:id` verejne vydá iba assety napojené na public alebo súťažnú vrstvu v publikovanej mape.
 - `/sutaze` používa rovnaký mapový podklad a sektorové SVG polygony z `mapShapes`; bodky tímov ostávajú klikateľné nad mapovou vrstvou.
 - Sektorové polygony môžu niesť `tournamentId` a `sectorId`, takže admin mapa vie naviazať kreslenú plochu na konkrétny súťažný sektor.
 - Seed body sú v `app/data/pond.ts`, runtime úpravy admina sú v lokálnom store.

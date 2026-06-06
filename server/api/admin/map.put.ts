@@ -1,19 +1,25 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
-import { saveMapState } from '~/services/mapApiService'
+import { getMapDraftChangeSummary, saveMapState } from '~/services/mapApiService'
 import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
-import { readLocalMapState, writeLocalMapState } from '../../utils/localMapStore'
+import {
+  mapStateContentEquals,
+  readLocalMapDraftState,
+  readLocalMapState,
+  writeLocalMapDraftState,
+} from '../../utils/localMapStore'
 
 export default defineEventHandler(async (event) => {
   requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
-  const state = await readLocalMapState()
+  const publishedState = await readLocalMapState()
+  const draftState = await readLocalMapDraftState(undefined, publishedState)
   const result = saveMapState(await readBody(event), {
-    mapFacilities: state.mapFacilities,
-    mapLayers: state.mapLayers,
-    mapShapes: state.mapShapes,
-    pegs: state.pegs,
+    mapFacilities: draftState.mapFacilities,
+    mapLayers: draftState.mapLayers,
+    mapShapes: draftState.mapShapes,
+    pegs: draftState.pegs,
   })
 
   if (!result.ok) {
@@ -24,7 +30,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const storedState = await writeLocalMapState({
+  const storedDraftState = await writeLocalMapDraftState({
     mapFacilities: result.mapFacilities,
     mapLayers: result.mapLayers,
     mapShapes: result.mapShapes,
@@ -36,24 +42,30 @@ export default defineEventHandler(async (event) => {
       actorLabel: 'Admin',
       actorRole: 'manager',
     }),
-    action: 'map.updated',
+    action: 'map.draft_saved',
     area: 'map',
     details: {
       layerCount: result.mapLayers.length,
       facilityCount: result.mapFacilities.length,
       pegCount: result.pegs.length,
       shapeCount: result.mapShapes.length,
+      publishedAt: publishedState.updatedAt,
     },
-    entityId: 'map-state',
-    entityLabel: 'Mapa revíru',
-    entityType: 'map_state',
-    summary: 'Admin uložil SVG model lovných miest, chát alebo vrstiev.',
+    entityId: 'map-draft-state',
+    entityLabel: 'Rozpracovaná mapa revíru',
+    entityType: 'map_draft_state',
+    summary: 'Admin uložil rozpracovaný SVG model mapy.',
   })
 
   setResponseStatus(event, result.statusCode)
 
   return {
     ...result,
-    updatedAt: storedState.updatedAt,
+    draftChanges: getMapDraftChangeSummary(storedDraftState, publishedState),
+    draftUpdatedAt: storedDraftState.updatedAt,
+    hasUnpublishedChanges: !mapStateContentEquals(storedDraftState, publishedState),
+    message: 'Draft mapy je uložený. Verejná mapa sa zmení až po publikovaní.',
+    publishedAt: publishedState.updatedAt,
+    updatedAt: storedDraftState.updatedAt,
   }
 })

@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mapFacilities, mapLayers, mapShapes, pegs } from '~/app/data/pond'
 import {
+  mapStateContentEquals,
+  readLocalMapDraftState,
   readLocalMapState,
+  writeLocalMapDraftState,
   writeLocalMapState,
 } from '~/server/utils/localMapStore'
 
@@ -57,6 +60,48 @@ describe('localMapStore', () => {
 
     expect(updated.pegs.find((peg) => peg.id === 'vc-03')?.x).toBe(24.5)
     expect(reread.pegs.find((peg) => peg.id === 'vc-03')?.y).toBe(61.2)
+  })
+
+  it('uses the published map as draft fallback and persists draft changes separately', async () => {
+    const filePath = await createStorePath()
+    const draftPath = filePath.replace('map-state.json', 'map-draft-state.json')
+    const published = await writeLocalMapState(
+      {
+        mapFacilities,
+        mapLayers,
+        mapShapes,
+        pegs: pegs.map((peg) =>
+          peg.id === 'vc-03'
+            ? { ...peg, label: 'Publikovaná chata 3' }
+            : peg,
+        ),
+      },
+      filePath,
+    )
+
+    const fallbackDraft = await readLocalMapDraftState(draftPath, published)
+    expect(fallbackDraft.pegs.find((peg) => peg.id === 'vc-03')?.label).toBe('Publikovaná chata 3')
+    expect(mapStateContentEquals(fallbackDraft, published)).toBe(true)
+
+    await writeLocalMapDraftState(
+      {
+        mapFacilities,
+        mapLayers,
+        mapShapes,
+        pegs: published.pegs.map((peg) =>
+          peg.id === 'vc-03'
+            ? { ...peg, label: 'Rozpracovaná chata 3' }
+            : peg,
+        ),
+      },
+      draftPath,
+    )
+
+    const rereadPublished = await readLocalMapState(filePath)
+    const rereadDraft = await readLocalMapDraftState(draftPath, rereadPublished)
+    expect(rereadPublished.pegs.find((peg) => peg.id === 'vc-03')?.label).toBe('Publikovaná chata 3')
+    expect(rereadDraft.pegs.find((peg) => peg.id === 'vc-03')?.label).toBe('Rozpracovaná chata 3')
+    expect(mapStateContentEquals(rereadDraft, rereadPublished)).toBe(false)
   })
 
   it('migrates missing seed sector polygons without losing existing map edits', async () => {

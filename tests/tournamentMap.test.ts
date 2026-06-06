@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MapShape, Tournament } from '~/app/data/pond'
 import {
   getTournamentMapCoverage,
+  getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
   getTournamentSectorShapes,
 } from '~/app/utils/tournamentMap'
@@ -65,6 +66,25 @@ describe('tournament map helpers', () => {
     expect(getTournamentMapCoverage(rows)).toEqual({
       mappedSectorCount: 1,
       totalSectorCount: 2,
+    })
+  })
+
+  it('describes the tournament map source for published map state', () => {
+    expect(getTournamentMapSourceSummary({ hasUnpublishedChanges: false })).toEqual({
+      description: 'Pokrytie zodpovedá publikovanej mape, ktorú vidia rybári.',
+      label: 'publikovaná mapa',
+      tone: 'published',
+    })
+  })
+
+  it('describes the tournament map source for draft map state', () => {
+    expect(getTournamentMapSourceSummary({
+      draftChanges: { total: 3 },
+      hasUnpublishedChanges: true,
+    })).toEqual({
+      description: 'Pokrytie ráta aj rozpracované sektorové polygony (3 nepublikovaných zmien).',
+      label: 'draft mapy',
+      tone: 'draft',
     })
   })
 })

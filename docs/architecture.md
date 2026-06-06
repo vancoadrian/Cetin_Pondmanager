@@ -104,6 +104,13 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `GET /api/closures` vracia sanitizované public uzávierky a interné blokácie bez interných poznámok, aby public dostupnosť sedela so serverom.
 - `GET /api/admin/closures` vracia plný interný stav uzávierok.
 - `POST /api/admin/closures` vytvorí alebo aktualizuje uzávierku, zapíše lokálny closure store a audit udalosť.
+- `GET /api/map` vracia sanitizovanú publikovanú public mapu bez interných servisných bodov, interných zón a interných vrstiev.
+- `GET /api/admin/map` vracia plný rozpracovaný SVG model mapy pre interné role s prístupom k mape.
+- Admin mapové mutácie aj `GET /api/admin/map` vracajú `draftChanges`, aby UI vedelo pred publikovaním ukázať počet aj názvy pridaných, upravených a odstránených položiek oproti public mape.
+- `PUT /api/admin/map` ukladá validované lovné miesta, chaty, servisné body, polygonové plochy a aktívne vrstvy do draftu.
+- `POST /api/admin/map/publish` publikuje aktuálny draft do public mapy.
+- `POST /api/admin/map/discard-draft` obnoví draft z publikovanej mapy bez zmeny public vrstvy.
+- `POST /api/admin/map/background` ukladá nový podkladový obrázok do draftu mapy a `/api/map-assets/:id` verejne vydáva iba assety neinterných vrstiev v publikovanej mape.
 - `GET /api/catches` vracia iba verejne schválené úlovky a fotky bez interných review polí; cudzie zápisníky ani share kódy nezoznamuje.
 - `POST /api/catches` validuje úlovok, voliteľne ho priradí do kompatibilného zápisníka a uloží ho do lokálneho store v stave čakajúcom na schválenie.
 - `GET /api/catch-photos/:id` vráti binárnu fotku z lokálneho mock storage adresára `.data/rybolov-cetin/catch-photos/`.

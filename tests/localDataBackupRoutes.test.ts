@@ -33,6 +33,7 @@ const localDataEnvKeys = [
   'RYBOLOV_LOCAL_DATA_DIR',
   'RYBOLOV_LOCAL_ERROR_LOG_STORE',
   'RYBOLOV_LOCAL_MAP_ASSET_DIR',
+  'RYBOLOV_LOCAL_MAP_DRAFT_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
   'RYBOLOV_LOCAL_NOTIFICATION_STORE',
   'RYBOLOV_LOCAL_PAYMENT_METHOD_STORE',
@@ -70,6 +71,7 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_CLOSURE_STORE = join(dataDir, 'closure-state.json')
   process.env.RYBOLOV_LOCAL_ERROR_LOG_STORE = join(dataDir, 'error-log.json')
   process.env.RYBOLOV_LOCAL_MAP_ASSET_DIR = join(dataDir, 'map-assets')
+  process.env.RYBOLOV_LOCAL_MAP_DRAFT_STORE = join(dataDir, 'map-draft-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
   process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notification-state.json')
   process.env.RYBOLOV_LOCAL_PAYMENT_METHOD_STORE = join(dataDir, 'payment-methods.json')

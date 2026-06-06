@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mapFacilities, mapLayers, mapShapes, pegs } from '~/app/data/pond'
-import { saveMapState } from '~/app/services/mapApiService'
+import { getMapDraftChangeSummary, saveMapState } from '~/app/services/mapApiService'
 
 const currentState = {
   mapFacilities,
@@ -8,6 +8,61 @@ const currentState = {
   mapShapes,
   pegs,
 }
+
+describe('getMapDraftChangeSummary', () => {
+  it('counts added, updated and removed map entities against the published state', () => {
+    const summary = getMapDraftChangeSummary(
+      {
+        mapFacilities: [
+          ...mapFacilities,
+          {
+            id: 'facility-diff-test',
+            lake: 'velky-cetin',
+            label: 'Diff test sklad',
+            notes: 'Nový interný bod.',
+            type: 'storage',
+            visibility: 'internal',
+            x: 10,
+            y: 10,
+          },
+        ],
+        mapLayers: mapLayers.map((layer) =>
+          layer.id === 'layer-vc-background'
+            ? {
+                ...layer,
+                imageSettings: {
+                  fit: 'contain',
+                  offsetX: 4,
+                  offsetY: 0,
+                  opacity: 0.9,
+                  scale: 1.1,
+                },
+              }
+            : layer,
+        ),
+        mapShapes: mapShapes.filter((shape) => shape.id !== mapShapes[0]!.id),
+        pegs: pegs.map((peg) => peg.id === 'vc-03' ? { ...peg, x: peg.x + 1 } : peg),
+      },
+      currentState,
+    )
+
+    expect(summary.mapFacilities.added).toBe(1)
+    expect(summary.mapFacilities.addedItems).toContainEqual({
+      id: 'facility-diff-test',
+      label: 'Diff test sklad',
+    })
+    expect(summary.mapLayers.updated).toBe(1)
+    expect(summary.mapLayers.updatedItems[0]?.label).toBe('Podklad jazera')
+    expect(summary.mapShapes.removed).toBe(1)
+    expect(summary.mapShapes.removedItems[0]?.id).toBe(mapShapes[0]!.id)
+    expect(summary.pegs.updated).toBe(1)
+    expect(summary.pegs.updatedItems).toContainEqual({
+      id: 'vc-03',
+      label: 'Chata 3',
+    })
+    expect(summary.total).toBe(4)
+  })
+})
 
 describe('saveMapState', () => {
   it('persists validated editable map point fields and layer visibility', () => {

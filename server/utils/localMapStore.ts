@@ -17,6 +17,11 @@ export function resolveLocalMapStorePath() {
     ?? join(process.cwd(), '.data', 'rybolov-cetin', 'map-state.json')
 }
 
+export function resolveLocalMapDraftStorePath() {
+  return process.env.RYBOLOV_LOCAL_MAP_DRAFT_STORE
+    ?? join(process.cwd(), '.data', 'rybolov-cetin', 'map-draft-state.json')
+}
+
 function cloneMapLayers(items: MapLayer[]) {
   return items.map((layer) => ({
     ...layer,
@@ -59,15 +64,27 @@ function clonePegs(items: Peg[]) {
   return items.map((peg) => ({ ...peg }))
 }
 
-export function createSeedMapState(updatedAt = new Date(0).toISOString()): LocalMapState {
+export function cloneLocalMapState(
+  state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs' | 'updatedAt'>,
+): LocalMapState {
   return {
-    mapFacilities: cloneMapFacilities(mapFacilities),
-    mapLayers: cloneMapLayers(mapLayers),
-    mapShapes: cloneMapShapes(mapShapes),
-    pegs: clonePegs(pegs),
-    updatedAt,
+    mapFacilities: cloneMapFacilities(state.mapFacilities),
+    mapLayers: cloneMapLayers(state.mapLayers),
+    mapShapes: cloneMapShapes(state.mapShapes),
+    pegs: clonePegs(state.pegs),
+    updatedAt: state.updatedAt,
     version: 1,
   }
+}
+
+export function createSeedMapState(updatedAt = new Date(0).toISOString()): LocalMapState {
+  return cloneLocalMapState({
+    mapFacilities,
+    mapLayers,
+    mapShapes,
+    pegs,
+    updatedAt,
+  })
 }
 
 function isMapState(value: unknown): value is Omit<LocalMapState, 'mapFacilities'> & { mapFacilities?: MapFacility[] } {
@@ -82,7 +99,7 @@ function isMapState(value: unknown): value is Omit<LocalMapState, 'mapFacilities
   )
 }
 
-export async function readLocalMapState(filePath = resolveLocalMapStorePath()): Promise<LocalMapState> {
+async function readExistingLocalMapState(filePath: string): Promise<LocalMapState | undefined> {
   try {
     const raw = await readFile(filePath, 'utf8')
     const parsed: unknown = JSON.parse(raw)
@@ -108,10 +125,27 @@ export async function readLocalMapState(filePath = resolveLocalMapStorePath()): 
     }
   }
 
+  return undefined
+}
+
+export async function readLocalMapState(filePath = resolveLocalMapStorePath()): Promise<LocalMapState> {
+  const existingState = await readExistingLocalMapState(filePath)
+  if (existingState) return existingState
+
   const seedState = createSeedMapState()
   await writeLocalMapState(seedState, filePath)
 
   return seedState
+}
+
+export async function readLocalMapDraftState(
+  draftFilePath = resolveLocalMapDraftStorePath(),
+  publishedState?: LocalMapState,
+): Promise<LocalMapState> {
+  const existingDraft = await readExistingLocalMapState(draftFilePath)
+  if (existingDraft) return existingDraft
+
+  return cloneLocalMapState(publishedState ?? await readLocalMapState())
 }
 
 export async function writeLocalMapState(
@@ -131,4 +165,27 @@ export async function writeLocalMapState(
   await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
 
   return nextState
+}
+
+export async function writeLocalMapDraftState(
+  state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
+  filePath = resolveLocalMapDraftStorePath(),
+): Promise<LocalMapState> {
+  return writeLocalMapState(state, filePath)
+}
+
+function comparableMapState(state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>) {
+  return {
+    mapFacilities: cloneMapFacilities(state.mapFacilities),
+    mapLayers: cloneMapLayers(state.mapLayers),
+    mapShapes: cloneMapShapes(state.mapShapes),
+    pegs: clonePegs(state.pegs),
+  }
+}
+
+export function mapStateContentEquals(
+  first: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
+  second: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
+) {
+  return JSON.stringify(comparableMapState(first)) === JSON.stringify(comparableMapState(second))
 }

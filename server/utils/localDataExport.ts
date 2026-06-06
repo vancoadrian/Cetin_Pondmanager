@@ -34,7 +34,12 @@ import { readLocalCatchState, resolveLocalCatchStorePath } from './localCatchSto
 import { readLocalClosureState, resolveLocalClosureStorePath } from './localClosureStore'
 import { readLocalErrorLogState, resolveLocalErrorLogStorePath } from './localErrorLogStore'
 import { resolveLocalMapAssetDir } from './localMapAssetStore'
-import { readLocalMapState, resolveLocalMapStorePath } from './localMapStore'
+import {
+  readLocalMapDraftState,
+  readLocalMapState,
+  resolveLocalMapDraftStorePath,
+  resolveLocalMapStorePath,
+} from './localMapStore'
 import { readLocalNotificationState, resolveLocalNotificationStorePath } from './localNotificationStore'
 import { readLocalPaymentMethodState, resolveLocalPaymentMethodStorePath } from './localPaymentMethodStore'
 import { readLocalRentalCatalogState, resolveLocalRentalCatalogStorePath } from './localRentalCatalogStore'
@@ -173,6 +178,12 @@ export function getDefaultLocalDataStoreDefinitions(): LocalDataStoreDefinition[
       label: 'Mapa revíru',
       path: resolveLocalMapStorePath(),
       read: () => toExportState(readLocalMapState()),
+    },
+    {
+      id: 'mapDraft',
+      label: 'Rozpracovaná mapa revíru',
+      path: resolveLocalMapDraftStorePath(),
+      read: async () => toExportState(readLocalMapDraftState(undefined, await readLocalMapState())),
     },
     {
       id: 'closures',

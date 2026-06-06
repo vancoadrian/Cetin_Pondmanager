@@ -15,7 +15,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const state = await readLocalMapState()
-  const isKnownMapAsset = state.mapLayers.some((layer) => layer.source === `/api/map-assets/${assetId}`)
+  const isKnownMapAsset = state.mapLayers.some((layer) =>
+    layer.visibility !== 'internal' &&
+    layer.source === `/api/map-assets/${assetId}`,
+  )
   if (!isKnownMapAsset) {
     throw createError({
       statusCode: 404,
