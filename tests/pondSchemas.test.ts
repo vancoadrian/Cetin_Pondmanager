@@ -756,8 +756,8 @@ describe('mapShapeInputSchema', () => {
       lake: 'velky-cetin',
       label: 'Dočasný zákaz',
       points: [
-        { x: 20, y: 20 },
-        { x: 32, y: 20 },
+        { label: 'Severný breh', role: 'shore', x: 20, y: 20 },
+        { role: 'boundary', x: 32, y: 20 },
         { x: 32, y: 33 },
       ],
       tone: 'warning',
@@ -766,6 +766,12 @@ describe('mapShapeInputSchema', () => {
     })
 
     expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Map shape should be valid.')
+
+    expect(result.data.points[0]).toMatchObject({
+      label: 'Severný breh',
+      role: 'shore',
+    })
   })
 
   it('accepts optional tournament sector links on competition polygons', () => {
@@ -792,5 +798,26 @@ describe('mapShapeInputSchema', () => {
       sectorId: 'a1',
       tournamentId: 'eccj-2026',
     })
+  })
+
+  it('rejects invalid polygon point metadata', () => {
+    const result = mapShapeInputSchema.safeParse({
+      id: 'shape-vc-invalid-point',
+      lake: 'velky-cetin',
+      label: 'Neplatný vrchol',
+      points: [
+        { label: 'A'.repeat(41), role: 'shore', x: 72, y: 58 },
+        { role: 'unknown', x: 84, y: 58 },
+        { x: 84, y: 70 },
+      ],
+      tone: 'warning',
+      type: 'zone',
+      visibility: 'internal',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Polygon point metadata should be invalid.')
+
+    expect(getValidationMessages(result)).toContain('Názov vrcholu môže mať najviac 40 znakov.')
   })
 })

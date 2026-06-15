@@ -68,8 +68,12 @@ Admin má vedieť:
 - Vybrané lovné miesto má rýchle rezervačné režimy: brehové miesto, chata povinná, chata voliteľná, termín na potvrdenie, ručne rezervované a údržba/blokácia. Verejná aj admin rezervácia čítajú živé lovné miesta z mapového store.
 - Vybrané miesto s chatou má v adminovi väzbu na cenníkovú chatu. Väzba sa ukladá do samostatného lokálneho store, validuje, že jedno miesto nepatrí do viacerých cenníkových produktov, a public/admin rezervácie podľa nej automaticky doplnia položku chaty.
 - Editor má voliteľnú mriežku, snap na krok 1 %, 2.5 %, 5 % alebo 10 % a klávesové ovládanie kreslenia pre rýchle opravy.
+- Vrcholy polygonov môžu mať voliteľný typ a krátky názov, napríklad breh, hranica, vstup, kotva podkladu alebo servisný bod; pri posune bodov a hromadnom zarovnaní sektorov sa tieto metadáta zachovávajú.
+- `/admin/mapa` má pracovnú legendu označených vrcholov pre aktuálne jazero. Riadky legendy vedia vybrať príslušný polygon, legenda sa dá filtrovať podľa typu bodu a viditeľnosti plochy, export modelu obsahuje filtrovaný `shapePointLegend` a správca si vie aktuálny výber vytlačiť alebo stiahnuť ako CSV.
 - Admin vie nahrať nový JPG/PNG/WebP podklad mapy pre vybrané jazero; súbor sa uloží do `.data/rybolov-cetin/map-assets/` a vrstva dostane URL `/api/map-assets/:id`.
 - Admin vie pri obrázkovom podklade meniť `cover`, `contain` alebo `stretch`, mierku, X/Y posun a priehľadnosť; podklad vie posúvať aj priamo ťahaním v SVG mape. Rovnaké nastavenie číta aj verejná mapa.
+- Admin mapa má exportné rámy pre celý viewBox, A4/A3 na šírku, A4 na výšku, štvorec a 16:9. Editor ich ukazuje ako SVG výrez nad mapou a počíta, koľko lovných miest, servisných bodov a vrcholov polygonov ostáva vo vybranom ráme.
+- `/admin/mapa` má kontrolu pred publikovaním pre aktuálne jazero. Upozorní na chatu bez produktu, povinnú chatu bez cenníkovej väzby, duplicitné väzby chaty, verejné servisné zóny, zapnutú verejnú servisnú vrstvu s internými bodmi, chýbajúcu vodnú oblasť, chýbajúci obrázkový podklad, súťažné polygony mimo súťažnej viditeľnosti, chýbajúce sektory a duplicitné polygony jedného sektora. Kritické nálezy blokujú iba publikovanie, nie uloženie draftu.
 - `mapLayers`, `mapFacilities` a `mapShapes` sú seednuté v `app/data/pond.ts`.
 - Pomocné mapové funkcie sú v `app/utils/map.ts`.
 - `GET /api/map` vracia sanitizovaný publikovaný mapový stav z `.data/rybolov-cetin/map-state.json`: public a súťažné vrstvy/tvary/body áno, interné servisné body, interné zóny a interné vrstvy nie.
@@ -84,11 +88,9 @@ Admin má vedieť:
 - Sektorové polygony môžu niesť `tournamentId` a `sectorId`, takže admin mapa vie naviazať kreslenú plochu na konkrétny súťažný sektor.
 - `/admin/sutaze` vie otvoriť `/admin/mapa?turnaj=<id>&sektor=<id>` priamo z konkrétneho sektora. Editor prepne jazero, otvorí existujúci sektorový polygon alebo pripraví nový neuložený draft polygonu pri bode sektora.
 - `/admin/mapa` vie pre aktívnu súťaž hromadne pripraviť neuložené draft polygony pre všetky sektory, ktorým ešte chýba sektorový SVG tvar.
+- `/admin/mapa` vie existujúce sektorové polygony hromadne zarovnať späť okolo uložených bodov sektorov alebo ako pás od najbližšej vodnej plochy, ostrova či všeobecnej súťažnej línie bez konkrétneho sektora. Šírka aj hĺbka návrhu ostávajú nastaviteľné a pri chýbajúcej referenčnej línii editor bezpečne použije bod sektora.
 - Seed body sú v `app/data/pond.ts`, runtime úpravy admina sú v lokálnom store.
 
 ## Ďalšie kroky
 
-- Doplniť presnejší crop preset podkladu pre rôzne pomery tlače alebo exportu.
-- Doplniť pomenovanie alebo typovanie vrcholov pre špeciálne body hranice, ak to správca pri reálnych mapách potrebuje.
-- Doplniť hromadné zarovnanie sektorových polygonov podľa brehu alebo nahratého podkladu, ak sa pri reálnych mapách ukáže, že obdĺžnikové návrhy treba rýchlo rozťahovať do línie.
 - Neskôr nahradiť lokálny JSON store produkčnou map repository/Supabase mutáciou.

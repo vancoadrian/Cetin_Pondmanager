@@ -4,12 +4,14 @@ import { getPegAvailability } from '~/utils/availability'
 import {
   clampMapPercent,
   fromSvgY,
+  type MapExportFrame,
   getMapLayerImageAttributes,
   getMapFacilityShortLabel,
   getMapFacilityStyle,
   getMapMarkerStyle,
   getMapPointLabel,
   getMapShapePoints,
+  mapShapePointRoleLabels,
   getMapShapeStyle,
   MAP_VIEWBOX_HEIGHT,
   MAP_VIEWBOX_WIDTH,
@@ -24,6 +26,7 @@ const props = withDefaults(
     drawingShape?: boolean
     editable?: boolean
     editingBackground?: boolean
+    exportFrame?: MapExportFrame
     facilities?: MapFacility[]
     image?: string
     imageSettings?: MapLayerImageSettings
@@ -44,6 +47,7 @@ const props = withDefaults(
     drawingShape: false,
     editable: false,
     editingBackground: false,
+    exportFrame: undefined,
     facilities: () => [],
     image: '',
     imageSettings: undefined,
@@ -293,6 +297,13 @@ function shapeCenter(shape: MapShape) {
 
   return { x: sum.x / pointCount, y: sum.y / pointCount }
 }
+
+function formatShapePointMeta(point: MapShape['points'][number]) {
+  const label = point.label?.trim()
+  if (label) return label.length > 16 ? `${label.slice(0, 15)}…` : label
+
+  return point.role && point.role !== 'regular' ? mapShapePointRoleLabels[point.role] : ''
+}
 </script>
 
 <template>
@@ -423,6 +434,22 @@ function shapeCenter(shape: MapShape) {
             >
               {{ pointIndex + 1 }}
             </text>
+            <text
+              v-if="formatShapePointMeta(point)"
+              :x="Math.min(96, point.x + 2.7)"
+              :y="Math.max(2, toSvgY(point.y) - 2.4)"
+              text-anchor="start"
+              dominant-baseline="middle"
+              font-size="1.45"
+              font-weight="800"
+              fill="#062523"
+              paint-order="stroke"
+              stroke="#ffffff"
+              stroke-width="0.42"
+              pointer-events="none"
+            >
+              {{ formatShapePointMeta(point) }}
+            </text>
           </g>
         </g>
 
@@ -549,6 +576,59 @@ function shapeCenter(shape: MapShape) {
             pointer-events="none"
           >
             {{ getMapPointLabel(point) }}
+          </text>
+        </g>
+
+        <g v-if="exportFrame" pointer-events="none">
+          <rect
+            x="0"
+            y="0"
+            :width="MAP_VIEWBOX_WIDTH"
+            :height="exportFrame.y"
+            fill="rgba(6, 37, 35, 0.42)"
+          />
+          <rect
+            x="0"
+            :y="exportFrame.y + exportFrame.height"
+            :width="MAP_VIEWBOX_WIDTH"
+            :height="Math.max(0, MAP_VIEWBOX_HEIGHT - exportFrame.y - exportFrame.height)"
+            fill="rgba(6, 37, 35, 0.42)"
+          />
+          <rect
+            x="0"
+            :y="exportFrame.y"
+            :width="exportFrame.x"
+            :height="exportFrame.height"
+            fill="rgba(6, 37, 35, 0.42)"
+          />
+          <rect
+            :x="exportFrame.x + exportFrame.width"
+            :y="exportFrame.y"
+            :width="Math.max(0, MAP_VIEWBOX_WIDTH - exportFrame.x - exportFrame.width)"
+            :height="exportFrame.height"
+            fill="rgba(6, 37, 35, 0.42)"
+          />
+          <rect
+            :x="exportFrame.x"
+            :y="exportFrame.y"
+            :width="exportFrame.width"
+            :height="exportFrame.height"
+            fill="transparent"
+            stroke="#ffffff"
+            stroke-width="0.75"
+            stroke-dasharray="1.5 1"
+          />
+          <text
+            :x="exportFrame.x + 1.4"
+            :y="Math.max(2.6, exportFrame.y + 2.6)"
+            font-size="1.75"
+            font-weight="900"
+            fill="#ffffff"
+            paint-order="stroke"
+            stroke="#062523"
+            stroke-width="0.45"
+          >
+            {{ exportFrame.label }}
           </text>
         </g>
 

@@ -11,16 +11,34 @@ import type { MapDraftChangeSummary, MapDraftDiscardSuccess, MapEntityChangeSumm
 import type { CabinCatalogMutationSuccess } from '~/services/cabinCatalogService'
 import {
   clampMapPercent,
+  createMapShapePointLegendCsv,
   defaultMapLayerImageSettings,
+  filterMapShapePointLegendRows,
+  getMapExportFrame,
+  getMapExportFramePreset,
+  getMapQualityIssues,
+  getMapQualityIssueSummary,
+  getMapShapePointLegendRows,
+  getMapShapePointRoleSummary,
+  mapExportFramePresets,
   mapFacilityTypeLabels,
+  mapShapePointRoleLabels,
   mapShapeToneLabels,
   mapShapeTypeLabels,
+  mapShapeVisibilityLabels,
   normalizeMapLayerImageSettings,
+  toSvgY,
+  type MapExportFramePresetId,
+  type MapQualityIssueSeverity,
+  type MapShapePointLegendRow,
 } from '~/utils/map'
 import {
+  alignTournamentSectorShapes,
   createMissingTournamentSectorShapeDrafts,
   createTournamentSectorShapeDraft,
+  getTournamentSectorAlignmentReferenceShapes,
   getTournamentSectorMapRows,
+  type TournamentSectorShapeAlignmentMode,
 } from '~/utils/tournamentMap'
 
 useHead({ title: 'Admin mapa' })
@@ -146,10 +164,18 @@ const cabinCatalogStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const cabinCatalogMessage = ref('')
 const routeFocusStatus = ref<'idle' | 'success' | 'warning'>('idle')
 const routeFocusMessage = ref('')
+const sectorShapeWidth = ref(14)
+const sectorShapeHeight = ref(10)
+const sectorShapeAlignmentMode = ref<TournamentSectorShapeAlignmentMode>('box')
+const mapExportFramePresetId = ref<MapExportFramePresetId>('map-4-3')
+const shapePointLegendRoleFilter = ref<'all' | NonNullable<MapCoordinate['role']>>('all')
+const shapePointLegendVisibilityFilter = ref<'all' | MapShape['visibility']>('all')
+const shapePointLegendPrintGeneratedAt = ref('')
 
 const facilityTypeOptions = Object.entries(mapFacilityTypeLabels).map(([value, label]) => ({ label, value: value as MapFacilityType }))
 const shapeTypeOptions = Object.entries(mapShapeTypeLabels).map(([value, label]) => ({ label, value: value as MapShape['type'] }))
 const shapeToneOptions = Object.entries(mapShapeToneLabels).map(([value, label]) => ({ label, value: value as MapShape['tone'] }))
+const shapePointRoleOptions = Object.entries(mapShapePointRoleLabels).map(([value, label]) => ({ label, value: value as NonNullable<MapCoordinate['role']> }))
 const shapePresetOptions: ShapePreset[] = [
   { icon: 'i-heroicons-sparkles', label: 'Vodná oblasť', type: 'shoreline' },
   { icon: 'i-heroicons-map', label: 'Ostrov / porast', type: 'island' },
@@ -168,10 +194,13 @@ const backgroundFitOptions = [
   { label: 'Zobraziť celé', value: 'contain' },
   { label: 'Roztiahnuť', value: 'stretch' },
 ] as const
-const visibilityOptions = [
-  { label: 'verejné', value: 'public' },
-  { label: 'interné', value: 'internal' },
-  { label: 'súťažné', value: 'competition' },
+const visibilityOptions = Object.entries(mapShapeVisibilityLabels).map(([value, label]) => ({
+  label,
+  value: value as MapShape['visibility'],
+}))
+const shapePointLegendVisibilityOptions = [
+  { label: 'všetky viditeľnosti', value: 'all' },
+  ...visibilityOptions,
 ] as const
 const pegStatusOptions = [
   { label: 'voľné', value: 'free' },
@@ -186,6 +215,25 @@ const pegReservationPresetOptions: PegReservationPreset[] = [
   { icon: 'i-heroicons-clipboard-document-check', label: 'Termín potvrdiť', status: 'weekend-free' },
   { icon: 'i-heroicons-lock-closed', label: 'Rezervované ručne', status: 'reserved' },
   { icon: 'i-heroicons-wrench-screwdriver', label: 'Údržba / blok', status: 'maintenance' },
+]
+const sectorShapeAlignmentModeOptions: Array<{
+  description: string
+  icon: string
+  label: string
+  value: TournamentSectorShapeAlignmentMode
+}> = [
+  {
+    description: 'Rýchly čistý obdĺžnik okolo bodu sektora.',
+    icon: 'i-heroicons-squares-2x2',
+    label: 'Okolo bodu',
+    value: 'box',
+  },
+  {
+    description: 'Pás od najbližšej vodnej plochy alebo súťažnej línie smerom k sektoru.',
+    icon: 'i-heroicons-arrows-right-left',
+    label: 'Podľa brehu / línie',
+    value: 'shoreline',
+  },
 ]
 
 const currentLake = computed(() => lakes.find((lake) => lake.slug === selectedLake.value) ?? lakes[0]!)
@@ -210,6 +258,8 @@ const currentBackgroundImageSettings = computed(() => currentBackgroundLayer.val
 const normalizedBackgroundImageSettings = computed(() =>
   normalizeMapLayerImageSettings(currentBackgroundImageSettings.value),
 )
+const mapExportFramePreset = computed(() => getMapExportFramePreset(mapExportFramePresetId.value))
+const mapExportFrame = computed(() => getMapExportFrame(mapExportFramePresetId.value))
 const lakePegs = computed(() => editorPegs.value.filter((peg) => peg.lake === selectedLake.value))
 const lakeFacilities = computed(() => editorFacilities.value.filter((facility) => facility.lake === selectedLake.value))
 const lakeShapes = computed(() => editorShapes.value.filter((shape) => shape.lake === selectedLake.value))
@@ -294,6 +344,9 @@ const focusedTournament = computed(() =>
 const focusedTournamentSectorRows = computed(() =>
   focusedTournament.value ? getTournamentSectorMapRows(focusedTournament.value, editorShapes.value) : [],
 )
+const mappedFocusedTournamentSectorRows = computed(() =>
+  focusedTournamentSectorRows.value.filter((row) => row.mapped),
+)
 const missingFocusedTournamentSectorRows = computed(() =>
   focusedTournamentSectorRows.value.filter((row) => !row.mapped),
 )
@@ -306,6 +359,58 @@ const cabinPegs = computed(() => lakePegs.value.filter((peg) => peg.type === 'ca
 const linkedTournamentSectorShapes = computed(() =>
   lakeShapes.value.filter((shape) => shape.type === 'sector' && Boolean(shape.tournamentId) && Boolean(shape.sectorId)),
 )
+const sectorAlignmentReferenceShapes = computed(() =>
+  focusedTournament.value ? getTournamentSectorAlignmentReferenceShapes(focusedTournament.value, editorShapes.value) : [],
+)
+const shapePointLegendRows = computed(() => getMapShapePointLegendRows(lakeShapes.value))
+const shapePointLegendSummary = computed(() => getMapShapePointRoleSummary(shapePointLegendRows.value))
+const filteredShapePointLegendRows = computed(() =>
+  filterMapShapePointLegendRows(shapePointLegendRows.value, {
+    role: shapePointLegendRoleFilter.value,
+    visibility: shapePointLegendVisibilityFilter.value,
+  }),
+)
+const shapePointLegendRoleFilterLabel = computed(() =>
+  shapePointLegendRoleFilter.value === 'all'
+    ? 'všetky typy'
+    : mapShapePointRoleLabels[shapePointLegendRoleFilter.value],
+)
+const shapePointLegendVisibilityFilterLabel = computed(() =>
+  shapePointLegendVisibilityFilter.value === 'all'
+    ? 'všetky viditeľnosti'
+    : mapShapeVisibilityLabels[shapePointLegendVisibilityFilter.value],
+)
+const shapePointLegendPrintMeta = computed(() => [
+  { label: 'Jazero', value: getLakeName(selectedLake.value) },
+  { label: 'Typ bodu', value: shapePointLegendRoleFilterLabel.value },
+  { label: 'Viditeľnosť', value: shapePointLegendVisibilityFilterLabel.value },
+  { label: 'Počet bodov', value: `${filteredShapePointLegendRows.value.length}/${shapePointLegendRows.value.length}` },
+])
+const mapQualityIssues = computed(() =>
+  getMapQualityIssues({
+    cabinProducts: editorCabinProducts.value,
+    enabledLayerIds: enabledLayerIds.value,
+    focusedTournament: focusedTournament.value,
+    lake: selectedLake.value,
+    mapFacilities: editorFacilities.value,
+    mapLayers: editorMapLayers.value,
+    mapShapes: editorShapes.value,
+    pegs: editorPegs.value,
+  }),
+)
+const mapQualitySummary = computed(() => getMapQualityIssueSummary(mapQualityIssues.value))
+const mapQualityBlockingIssues = computed(() =>
+  mapQualityIssues.value.filter((issue) => issue.severity === 'error'),
+)
+const mapQualitySummaryLabel = computed(() => {
+  if (mapQualityIssues.value.length === 0) return 'bez nálezov'
+
+  return [
+    mapQualitySummary.value.errorCount > 0 ? `${mapQualitySummary.value.errorCount} kritické` : '',
+    mapQualitySummary.value.warningCount > 0 ? `${mapQualitySummary.value.warningCount} upozornenia` : '',
+    mapQualitySummary.value.infoCount > 0 ? `${mapQualitySummary.value.infoCount} info` : '',
+  ].filter(Boolean).join(' · ')
+})
 const linkedCabinPegIds = computed(() =>
   new Set(editorCabinProducts.value.flatMap((cabin) => cabin.pegIds)),
 )
@@ -380,6 +485,7 @@ const selectedValidationIsValid = computed(() => {
 })
 const changedItemsCount = computed(() => changedPegs.value.length + changedFacilities.value.length + changedShapes.value.length + changedLayers.value.length)
 const exportModel = computed(() => ({
+  exportFrame: mapExportFrame.value,
   facilities: changedFacilities.value,
   layers: changedLayers.value,
   pegs: changedPegs.value.map((peg) => ({
@@ -393,6 +499,7 @@ const exportModel = computed(() => ({
     y: peg.y,
   })),
   shapes: changedShapes.value,
+  shapePointLegend: filteredShapePointLegendRows.value,
 }))
 const draftShape = computed<MapShape | undefined>(() => {
   if (!isDrawingShape.value || draftShapePoints.value.length === 0) return undefined
@@ -427,6 +534,29 @@ const draftChangeRows = computed(() => {
       total: row.summary.added + row.summary.updated + row.summary.removed,
     }))
     .filter((row) => row.total > 0)
+})
+const mapExportFrameCoverage = computed(() => {
+  const frame = mapExportFrame.value
+  const pointIsInsideFrame = (point: Pick<MapCoordinate, 'x' | 'y'>) => {
+    const svgY = toSvgY(point.y)
+
+    return (
+      point.x >= frame.x
+      && point.x <= frame.x + frame.width
+      && svgY >= frame.y
+      && svgY <= frame.y + frame.height
+    )
+  }
+  const pegCount = lakePegs.value.filter(pointIsInsideFrame).length
+  const facilityCount = lakeFacilities.value.filter(pointIsInsideFrame).length
+  const shapePointCount = lakeShapes.value.flatMap((shape) => shape.points).filter(pointIsInsideFrame).length
+  const totalShapePointCount = lakeShapes.value.reduce((sum, shape) => sum + shape.points.length, 0)
+
+  return {
+    facilities: `${facilityCount}/${lakeFacilities.value.length}`,
+    pegs: `${pegCount}/${lakePegs.value.length}`,
+    shapePoints: `${shapePointCount}/${totalShapePointCount}`,
+  }
 })
 
 function formatDraftEntityChanges(summary: MapEntityChangeSummary) {
@@ -710,6 +840,40 @@ function selectShape(shape: MapShape) {
   selectedKind.value = 'shape'
   selectedShapeId.value = shape.id
   resetSaveFeedback()
+}
+
+function selectShapePointLegendRow(row: MapShapePointLegendRow) {
+  const shape = editorShapes.value.find((item) => item.id === row.shapeId)
+  if (!shape) return
+
+  selectShape(shape)
+}
+
+function formatPrintTimestamp(date = new Date()) {
+  return new Intl.DateTimeFormat('sk-SK', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function printShapePointLegend() {
+  if (!import.meta.client || filteredShapePointLegendRows.value.length === 0) return
+
+  shapePointLegendPrintGeneratedAt.value = formatPrintTimestamp()
+  window.print()
+}
+
+function downloadShapePointLegendCsv() {
+  if (!import.meta.client || filteredShapePointLegendRows.value.length === 0) return
+
+  const csv = createMapShapePointLegendCsv(filteredShapePointLegendRows.value)
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `legenda-vrcholov-${selectedLake.value}-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function toggleLayer(layerId: string) {
@@ -1037,6 +1201,44 @@ function addMissingTournamentSectorShapeDrafts() {
   routeFocusMessage.value = `Doplnené neuložené polygony pre ${drafts.length} sektorov súťaže ${tournament.name}.`
 }
 
+function alignFocusedTournamentSectorShapes() {
+  const tournament = focusedTournament.value
+  if (!tournament) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = 'Pre vybrané jazero nie je pripravená žiadna súťaž.'
+    return
+  }
+
+  if (!canManageMap.value) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = mapReadOnlyMessage.value
+    return
+  }
+
+  const result = alignTournamentSectorShapes(tournament, editorShapes.value, {
+    heightPercent: sectorShapeHeight.value,
+    mode: sectorShapeAlignmentMode.value,
+    widthPercent: sectorShapeWidth.value,
+  })
+
+  if (result.updatedCount === 0) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = `Súťaž ${tournament.name} ešte nemá žiadne naviazané sektorové polygony na zarovnanie.`
+    return
+  }
+
+  ensureShapeLayerVisible('sector')
+  editorShapes.value = result.shapes
+  cancelShapeDrawing()
+  const firstUpdatedShape = editorShapes.value.find((shape) => shape.id === result.updatedShapeIds[0])
+  if (firstUpdatedShape) selectShape(firstUpdatedShape)
+  resetSaveFeedback()
+  routeFocusStatus.value = 'success'
+  routeFocusMessage.value = sectorShapeAlignmentMode.value === 'shoreline'
+    ? `Zarovnané neuložené polygony pre ${result.updatedCount} sektorov súťaže ${tournament.name} podľa brehu alebo súťažnej línie.`
+    : `Zarovnané neuložené polygony pre ${result.updatedCount} sektorov súťaže ${tournament.name}.`
+}
+
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null
   if (!element) return false
@@ -1067,6 +1269,7 @@ function handleDrawingShortcut(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleDrawingShortcut)
+  shapePointLegendPrintGeneratedAt.value = formatPrintTimestamp()
   void focusRequestedTournamentSector()
 })
 
@@ -1114,6 +1317,7 @@ function moveShape(payload: { id: string, dx: number, dy: number }) {
   const dy = Math.min(100 - maxY, Math.max(-minY, payload.dy))
 
   shape.points = shape.points.map((point) => ({
+    ...point,
     x: clampMapPercent(point.x + dx),
     y: clampMapPercent(point.y + dy),
   }))
@@ -1125,7 +1329,7 @@ function moveShapePoint(payload: { id: string, pointIndex: number, x: number, y:
 
   const shape = editorShapes.value.find((item) => item.id === payload.id)
   if (!shape || !shape.points[payload.pointIndex]) return
-  shape.points[payload.pointIndex] = { x: payload.x, y: payload.y }
+  shape.points[payload.pointIndex] = { ...shape.points[payload.pointIndex], x: payload.x, y: payload.y }
   selectShape(shape)
 }
 
@@ -1366,6 +1570,20 @@ function getApiErrorMessage(error: unknown) {
   )
 }
 
+function getMapQualityIssueIcon(severity: MapQualityIssueSeverity) {
+  if (severity === 'error') return 'i-heroicons-exclamation-triangle'
+  if (severity === 'warning') return 'i-heroicons-exclamation-circle'
+
+  return 'i-heroicons-information-circle'
+}
+
+function getMapQualityIssueClasses(severity: MapQualityIssueSeverity) {
+  if (severity === 'error') return 'border-error-500/25 bg-error-500/10 text-error-800'
+  if (severity === 'warning') return 'border-warning-500/25 bg-warning-500/10 text-warning-800'
+
+  return 'border-info-500/25 bg-info-500/10 text-info-800'
+}
+
 function validateEditorState() {
   const messages: string[] = []
 
@@ -1429,6 +1647,23 @@ function validateMapBeforeMutation() {
   return true
 }
 
+function validateMapBeforePublish() {
+  if (!validateMapBeforeMutation()) {
+    publishStatus.value = 'error'
+    publishMessage.value = saveMessage.value
+    return false
+  }
+
+  const blockingIssue = mapQualityBlockingIssues.value[0]
+  if (blockingIssue) {
+    publishStatus.value = 'error'
+    publishMessage.value = `${blockingIssue.title}: ${blockingIssue.description}`
+    return false
+  }
+
+  return true
+}
+
 async function saveMapChanges() {
   if (!validateMapBeforeMutation()) return
 
@@ -1455,11 +1690,7 @@ async function saveMapChanges() {
 }
 
 async function publishMapChanges() {
-  if (!validateMapBeforeMutation()) {
-    publishStatus.value = 'error'
-    publishMessage.value = saveMessage.value
-    return
-  }
+  if (!validateMapBeforePublish()) return
 
   publishStatus.value = 'publishing'
   publishMessage.value = ''
@@ -1529,14 +1760,15 @@ async function discardMapDraft() {
 
 <template>
   <div>
-    <PageHeader
-      eyebrow="Admin"
-      title="Mapa a editor miest"
-      description="Mock admin editor lovných miest, chát, servisných zón a súťažných vrstiev. Body sú už vedené ako SVG model s lokálnou drag úpravou."
-    />
+    <div class="screen-only">
+      <PageHeader
+        eyebrow="Admin"
+        title="Mapa a editor miest"
+        description="Mock admin editor lovných miest, chát, servisných zón a súťažných vrstiev. Body sú už vedené ako SVG model s lokálnou drag úpravou."
+      />
 
-    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <AdminModuleNav />
+      <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <AdminModuleNav />
 
       <div
         v-if="mapReadOnly"
@@ -1585,6 +1817,7 @@ async function discardMapDraft() {
           :drawing-shape="isDrawingShape"
           :editing-background="isEditingBackground"
           :editable="canManageMap"
+          :export-frame="mapExportFrame"
           :facilities="visibleFacilities"
           :title="`${currentLake.name} · SVG editor`"
           :image="activeBackgroundImage"
@@ -1648,20 +1881,82 @@ async function discardMapDraft() {
                 <div>
                   <p class="text-sm font-bold text-warning-900">Polygony sektorov</p>
                   <p class="text-foreground-muted mt-1 text-xs">
-                    {{ focusedTournament.name }} · chýba {{ missingFocusedTournamentSectorRows.length }}/{{ focusedTournament.sectors.length }}
+                    {{ focusedTournament.name }} · hotové {{ mappedFocusedTournamentSectorRows.length }}/{{ focusedTournament.sectors.length }} · chýba {{ missingFocusedTournamentSectorRows.length }}
                   </p>
                 </div>
-                <UButton
+                <div class="flex flex-wrap gap-2">
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-squares-plus"
+                    size="sm"
+                    color="warning"
+                    variant="soft"
+                    :disabled="!canManageMap || missingFocusedTournamentSectorRows.length === 0"
+                    @click="addMissingTournamentSectorShapeDrafts"
+                  >
+                    Doplniť
+                  </UButton>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-arrows-pointing-out"
+                    size="sm"
+                    color="warning"
+                    :disabled="!canManageMap || mappedFocusedTournamentSectorRows.length === 0"
+                    @click="alignFocusedTournamentSectorShapes"
+                  >
+                    Zarovnať
+                  </UButton>
+                </div>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  v-for="option in sectorShapeAlignmentModeOptions"
+                  :key="option.value"
                   type="button"
-                  icon="i-heroicons-squares-plus"
-                  size="sm"
-                  color="warning"
-                  variant="soft"
-                  :disabled="!canManageMap || missingFocusedTournamentSectorRows.length === 0"
-                  @click="addMissingTournamentSectorShapeDrafts"
+                  class="rounded-md border px-3 py-2 text-left transition-colors"
+                  :class="
+                    sectorShapeAlignmentMode === option.value
+                      ? 'border-warning-300 bg-white text-warning-950'
+                      : 'border-warning-200 bg-warning-50/50 text-foreground hover:bg-white'
+                  "
+                  @click="sectorShapeAlignmentMode = option.value"
                 >
-                  Doplniť
-                </UButton>
+                  <span class="flex items-center gap-2 text-sm font-bold">
+                    <UIcon :name="option.icon" class="h-4 w-4 shrink-0 text-warning-800" />
+                    {{ option.label }}
+                  </span>
+                  <span class="text-foreground-muted mt-1 block text-xs">{{ option.description }}</span>
+                </button>
+              </div>
+              <p class="text-foreground-muted mt-2 text-xs">
+                Referenčné línie pre brehový režim: {{ sectorAlignmentReferenceShapes.length }}.
+                Použijú sa vodné plochy, ostrovy alebo všeobecná súťažná línia bez konkrétneho sektora; pri chýbajúcej línii sa použije bod sektora.
+              </p>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-xs font-semibold text-warning-900">Šírka návrhu</span>
+                  <input
+                    v-model.number="sectorShapeWidth"
+                    type="number"
+                    min="4"
+                    max="40"
+                    step="1"
+                    :readonly="!canManageMap"
+                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-white px-2 text-sm"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-xs font-semibold text-warning-900">Výška návrhu</span>
+                  <input
+                    v-model.number="sectorShapeHeight"
+                    type="number"
+                    min="4"
+                    max="40"
+                    step="1"
+                    :readonly="!canManageMap"
+                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-white px-2 text-sm"
+                  >
+                </label>
               </div>
             </div>
 
@@ -1835,6 +2130,51 @@ async function discardMapDraft() {
                   Bez nahratého obrázka
                 </div>
               </div>
+            </div>
+
+            <div class="mt-4 border-t border-border pt-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-bold">Exportný rám</p>
+                  <p class="text-foreground-muted mt-1 text-xs">{{ mapExportFramePreset.description }}</p>
+                </div>
+                <span class="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-900">
+                  {{ mapExportFrame.width }} × {{ mapExportFrame.height }}
+                </span>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  v-for="preset in mapExportFramePresets"
+                  :key="preset.id"
+                  type="button"
+                  class="rounded-md border px-3 py-2 text-left text-sm transition-colors"
+                  :class="
+                    mapExportFramePresetId === preset.id
+                      ? 'border-primary-200 bg-primary-50 text-primary-950'
+                      : 'border-border bg-white text-foreground hover:bg-muted'
+                  "
+                  @click="mapExportFramePresetId = preset.id"
+                >
+                  <span class="block font-bold">{{ preset.label }}</span>
+                  <span class="text-foreground-muted mt-0.5 block text-xs">
+                    {{ preset.aspectRatio.toFixed(2) }}:1
+                  </span>
+                </button>
+              </div>
+              <dl class="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div class="bg-muted px-2 py-2">
+                  <dt class="text-foreground-muted">Miesta</dt>
+                  <dd class="font-bold">{{ mapExportFrameCoverage.pegs }}</dd>
+                </div>
+                <div class="bg-muted px-2 py-2">
+                  <dt class="text-foreground-muted">Body</dt>
+                  <dd class="font-bold">{{ mapExportFrameCoverage.facilities }}</dd>
+                </div>
+                <div class="bg-muted px-2 py-2">
+                  <dt class="text-foreground-muted">Vrcholy</dt>
+                  <dd class="font-bold">{{ mapExportFrameCoverage.shapePoints }}</dd>
+                </div>
+              </dl>
             </div>
 
             <div v-if="currentBackgroundLayer?.source" class="mt-4 rounded-md border border-border bg-white p-3">
@@ -2289,15 +2629,41 @@ async function discardMapDraft() {
                   <p class="font-semibold">{{ selectedShape.points.length }}</p>
                 </div>
               </div>
-              <div class="max-h-48 space-y-2 overflow-auto rounded-md border border-border bg-white p-3">
+              <div class="max-h-72 space-y-2 overflow-auto rounded-md border border-border bg-white p-3">
                 <div
                   v-for="(point, pointIndex) in selectedShape.points"
                   :key="pointIndex"
-                  class="grid grid-cols-[auto_1fr_1fr] items-center gap-2 text-sm"
+                  class="rounded-md border border-border bg-muted/40 p-3 text-sm"
                 >
-                  <span class="text-foreground-muted text-xs font-bold">{{ pointIndex + 1 }}</span>
-                  <input v-model.number="point.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="h-9 rounded-md border border-border px-2">
-                  <input v-model.number="point.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="h-9 rounded-md border border-border px-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-primary-900">Vrchol {{ pointIndex + 1 }}</span>
+                    <span class="text-foreground-muted text-xs">
+                      {{ point.role ? mapShapePointRoleLabels[point.role] : 'bez typu' }}
+                    </span>
+                  </div>
+                  <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                    <label class="block">
+                      <span class="text-foreground-muted text-xs font-semibold">X</span>
+                      <input v-model.number="point.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                    </label>
+                    <label class="block">
+                      <span class="text-foreground-muted text-xs font-semibold">Y</span>
+                      <input v-model.number="point.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                    </label>
+                    <label class="block">
+                      <span class="text-foreground-muted text-xs font-semibold">Typ bodu</span>
+                      <select v-model="point.role" :disabled="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                        <option value="">Bez typu</option>
+                        <option v-for="option in shapePointRoleOptions" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="block">
+                      <span class="text-foreground-muted text-xs font-semibold">Názov</span>
+                      <input v-model="point.label" maxlength="40" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2" placeholder="napr. severný breh">
+                    </label>
+                  </div>
                 </div>
               </div>
               <div class="grid gap-2 sm:grid-cols-2">
@@ -2352,7 +2718,7 @@ async function discardMapDraft() {
                 type="button"
                 icon="i-heroicons-cloud-arrow-up"
                 color="warning"
-                :disabled="!canManageMap || !selectedValidationIsValid || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
+                :disabled="!canManageMap || !selectedValidationIsValid || mapQualitySummary.blockingCount > 0 || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
                 :loading="publishStatus === 'publishing'"
                 @click="publishMapChanges"
               >
@@ -2391,6 +2757,76 @@ async function discardMapDraft() {
               "
             >
               {{ discardMessage }}
+            </p>
+          </div>
+
+          <div class="rounded-card border border-border bg-surface p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Kontrola pred publikovaním</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Chytá konflikty medzi lovnými miestami, chatami, vrstvami a súťažnými sektormi pre aktuálne jazero.
+                </p>
+              </div>
+              <UIcon
+                :name="mapQualitySummary.blockingCount > 0 ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-shield-check'"
+                class="h-5 w-5 shrink-0"
+                :class="mapQualitySummary.blockingCount > 0 ? 'text-error-700' : 'text-success-700'"
+              />
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+              <span class="rounded-full bg-error-500/10 px-2.5 py-1 text-error-700">
+                {{ mapQualitySummary.errorCount }} kritické
+              </span>
+              <span class="rounded-full bg-warning-500/10 px-2.5 py-1 text-warning-700">
+                {{ mapQualitySummary.warningCount }} upozornenia
+              </span>
+              <span class="rounded-full bg-info-500/10 px-2.5 py-1 text-info-700">
+                {{ mapQualitySummary.infoCount }} info
+              </span>
+            </div>
+
+            <div
+              v-if="mapQualityIssues.length === 0"
+              class="mt-4 rounded-md border border-success-500/25 bg-success-500/10 p-3 text-sm text-success-700"
+            >
+              <div class="flex items-start gap-2">
+                <UIcon name="i-heroicons-check-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p class="font-bold">Mapa je pripravená na publikovanie</p>
+                  <p class="mt-1">Pre aktuálne jazero nie sú otvorené žiadne nálezy.</p>
+                </div>
+              </div>
+            </div>
+
+            <ul v-else class="mt-4 space-y-2">
+              <li
+                v-for="issue in mapQualityIssues"
+                :key="issue.id"
+                class="rounded-md border p-3 text-sm"
+                :class="getMapQualityIssueClasses(issue.severity)"
+              >
+                <div class="flex items-start gap-3">
+                  <UIcon :name="getMapQualityIssueIcon(issue.severity)" class="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="font-bold">{{ issue.title }}</p>
+                      <span v-if="issue.entityLabel" class="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">
+                        {{ issue.entityLabel }}
+                      </span>
+                    </div>
+                    <p class="mt-1">{{ issue.description }}</p>
+                    <p v-if="issue.actionLabel" class="mt-2 text-xs font-bold">
+                      {{ issue.actionLabel }}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            </ul>
+
+            <p class="text-foreground-muted mt-4 text-xs">
+              Stav: {{ mapQualitySummaryLabel }}. Upozornenia neblokujú draft, kritické nálezy blokujú iba publikovanie.
             </p>
           </div>
 
@@ -2459,6 +2895,117 @@ async function discardMapDraft() {
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Legenda vrcholov</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  {{ filteredShapePointLegendRows.length }}/{{ shapePointLegendRows.length }} označených bodov podľa filtrov.
+                </p>
+              </div>
+              <UIcon name="i-heroicons-book-open" class="h-5 w-5 text-primary-800" />
+            </div>
+
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-xs font-semibold text-foreground-muted">Typ bodu</span>
+                <select
+                  v-model="shapePointLegendRoleFilter"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-2 text-sm"
+                >
+                  <option value="all">Všetky typy</option>
+                  <option v-for="option in shapePointRoleOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-xs font-semibold text-foreground-muted">Viditeľnosť plochy</span>
+                <select
+                  v-model="shapePointLegendVisibilityFilter"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-2 text-sm"
+                >
+                  <option
+                    v-for="option in shapePointLegendVisibilityOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <UButton
+                type="button"
+                icon="i-heroicons-printer"
+                variant="soft"
+                :disabled="filteredShapePointLegendRows.length === 0"
+                @click="printShapePointLegend"
+              >
+                Tlačiť legendu
+              </UButton>
+              <UButton
+                type="button"
+                icon="i-heroicons-arrow-down-tray"
+                variant="soft"
+                :disabled="filteredShapePointLegendRows.length === 0"
+                @click="downloadShapePointLegendCsv"
+              >
+                CSV export
+              </UButton>
+            </div>
+
+            <div v-if="shapePointLegendSummary.length > 0" class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="row in shapePointLegendSummary"
+                :key="row.role"
+                class="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-900"
+              >
+                {{ row.label }} · {{ row.count }}
+              </span>
+            </div>
+
+            <div v-if="filteredShapePointLegendRows.length > 0" class="mt-4 max-h-72 space-y-2 overflow-auto">
+              <button
+                v-for="row in filteredShapePointLegendRows"
+                :key="row.id"
+                type="button"
+                class="w-full rounded-md border px-3 py-2 text-left text-sm transition-colors"
+                :class="
+                  selectedKind === 'shape' && selectedShapeId === row.shapeId
+                    ? 'border-primary-200 bg-primary-50'
+                    : 'border-border bg-muted hover:bg-white'
+                "
+                @click="selectShapePointLegendRow(row)"
+              >
+                <span class="flex items-start justify-between gap-3">
+                  <span class="min-w-0">
+                    <span class="block truncate font-bold text-primary-950">{{ row.label }}</span>
+                    <span class="text-foreground-muted mt-0.5 block truncate text-xs">
+                      {{ row.shapeLabel }} · vrchol {{ row.pointIndex + 1 }}
+                    </span>
+                  </span>
+                  <span class="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-primary-900">
+                    {{ row.roleLabel }}
+                  </span>
+                </span>
+                <span class="text-foreground-muted mt-2 block text-xs">
+                  X {{ row.x }} · Y {{ row.y }} · {{ mapShapeTypeLabels[row.shapeType] }} · {{ mapShapeVisibilityLabels[row.visibility] }}
+                </span>
+              </button>
+            </div>
+
+            <div v-else-if="shapePointLegendRows.length === 0" class="mt-4 rounded-md bg-muted p-4 text-sm text-foreground-muted">
+              Označ typ alebo názov vrcholu pri vybranom polygone a objaví sa v tejto legende.
+            </div>
+
+            <div v-else class="mt-4 rounded-md bg-muted p-4 text-sm text-foreground-muted">
+              Pre zvolený typ bodu a viditeľnosť tu zatiaľ nie je žiadny označený vrchol.
+            </div>
+          </div>
+
+          <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Export modelu</h2>
             <p class="text-foreground-muted mt-2 text-sm">
               Lokálna úprava sa ukladá do JSON store. Produkčne sa rovnaký kontrakt nahradí
@@ -2470,6 +3017,222 @@ async function discardMapDraft() {
           </div>
         </aside>
       </div>
+      </section>
+    </div>
+
+    <section class="print-only map-legend-print">
+      <header class="map-legend-print__header">
+        <div>
+          <p>Rybolov Cetín · mapa revíru</p>
+          <h1>Legenda vrcholov</h1>
+          <span>{{ getLakeName(selectedLake) }}</span>
+        </div>
+        <div>
+          <p>Vygenerované</p>
+          <strong>{{ shapePointLegendPrintGeneratedAt || 'pred tlačou' }}</strong>
+        </div>
+      </header>
+
+      <dl class="map-legend-print__meta">
+        <div
+          v-for="item in shapePointLegendPrintMeta"
+          :key="item.label"
+        >
+          <dt>{{ item.label }}</dt>
+          <dd>{{ item.value }}</dd>
+        </div>
+      </dl>
+
+      <div v-if="shapePointLegendSummary.length > 0" class="map-legend-print__summary">
+        <span
+          v-for="row in shapePointLegendSummary"
+          :key="row.role"
+        >
+          {{ row.label }}: {{ row.count }}
+        </span>
+      </div>
+
+      <table v-if="filteredShapePointLegendRows.length > 0" class="map-legend-print__table">
+        <thead>
+          <tr>
+            <th>Bod</th>
+            <th>Typ</th>
+            <th>Plocha</th>
+            <th>Vrchol</th>
+            <th>Súradnice</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in filteredShapePointLegendRows"
+            :key="`print-${row.id}`"
+          >
+            <td>
+              <strong>{{ row.label }}</strong>
+              <span>{{ row.id }}</span>
+            </td>
+            <td>{{ row.roleLabel }}</td>
+            <td>
+              <strong>{{ row.shapeLabel }}</strong>
+              <span>{{ mapShapeTypeLabels[row.shapeType] }} · {{ mapShapeVisibilityLabels[row.visibility] }}</span>
+            </td>
+            <td>{{ row.pointIndex + 1 }}</td>
+            <td>X {{ row.x }} · Y {{ row.y }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p v-else class="map-legend-print__empty">
+        Pre zvolený filter nie sú označené žiadne vrcholy.
+      </p>
     </section>
   </div>
 </template>
+
+<style scoped>
+.print-only {
+  display: none;
+}
+
+@page {
+  margin: 12mm;
+  size: A4;
+}
+
+@media print {
+  .screen-only {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .map-legend-print {
+    background: #ffffff;
+    color: #062523;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 0;
+  }
+
+  .map-legend-print__header {
+    align-items: flex-start;
+    border-bottom: 2px solid #155c55;
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 12px;
+  }
+
+  .map-legend-print__header p {
+    color: #4f6560;
+    font-size: 11px;
+    font-weight: 800;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+  }
+
+  .map-legend-print__header h1 {
+    color: #062523;
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .map-legend-print__header span,
+  .map-legend-print__header strong {
+    color: #16483f;
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+
+  .map-legend-print__meta {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 14px 0;
+  }
+
+  .map-legend-print__meta div {
+    border: 1px solid #d8e1de;
+    padding: 8px;
+  }
+
+  .map-legend-print__meta dt {
+    color: #60716d;
+    font-size: 10px;
+    font-weight: 800;
+    margin: 0 0 3px;
+    text-transform: uppercase;
+  }
+
+  .map-legend-print__meta dd {
+    color: #062523;
+    font-size: 13px;
+    font-weight: 800;
+    margin: 0;
+  }
+
+  .map-legend-print__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .map-legend-print__summary span {
+    border: 1px solid #d8e1de;
+    color: #16483f;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 6px;
+  }
+
+  .map-legend-print__table {
+    border-collapse: collapse;
+    font-size: 11px;
+    width: 100%;
+  }
+
+  .map-legend-print__table th,
+  .map-legend-print__table td {
+    border: 1px solid #d8e1de;
+    padding: 7px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .map-legend-print__table th {
+    background: #e7f4ee;
+    color: #16483f;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .map-legend-print__table strong {
+    display: block;
+    font-weight: 900;
+  }
+
+  .map-legend-print__table span {
+    color: #60716d;
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .map-legend-print__empty {
+    border: 1px solid #d8e1de;
+    color: #60716d;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0;
+    padding: 14px;
+  }
+}
+</style>

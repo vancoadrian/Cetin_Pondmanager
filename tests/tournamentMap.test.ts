@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { MapShape, Tournament } from '~/app/data/pond'
 import {
+  alignTournamentSectorShapes,
   createMissingTournamentSectorShapeDrafts,
   createTournamentSectorMapEditorUrl,
   createTournamentSectorShapeDraft,
+  createTournamentSectorShapePoints,
+  createTournamentSectorShorelineShapePoints,
+  getTournamentSectorAlignmentReferenceShapes,
   getTournamentMapCoverage,
   getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
@@ -15,6 +19,7 @@ const tournament: Tournament = {
   id: 'cup-2026',
   lake: 'velky-cetin',
   name: 'Carp Cup',
+  operationsMode: 'full-dispatch',
   sectors: [
     { id: 'a1', label: 'A1', team: 'Team A', weightKg: 0, x: 20, y: 30 },
     { id: 'b2', label: 'B2', team: 'Team B', weightKg: 0, x: 40, y: 50 },
@@ -99,6 +104,59 @@ describe('tournament map helpers', () => {
     ])
   })
 
+  it('creates sector polygon points with custom dimensions and clamps edges', () => {
+    expect(createTournamentSectorShapePoints(tournament.sectors[0]!, {
+      heightPercent: 8,
+      widthPercent: 20,
+    })).toEqual([
+      { x: 10, y: 26 },
+      { x: 30, y: 26 },
+      { x: 30, y: 34 },
+      { x: 10, y: 34 },
+    ])
+
+    expect(createTournamentSectorShapePoints({
+      ...tournament.sectors[0]!,
+      x: 2,
+      y: 98,
+    }, {
+      heightPercent: 100,
+      widthPercent: 2,
+    })).toEqual([
+      { x: 0, y: 78 },
+      { x: 4, y: 78 },
+      { x: 4, y: 100 },
+      { x: 0, y: 100 },
+    ])
+  })
+
+  it('creates sector polygon points as a band from the nearest shoreline segment', () => {
+    const shoreline = sectorShape({
+      id: 'shoreline',
+      points: [
+        { x: 10, y: 20 },
+        { x: 30, y: 20 },
+        { x: 30, y: 40 },
+        { x: 10, y: 40 },
+      ],
+      sectorId: undefined,
+      tone: 'water',
+      tournamentId: undefined,
+      type: 'shoreline',
+      visibility: 'public',
+    })
+
+    expect(createTournamentSectorShorelineShapePoints(tournament.sectors[0]!, [shoreline], {
+      heightPercent: 6,
+      widthPercent: 10,
+    })).toEqual([
+      { x: 15, y: 20 },
+      { x: 25, y: 20 },
+      { x: 25, y: 26 },
+      { x: 15, y: 26 },
+    ])
+  })
+
   it('creates drafts only for missing tournament sector polygons', () => {
     const drafts = createMissingTournamentSectorShapeDrafts(tournament, [
       sectorShape(),
@@ -112,6 +170,105 @@ describe('tournament map helpers', () => {
       sectorId: 'b2',
       tournamentId: 'cup-2026',
     })
+  })
+
+  it('aligns existing tournament sector polygons and leaves unrelated shapes untouched', () => {
+    const result = alignTournamentSectorShapes(tournament, [
+      sectorShape({
+        id: 'legacy-a1',
+        points: [
+          { label: 'Breh A1', role: 'shore', x: 1, y: 1 },
+          { role: 'boundary', x: 2, y: 1 },
+          { x: 2, y: 2 },
+        ],
+        tournamentId: undefined,
+      }),
+      sectorShape({ id: 'shape-b2', sectorId: 'b2', points: [{ x: 70, y: 70 }, { x: 72, y: 70 }, { x: 72, y: 72 }] }),
+      sectorShape({ id: 'other-cup-b2', sectorId: 'b2', tournamentId: 'other-cup' }),
+      sectorShape({ id: 'zone-a1', sectorId: 'a1', tone: 'warning', type: 'zone', visibility: 'internal' }),
+    ], {
+      heightPercent: 6,
+      widthPercent: 12,
+    })
+
+    expect(result.updatedCount).toBe(2)
+    expect(result.updatedShapeIds).toEqual(['legacy-a1', 'shape-b2'])
+    expect(result.shapes.find((shape) => shape.id === 'legacy-a1')).toMatchObject({
+      points: [
+        { label: 'Breh A1', role: 'shore', x: 14, y: 27 },
+        { role: 'boundary', x: 26, y: 27 },
+        { x: 26, y: 33 },
+        { x: 14, y: 33 },
+      ],
+      tournamentId: 'cup-2026',
+    })
+    expect(result.shapes.find((shape) => shape.id === 'shape-b2')?.points).toEqual([
+      { x: 34, y: 47 },
+      { x: 46, y: 47 },
+      { x: 46, y: 53 },
+      { x: 34, y: 53 },
+    ])
+    expect(result.shapes.find((shape) => shape.id === 'other-cup-b2')?.points).toEqual(sectorShape({ id: 'other-cup-b2', sectorId: 'b2', tournamentId: 'other-cup' }).points)
+    expect(result.shapes.find((shape) => shape.id === 'zone-a1')?.type).toBe('zone')
+  })
+
+  it('aligns tournament sector polygons to shoreline reference shapes', () => {
+    const shoreline = sectorShape({
+      id: 'shoreline',
+      points: [
+        { x: 10, y: 20 },
+        { x: 30, y: 20 },
+        { x: 30, y: 40 },
+        { x: 10, y: 40 },
+      ],
+      sectorId: undefined,
+      tone: 'water',
+      tournamentId: undefined,
+      type: 'shoreline',
+      visibility: 'public',
+    })
+    const result = alignTournamentSectorShapes(tournament, [
+      shoreline,
+      sectorShape({
+        id: 'legacy-a1',
+        points: [
+          { label: 'Breh A1', role: 'shore', x: 1, y: 1 },
+          { role: 'boundary', x: 2, y: 1 },
+          { x: 2, y: 2 },
+        ],
+      }),
+    ], {
+      heightPercent: 6,
+      mode: 'shoreline',
+      widthPercent: 10,
+    })
+
+    expect(getTournamentSectorAlignmentReferenceShapes(tournament, [shoreline]).map((shape) => shape.id)).toEqual(['shoreline'])
+    expect(result.updatedCount).toBe(1)
+    expect(result.shapes.find((shape) => shape.id === 'legacy-a1')).toMatchObject({
+      points: [
+        { label: 'Breh A1', role: 'shore', x: 15, y: 20 },
+        { role: 'boundary', x: 25, y: 20 },
+        { x: 25, y: 26 },
+        { x: 15, y: 26 },
+      ],
+    })
+  })
+
+  it('uses a generic tournament sector band as shoreline fallback', () => {
+    const band = sectorShape({
+      id: 'sector-band',
+      points: [
+        { x: 10, y: 20 },
+        { x: 30, y: 20 },
+        { x: 30, y: 40 },
+        { x: 10, y: 40 },
+      ],
+      sectorId: undefined,
+      tournamentId: 'cup-2026',
+    })
+
+    expect(getTournamentSectorAlignmentReferenceShapes(tournament, [band]).map((shape) => shape.id)).toEqual(['sector-band'])
   })
 
   it('describes the tournament map source for published map state', () => {

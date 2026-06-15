@@ -475,9 +475,13 @@ export interface LakeClosure {
 }
 
 export interface MapCoordinate {
+  label?: string
+  role?: MapShapePointRole
   x: number
   y: number
 }
+
+export type MapShapePointRole = 'anchor' | 'boundary' | 'entry' | 'regular' | 'service' | 'shore'
 
 export type MapLayerImageFit = 'contain' | 'cover' | 'stretch'
 

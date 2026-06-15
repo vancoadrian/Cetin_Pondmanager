@@ -693,6 +693,14 @@ export const mapFacilityInputSchema = z.object({
 })
 
 const mapShapePointSchema = z.object({
+  label: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(40, 'Názov vrcholu môže mať najviac 40 znakov.').optional(),
+  ),
+  role: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.enum(['anchor', 'boundary', 'entry', 'regular', 'service', 'shore']).optional(),
+  ),
   x: z.coerce.number().min(0, 'X bodu zóny musí byť v rozsahu 0 až 100.').max(100, 'X bodu zóny musí byť v rozsahu 0 až 100.'),
   y: z.coerce.number().min(0, 'Y bodu zóny musí byť v rozsahu 0 až 100.').max(100, 'Y bodu zóny musí byť v rozsahu 0 až 100.'),
 })
