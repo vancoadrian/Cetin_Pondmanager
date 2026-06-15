@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const lakeSlugSchema = z.enum(['velky-cetin', 'strkovisko-kocka'])
 const lakeScopeSchema = z.union([lakeSlugSchema, z.literal('all')])
+const tournamentOperationsModeSchema = z.enum(['public-only', 'registration-only', 'full-dispatch'])
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Dátum musí byť vo formáte RRRR-MM-DD.')
 export const MAX_CATCH_PHOTO_BYTES = 6 * 1024 * 1024
 export const catchPhotoUploadSchema = z.object({
@@ -573,6 +574,11 @@ export const tournamentSectorSettingsInputSchema = z.object({
       y: z.coerce.number().min(0, 'Y sektora musí byť v rozsahu 0 až 100.').max(100, 'Y sektora musí byť v rozsahu 0 až 100.'),
     }),
   ).min(1, 'Doplňte aspoň jeden sektor súťaže.'),
+  tournamentId: z.string().trim().min(1, 'Chýba identifikátor súťaže.'),
+})
+
+export const tournamentOperationsModeInputSchema = z.object({
+  operationsMode: tournamentOperationsModeSchema,
   tournamentId: z.string().trim().min(1, 'Chýba identifikátor súťaže.'),
 })
 

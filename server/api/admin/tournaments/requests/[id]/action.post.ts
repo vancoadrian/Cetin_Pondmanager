@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await writeLocalTournamentState(result)
-  if (result.request) {
+  if (result.request && !result.idempotentReplay) {
     const actor = resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',

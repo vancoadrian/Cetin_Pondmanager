@@ -17,8 +17,15 @@ import {
   mapShapeTypeLabels,
   normalizeMapLayerImageSettings,
 } from '~/utils/map'
+import {
+  createMissingTournamentSectorShapeDrafts,
+  createTournamentSectorShapeDraft,
+  getTournamentSectorMapRows,
+} from '~/utils/tournamentMap'
 
 useHead({ title: 'Admin mapa' })
+
+const route = useRoute()
 
 type MapEditorSelectionKind = 'facility' | 'peg' | 'shape'
 type MapBackgroundUploadSuccess = {
@@ -48,6 +55,12 @@ type PegReservationPreset = {
 
 const { cabinProducts: seedCabinProducts, getLakeName, lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, tournaments } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-map-closure-state' })
+
+const getRouteQueryValue = (value: unknown) => {
+  const singleValue = Array.isArray(value) ? value[0] : value
+
+  return typeof singleValue === 'string' && singleValue.trim() ? singleValue : undefined
+}
 
 function emptyMapEntityChanges(): MapEntityChangeSummary {
   return {
@@ -131,6 +144,8 @@ const backgroundUploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('
 const backgroundUploadMessage = ref('')
 const cabinCatalogStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const cabinCatalogMessage = ref('')
+const routeFocusStatus = ref<'idle' | 'success' | 'warning'>('idle')
+const routeFocusMessage = ref('')
 
 const facilityTypeOptions = Object.entries(mapFacilityTypeLabels).map(([value, label]) => ({ label, value: value as MapFacilityType }))
 const shapeTypeOptions = Object.entries(mapShapeTypeLabels).map(([value, label]) => ({ label, value: value as MapShape['type'] }))
@@ -262,6 +277,25 @@ const selectedShapeVisibilityLabel = computed(() =>
 )
 const selectedLakeTournaments = computed(() =>
   tournaments.filter((tournament) => tournament.lake === selectedLake.value),
+)
+const requestedTournamentId = computed(() => getRouteQueryValue(route.query.turnaj))
+const requestedSectorId = computed(() => getRouteQueryValue(route.query.sektor))
+const requestedTournament = computed(() =>
+  tournaments.find((tournament) => tournament.id === requestedTournamentId.value),
+)
+const requestedTournamentSector = computed(() =>
+  requestedTournament.value?.sectors.find((sector) => sector.id === requestedSectorId.value),
+)
+const focusedTournament = computed(() =>
+  requestedTournament.value?.lake === selectedLake.value
+    ? requestedTournament.value
+    : selectedLakeTournaments.value[0],
+)
+const focusedTournamentSectorRows = computed(() =>
+  focusedTournament.value ? getTournamentSectorMapRows(focusedTournament.value, editorShapes.value) : [],
+)
+const missingFocusedTournamentSectorRows = computed(() =>
+  focusedTournamentSectorRows.value.filter((row) => !row.mapped),
 )
 const selectedShapeTournament = computed(() =>
   selectedLakeTournaments.value.find((tournament) => tournament.id === selectedShape.value?.tournamentId)
@@ -907,6 +941,102 @@ function finishShapeDrawing() {
   selectShape(shape)
 }
 
+async function focusRequestedTournamentSector() {
+  const tournamentId = requestedTournamentId.value
+  const sectorId = requestedSectorId.value
+
+  if (!tournamentId && !sectorId) return
+
+  const tournament = requestedTournament.value
+  if (!tournament) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = `Súťaž ${tournamentId ?? ''} sa v mapovom editore nenašla.`
+    return
+  }
+
+  selectedLake.value = tournament.lake
+  await nextTick()
+  ensureShapeLayerVisible('sector')
+
+  if (!sectorId) {
+    routeFocusStatus.value = 'success'
+    routeFocusMessage.value = `Mapa je prepnutá na jazero ${getLakeName(tournament.lake)} pre súťaž ${tournament.name}.`
+    return
+  }
+
+  const sector = requestedTournamentSector.value
+  if (!sector) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = `Sektor ${sectorId} nepatrí k súťaži ${tournament.name}.`
+    return
+  }
+
+  const existingShape = editorShapes.value.find((shape) =>
+    shape.lake === tournament.lake
+    && shape.type === 'sector'
+    && shape.tournamentId === tournament.id
+    && shape.sectorId === sector.id,
+  )
+
+  if (existingShape) {
+    cancelShapeDrawing()
+    selectShape(existingShape)
+    routeFocusStatus.value = 'success'
+    routeFocusMessage.value = `Otvorený existujúci polygon pre sektor ${sector.label}.`
+    return
+  }
+
+  if (!canManageMap.value) {
+    selectedKind.value = 'shape'
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = `Sektor ${sector.label} zatiaľ nemá polygon. Na jeho vytvorenie potrebuješ plný prístup k mape.`
+    return
+  }
+
+  const shape = createTournamentSectorShapeDraft(
+    tournament,
+    sector,
+    editorShapes.value.map((item) => item.id),
+  )
+
+  editorShapes.value.push(shape)
+  cancelShapeDrawing()
+  selectShape(shape)
+  resetSaveFeedback()
+  routeFocusStatus.value = 'success'
+  routeFocusMessage.value = `Pripravený nový neuložený polygon pre sektor ${sector.label}. Uprav vrcholy a ulož draft mapy.`
+}
+
+function addMissingTournamentSectorShapeDrafts() {
+  const tournament = focusedTournament.value
+  if (!tournament) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = 'Pre vybrané jazero nie je pripravená žiadna súťaž.'
+    return
+  }
+
+  if (!canManageMap.value) {
+    routeFocusStatus.value = 'warning'
+    routeFocusMessage.value = mapReadOnlyMessage.value
+    return
+  }
+
+  const drafts = createMissingTournamentSectorShapeDrafts(tournament, editorShapes.value)
+  if (drafts.length === 0) {
+    routeFocusStatus.value = 'success'
+    routeFocusMessage.value = `Všetky sektory súťaže ${tournament.name} už majú polygon v aktuálnom editore.`
+    return
+  }
+
+  ensureShapeLayerVisible('sector')
+  editorShapes.value.push(...drafts)
+  cancelShapeDrawing()
+  selectShape(drafts[0]!)
+  resetSaveFeedback()
+  routeFocusStatus.value = 'success'
+  routeFocusMessage.value = `Doplnené neuložené polygony pre ${drafts.length} sektorov súťaže ${tournament.name}.`
+}
+
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null
   if (!element) return false
@@ -937,10 +1067,15 @@ function handleDrawingShortcut(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleDrawingShortcut)
+  void focusRequestedTournamentSector()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleDrawingShortcut)
+})
+
+watch([requestedTournamentId, requestedSectorId], () => {
+  void focusRequestedTournamentSector()
 })
 
 function movePoint(payload: { id: string, x: number, y: number }) {
@@ -1411,6 +1546,25 @@ async function discardMapDraft() {
         <p class="mt-1 text-sm">{{ mapReadOnlyMessage }}</p>
       </div>
 
+      <div
+        v-if="routeFocusMessage"
+        class="mb-5 rounded-card border p-4"
+        :class="routeFocusStatus === 'warning'
+          ? 'border-warning-200 bg-warning-500/10 text-warning-900'
+          : 'border-success-500/25 bg-success-500/10 text-success-700'"
+      >
+        <div class="flex items-start gap-3">
+          <UIcon
+            :name="routeFocusStatus === 'warning' ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-map'"
+            class="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <div>
+            <p class="text-sm font-bold">Kontext zo súťaže</p>
+            <p class="mt-1 text-sm">{{ routeFocusMessage }}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="mb-5 inline-flex rounded-lg bg-muted p-1">
         <button
           v-for="lake in lakes"
@@ -1484,6 +1638,31 @@ async function discardMapDraft() {
               <UButton type="button" icon="i-heroicons-flag" color="warning" variant="soft" :disabled="!canManageMap" @click="addShapeDraft('sector')">
                 Súťažný sektor
               </UButton>
+            </div>
+
+            <div
+              v-if="focusedTournament"
+              class="mt-4 rounded-md border border-warning-200 bg-warning-500/10 p-3"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="text-sm font-bold text-warning-900">Polygony sektorov</p>
+                  <p class="text-foreground-muted mt-1 text-xs">
+                    {{ focusedTournament.name }} · chýba {{ missingFocusedTournamentSectorRows.length }}/{{ focusedTournament.sectors.length }}
+                  </p>
+                </div>
+                <UButton
+                  type="button"
+                  icon="i-heroicons-squares-plus"
+                  size="sm"
+                  color="warning"
+                  variant="soft"
+                  :disabled="!canManageMap || missingFocusedTournamentSectorRows.length === 0"
+                  @click="addMissingTournamentSectorShapeDrafts"
+                >
+                  Doplniť
+                </UButton>
+              </div>
             </div>
 
             <div class="mt-5 border-t border-border pt-4">

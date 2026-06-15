@@ -2,6 +2,7 @@
 import type { CatchSubmissionSuccess } from '~/services/catchApiService'
 import type { ReservationSubmissionSuccess } from '~/services/reservationApiService'
 import type {
+  TournamentActionSuccess,
   TournamentCatchVerificationSuccess,
   TournamentPenaltySubmissionSuccess,
   TournamentRequestSubmissionSuccess,
@@ -119,7 +120,7 @@ const queueSections = computed(() => [
   },
   {
     count: offlineTournamentAdminActions.value.length,
-    description: 'Overenie váženia, tresty a kontroly sektorov čakajúce na admin dispečing.',
+    description: 'Prevzatie hlásenia, uzavretie hlásenia, váženia, tresty a kontroly sektorov čakajúce na admin dispečing.',
     icon: 'i-heroicons-clipboard-document-check',
     label: 'Kontrolórske úkony',
     to: '/admin/sutaze',
@@ -171,6 +172,11 @@ function getQueueActionCopy(kind: 'admin-tournament-action' | 'catch' | 'reserva
 }
 
 function getAdminTournamentActionLabel(item: OfflineTournamentAdminActionQueueItem) {
+  if (item.payload.kind === 'request-action') {
+    return item.payload.payload.action === 'assign'
+      ? 'Prevzatie hlásenia'
+      : 'Uzavretie hlásenia'
+  }
   if (item.payload.kind === 'catch-verification') {
     return item.payload.payload.status === 'verified'
       ? 'Overenie váženia'
@@ -188,6 +194,9 @@ function getAdminTournamentActionLabel(item: OfflineTournamentAdminActionQueueIt
 }
 
 function getAdminTournamentActionTarget(item: OfflineTournamentAdminActionQueueItem) {
+  if (item.payload.kind === 'request-action') {
+    return `hlásenie ${item.payload.payload.requestId}`
+  }
   if (item.payload.kind === 'catch-verification') {
     return `úlovok ${item.payload.payload.catchId}`
   }
@@ -309,7 +318,17 @@ async function syncAllQueues() {
     try {
       const payload = withTournamentAdminActionClientMutationId(item.payload, { id: item.id })
 
-      if (payload.kind === 'catch-verification') {
+      if (payload.kind === 'request-action') {
+        await $fetch<TournamentActionSuccess>(`/api/admin/tournaments/requests/${payload.payload.requestId}/action`, {
+          body: {
+            action: payload.payload.action,
+            clientMutationId: payload.payload.clientMutationId,
+            marshalId: payload.payload.marshalId,
+          },
+          method: 'POST',
+        })
+      }
+      else if (payload.kind === 'catch-verification') {
         await $fetch<TournamentCatchVerificationSuccess>(
           `/api/admin/tournaments/catches/${payload.payload.catchId}/verify`,
           {
@@ -675,7 +694,7 @@ onBeforeUnmount(() => {
             <div>
               <h2 class="text-lg font-bold">Kontrolórske úkony</h2>
               <p class="text-foreground-muted mt-1 text-sm">
-                Váženia, tresty a kontroly sektorov z admin dispečingu.
+                Prevzatia hlásení, uzavretia, váženia, tresty a kontroly sektorov z admin dispečingu.
               </p>
             </div>
             <UButton to="/admin/sutaze" icon="i-heroicons-shield-check" size="sm" variant="soft">

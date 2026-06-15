@@ -82,11 +82,13 @@ Admin má vedieť:
 - `POST /api/admin/map/background` ukladá nový podkladový obrázok do draftu mapy; `/api/map-assets/:id` verejne vydá iba assety napojené na public alebo súťažnú vrstvu v publikovanej mape.
 - `/sutaze` používa rovnaký mapový podklad a sektorové SVG polygony z `mapShapes`; bodky tímov ostávajú klikateľné nad mapovou vrstvou.
 - Sektorové polygony môžu niesť `tournamentId` a `sectorId`, takže admin mapa vie naviazať kreslenú plochu na konkrétny súťažný sektor.
+- `/admin/sutaze` vie otvoriť `/admin/mapa?turnaj=<id>&sektor=<id>` priamo z konkrétneho sektora. Editor prepne jazero, otvorí existujúci sektorový polygon alebo pripraví nový neuložený draft polygonu pri bode sektora.
+- `/admin/mapa` vie pre aktívnu súťaž hromadne pripraviť neuložené draft polygony pre všetky sektory, ktorým ešte chýba sektorový SVG tvar.
 - Seed body sú v `app/data/pond.ts`, runtime úpravy admina sú v lokálnom store.
 
 ## Ďalšie kroky
 
 - Doplniť presnejší crop preset podkladu pre rôzne pomery tlače alebo exportu.
 - Doplniť pomenovanie alebo typovanie vrcholov pre špeciálne body hranice, ak to správca pri reálnych mapách potrebuje.
-- Doplniť editor tímov/sektorov, ktorý bude vedieť vytvoriť alebo aktualizovať sektorové polygony priamo zo súťaže.
+- Doplniť hromadné zarovnanie sektorových polygonov podľa brehu alebo nahratého podkladu, ak sa pri reálnych mapách ukáže, že obdĺžnikové návrhy treba rýchlo rozťahovať do línie.
 - Neskôr nahradiť lokálny JSON store produkčnou map repository/Supabase mutáciou.

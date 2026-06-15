@@ -17,6 +17,7 @@ import {
   submitTournamentTeamRegistration,
   submitTournamentTeamRegistrationDecision,
   type TournamentWorkflowState,
+  updateTournamentOperationsMode,
   updateTournamentSectors,
 } from '~/app/services/tournamentApiService'
 
@@ -86,6 +87,78 @@ describe('tournamentApiService', () => {
       status: 'submitted',
       teamName: 'Komárno Carp Juniors',
     })
+  })
+
+  it('updates tournament operations mode', () => {
+    const result = updateTournamentOperationsMode(
+      {
+        operationsMode: 'registration-only',
+        tournamentId: 'eccj-2026',
+      },
+      createState(),
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Operations mode update should be valid.')
+
+    expect(result.tournament.operationsMode).toBe('registration-only')
+    expect(result.tournaments[0]?.operationsMode).toBe('registration-only')
+  })
+
+  it('blocks public team registrations when tournament runs in public-only mode', () => {
+    const state = createState()
+    state.tournaments[0]!.operationsMode = 'public-only'
+
+    const result = submitTournamentTeamRegistration(
+      {
+        contactName: 'Martin Kontakt',
+        contactPhone: '+421 900 123 456',
+        memberCount: 3,
+        note: '',
+        teamName: 'Offline Managed Team',
+        tournamentId: 'eccj-2026',
+      },
+      state,
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Registration should be disabled.')
+
+    expect(result.messages).toContain('Organizátor tejto súťaže nemá zapnuté online prihlasovanie tímov.')
+  })
+
+  it('allows registrations but blocks team requests in registration-only mode', () => {
+    const state = createState()
+    state.tournaments[0]!.operationsMode = 'registration-only'
+
+    const registrationResult = submitTournamentTeamRegistration(
+      {
+        contactName: 'Martin Kontakt',
+        contactPhone: '+421 900 123 456',
+        memberCount: 3,
+        note: '',
+        teamName: 'Registration Only Team',
+        tournamentId: 'eccj-2026',
+      },
+      state,
+      '2026-05-17T14:45:00.000Z',
+    )
+    expect(registrationResult.ok).toBe(true)
+
+    const requestResult = submitTournamentRequest(
+      {
+        description: '',
+        sectorId: 'a2',
+        tournamentId: 'eccj-2026',
+        type: 'catch-measurement',
+      },
+      state,
+    )
+
+    expect(requestResult.ok).toBe(false)
+    if (requestResult.ok) throw new Error('Team request should be disabled.')
+
+    expect(requestResult.messages).toContain('Organizátor tejto súťaže nemá zapnuté tímové hlásenia cez aplikáciu.')
   })
 
   it('rejects duplicate active tournament team registrations', () => {
@@ -228,6 +301,36 @@ describe('tournamentApiService', () => {
     })
   })
 
+  it('replays request action by client mutation id without duplicate mutation', () => {
+    const firstResult = submitTournamentRequestAction(
+      {
+        action: 'assign',
+        clientMutationId: 'offline-request-action-1',
+        requestId: 'tr-1002',
+      },
+      createState(),
+    )
+
+    expect(firstResult.ok).toBe(true)
+    if (!firstResult.ok) throw new Error('First request action should be valid.')
+
+    const secondResult = submitTournamentRequestAction(
+      {
+        action: 'assign',
+        clientMutationId: 'offline-request-action-1',
+        requestId: 'tr-1002',
+      },
+      firstResult,
+    )
+
+    expect(secondResult.ok).toBe(true)
+    if (!secondResult.ok) throw new Error('Replay request action should be valid.')
+
+    expect(secondResult.idempotentReplay).toBe(true)
+    expect(secondResult.request?.actionClientMutationId).toBe('offline-request-action-1')
+    expect(secondResult.request?.status).toBe('assigned')
+  })
+
   it('marks waiting tournament catch as verified', () => {
     const result = submitTournamentCatchVerification(
       {
@@ -325,6 +428,29 @@ describe('tournamentApiService', () => {
       result: 'penalty',
       sectorId: 'b4',
     })
+  })
+
+  it('blocks marshal penalties when full dispatch is not enabled', () => {
+    const state = createState()
+    state.tournaments[0]!.operationsMode = 'registration-only'
+
+    const result = submitTournamentPenalty(
+      {
+        durationHours: 2,
+        marshalId: 'marshal-2',
+        reason: 'Jeden prút bol nahodený mimo povolený limit sektora.',
+        rodsLess: 1,
+        sectorId: 'b4',
+        tournamentId: 'eccj-2026',
+        type: 'rod-reduction',
+      },
+      state,
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Penalty should be disabled without full dispatch.')
+
+    expect(result.messages).toContain('Kontrolórsky dispečing nie je pre túto súťaž zapnutý.')
   })
 
   it('replays a penalty by client mutation id without duplicating the penalty or mirrored check', () => {

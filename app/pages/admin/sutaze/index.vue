@@ -3,6 +3,7 @@ import type {
   Sponsor,
   SponsorLogoVariant,
   Tournament,
+  TournamentOperationsMode,
   TournamentPenalty,
   TournamentRuleCheck,
   TournamentTeamRegistration,
@@ -11,6 +12,7 @@ import type { MapStateResponse } from '~/services/mapApiService'
 import type {
   TournamentActionSuccess,
   TournamentCatchVerificationSuccess,
+  TournamentOperationsModeSuccess,
   TournamentPenaltySubmissionSuccess,
   TournamentRuleCheckSubmissionSuccess,
   TournamentSectorSettingsSuccess,
@@ -36,6 +38,7 @@ import {
   type OfflineTournamentAdminActionQueueItem,
 } from '~/services/offlineTournamentAdminActionQueueService'
 import {
+  createTournamentSectorMapEditorUrl,
   getTournamentMapCoverage,
   getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
@@ -45,6 +48,16 @@ import {
   getTournamentLeaderboard,
   getTournamentLeaderboardStats,
 } from '~/utils/tournamentLeaderboard'
+import {
+  getTournamentOperationalCapabilities,
+  tournamentOperationsModeOptions,
+} from '~/utils/tournamentOperations'
+import {
+  createTournamentTeamAccessCsv,
+  createTournamentTeamAccessUrl,
+  getTournamentTeamAccessRows,
+} from '~/utils/tournamentTeamAccess'
+import { createTournamentMarshalAccessUrl } from '~/utils/tournamentMarshalAccess'
 
 useHead({ title: 'Admin súťaže' })
 
@@ -125,9 +138,13 @@ const liveTournamentTeamRegistrations = computed(() =>
 )
 const liveMapShapes = computed(() => mapState.value.mapShapes)
 const activeTournament = computed(() => liveTournaments.value[0] ?? seedTournaments[0]!)
+const tournamentCapabilities = computed(() => getTournamentOperationalCapabilities(activeTournament.value))
+const canUseTournamentDispatch = computed(() => tournamentCapabilities.value.allowsMarshalWorkflow)
 const actionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const actionMessage = ref('')
 const activeActionId = ref('')
+const operationsModeStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
+const operationsModeMessage = ref('')
 const isOnline = ref(true)
 const offlineAdminActionQueue = ref<OfflineTournamentAdminActionQueueItem[]>([])
 const offlineAdminSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
@@ -199,6 +216,22 @@ const leaderboardExportUrl = computed(() => `/api/admin/tournaments/${activeTour
 const organizerExportUrl = computed(() => `/api/admin/tournaments/${activeTournament.value.id}/organizer-export`)
 const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournament.value.id}/leaderboard`)
 const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
+const tournamentTeamAccessUrl = (sectorId: string) =>
+  createTournamentTeamAccessUrl(activeTournament.value.id, sectorId)
+const tournamentTeamCardsUrl = computed(() =>
+  `/admin/sutaze/karticky?turnaj=${encodeURIComponent(activeTournament.value.id)}`,
+)
+const tournamentMarshalCardsUrl = computed(() =>
+  `/admin/sutaze/kontrolori-karticky?turnaj=${encodeURIComponent(activeTournament.value.id)}`,
+)
+const tournamentMarshalAccessUrl = (marshalId: string) =>
+  createTournamentMarshalAccessUrl(activeTournament.value.id, marshalId)
+const tournamentMapEditorUrl = computed(() =>
+  createTournamentSectorMapEditorUrl(activeTournament.value.id),
+)
+const tournamentSectorMapEditorUrl = (sectorId: string) =>
+  createTournamentSectorMapEditorUrl(activeTournament.value.id, sectorId)
+const teamAccessRows = computed(() => getTournamentTeamAccessRows(activeTournament.value))
 const activeTournamentSectorShapes = computed(() =>
   getTournamentSectorShapes(liveMapShapes.value, activeTournament.value),
 )
@@ -210,6 +243,8 @@ const mapSourceSummary = computed(() => getTournamentMapSourceSummary(mapState.v
 const sectorDraft = ref<Tournament['sectors']>(activeTournament.value.sectors.map(cloneTournamentSector))
 const sectorSettingsStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const sectorSettingsMessage = ref('')
+const teamAccessShareStatus = ref<'idle' | 'success' | 'error'>('idle')
+const teamAccessShareMessage = ref('')
 const tournamentSponsorSlots = computed(() => [
   {
     description: 'Partneri uvedení pri detaile súťaže.',
@@ -312,6 +347,20 @@ const sectorMapStatus = (sectorId: string) => {
   return row?.mapped ? `polygon: ${row.shape?.label ?? row.sector.label}` : 'bez polygonu, používa sa bod'
 }
 
+const getTeamAccessBaseUrl = () => {
+  if (!import.meta.client) return ''
+
+  return window.location.origin
+}
+
+const getAbsoluteTeamAccessUrl = (path: string) => `${getTeamAccessBaseUrl()}${path}`
+
+const teamAccessShareText = computed(() =>
+  teamAccessRows.value
+    .map((row) => `${row.sectorLabel} | ${row.teamName} | ${row.code} | ${getAbsoluteTeamAccessUrl(row.codeUrl)}`)
+    .join('\n'),
+)
+
 const sectorSettingsDraft = computed(() => ({
   sectors: sectorDraft.value.map((sector) => ({
     id: sector.id,
@@ -367,7 +416,46 @@ const getApiErrorMessage = (error: unknown) => {
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
 
+async function copyTeamAccessRows() {
+  if (!import.meta.client || !navigator.clipboard) {
+    teamAccessShareStatus.value = 'error'
+    teamAccessShareMessage.value = 'Prehliadač nepovolil kopírovanie tímových odkazov.'
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(teamAccessShareText.value)
+    teamAccessShareStatus.value = 'success'
+    teamAccessShareMessage.value = 'Tímové kódy a odkazy sú skopírované.'
+  }
+  catch {
+    teamAccessShareStatus.value = 'error'
+    teamAccessShareMessage.value = 'Tímové odkazy sa nepodarilo skopírovať.'
+  }
+}
+
+function downloadTeamAccessCsv() {
+  if (!import.meta.client) return
+
+  const csv = createTournamentTeamAccessCsv(activeTournament.value, getTeamAccessBaseUrl())
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+  const link = document.createElement('a')
+
+  link.href = URL.createObjectURL(blob)
+  link.download = `timove-odkazy-${activeTournament.value.id}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+
+  teamAccessShareStatus.value = 'success'
+  teamAccessShareMessage.value = 'CSV s tímovými kódmi je pripravené na stiahnutie.'
+}
+
 const getOfflineAdminActionLabel = (item: OfflineTournamentAdminActionQueueItem) => {
+  if (item.payload.kind === 'request-action') {
+    return item.payload.payload.action === 'assign'
+      ? 'Prevzatie hlásenia'
+      : 'Uzavretie hlásenia'
+  }
   if (item.payload.kind === 'catch-verification') {
     return item.payload.payload.status === 'verified'
       ? 'Overenie váženia'
@@ -385,6 +473,12 @@ const getOfflineAdminActionLabel = (item: OfflineTournamentAdminActionQueueItem)
 }
 
 const getOfflineAdminActionTarget = (item: OfflineTournamentAdminActionQueueItem) => {
+  if (item.payload.kind === 'request-action') {
+    const requestId = item.payload.payload.requestId
+    const request = liveTournamentRequests.value.find((entry) => entry.id === requestId)
+
+    return request ? `${sectorLabel(request.sectorId)} · ${request.team}` : `hlásenie ${requestId}`
+  }
   if (item.payload.kind === 'catch-verification') {
     return `úlovok ${item.payload.payload.catchId}`
   }
@@ -407,6 +501,16 @@ async function refreshOfflineAdminActionQueue() {
 }
 
 async function sendTournamentAdminAction(payload: OfflineTournamentAdminActionPayload) {
+  if (payload.kind === 'request-action') {
+    return await $fetch<TournamentActionSuccess>(`/api/admin/tournaments/requests/${payload.payload.requestId}/action`, {
+      body: {
+        action: payload.payload.action,
+        clientMutationId: payload.payload.clientMutationId,
+        marshalId: payload.payload.marshalId,
+      },
+      method: 'POST',
+    })
+  }
   if (payload.kind === 'catch-verification') {
     return await $fetch<TournamentCatchVerificationSuccess>(
       `/api/admin/tournaments/catches/${payload.payload.catchId}/verify`,
@@ -583,6 +687,37 @@ const saveSectorSettings = async () => {
   }
 }
 
+const saveTournamentOperationsMode = async (operationsMode: TournamentOperationsMode) => {
+  if (!canOperateTournaments.value) {
+    operationsModeStatus.value = 'error'
+    operationsModeMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+
+  if (operationsMode === tournamentCapabilities.value.mode) return
+
+  operationsModeStatus.value = 'saving'
+  operationsModeMessage.value = ''
+
+  try {
+    const result = await $fetch<TournamentOperationsModeSuccess>(
+      `/api/admin/tournaments/${activeTournament.value.id}/operations-mode`,
+      {
+        body: { operationsMode },
+        method: 'PUT',
+      },
+    )
+
+    operationsModeStatus.value = 'success'
+    operationsModeMessage.value = result.message
+    await refreshTournamentState()
+  }
+  catch (error) {
+    operationsModeStatus.value = 'error'
+    operationsModeMessage.value = getApiErrorMessage(error)
+  }
+}
+
 const submitTeamRegistrationDecision = async (
   registration: TournamentTeamRegistration,
   action: 'approve' | 'reject' | 'waitlist',
@@ -639,16 +774,30 @@ const submitRequestAction = async (requestId: string, action: 'assign' | 'resolv
     actionMessage.value = tournamentReadOnlyMessage.value
     return
   }
+  if (!canUseTournamentDispatch.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = 'Kontrolórsky dispečing nie je v aktuálnom režime súťaže zapnutý.'
+    return
+  }
 
   actionStatus.value = 'submitting'
   actionMessage.value = ''
   activeActionId.value = `${requestId}:${action}`
 
   try {
-    const result = await $fetch<TournamentActionSuccess>(`/api/admin/tournaments/requests/${requestId}/action`, {
-      body: { action },
-      method: 'POST',
-    })
+    const result = await sendOrQueueTournamentAdminAction(
+      {
+        kind: 'request-action',
+        payload: {
+          action,
+          requestId,
+        },
+      },
+      action === 'assign'
+        ? 'Prevzatie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.'
+        : 'Uzavretie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.',
+    )
+    if (!result) return
 
     actionStatus.value = 'success'
     actionMessage.value = result.message
@@ -667,6 +816,11 @@ const verifyCatch = async (catchId: string) => {
   if (!canOperateTournaments.value) {
     actionStatus.value = 'error'
     actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+  if (!canUseTournamentDispatch.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = 'Kontrolórsky dispečing nie je v aktuálnom režime súťaže zapnutý.'
     return
   }
 
@@ -705,6 +859,11 @@ const submitPenalty = async () => {
   if (!canOperateTournaments.value) {
     actionStatus.value = 'error'
     actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+  if (!canUseTournamentDispatch.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = 'Kontrolórsky dispečing nie je v aktuálnom režime súťaže zapnutý.'
     return
   }
 
@@ -747,6 +906,11 @@ const submitRuleCheck = async () => {
   if (!canOperateTournaments.value) {
     actionStatus.value = 'error'
     actionMessage.value = tournamentReadOnlyMessage.value
+    return
+  }
+  if (!canUseTournamentDispatch.value) {
+    actionStatus.value = 'error'
+    actionMessage.value = 'Kontrolórsky dispečing nie je v aktuálnom režime súťaže zapnutý.'
     return
   }
 
@@ -929,6 +1093,45 @@ onBeforeUnmount(() => {
             </p>
           </div>
         </div>
+      </div>
+
+      <div class="mb-5 rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Režim používania súťaže</h2>
+            <p class="text-foreground-muted mt-1 text-sm">{{ tournamentCapabilities.description }}</p>
+          </div>
+          <span class="w-fit rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
+            {{ tournamentCapabilities.label }}
+          </span>
+        </div>
+
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+          <button
+            v-for="option in tournamentOperationsModeOptions"
+            :key="option.value"
+            type="button"
+            class="rounded-md border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            :class="option.value === tournamentCapabilities.mode
+              ? 'border-primary-500 bg-primary-50 text-primary-950'
+              : 'border-border bg-white hover:border-primary-300'"
+            :disabled="!canOperateTournaments || operationsModeStatus === 'saving'"
+            @click="saveTournamentOperationsMode(option.value)"
+          >
+            <span class="block text-sm font-black">{{ option.label }}</span>
+            <span class="text-foreground-muted mt-1 block text-xs">{{ option.description }}</span>
+          </button>
+        </div>
+
+        <p
+          v-if="operationsModeMessage"
+          class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
+          :class="operationsModeStatus === 'success'
+            ? 'bg-success-500/10 text-success-700'
+            : 'bg-error-500/10 text-error-700'"
+        >
+          {{ operationsModeMessage }}
+        </p>
       </div>
 
       <div class="grid gap-4 md:grid-cols-5">
@@ -1206,7 +1409,7 @@ onBeforeUnmount(() => {
             <span class="rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
               {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }}
             </span>
-            <UButton to="/admin/mapa" icon="i-heroicons-map" variant="soft" size="sm">
+            <UButton :to="tournamentMapEditorUrl" icon="i-heroicons-map" variant="soft" size="sm">
               Editor mapy
             </UButton>
           </div>
@@ -1230,11 +1433,91 @@ onBeforeUnmount(() => {
             <p class="text-foreground-muted mt-1 truncate text-xs">
               {{ row.shape?.label ?? row.sector.team ?? 'bez mapového polygonu' }}
             </p>
+            <NuxtLink
+              :to="tournamentSectorMapEditorUrl(row.sector.id)"
+              class="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white/80 px-2 py-1 text-xs font-bold text-primary-800 transition-colors hover:bg-white"
+            >
+              <UIcon :name="row.mapped ? 'i-heroicons-pencil-square' : 'i-heroicons-plus-circle'" class="h-4 w-4" />
+              {{ row.mapped ? 'Upraviť polygon' : 'Vytvoriť polygon' }}
+            </NuxtLink>
           </div>
         </div>
         <p class="text-foreground-muted mt-3 text-xs">
           Aktívne sektorové polygony v mape: {{ activeTournamentSectorShapes.length }}.
         </p>
+      </div>
+
+      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Tímové odkazy a kódy</h2>
+            <p class="text-foreground-muted mt-1 text-sm">
+              Linky pre tímy bez účtu. Každý kód otvorí tímový panel s predvoleným sektorom.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2 lg:justify-end">
+            <UButton
+              :to="tournamentTeamCardsUrl"
+              icon="i-heroicons-qr-code"
+              variant="soft"
+            >
+              Kartičky
+            </UButton>
+            <UButton
+              icon="i-heroicons-clipboard-document-list"
+              variant="soft"
+              @click="copyTeamAccessRows"
+            >
+              Kopírovať všetko
+            </UButton>
+            <UButton
+              icon="i-heroicons-arrow-down-tray"
+              variant="soft"
+              @click="downloadTeamAccessCsv"
+            >
+              CSV
+            </UButton>
+          </div>
+        </div>
+
+        <p
+          v-if="teamAccessShareMessage"
+          class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
+          :class="teamAccessShareStatus === 'success'
+            ? 'bg-success-500/10 text-success-700'
+            : 'bg-error-500/10 text-error-700'"
+        >
+          {{ teamAccessShareMessage }}
+        </p>
+
+        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+          <div
+            v-for="row in teamAccessRows"
+            :key="row.sectorId"
+            class="rounded-md border border-border bg-white p-4"
+          >
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-md bg-primary-900 px-2 py-1 text-xs font-black text-accent-300">
+                    {{ row.sectorLabel }}
+                  </span>
+                  <p class="truncate text-sm font-bold">{{ row.teamName }}</p>
+                </div>
+                <p class="mt-2 break-all rounded-md bg-primary-50 px-3 py-2 text-sm font-black text-primary-950">
+                  {{ row.code }}
+                </p>
+              </div>
+              <NuxtLink
+                :to="row.codeUrl"
+                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+              >
+                <UIcon name="i-heroicons-device-phone-mobile" class="h-4 w-4" />
+                Otvoriť
+              </NuxtLink>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="mt-6 rounded-card border border-border bg-surface p-5">
@@ -1291,9 +1574,25 @@ onBeforeUnmount(() => {
                   {{ sectorMapStatus(sector.id) }}
                 </p>
               </div>
-              <span class="text-foreground-muted text-xs font-semibold uppercase tracking-wide">
-                {{ sector.id }}
-              </span>
+              <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                <span class="text-foreground-muted text-xs font-semibold uppercase tracking-wide">
+                  {{ sector.id }}
+                </span>
+                <NuxtLink
+                  :to="tournamentTeamAccessUrl(sector.id)"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                >
+                  <UIcon name="i-heroicons-device-phone-mobile" class="h-4 w-4" />
+                  Tímový odkaz
+                </NuxtLink>
+                <NuxtLink
+                  :to="tournamentSectorMapEditorUrl(sector.id)"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-warning-500/10 px-2.5 text-xs font-bold text-warning-900 transition-colors hover:bg-warning-500/20"
+                >
+                  <UIcon name="i-heroicons-map" class="h-4 w-4" />
+                  Mapa
+                </NuxtLink>
+              </div>
             </div>
 
             <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -1435,7 +1734,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     icon="i-heroicons-user-plus"
                     variant="soft"
-                    :disabled="!canOperateTournaments || request.status === 'resolved' || actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch || request.status === 'resolved' || actionStatus === 'submitting'"
                     :loading="activeActionId === `${request.id}:assign`"
                     @click="submitRequestAction(request.id, 'assign')"
                   >
@@ -1446,7 +1745,7 @@ onBeforeUnmount(() => {
                     icon="i-heroicons-check"
                     color="neutral"
                     variant="soft"
-                    :disabled="!canOperateTournaments || request.status === 'resolved' || actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch || request.status === 'resolved' || actionStatus === 'submitting'"
                     :loading="activeActionId === `${request.id}:resolve`"
                     @click="submitRequestAction(request.id, 'resolve')"
                   >
@@ -1480,7 +1779,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     icon="i-heroicons-scale"
                     variant="soft"
-                    :disabled="!canOperateTournaments || actionStatus === 'submitting'"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch || actionStatus === 'submitting'"
                     :loading="activeActionId === `${catchItem.id}:verify`"
                     @click="verifyCatch(catchItem.id)"
                   >
@@ -1494,7 +1793,22 @@ onBeforeUnmount(() => {
 
         <aside class="space-y-6">
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Kontrolóri</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Kontrolóri</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Priame panely pre dozor a tlačové QR kartičky.
+                </p>
+              </div>
+              <UButton
+                :to="tournamentMarshalCardsUrl"
+                size="sm"
+                icon="i-heroicons-qr-code"
+                variant="soft"
+              >
+                Kartičky
+              </UButton>
+            </div>
             <div class="mt-4 space-y-3">
               <div v-for="marshal in liveTournamentMarshals" :key="marshal.id" class="rounded-md bg-muted p-4">
                 <div class="flex items-start justify-between gap-3">
@@ -1508,6 +1822,16 @@ onBeforeUnmount(() => {
                     {{ tournamentMarshalStatusLabels[marshal.status] }}
                   </span>
                 </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    :to="tournamentMarshalAccessUrl(marshal.id)"
+                    size="sm"
+                    icon="i-heroicons-device-phone-mobile"
+                    variant="soft"
+                  >
+                    Panel kontrolóra
+                  </UButton>
+                </div>
               </div>
             </div>
           </div>
@@ -1520,7 +1844,7 @@ onBeforeUnmount(() => {
                   <span class="text-sm font-semibold">Sektor</span>
                   <select
                     v-model="penaltyForm.sectorId"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
@@ -1532,7 +1856,7 @@ onBeforeUnmount(() => {
                   <span class="text-sm font-semibold">Kontrolór</span>
                   <select
                     v-model="penaltyForm.marshalId"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(penaltyForm.sectorId)" :key="marshal.id" :value="marshal.id">
@@ -1546,7 +1870,7 @@ onBeforeUnmount(() => {
                 <span class="text-sm font-semibold">Typ trestu</span>
                 <select
                   v-model="penaltyForm.type"
-                  :disabled="!canOperateTournaments"
+                  :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                   class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
                   <option v-for="[value, label] in penaltyTypeOptions" :key="value" :value="value">
@@ -1566,7 +1890,7 @@ onBeforeUnmount(() => {
                     type="number"
                     min="1"
                     max="24"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                 </label>
@@ -1577,7 +1901,7 @@ onBeforeUnmount(() => {
                     type="number"
                     min="1"
                     max="4"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                 </label>
@@ -1588,7 +1912,7 @@ onBeforeUnmount(() => {
                 <textarea
                   v-model="penaltyForm.reason"
                   rows="3"
-                  :readonly="!canOperateTournaments"
+                  :readonly="!canOperateTournaments || !canUseTournamentDispatch"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -1603,7 +1927,7 @@ onBeforeUnmount(() => {
                 type="submit"
                 icon="i-heroicons-no-symbol"
                 block
-                :disabled="!canOperateTournaments || !penaltyValidation.success || actionStatus === 'submitting'"
+                :disabled="!canOperateTournaments || !canUseTournamentDispatch || !penaltyValidation.success || actionStatus === 'submitting'"
                 :loading="activeActionId === 'penalty:create'"
               >
                 Uložiť trest
@@ -1619,7 +1943,7 @@ onBeforeUnmount(() => {
                   <span class="text-sm font-semibold">Sektor</span>
                   <select
                     v-model="ruleCheckForm.sectorId"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
@@ -1631,7 +1955,7 @@ onBeforeUnmount(() => {
                   <span class="text-sm font-semibold">Kontrolór</span>
                   <select
                     v-model="ruleCheckForm.marshalId"
-                    :disabled="!canOperateTournaments"
+                    :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                     class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(ruleCheckForm.sectorId)" :key="marshal.id" :value="marshal.id">
@@ -1645,7 +1969,7 @@ onBeforeUnmount(() => {
                 <span class="text-sm font-semibold">Výsledok</span>
                 <select
                   v-model="ruleCheckForm.result"
-                  :disabled="!canOperateTournaments"
+                  :disabled="!canOperateTournaments || !canUseTournamentDispatch"
                   class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
                   <option v-for="[value, label] in ruleCheckResultOptions" :key="value" :value="value">
@@ -1659,7 +1983,7 @@ onBeforeUnmount(() => {
                 <textarea
                   v-model="ruleCheckForm.note"
                   rows="3"
-                  :readonly="!canOperateTournaments"
+                  :readonly="!canOperateTournaments || !canUseTournamentDispatch"
                   class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -1674,7 +1998,7 @@ onBeforeUnmount(() => {
                 type="submit"
                 icon="i-heroicons-clipboard-document-check"
                 block
-                :disabled="!canOperateTournaments || !ruleCheckValidation.success || actionStatus === 'submitting'"
+                :disabled="!canOperateTournaments || !canUseTournamentDispatch || !ruleCheckValidation.success || actionStatus === 'submitting'"
                 :loading="activeActionId === 'rule-check:create'"
               >
                 Uložiť kontrolu

@@ -714,6 +714,7 @@ export function buildSupabaseSeedPayload(
       type: snakeValue(penalty.type),
     })),
     tournament_requests: source.tournamentRequests.map((request) => ({
+      action_client_mutation_id: request.actionClientMutationId ?? null,
       assigned_marshal_id: request.assignedMarshalId ? tournamentMarshalIds[request.assignedMarshalId] ?? null : null,
       created_at: parseOperationalTimestamp(request.createdAt, baseDate),
       description: request.description,

@@ -4,6 +4,7 @@ import type {
   Tournament,
   TournamentCatch,
   TournamentMarshal,
+  TournamentOperationsMode,
   TournamentPenalty,
   TournamentRequest,
   TournamentRuleCheck,
@@ -33,6 +34,7 @@ export function resolveLocalTournamentStorePath() {
 function cloneTournaments(items: Tournament[]) {
   return items.map((tournament) => ({
     ...tournament,
+    operationsMode: ((tournament as Tournament & { operationsMode?: TournamentOperationsMode }).operationsMode ?? 'full-dispatch'),
     sectors: tournament.sectors.map((sector) => ({ ...sector })),
   }))
 }
@@ -99,6 +101,7 @@ function normalizeLocalTournamentState(value: LocalTournamentState): LocalTourna
     tournamentTeamRegistrations: Array.isArray(value.tournamentTeamRegistrations)
       ? value.tournamentTeamRegistrations
       : cloneTeamRegistrations(tournamentTeamRegistrations),
+    tournaments: cloneTournaments(value.tournaments),
   }
 }
 

@@ -22,7 +22,18 @@ export const tournamentCatchVerificationPayloadSchema = z.object({
   status: z.enum(['verified', 'disputed']),
 })
 
+export const tournamentRequestActionPayloadSchema = z.object({
+  action: z.enum(['assign', 'resolve']),
+  clientMutationId: z.string().trim().min(1, 'Chýba ID offline úkonu.').max(160, 'ID offline úkonu je príliš dlhé.').optional(),
+  marshalId: z.string().trim().optional(),
+  requestId: z.string().trim().min(1, 'Chýba ID hlásenia.'),
+})
+
 export const offlineTournamentAdminActionPayloadSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('request-action'),
+    payload: tournamentRequestActionPayloadSchema,
+  }),
   z.object({
     kind: z.literal('catch-verification'),
     payload: tournamentCatchVerificationPayloadSchema,
@@ -60,9 +71,11 @@ function createQueueId(payload: OfflineTournamentAdminActionPayload, now: string
   const randomPart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10)
-  const target = payload.kind === 'catch-verification'
-    ? payload.payload.catchId
-    : payload.payload.sectorId
+  const target = payload.kind === 'request-action'
+    ? payload.payload.requestId
+    : payload.kind === 'catch-verification'
+      ? payload.payload.catchId
+      : payload.payload.sectorId
 
   return `offline-admin-tournament-${datePart}-${payload.kind}-${target}-${randomPart}`
 }
@@ -75,6 +88,15 @@ function setPayloadClientMutationId(
   payload: OfflineTournamentAdminActionPayload,
   clientMutationId: string,
 ): OfflineTournamentAdminActionPayload {
+  if (payload.kind === 'request-action') {
+    return {
+      kind: payload.kind,
+      payload: {
+        ...payload.payload,
+        clientMutationId,
+      },
+    }
+  }
   if (payload.kind === 'catch-verification') {
     return {
       kind: payload.kind,

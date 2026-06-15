@@ -30,6 +30,15 @@ const penaltyPayload: OfflineTournamentAdminActionPayload = {
   },
 }
 
+const requestActionPayload: OfflineTournamentAdminActionPayload = {
+  kind: 'request-action',
+  payload: {
+    action: 'assign',
+    marshalId: 'marshal-1',
+    requestId: 'tr-1001',
+  },
+}
+
 describe('offlineTournamentAdminActionQueueService', () => {
   it('creates a valid offline admin tournament action queue item', () => {
     const item = createOfflineTournamentAdminActionQueueItem(catchPayload, {
@@ -50,6 +59,26 @@ describe('offlineTournamentAdminActionQueueService', () => {
         },
       },
       updatedAt: '2026-05-20T12:00:00.000Z',
+    })
+  })
+
+  it('creates a valid offline request action queue item', () => {
+    const item = createOfflineTournamentAdminActionQueueItem(requestActionPayload, {
+      id: 'offline-admin-request-action-1',
+      now: '2026-05-20T12:05:00.000Z',
+    })
+
+    expect(item).toMatchObject({
+      id: 'offline-admin-request-action-1',
+      payload: {
+        kind: 'request-action',
+        payload: {
+          action: 'assign',
+          clientMutationId: 'offline-admin-request-action-1',
+          marshalId: 'marshal-1',
+          requestId: 'tr-1001',
+        },
+      },
     })
   })
 

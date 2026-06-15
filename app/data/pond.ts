@@ -194,11 +194,14 @@ export interface TournamentSector {
   weightKg: number
 }
 
+export type TournamentOperationsMode = 'public-only' | 'registration-only' | 'full-dispatch'
+
 export interface Tournament {
   id: string
   name: string
   lake: LakeSlug
   dateRange: string
+  operationsMode: TournamentOperationsMode
   status: 'planned' | 'live' | 'closed'
   sectors: TournamentSector[]
 }
@@ -241,6 +244,7 @@ export interface TournamentRequest {
   status: 'new' | 'assigned' | 'resolved'
   createdAt: string
   assignedMarshalId?: string
+  actionClientMutationId?: string
   description: string
 }
 
@@ -1862,6 +1866,7 @@ export const tournaments: Tournament[] = [
     name: 'European Carp Cup Junior',
     lake: 'velky-cetin',
     dateRange: '21. 8. - 25. 8. 2026',
+    operationsMode: 'full-dispatch',
     status: 'live',
     sectors: [
       { id: 'a1', label: 'A1', x: 77, y: 64, team: 'Junior Team A', weightKg: 12.4 },

@@ -547,6 +547,7 @@ create table public.tournament_requests (
   status public.tournament_request_status not null default 'new',
   created_at timestamptz not null default now(),
   assigned_marshal_id uuid references public.tournament_marshals(id) on delete set null,
+  action_client_mutation_id text,
   description text not null default '',
   updated_at timestamptz not null default now()
 );
@@ -706,6 +707,7 @@ create index catch_records_lake_caught_at_idx on public.catch_records (lake_id, 
 create index trip_logbook_entries_logbook_idx on public.trip_logbook_entries (logbook_id, caught_at desc);
 create index map_shapes_tournament_sector_idx on public.map_shapes (tournament_id, tournament_sector_id);
 create index tournament_requests_status_idx on public.tournament_requests (tournament_id, status, priority);
+create unique index tournament_requests_action_client_mutation_idx on public.tournament_requests (tournament_id, action_client_mutation_id) where action_client_mutation_id is not null;
 create index tournament_catches_score_idx on public.tournament_catches (tournament_id, team_id, status, weight_kg desc);
 create unique index tournament_catches_verification_client_mutation_idx on public.tournament_catches (tournament_id, verification_client_mutation_id) where verification_client_mutation_id is not null;
 create unique index tournament_penalties_client_mutation_idx on public.tournament_penalties (tournament_id, client_mutation_id) where client_mutation_id is not null;

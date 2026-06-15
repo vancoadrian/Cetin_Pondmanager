@@ -54,7 +54,7 @@ Súťažný model obsahuje:
 - tresty,
 - kontroly pravidiel.
 
-Tým je pokrytý scenár, kde tím požiada o príchod kontrolóra, kontrolór váži úlovok, zapíše trest alebo rieši hlásenie porušenia pravidiel. `tournament_catches.verification_client_mutation_id`, `tournament_penalties.client_mutation_id` a `tournament_rule_checks.client_mutation_id` majú unikátne indexy v rámci súťaže, aby offline retry kontrolórskych úkonov nevytváral duplicity.
+Tým je pokrytý scenár, kde tím požiada o príchod kontrolóra, kontrolór váži úlovok, zapíše trest alebo rieši hlásenie porušenia pravidiel. `tournament_requests.action_client_mutation_id`, `tournament_catches.verification_client_mutation_id`, `tournament_penalties.client_mutation_id` a `tournament_rule_checks.client_mutation_id` majú unikátne indexy v rámci súťaže, aby offline retry kontrolórskych úkonov nevytváral duplicity.
 
 ## RLS princíp
 

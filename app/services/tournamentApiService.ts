@@ -9,6 +9,7 @@ import type {
 } from '~/data/pond'
 import {
   getValidationMessages,
+  tournamentOperationsModeInputSchema,
   tournamentPenaltyInputSchema,
   tournamentRequestInputSchema,
   tournamentRuleCheckInputSchema,
@@ -16,6 +17,7 @@ import {
   tournamentTeamRegistrationDecisionInputSchema,
   tournamentTeamRegistrationInputSchema,
 } from '~/schemas/pondSchemas'
+import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperations'
 
 export interface TournamentWorkflowState {
   tournamentCatches: TournamentCatch[]
@@ -46,6 +48,7 @@ export interface TournamentRequestSubmissionSuccess {
 }
 
 export interface TournamentActionSuccess extends TournamentWorkflowState {
+  idempotentReplay?: boolean
   message: string
   ok: true
   request?: TournamentRequest
@@ -83,6 +86,13 @@ export interface TournamentSectorSettingsSuccess extends TournamentWorkflowState
   tournament: Tournament
 }
 
+export interface TournamentOperationsModeSuccess extends TournamentWorkflowState {
+  message: string
+  ok: true
+  statusCode: 200
+  tournament: Tournament
+}
+
 export interface TournamentTeamRegistrationSubmissionSuccess {
   message: string
   ok: true
@@ -103,6 +113,7 @@ export type TournamentCatchVerificationResult = ApiValidationFailure | Tournamen
 export type TournamentPenaltySubmissionResult = ApiValidationFailure | TournamentPenaltySubmissionSuccess
 export type TournamentRuleCheckSubmissionResult = ApiValidationFailure | TournamentRuleCheckSubmissionSuccess
 export type TournamentSectorSettingsResult = ApiValidationFailure | TournamentSectorSettingsSuccess
+export type TournamentOperationsModeResult = ApiValidationFailure | TournamentOperationsModeSuccess
 export type TournamentTeamRegistrationSubmissionResult = ApiValidationFailure | TournamentTeamRegistrationSubmissionSuccess
 export type TournamentTeamRegistrationDecisionResult = ApiValidationFailure | TournamentTeamRegistrationDecisionSuccess
 
@@ -186,6 +197,7 @@ function cloneTournamentState(state: TournamentWorkflowState): TournamentWorkflo
     tournamentTeamRegistrations: state.tournamentTeamRegistrations.map((registration) => ({ ...registration })),
     tournaments: state.tournaments.map((tournament) => ({
       ...tournament,
+      operationsMode: tournament.operationsMode ?? 'full-dispatch',
       sectors: tournament.sectors.map((sector) => ({ ...sector })),
     })),
   }
@@ -309,6 +321,34 @@ export function updateTournamentSectors(
   }
 }
 
+export function updateTournamentOperationsMode(
+  rawInput: unknown,
+  state: TournamentWorkflowState,
+): TournamentOperationsModeResult {
+  const inputResult = tournamentOperationsModeInputSchema.safeParse(rawInput)
+  if (!inputResult.success) {
+    return failure(getValidationMessages(inputResult))
+  }
+
+  const input = inputResult.data
+  const tournament = state.tournaments.find((item) => item.id === input.tournamentId)
+  if (!tournament) {
+    return failure(['Súťaž sa v lokálnom stave nenašla.'], 404)
+  }
+
+  const nextState = cloneTournamentState(state)
+  const nextTournament = nextState.tournaments.find((item) => item.id === input.tournamentId)!
+  nextTournament.operationsMode = input.operationsMode
+
+  return {
+    ...nextState,
+    message: 'Režim používania súťaže je uložený.',
+    ok: true,
+    statusCode: 200,
+    tournament: nextTournament,
+  }
+}
+
 export function submitTournamentTeamRegistration(
   rawInput: unknown,
   state: TournamentWorkflowState,
@@ -323,6 +363,10 @@ export function submitTournamentTeamRegistration(
   const tournament = state.tournaments.find((item) => item.id === input.tournamentId)
   if (!tournament) {
     return failure(['Súťaž sa v lokálnom stave nenašla.'], 404)
+  }
+
+  if (!getTournamentOperationalCapabilities(tournament).allowsTeamRegistration) {
+    return failure(['Organizátor tejto súťaže nemá zapnuté online prihlasovanie tímov.'], 400)
   }
 
   if (input.preferredSectorId && !tournament.sectors.some((sector) => sector.id === input.preferredSectorId)) {
@@ -488,6 +532,10 @@ export function submitTournamentRequest(
     return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
   }
 
+  if (!getTournamentOperationalCapabilities(tournament).allowsTeamRequests) {
+    return failure(['Organizátor tejto súťaže nemá zapnuté tímové hlásenia cez aplikáciu.'], 400)
+  }
+
   const requestId = uniqueId(
     `tr-${compactTimestamp(now)}-${input.sectorId}-${slugify(input.type)}`,
     new Set(state.tournamentRequests.map((request) => request.id)),
@@ -519,11 +567,13 @@ export function submitTournamentRequestAction(
 ): TournamentActionResult {
   const input = rawInput as Partial<{
     action: unknown
+    clientMutationId: unknown
     marshalId: unknown
     requestId: unknown
   }>
   const requestId = typeof input.requestId === 'string' ? input.requestId.trim() : ''
   const action = input.action === 'assign' || input.action === 'resolve' ? input.action : undefined
+  const clientMutationId = normalizeClientMutationId(input.clientMutationId)
   const preferredMarshalId = typeof input.marshalId === 'string' ? input.marshalId.trim() : undefined
 
   if (!requestId || !action) {
@@ -533,6 +583,21 @@ export function submitTournamentRequestAction(
   const currentRequest = state.tournamentRequests.find((request) => request.id === requestId)
   if (!currentRequest) {
     return failure(['Hlásenie sa v lokálnom súťažnom stave nenašlo.'], 404)
+  }
+  const currentTournament = state.tournaments.find((tournament) => tournament.id === currentRequest.tournamentId)
+  if (!currentTournament || !getTournamentOperationalCapabilities(currentTournament).allowsMarshalWorkflow) {
+    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
+  }
+
+  if (clientMutationId && currentRequest.actionClientMutationId === clientMutationId) {
+    return {
+      ...cloneTournamentState(state),
+      idempotentReplay: true,
+      message: 'Akcia hlásenia už bola spracovaná, nevytváram duplicitný záznam.',
+      ok: true,
+      request: { ...currentRequest },
+      statusCode: 200,
+    }
   }
 
   const nextState = cloneTournamentState(state)
@@ -545,6 +610,7 @@ export function submitTournamentRequestAction(
     }
 
     nextRequest.assignedMarshalId = marshal.id
+    nextRequest.actionClientMutationId = clientMutationId
     nextRequest.status = 'assigned'
     nextState.tournamentMarshals = nextState.tournamentMarshals.map((item) =>
       item.id === marshal.id
@@ -561,6 +627,7 @@ export function submitTournamentRequestAction(
     }
   }
 
+  nextRequest.actionClientMutationId = clientMutationId
   nextRequest.status = 'resolved'
   nextState.tournamentMarshals = nextState.tournamentMarshals.map((marshal) =>
     marshal.id === nextRequest.assignedMarshalId && marshal.status === 'on-route'
@@ -602,6 +669,10 @@ export function submitTournamentCatchVerification(
   const currentCatch = state.tournamentCatches.find((catchItem) => catchItem.id === catchId)
   if (!currentCatch) {
     return failure(['Súťažný úlovok sa v lokálnom stave nenašiel.'], 404)
+  }
+  const tournament = state.tournaments.find((item) => item.id === currentCatch.tournamentId)
+  if (!tournament || !getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
+    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
   }
 
   if (clientMutationId && currentCatch.verificationClientMutationId === clientMutationId) {
@@ -672,6 +743,10 @@ export function submitTournamentPenalty(
   const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
   if (!tournament || !sector) {
     return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
+  }
+
+  if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
+    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
   }
 
   const marshal = marshalForSector(state, input.sectorId, input.marshalId)
@@ -760,6 +835,10 @@ export function submitTournamentRuleCheck(
   const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
   if (!tournament || !sector) {
     return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
+  }
+
+  if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
+    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
   }
 
   const marshal = marshalForSector(state, input.sectorId, input.marshalId)

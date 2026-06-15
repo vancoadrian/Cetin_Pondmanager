@@ -37,6 +37,8 @@ import {
   getTournamentLeaderboard,
   getTournamentLeaderboardStats,
 } from '~/utils/tournamentLeaderboard'
+import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperations'
+import { createTournamentTeamAccessUrl } from '~/utils/tournamentTeamAccess'
 
 useHead({ title: 'Súťaže' })
 
@@ -117,6 +119,9 @@ const activeTournament = computed(() =>
   ?? liveTournaments.value[0]
   ?? seedTournaments[0]!,
 )
+const tournamentCapabilities = computed(() => getTournamentOperationalCapabilities(activeTournament.value))
+const canSubmitTeamRegistration = computed(() => tournamentCapabilities.value.allowsTeamRegistration)
+const canSubmitTournamentRequest = computed(() => tournamentCapabilities.value.allowsTeamRequests)
 const activeTournamentLake = computed(() => lakes.find((lake) => lake.slug === activeTournament.value.lake))
 const activeTournamentBackgroundLayer = computed(() =>
   liveMapLayers.value.find((layer) => layer.lake === activeTournament.value.lake && layer.kind === 'background' && layer.enabled),
@@ -241,6 +246,8 @@ const leaderboardStats = computed(() =>
 )
 const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournament.value.id}/leaderboard`)
 const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
+const tournamentTeamAccessUrl = (sectorId: string) =>
+  createTournamentTeamAccessUrl(activeTournament.value.id, sectorId)
 const selectedSector = computed(() =>
   activeTournament.value.sectors.find((sector) => sector.id === requestForm.sectorId),
 )
@@ -466,6 +473,12 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
 }
 
 const submitRequest = async () => {
+  if (!canSubmitTournamentRequest.value) {
+    requestSubmitStatus.value = 'error'
+    requestSubmitMessage.value = 'Organizátor tejto súťaže nemá zapnuté tímové hlásenia cez aplikáciu.'
+    return
+  }
+
   const validation = requestValidation.value
   if (!validation.success) {
     requestSubmitStatus.value = 'error'
@@ -501,6 +514,12 @@ const submitRequest = async () => {
 }
 
 const submitTeamRegistration = async () => {
+  if (!canSubmitTeamRegistration.value) {
+    teamRegistrationStatus.value = 'error'
+    teamRegistrationMessage.value = 'Organizátor tejto súťaže nemá zapnuté online prihlasovanie tímov.'
+    return
+  }
+
   const validation = teamRegistrationValidation.value
   if (!validation.success) {
     teamRegistrationStatus.value = 'error'
@@ -606,9 +625,14 @@ watch(activeTournament, (tournament) => {
               </p>
               <h2 class="text-2xl font-bold">{{ activeTournament.name }}</h2>
             </div>
-            <span class="bg-success-500/10 text-success-700 rounded-md px-3 py-1 text-sm font-bold">
-              live
-            </span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="bg-success-500/10 text-success-700 rounded-md px-3 py-1 text-sm font-bold">
+                live
+              </span>
+              <span class="rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
+                {{ tournamentCapabilities.label }}
+              </span>
+            </div>
           </div>
 
           <div class="bg-primary-950 relative aspect-[4/3] overflow-hidden">
@@ -667,7 +691,7 @@ watch(activeTournament, (tournament) => {
               "
               :style="{ left: `${sector.x}%`, top: `${sector.y}%` }"
               :aria-label="sector.label"
-              @click="requestForm.sectorId = sector.id"
+              @click="canSubmitTournamentRequest && (requestForm.sectorId = sector.id)"
             >
               {{ sector.label }}
               <span
@@ -751,6 +775,18 @@ watch(activeTournament, (tournament) => {
           </div>
 
           <div class="border-border bg-surface rounded-card border p-5">
+            <div class="flex items-start gap-3">
+              <div class="rounded-md bg-primary-50 p-2 text-primary-800">
+                <UIcon name="i-heroicons-adjustments-horizontal" class="h-5 w-5" />
+              </div>
+              <div>
+                <h2 class="text-lg font-bold">{{ tournamentCapabilities.label }}</h2>
+                <p class="text-foreground-muted mt-1 text-sm">{{ tournamentCapabilities.description }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Live výsledkovka</h2>
@@ -799,6 +835,14 @@ watch(activeTournament, (tournament) => {
                   <p class="text-foreground-muted mt-0.5 truncate text-xs">
                     {{ row.sectorLabel }} · overené {{ row.verifiedCatchCount }} · čaká {{ row.pendingCatchCount + row.disputedCatchCount }}
                   </p>
+                  <NuxtLink
+                    v-if="canSubmitTournamentRequest"
+                    :to="tournamentTeamAccessUrl(row.sectorId)"
+                    class="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                  >
+                    <UIcon name="i-heroicons-device-phone-mobile" class="h-3.5 w-3.5" />
+                    Tímový panel
+                  </NuxtLink>
                 </div>
                 <div class="text-right">
                   <p class="font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
@@ -839,7 +883,11 @@ watch(activeTournament, (tournament) => {
               </div>
             </div>
 
-            <form class="mt-5 space-y-4" @submit.prevent="submitTeamRegistration">
+            <form
+              v-if="canSubmitTeamRegistration"
+              class="mt-5 space-y-4"
+              @submit.prevent="submitTeamRegistration"
+            >
               <label class="block">
                 <span class="text-sm font-semibold">Názov tímu</span>
                 <input
@@ -959,12 +1007,19 @@ watch(activeTournament, (tournament) => {
                 type="submit"
                 icon="i-heroicons-user-plus"
                 block
-                :disabled="!teamRegistrationValidation.success || teamRegistrationStatus === 'submitting'"
+                :disabled="!canSubmitTeamRegistration || !teamRegistrationValidation.success || teamRegistrationStatus === 'submitting'"
                 :loading="teamRegistrationStatus === 'submitting'"
               >
                 Odoslať prihlášku tímu
               </UButton>
             </form>
+
+            <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
+              <p class="font-bold">Online prihlášky nie sú v tomto režime zapnuté.</p>
+              <p class="mt-1">
+                Organizátor môže používať len verejnú mapu a výsledkovku alebo prijímať tímy mimo aplikácie.
+              </p>
+            </div>
 
             <div v-if="tournamentTeamRegistrations.length > 0" class="mt-5 space-y-2">
               <div
@@ -1058,7 +1113,11 @@ watch(activeTournament, (tournament) => {
                 </div>
               </div>
             </div>
-            <form class="mt-5 space-y-4" @submit.prevent="submitRequest">
+            <form
+              v-if="canSubmitTournamentRequest"
+              class="mt-5 space-y-4"
+              @submit.prevent="submitRequest"
+            >
               <label class="block">
                 <span class="text-sm font-semibold">Sektor tímu</span>
                 <select
@@ -1123,12 +1182,18 @@ watch(activeTournament, (tournament) => {
                 type="submit"
                 icon="i-heroicons-paper-airplane"
                 block
-                :disabled="!requestValidation.success || requestSubmitStatus === 'submitting'"
+                :disabled="!canSubmitTournamentRequest || !requestValidation.success || requestSubmitStatus === 'submitting'"
                 :loading="requestSubmitStatus === 'submitting'"
               >
                 Odoslať hlásenie
               </UButton>
             </form>
+            <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
+              <p class="font-bold">Tímové hlásenia cez aplikáciu nie sú zapnuté.</p>
+              <p class="mt-1">
+                Pri tejto súťaži organizátor používa verejnú prezentáciu alebo vlastný proces mimo dispečingu.
+              </p>
+            </div>
           </div>
 
           <div class="border-border bg-surface rounded-card border p-5">

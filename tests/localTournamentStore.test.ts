@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   appendLocalTournamentTeamRegistration,
   appendLocalTournamentRequest,
+  createSeedTournamentState,
   readLocalTournamentState,
   writeLocalTournamentState,
 } from '~/server/utils/localTournamentStore'
@@ -35,6 +36,19 @@ describe('localTournamentStore', () => {
     expect(JSON.parse(raw)).toMatchObject({
       version: 1,
     })
+  })
+
+  it('normalizes legacy tournament state without operations mode', async () => {
+    const filePath = await createStorePath()
+    const legacyState = createSeedTournamentState('2026-01-01T00:00:00.000Z') as ReturnType<typeof createSeedTournamentState> & {
+      tournaments: Array<Record<string, unknown>>
+    }
+    delete legacyState.tournaments[0]!.operationsMode
+    await writeFile(filePath, `${JSON.stringify(legacyState, null, 2)}\n`, 'utf8')
+
+    const state = await readLocalTournamentState(filePath)
+
+    expect(state.tournaments[0]?.operationsMode).toBe('full-dispatch')
   })
 
   it('persists appended tournament requests', async () => {

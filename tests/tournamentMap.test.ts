@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { MapShape, Tournament } from '~/app/data/pond'
 import {
+  createMissingTournamentSectorShapeDrafts,
+  createTournamentSectorMapEditorUrl,
+  createTournamentSectorShapeDraft,
   getTournamentMapCoverage,
   getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
@@ -39,6 +42,11 @@ function sectorShape(overrides: Partial<MapShape> = {}): MapShape {
 }
 
 describe('tournament map helpers', () => {
+  it('creates deep links to the admin map editor for tournament sectors', () => {
+    expect(createTournamentSectorMapEditorUrl('cup 2026', 'sector/a1')).toBe('/admin/mapa?turnaj=cup+2026&sektor=sector%2Fa1')
+    expect(createTournamentSectorMapEditorUrl('cup-2026')).toBe('/admin/mapa?turnaj=cup-2026')
+  })
+
   it('returns sector shapes scoped to the active tournament and lake', () => {
     const shapes = [
       sectorShape(),
@@ -66,6 +74,43 @@ describe('tournament map helpers', () => {
     expect(getTournamentMapCoverage(rows)).toEqual({
       mappedSectorCount: 1,
       totalSectorCount: 2,
+    })
+  })
+
+  it('creates a tournament sector polygon draft around the sector point', () => {
+    const edgeSector = { ...tournament.sectors[0]!, id: 'edge', label: 'Edge', team: 'Edge Team', x: 98, y: 2 }
+    const draft = createTournamentSectorShapeDraft(tournament, edgeSector, ['shape-vc-sector-edge-2'])
+
+    expect(draft).toMatchObject({
+      id: 'shape-vc-sector-edge-3',
+      label: 'Sektor Edge · Edge Team',
+      lake: 'velky-cetin',
+      sectorId: 'edge',
+      tone: 'sector',
+      tournamentId: 'cup-2026',
+      type: 'sector',
+      visibility: 'competition',
+    })
+    expect(draft.points).toEqual([
+      { x: 91, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 7 },
+      { x: 91, y: 7 },
+    ])
+  })
+
+  it('creates drafts only for missing tournament sector polygons', () => {
+    const drafts = createMissingTournamentSectorShapeDrafts(tournament, [
+      sectorShape(),
+      sectorShape({ id: 'other-tournament-b2', sectorId: 'b2', tournamentId: 'other-cup' }),
+    ])
+
+    expect(drafts).toHaveLength(1)
+    expect(drafts[0]).toMatchObject({
+      id: 'shape-vc-sector-b2-3',
+      label: 'Sektor B2 · Team B',
+      sectorId: 'b2',
+      tournamentId: 'cup-2026',
     })
   })
 
