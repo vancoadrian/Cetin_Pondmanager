@@ -17,6 +17,7 @@ import {
   type OfflineReservationQueueItem,
 } from '~/services/offlineReservationQueueService'
 import { getPegAvailability } from '~/utils/availability'
+import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 import { getRentalAvailability } from '~/utils/rentals'
 
 useHead({ title: 'Rezervácie' })
@@ -74,11 +75,19 @@ const {
 } = await useRentalCatalogState({ key: 'public-reservation-rental-catalog-state' })
 
 const route = useRoute()
-const selectedLake = ref<LakeSlug>('velky-cetin')
-const selectedPegId = ref(String(route.query.miesto ?? 'vc-03'))
+const router = useRouter()
+const routeLake = lakes.find((lake) => lake.slug === route.query.jazero)?.slug
+const initialDateRange = resolveAvailabilityDateRange(route.query.od, route.query.do, new Date(), 2)
+const selectedLake = ref<LakeSlug>(routeLake ?? 'velky-cetin')
+const requestedPegId = String(route.query.miesto ?? '')
+const selectedPegId = ref(
+  pegs.find((peg) => peg.id === requestedPegId && peg.lake === selectedLake.value)?.id
+  ?? pegs.find((peg) => peg.lake === selectedLake.value)?.id
+  ?? '',
+)
 const selectedPermitId = ref('permit-48h')
-const reservationFrom = ref('2026-05-16')
-const reservationTo = ref('2026-05-18')
+const reservationFrom = ref(initialDateRange.dateFrom)
+const reservationTo = ref(initialDateRange.dateTo)
 const reservationContactName = ref('Marek H.')
 const reservationContactPhone = ref('+421 900 123 456')
 const selectedRentalIds = ref<string[]>([])
@@ -128,6 +137,15 @@ const selectedAvailability = computed(() =>
     })
     : undefined,
 )
+const mapTarget = computed(() => ({
+  path: '/mapa',
+  query: {
+    do: reservationTo.value,
+    jazero: selectedLake.value,
+    miesto: selectedPegId.value,
+    od: reservationFrom.value,
+  },
+}))
 const selectedPermit = computed(
   () => permitProducts.find((permit) => permit.id === selectedPermitId.value) ?? permitProducts[2]!,
 )
@@ -408,6 +426,22 @@ watch(reservationDraft, () => {
 })
 
 watch(
+  [selectedLake, selectedPegId, reservationFrom, reservationTo],
+  () => {
+    if (!import.meta.client) return
+    void router.replace({
+      query: {
+        ...route.query,
+        do: reservationTo.value,
+        jazero: selectedLake.value,
+        miesto: selectedPegId.value || undefined,
+        od: reservationFrom.value,
+      },
+    })
+  },
+)
+
+watch(
   activeRentalItems,
   (items) => {
     const activeIds = new Set(items.map((item) => item.id))
@@ -434,11 +468,17 @@ watch(
   <div>
     <PageHeader
       eyebrow="Rezervácie"
-      title="Lovné miesto, chata a doplnky v jednom toku"
-      description="Rezervácia má fungovať ako praktický košík: rybár vyberie jazero, miesto, povolenku, povinnú výbavu na požičanie a služby navyše k pobytu."
+      title="Vyberte si miesto a služby"
+      description="Zvoľte termín, jazero, lovné miesto, povolenku a vybavenie, ktoré chcete mať pripravené pri príchode."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <AvailabilityRangePicker
+        v-model:date-from="reservationFrom"
+        v-model:date-to="reservationTo"
+        class="mb-5"
+      />
+
       <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="inline-flex rounded-lg bg-muted p-1">
           <button
@@ -480,11 +520,11 @@ watch(
               <div>
                 <h2 class="text-lg font-bold">Lovné miesta a chaty</h2>
                 <p class="text-foreground-muted text-sm">
-                  Stav sa počíta z lokálne uložených rezervácií. Chata môže mať v administrácii
-                  pravidlo, že miesto sa nedá rezervovať bez chaty.
+                  Vyberte si voľné miesto pre zvolený termín. Pri miestach s povinnou chatou sa
+                  ubytovanie pridá automaticky.
                 </p>
               </div>
-              <UButton to="/mapa" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
+              <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -563,9 +603,9 @@ watch(
           <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Vzor mesačnej obsadenosti</h2>
+                <h2 class="text-lg font-bold">Mesačná obsadenosť</h2>
                 <p class="text-foreground-muted text-sm">
-                  Tabuľková logika zostáva, ale primárny pohľad má byť miesto, termín a doplnky.
+                  Orientačný prehľad termínov; presný stav konkrétneho miesta je uvedený vyššie.
                 </p>
               </div>
               <UButton icon="i-heroicons-arrow-down-tray" variant="ghost">Export CSV</UButton>
@@ -821,7 +861,7 @@ watch(
                               : 'bg-warning-100 text-warning-800'
                           "
                         >
-                          {{ extra.source === 'web' ? 'z webu' : 'návrh' }}
+                          {{ extra.source === 'web' ? 'služba revíru' : 'doplnok' }}
                         </span>
                       </span>
                       <span class="text-foreground-muted mt-1 block text-sm">
@@ -894,7 +934,7 @@ watch(
               <ValidationSummary
                 :messages="reservationValidationMessages"
                 valid-title="Žiadosť je pripravená"
-                valid-description="Validácia prešla lokálne; odoslanie ju ešte overí v lokálnom API."
+                valid-description="Termín, miesto, kontakt a vybrané služby sú vyplnené."
               />
 
               <div

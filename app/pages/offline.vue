@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { placeIssueCategoryLabels } from '~/data/pond'
 import type { CatchSubmissionSuccess } from '~/services/catchApiService'
+import type { PlaceIssueSubmissionSuccess } from '~/services/placeIssueService'
 import type { ReservationSubmissionSuccess } from '~/services/reservationApiService'
 import type {
   TournamentActionSuccess,
@@ -15,6 +17,13 @@ import {
   removeOfflineCatch,
   type OfflineCatchQueueItem,
 } from '~/services/offlineCatchQueueService'
+import {
+  getOfflinePlaceIssueQueueErrorMessage,
+  markOfflinePlaceIssueAttempt,
+  readOfflinePlaceIssueQueue,
+  removeOfflinePlaceIssue,
+  type OfflinePlaceIssueQueueItem,
+} from '~/services/offlinePlaceIssueQueueService'
 import {
   getOfflineReservationQueueErrorMessage,
   markOfflineReservationAttempt,
@@ -43,12 +52,14 @@ useHead({ title: 'Offline režim' })
 const {
   getLakeName,
   getPegLabel,
+  mapFacilities,
   tournamentPenaltyTypeLabels,
   tournamentRequestTypeLabels,
 } = usePondData()
 
 const offlineReservations = ref<OfflineReservationQueueItem[]>([])
 const offlineCatches = ref<OfflineCatchQueueItem[]>([])
+const offlinePlaceIssues = ref<OfflinePlaceIssueQueueItem[]>([])
 const offlineTournamentRequests = ref<OfflineTournamentRequestQueueItem[]>([])
 const offlineTournamentAdminActions = ref<OfflineTournamentAdminActionQueueItem[]>([])
 const isOnline = ref(true)
@@ -86,12 +97,14 @@ const offlineItems = [
 const totalQueued = computed(() =>
   offlineReservations.value.length +
   offlineCatches.value.length +
+  offlinePlaceIssues.value.length +
   offlineTournamentRequests.value.length +
   offlineTournamentAdminActions.value.length,
 )
 const issueCount = computed(() =>
   offlineReservations.value.filter((item) => item.lastError).length +
   offlineCatches.value.filter((item) => item.lastError).length +
+  offlinePlaceIssues.value.filter((item) => item.lastError).length +
   offlineTournamentRequests.value.filter((item) => item.lastError).length +
   offlineTournamentAdminActions.value.filter((item) => item.lastError).length,
 )
@@ -110,6 +123,13 @@ const queueSections = computed(() => [
     icon: 'i-heroicons-camera',
     label: 'Úlovky',
     to: '/ulovky',
+  },
+  {
+    count: offlinePlaceIssues.value.length,
+    description: 'Nedostatky na lovných miestach, chatách a servisných bodoch čakajúce na odoslanie.',
+    icon: 'i-heroicons-wrench-screwdriver',
+    label: 'Nedostatky',
+    to: '/mapa',
   },
   {
     count: offlineTournamentRequests.value.length,
@@ -150,25 +170,46 @@ function getQueueStatusLabel(item: { attempts: number, lastError?: string }) {
   return 'čaká na odoslanie'
 }
 
-function getQueueStatusClass(item: { attempts: number, lastError?: string }) {
-  if (item.lastError) return 'bg-error-500/10 text-error-700'
-  if (item.attempts > 0) return 'bg-warning-500/10 text-warning-800'
+function getQueueStatusTone(item: { attempts: number, lastError?: string }) {
+  if (item.lastError) return 'error'
+  if (item.attempts > 0) return 'warning'
 
-  return 'bg-primary-50 text-primary-800'
+  return 'primary'
 }
 
-function getQueueActionCopy(kind: 'admin-tournament-action' | 'catch' | 'reservation' | 'tournament-request') {
+function getQueueStatusIcon(item: { attempts: number, lastError?: string }) {
+  if (item.lastError) return 'i-heroicons-exclamation-triangle'
+  if (item.attempts > 0) return 'i-heroicons-arrow-path'
+
+  return 'i-heroicons-clock'
+}
+
+function getQueueActionCopy(
+  kind: 'admin-tournament-action' | 'catch' | 'place-issue' | 'reservation' | 'tournament-request',
+) {
   if (kind === 'reservation') {
     return 'Skontroluj termín, miesto alebo dostupnosť výbavy v rezervačnom formulári.'
   }
   if (kind === 'catch') {
     return 'Skontroluj jazero, lovné miesto alebo väzbu na zápisník v denníku úlovkov.'
   }
+  if (kind === 'place-issue') {
+    return 'Skontroluj jazero, miesto, servisný bod alebo popis nedostatku na mape.'
+  }
   if (kind === 'admin-tournament-action') {
     return 'Skontroluj súťažný stav, sektor, kontrolóra alebo konkrétny úlovok v admin dispečingu.'
   }
 
   return 'Skontroluj sektor, typ hlásenia alebo popis v súťažnom formulári.'
+}
+
+function getPlaceIssueTargetLabel(item: OfflinePlaceIssueQueueItem) {
+  if (item.payload.targetType === 'lake') return getLakeName(item.payload.lake)
+  if (item.payload.targetType === 'peg' && item.payload.targetId) return getPegLabel(item.payload.targetId)
+
+  return mapFacilities.find((facility) => facility.id === item.payload.targetId)?.label ??
+    item.payload.targetId ??
+    getLakeName(item.payload.lake)
 }
 
 function getAdminTournamentActionLabel(item: OfflineTournamentAdminActionQueueItem) {
@@ -208,15 +249,17 @@ async function refreshOfflineQueues() {
   if (!import.meta.client) return
 
   try {
-    const [reservations, catches, tournamentRequests, tournamentAdminActions] = await Promise.all([
+    const [reservations, catches, placeIssues, tournamentRequests, tournamentAdminActions] = await Promise.all([
       readOfflineReservationQueue(),
       readOfflineCatchQueue(),
+      readOfflinePlaceIssueQueue(),
       readOfflineTournamentRequestQueue(),
       readOfflineTournamentAdminActionQueue(),
     ])
 
     offlineReservations.value = reservations
     offlineCatches.value = catches
+    offlinePlaceIssues.value = placeIssues
     offlineTournamentRequests.value = tournamentRequests
     offlineTournamentAdminActions.value = tournamentAdminActions
     queueLoadError.value = ''
@@ -226,13 +269,19 @@ async function refreshOfflineQueues() {
   }
 }
 
-async function discardQueuedItem(kind: 'admin-tournament-action' | 'catch' | 'reservation' | 'tournament-request', id: string) {
+async function discardQueuedItem(
+  kind: 'admin-tournament-action' | 'catch' | 'place-issue' | 'reservation' | 'tournament-request',
+  id: string,
+) {
   try {
     if (kind === 'reservation') {
       await removeOfflineReservation(id)
     }
     else if (kind === 'catch') {
       await removeOfflineCatch(id)
+    }
+    else if (kind === 'place-issue') {
+      await removeOfflinePlaceIssue(id)
     }
     else if (kind === 'tournament-request') {
       await removeOfflineTournamentRequest(id)
@@ -297,6 +346,20 @@ async function syncAllQueues() {
     }
     catch (error) {
       await markOfflineCatchAttempt(item.id, getOfflineCatchQueueErrorMessage(error))
+    }
+  }
+
+  for (const item of [...offlinePlaceIssues.value]) {
+    try {
+      await $fetch<PlaceIssueSubmissionSuccess>('/api/place-issues', {
+        body: item.payload,
+        method: 'POST',
+      })
+      await removeOfflinePlaceIssue(item.id)
+      syncedCount += 1
+    }
+    catch (error) {
+      await markOfflinePlaceIssueAttempt(item.id, getOfflinePlaceIssueQueueErrorMessage(error))
     }
   }
 
@@ -401,9 +464,9 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <PageHeader
-      eyebrow="PWA"
+      eyebrow="Bez pripojenia"
       title="Offline režim"
-      description="Aplikácia používa uloženú verziu stránok a dát. Čakajúce rezervácie, úlovky, súťažné hlásenia a kontrolórske úkony vieš skontrolovať a odoslať z jedného miesta."
+      description="Aj pri slabom signále môžete pracovať s naposledy načítanými údajmi a skontrolovať položky, ktoré čakajú na odoslanie."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -433,7 +496,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Čaká v zariadení</p>
           <p class="mt-2 text-3xl font-bold">{{ totalQueued }}</p>
@@ -489,7 +552,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+      <div class="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-5">
         <section class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -520,12 +583,12 @@ onBeforeUnmount(() => {
                 </p>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-md px-2 py-1 text-xs font-bold"
-                  :class="getQueueStatusClass(item)"
-                >
-                  {{ getQueueStatusLabel(item) }}
-                </span>
+                <StatusBadge
+                  size="xs"
+                  :icon="getQueueStatusIcon(item)"
+                  :label="getQueueStatusLabel(item)"
+                  :tone="getQueueStatusTone(item)"
+                />
                 <span class="text-foreground-muted text-xs font-semibold">
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
@@ -589,12 +652,12 @@ onBeforeUnmount(() => {
                 </p>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-md px-2 py-1 text-xs font-bold"
-                  :class="getQueueStatusClass(item)"
-                >
-                  {{ getQueueStatusLabel(item) }}
-                </span>
+                <StatusBadge
+                  size="xs"
+                  :icon="getQueueStatusIcon(item)"
+                  :label="getQueueStatusLabel(item)"
+                  :tone="getQueueStatusTone(item)"
+                />
                 <span class="text-foreground-muted text-xs font-semibold">
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
@@ -629,6 +692,71 @@ onBeforeUnmount(() => {
         <section class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
+              <h2 class="text-lg font-bold">Nedostatky</h2>
+              <p class="text-foreground-muted mt-1 text-sm">
+                Problémy na miestach, chatách a servisných bodoch čakajúce na správcu.
+              </p>
+            </div>
+            <UButton to="/mapa" icon="i-heroicons-plus" size="sm" variant="soft">
+              Pridať
+            </UButton>
+          </div>
+
+          <div v-if="offlinePlaceIssues.length" class="mt-4 space-y-3">
+            <div
+              v-for="item in offlinePlaceIssues"
+              :key="item.id"
+              class="rounded-md border bg-white p-3"
+              :class="item.lastError ? 'border-error-500/30' : 'border-border'"
+            >
+              <div class="min-w-0">
+                <p class="truncate font-bold">{{ item.payload.title }}</p>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  {{ placeIssueCategoryLabels[item.payload.category] }} · {{ getPlaceIssueTargetLabel(item) }}
+                </p>
+                <p class="text-foreground-muted mt-1 text-xs">{{ formatDateTime(item.createdAt) }}</p>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <StatusBadge
+                  size="xs"
+                  :icon="getQueueStatusIcon(item)"
+                  :label="getQueueStatusLabel(item)"
+                  :tone="getQueueStatusTone(item)"
+                />
+                <span class="text-foreground-muted text-xs font-semibold">
+                  {{ getAttemptLabel(item.attempts) }}
+                </span>
+              </div>
+              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
+                <p class="font-bold">{{ item.lastError }}</p>
+                <p class="mt-1">{{ getQueueActionCopy('place-issue') }}</p>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <UButton to="/mapa" icon="i-heroicons-pencil-square" size="xs" variant="soft">
+                  Skontrolovať
+                </UButton>
+                <UButton
+                  icon="i-heroicons-trash"
+                  color="error"
+                  size="xs"
+                  variant="ghost"
+                  @click="discardQueuedItem('place-issue', item.id)"
+                >
+                  Odstrániť
+                </UButton>
+              </div>
+            </div>
+          </div>
+          <AppState
+            v-else
+            title="Bez čakajúcich nedostatkov"
+            description="Mapa revíru nemá v tomto zariadení uložené čakajúce hlásenia."
+          />
+        </section>
+
+        <section class="rounded-card border border-border bg-surface p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
               <h2 class="text-lg font-bold">Súťažné hlásenia</h2>
               <p class="text-foreground-muted mt-1 text-sm">
                 Požiadavky tímov čakajúce na súťažný dispečing.
@@ -652,12 +780,12 @@ onBeforeUnmount(() => {
                 <p class="text-foreground-muted mt-1 text-xs">{{ formatDateTime(item.createdAt) }}</p>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-md px-2 py-1 text-xs font-bold"
-                  :class="getQueueStatusClass(item)"
-                >
-                  {{ getQueueStatusLabel(item) }}
-                </span>
+                <StatusBadge
+                  size="xs"
+                  :icon="getQueueStatusIcon(item)"
+                  :label="getQueueStatusLabel(item)"
+                  :tone="getQueueStatusTone(item)"
+                />
                 <span class="text-foreground-muted text-xs font-semibold">
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
@@ -715,12 +843,12 @@ onBeforeUnmount(() => {
                 <p class="text-foreground-muted mt-1 text-xs">{{ formatDateTime(item.createdAt) }}</p>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-md px-2 py-1 text-xs font-bold"
-                  :class="getQueueStatusClass(item)"
-                >
-                  {{ getQueueStatusLabel(item) }}
-                </span>
+                <StatusBadge
+                  size="xs"
+                  :icon="getQueueStatusIcon(item)"
+                  :label="getQueueStatusLabel(item)"
+                  :tone="getQueueStatusTone(item)"
+                />
                 <span class="text-foreground-muted text-xs font-semibold">
                   {{ getAttemptLabel(item.attempts) }}
                 </span>

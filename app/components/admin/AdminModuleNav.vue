@@ -2,7 +2,7 @@
 const route = useRoute()
 const { user } = useMockAuth()
 
-const adminItems = computed(() => getAdminModulesForRole(user.value?.role))
+const adminItems = computed(() => getAdminNavigationItemsForRole(user.value?.role))
 
 const isActive = (to: string) => {
   if (to === '/admin') return route.path === '/admin'
@@ -26,13 +26,6 @@ const isActive = (to: string) => {
       >
         <UIcon :name="item.icon" class="h-4 w-4" />
         {{ item.label }}
-        <span
-          v-if="getAdminModuleAccess(item, user?.role) !== 'full'"
-          class="rounded bg-white/15 px-1.5 py-0.5 text-[0.68rem] font-bold leading-none"
-          :class="isActive(item.to) ? 'text-white' : 'bg-muted text-foreground-muted'"
-        >
-          {{ adminAccessModeLabels[getAdminModuleAccess(item, user?.role)!] }}
-        </span>
       </NuxtLink>
     </div>
   </nav>

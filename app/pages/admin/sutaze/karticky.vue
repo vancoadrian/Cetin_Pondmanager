@@ -36,7 +36,7 @@ const fallbackTournamentState = (): TournamentStateResponse => ({
 const requestFetch = useRequestFetch()
 const { data: tournamentState } = await useAsyncData<TournamentStateResponse>(
   'admin-tournament-team-cards-state',
-  () => requestFetch<TournamentStateResponse>('/api/tournaments'),
+  () => requestFetch<TournamentStateResponse>('/api/admin/tournaments'),
   {
     default: fallbackTournamentState,
   },

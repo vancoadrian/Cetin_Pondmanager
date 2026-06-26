@@ -1,21 +1,51 @@
-import { defineEventHandler, setResponseStatus } from 'h3'
+import { createError, defineEventHandler, setResponseStatus } from 'h3'
 import type { MapPublishSuccess } from '~/services/mapApiService'
 import { getMapDraftChangeSummary } from '~/services/mapApiService'
+import { getMapPublishQualityIssues } from '~/utils/map'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
+import { readLocalCabinCatalogState } from '../../../utils/localCabinCatalogStore'
 import {
   mapStateContentEquals,
   readLocalMapDraftState,
   readLocalMapState,
   writeLocalMapState,
 } from '../../../utils/localMapStore'
+import { readLocalTournamentState } from '../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event): Promise<MapPublishSuccess> => {
   requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
   const previousPublishedState = await readLocalMapState()
   const draftState = await readLocalMapDraftState(undefined, previousPublishedState)
+  const [cabinCatalogState, tournamentState] = await Promise.all([
+    readLocalCabinCatalogState(),
+    readLocalTournamentState(),
+  ])
+  const qualityIssues = getMapPublishQualityIssues({
+    cabinProducts: cabinCatalogState.cabinProducts,
+    mapFacilities: draftState.mapFacilities,
+    mapLayers: draftState.mapLayers,
+    mapShapes: draftState.mapShapes,
+    pegs: draftState.pegs,
+    tournaments: tournamentState.tournaments,
+  })
+  const blockingIssues = qualityIssues.filter((issue) => issue.severity === 'error')
+
+  if (blockingIssues.length > 0) {
+    throw createError({
+      data: {
+        issues: blockingIssues,
+        messages: blockingIssues.map((issue) =>
+          `${issue.title}${issue.entityLabel ? ` (${issue.entityLabel})` : ''}: ${issue.description}`,
+        ),
+      },
+      statusCode: 422,
+      statusMessage: 'Map publish validation failed',
+    })
+  }
+
   const storedPublishedState = await writeLocalMapState({
     mapFacilities: draftState.mapFacilities,
     mapLayers: draftState.mapLayers,

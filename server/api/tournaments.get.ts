@@ -1,19 +1,10 @@
 import { defineEventHandler } from 'h3'
 import type { TournamentStateResponse } from '~/services/tournamentApiService'
+import { createPublicTournamentStateResponse } from '~/utils/tournamentStateVisibility'
 import { readLocalTournamentState } from '../utils/localTournamentStore'
 
 export default defineEventHandler(async (): Promise<TournamentStateResponse> => {
   const state = await readLocalTournamentState()
 
-  return {
-    ok: true,
-    tournamentCatches: state.tournamentCatches,
-    tournamentMarshals: state.tournamentMarshals,
-    tournamentPenalties: state.tournamentPenalties,
-    tournamentRequests: state.tournamentRequests,
-    tournamentRuleChecks: state.tournamentRuleChecks,
-    tournamentTeamRegistrations: state.tournamentTeamRegistrations,
-    tournaments: state.tournaments,
-    updatedAt: state.updatedAt,
-  }
+  return createPublicTournamentStateResponse(state, state.updatedAt)
 })

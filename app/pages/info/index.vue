@@ -26,7 +26,7 @@ const displayedCabinProducts = computed(() =>
     <PageHeader
       eyebrow="Informácie"
       title="Pravidlá, cenník a výbava"
-      description="Jedno miesto pre overené prevádzkové údaje z webu, povinnú výbavu a návrh služieb, ktoré si rybár môže pridať k rezervácii."
+      description="Všetko, čo potrebujete vedieť pred príchodom: povolenky, pravidlá, povinná výbava, chaty a doplnkové služby."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -80,7 +80,7 @@ const displayedCabinProducts = computed(() =>
                     class="rounded-md px-2 py-1 text-xs font-bold"
                     :class="method.enabled ? 'bg-success-500/10 text-success-700' : 'bg-warning-100 text-warning-800'"
                   >
-                    {{ method.enabled ? 'zapnuté' : 'neskôr' }}
+                    {{ method.enabled ? 'dostupné' : 'nedostupné' }}
                   </span>
                 </div>
               </div>
@@ -90,7 +90,7 @@ const displayedCabinProducts = computed(() =>
 
         <div class="space-y-6">
           <div class="border-border bg-surface rounded-card border p-5">
-            <h2 class="text-lg font-bold">Prevádzkové pravidlá z webu</h2>
+            <h2 class="text-lg font-bold">Pravidlá revíru</h2>
             <div class="mt-5 grid gap-4">
               <article
                 v-for="section in infoSections"
@@ -174,7 +174,7 @@ const displayedCabinProducts = computed(() =>
 
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="border-border bg-surface rounded-card border p-5">
-              <h2 class="text-lg font-bold">Návrh požičovne</h2>
+              <h2 class="text-lg font-bold">Požičovňa výbavy</h2>
               <div class="mt-4 space-y-3">
                 <div v-for="item in activeRentalItems" :key="item.id" class="rounded-md bg-muted p-4">
                   <div class="flex items-start justify-between gap-3">
@@ -201,7 +201,7 @@ const displayedCabinProducts = computed(() =>
                           : 'bg-warning-100 text-warning-800'
                       "
                     >
-                      {{ extra.source === 'web' ? 'z webu' : 'návrh' }}
+                      {{ extra.source === 'web' ? 'služba revíru' : 'doplnok' }}
                     </span>
                   </div>
                   <p class="text-foreground-muted mt-1 text-sm">{{ extra.description }}</p>

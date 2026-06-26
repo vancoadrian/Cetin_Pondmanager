@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { placeIssuePriorityLabels } from '~/data/pond'
+import type { LargeFishAssistanceStateResponse } from '~/services/largeFishAssistanceService'
+import type { PlaceIssueStateResponse } from '~/services/placeIssueService'
 import { getPegAvailability } from '~/utils/availability'
 
 useHead({ title: 'Admin' })
@@ -7,6 +10,7 @@ const route = useRoute()
 const {
   getLakeName,
   lakes,
+  placeIssues,
   pegs,
   reservations,
   tournamentPenalties,
@@ -18,6 +22,33 @@ const { activeRentalItems } = await useRentalCatalogState({ admin: true, key: 'a
 const { liveSponsors } = await useSponsorState({ admin: true, key: 'admin-dashboard-sponsor-state' })
 
 const { logout, user } = useMockAuth()
+const requestFetch = useRequestFetch()
+const fallbackPlaceIssueState = (): PlaceIssueStateResponse => ({
+  ok: true,
+  placeIssues,
+  updatedAt: 'seed',
+})
+const fallbackAssistanceState = (): LargeFishAssistanceStateResponse => ({
+  ok: true,
+  requests: [],
+  updatedAt: 'seed',
+})
+const { data: placeIssueState } = await useAsyncData<PlaceIssueStateResponse>(
+  'admin-dashboard-place-issue-state',
+  () => requestFetch<PlaceIssueStateResponse>('/api/admin/place-issues'),
+  {
+    default: fallbackPlaceIssueState,
+  },
+)
+const { data: assistanceState } = await useAsyncData<LargeFishAssistanceStateResponse>(
+  'admin-dashboard-large-fish-assistance',
+  () => canAccessAdminPath(user.value?.role, '/admin/ryby')
+    ? requestFetch<LargeFishAssistanceStateResponse>('/api/admin/large-fish-assistance')
+    : Promise.resolve(fallbackAssistanceState()),
+  {
+    default: fallbackAssistanceState,
+  },
+)
 
 const allowedAdminModules = computed(() => getAdminModulesForRole(user.value?.role))
 const deniedModuleLabel = computed(() => typeof route.query.denied === 'string' ? route.query.denied : '')
@@ -37,6 +68,14 @@ const activeTournamentRequests = computed(() =>
 const activeTournamentPenalties = computed(() =>
   tournamentPenalties.filter((penalty) => penalty.status === 'active'),
 )
+const activePlaceIssues = computed(() =>
+  (placeIssueState.value?.placeIssues ?? placeIssues).filter((issue) =>
+    issue.status !== 'resolved' && issue.status !== 'rejected',
+  ),
+)
+const activeFishAssistance = computed(() =>
+  assistanceState.value.requests.filter((request) => ['waiting', 'on-route'].includes(request.status)),
+)
 const blockedPegs = computed(() =>
   pegs.filter((peg) => !getPegAvailability(peg, { closures: liveClosures.value, reservations }).reservable),
 )
@@ -55,8 +94,8 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
   <div>
     <PageHeader
       eyebrow="Interná zóna"
-      title="Admin dashboard"
-      description="Mocknutý interný pohľad pre správcu, majiteľa, kontrolóra alebo súťažný tím. Dáta sú zatiaľ lokálne seed dáta."
+      title="Prevádzkový prehľad"
+      description="Rezervácie, dostupnosť miest, hlásenia a úlohy revíru podľa vašich oprávnení."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -68,20 +107,20 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
       >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p class="text-sm font-bold">Tento mock používateľ nemá prístup do modulu {{ deniedModuleLabel }}.</p>
+            <p class="text-sm font-bold">Nemáte prístup do modulu {{ deniedModuleLabel }}.</p>
             <p class="mt-1 text-sm">
-              V produkcii to nahradí RBAC a RLS nad Supabase. Teraz ťa dashboard podrží v moduloch, ktoré patria zvolenej role.
+              Zobrazené moduly a povolené akcie sa riadia vašou používateľskou rolou.
             </p>
           </div>
           <UButton to="/login" color="warning" variant="soft" icon="i-heroicons-user-circle">
-            Zmeniť rolu
+            Späť na prihlásenie
           </UButton>
         </div>
       </div>
 
       <div class="mb-6 flex flex-col gap-4 rounded-card border border-border bg-primary-900 p-5 text-white lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p class="text-sm font-semibold text-accent-300">Prihlásený mock používateľ</p>
+          <p class="text-sm font-semibold text-accent-300">Prihlásený používateľ</p>
           <div class="mt-1 flex flex-wrap items-center gap-2">
             <h2 class="text-2xl font-bold">{{ user?.name }}</h2>
             <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-accent-300">
@@ -105,7 +144,7 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
         </div>
         <div class="flex flex-wrap gap-2">
           <UButton to="/" color="neutral" variant="outline" class="border-white/30 bg-white/10 text-white hover:bg-white/15">
-            Public web
+            Verejná stránka
           </UButton>
           <UButton color="warning" icon="i-heroicons-arrow-left-on-rectangle" @click="signOut">
             Odhlásiť
@@ -113,11 +152,31 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
         </div>
       </div>
 
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section
+        v-if="activeFishAssistance.length"
+        class="mb-6 border-y border-warning-500/30 bg-warning-500/10 px-4 py-5 sm:px-5"
+      >
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-bold text-warning-800">Vyžaduje okamžitú reakciu</p>
+            <h2 class="mt-1 text-xl font-bold text-warning-950">
+              {{ activeFishAssistance.length }} otvorené privolanie správcu
+            </h2>
+            <p class="mt-1 text-sm text-warning-900">
+              Rybár čaká pri veľkej rybe na potvrdenie príchodu alebo pokyn na pustenie.
+            </p>
+          </div>
+          <UButton to="/admin/ryby" icon="i-heroicons-bell-alert" color="warning">
+            Odpovedať
+          </UButton>
+        </div>
+      </section>
+
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Jazerá</p>
           <p class="mt-2 text-3xl font-bold">{{ lakes.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">multi-revír pripravený dátovo</p>
+          <p class="text-foreground-muted mt-1 text-sm">v tejto prevádzke</p>
         </div>
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Blokované miesta</p>
@@ -133,6 +192,11 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
           <p class="text-foreground-muted text-sm">Súťažné hlásenia</p>
           <p class="mt-2 text-3xl font-bold">{{ activeTournamentRequests.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">čakajúce alebo priradené</p>
+        </div>
+        <div class="border-border bg-surface rounded-card border p-4">
+          <p class="text-foreground-muted text-sm">Nedostatky</p>
+          <p class="mt-2 text-3xl font-bold">{{ activePlaceIssues.length }}</p>
+          <p class="text-foreground-muted mt-1 text-sm">otvorené hlásenia</p>
         </div>
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Sponzori</p>
@@ -218,6 +282,32 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
         </div>
 
         <aside class="space-y-6">
+          <div class="border-border bg-surface rounded-card border p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-lg font-bold">Hlásenia nedostatkov</h2>
+              <UButton to="/admin/hlasenia" icon="i-heroicons-arrow-right" variant="ghost" aria-label="Hlásenia" />
+            </div>
+            <div class="mt-4 space-y-3">
+              <div v-for="issue in activePlaceIssues.slice(0, 4)" :key="issue.id" class="rounded-md bg-muted p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="font-semibold">{{ issue.title }}</p>
+                    <p class="text-foreground-muted text-sm">{{ getLakeName(issue.lake) }} · {{ issue.targetLabel }}</p>
+                  </div>
+                  <span
+                    class="rounded-md px-2 py-1 text-xs font-bold"
+                    :class="issue.priority === 'urgent' ? 'bg-error-500/10 text-error-700' : 'bg-warning-500/10 text-warning-700'"
+                  >
+                    {{ placeIssuePriorityLabels[issue.priority] }}
+                  </span>
+                </div>
+              </div>
+              <p v-if="activePlaceIssues.length === 0" class="text-sm text-foreground-muted">
+                Nie je otvorené žiadne prevádzkové hlásenie.
+              </p>
+            </div>
+          </div>
+
           <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-lg font-bold">Požičovňa</h2>

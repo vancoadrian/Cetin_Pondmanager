@@ -2,6 +2,7 @@ import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3
 import { createMockPondRepository, createPondSnapshot } from '~/repositories/pondRepository'
 import { submitTripLogbook } from '~/services/catchApiService'
 import { createPondService } from '~/services/pondService'
+import { resolveMockAnglerAccount } from '../utils/anglerSession'
 import { resolveAuditActor } from '../utils/auditActor'
 import { appendLocalAuditEvent } from '../utils/localAuditLogStore'
 import { appendLocalTripLogbook, readLocalCatchState } from '../utils/localCatchStore'
@@ -19,7 +20,15 @@ export default defineEventHandler(async (event) => {
       }),
     ),
   )
-  const result = submitTripLogbook(await readBody(event), catchState, service)
+  const account = resolveMockAnglerAccount(event)
+  const result = submitTripLogbook(
+    await readBody(event),
+    catchState,
+    service,
+    undefined,
+    undefined,
+    account ? { id: account.id, name: account.name } : undefined,
+  )
 
   if (!result.ok) {
     throw createError({
@@ -39,6 +48,7 @@ export default defineEventHandler(async (event) => {
       mode: result.logbook.mode,
       pegIds: result.logbook.pegIds,
       shareCode: result.logbook.shareCode,
+      ownerUserId: result.logbook.ownerUserId ?? null,
     },
     entityId: result.logbook.id,
     entityLabel: result.logbook.title,

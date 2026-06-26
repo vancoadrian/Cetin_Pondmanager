@@ -141,6 +141,37 @@ describe('saveMapState', () => {
     })
   })
 
+  it('accepts newly created valid map layers in the draft payload', () => {
+    const newLayer = {
+      editable: true,
+      enabled: true,
+      id: 'layer-sk-sectors',
+      kind: 'sectors',
+      lake: 'strkovisko-kocka',
+      name: 'Súťažné sektory',
+      visibility: 'competition',
+    } as const
+    const result = saveMapState(
+      {
+        enabledLayerIds: [...mapLayers.map((layer) => layer.id), newLayer.id],
+        mapFacilities,
+        mapLayers: [...mapLayers, newLayer],
+        mapShapes,
+        pegs,
+      },
+      currentState,
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('New map layer should be accepted.')
+
+    expect(result.mapLayers).toContainEqual(newLayer)
+    expect(getMapDraftChangeSummary(result, currentState).mapLayers.addedItems).toContainEqual({
+      id: newLayer.id,
+      label: newLayer.name,
+    })
+  })
+
   it('removes cabin-only reservation rules from shore points', () => {
     const result = saveMapState(
       {

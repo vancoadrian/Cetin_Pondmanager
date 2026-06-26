@@ -67,17 +67,17 @@ Záznam obsahuje:
 - fotku alebo označenie fotky,
 - stav: čaká, overené, sporné.
 
-## Stav v prototype
+## Aktuálny stav
 
-- `/sutaze` obsahuje verejný aj pracovný náhľad dispečingu napojený na lokálny JSON store.
+- `/sutaze` je verejná stránka s termínom, sektorovou mapou, partnermi, potvrdenými výsledkami a online prihláškou tímu.
 - Verejná súťažná mapa číta podklad a sektorové polygony z rovnakého `/api/map` modelu ako revírová mapa; statický súťažný obrázok ostáva iba fallback.
 - `/sutaze` zobrazuje live výsledkovku tímov podľa sektorového skóre, najväčšieho úlovku a overovacích stavov úlovkov.
-- Výsledkovka má public JSON feed pre externé obrazovky, admin CSV export samotnej výsledkovky a širší organizačný CSV balík.
-- `/sutaze/vysledkovka` je samostatná verejná obrazovka pre kiosk alebo projektor. Číta public feed, vie prepínať súťaž cez `turnaj`, zobrazuje top tímy, štatistiky, čakajúce merania a sponzorský scoreboard slot.
+- Výsledkovka má verejný dátový feed pre externé obrazovky, admin CSV export samotnej výsledkovky a širší organizačný CSV balík. Verejný feed obsahuje iba potvrdené úlovky.
+- `/sutaze/vysledkovka` je samostatná verejná obrazovka pre veľkú obrazovku alebo projektor. Vie prepínať súťaž cez `turnaj`, zobrazuje top tímy, potvrdené skóre a partnerov výsledkovky; čakajúce a sporné merania ostávajú interné.
 - `/sutaze` obsahuje public prihlášku tímu bez účtu: názov tímu, kontakt, telefón, voliteľný e-mail, počet členov, mesto, preferovaný sektor a poznámku pre organizátora.
 - `/sutaze/tim?turnaj=<id>&sektor=<id>` a kratší variant `/sutaze/tim?kod=<kod>` sú tímové panely bez účtu s predvoleným sektorom. Tím odtiaľ vie rýchlo požiadať o meranie úlovku, nahlásiť porušenie pravidiel, technickú pomoc alebo inú udalosť; používa rovnakú offline frontu ako formulár na `/sutaze`. Kód je v prototype praktická navigácia, nie bezpečnostná autentifikácia.
-- Tímový panel má mock lokálny tímový prístup v zariadení cez `localStorage`. Partia si vie aktivovať aktuálny sektor, zadať tímový kód ručne bez QR skenovania, vrátiť sa k nemu bez opätovného skenovania QR kódu a odhlásiť zariadenie. Produkčné tímové účty neskôr nahradia túto vrstvu skutočným identity providerom.
-- Turnaj má `operationsMode`: `public-only`, `registration-only` alebo `full-dispatch`. Public stránka podľa neho zobrazí iba mapu/výsledkovku, povolí online prihlášky alebo otvorí celý tímový dispečing. Server rovnaký režim kontroluje pri odoslaní prihlášky, tímového hlásenia aj kontrolórskych úkonov.
+- Tímový panel podporuje mock e-mailový účet pevne viazaný na súťaž a sektor. Prechodový lokálny prístup cez kód zostáva dostupný pre zariadenia bez účtu; produkčne cookie session nahradí skutočný identity provider bez zmeny tímového workflow.
+- Turnaj má `operationsMode`: `public-only`, `registration-only` alebo `full-dispatch`. Verejná stránka podľa neho povolí online prihlášku; tímové hlásenia a kontrolórske nástroje zostávajú v chránených priestoroch. Server rovnaký režim kontroluje pri odoslaní prihlášky, tímového hlásenia aj kontrolórskych úkonov.
 - `/admin/sutaze` ukazuje mapové pokrytie sektorov, teda koľko súťažných sektorov má naviazaný polygon z admin editora mapy. Admin pohľad najprv číta rozpracovaný draft cez `/api/admin/map`, aby organizátor videl aj pripravované sektorové polygony pred publikovaním; pri nedostupnom admin prístupe spadne späť na publikovanú public mapu.
 - Z mapového pokrytia a sektorového operačného editora vedie priamy preklik do `/admin/mapa?turnaj=<id>&sektor=<id>`. Mapový editor podľa neho otvorí existujúci polygon sektora alebo pripraví nový neuložený draft sektorového polygonu.
 - Mapový editor vie pre danú súťaž jedným klikom pripraviť neuložené draft polygony pre všetky sektory, ktoré ešte nemajú SVG tvar.

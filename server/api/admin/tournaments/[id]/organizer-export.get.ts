@@ -14,7 +14,7 @@ function slugify(value: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'tournaments' })
+  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'full' })
 
   const tournamentId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()

@@ -117,7 +117,7 @@ const detailEntries = (event: AuditEvent) =>
     <PageHeader
       eyebrow="Admin"
       title="Audit log"
-      description="Chronologický záznam lokálnych zmien v prototype, pripravený na budúci Supabase audit."
+      description="Chronologický záznam interných rozhodnutí, úprav a citlivých prevádzkových zmien."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

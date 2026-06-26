@@ -307,10 +307,8 @@ export function saveMapState(
   if (!parsed.ok) return parsed
 
   const knownLayerIds = new Set(currentState.mapLayers.map((layer) => layer.id))
-  const unknownLayerIds = parsed.payload.enabledLayerIds.filter((id) => !knownLayerIds.has(id))
-  const unknownSubmittedLayerIds = parsed.payload.mapLayers
-    .map((layer) => layer.id)
-    .filter((id) => !knownLayerIds.has(id))
+  const submittedLayerIds = new Set(parsed.payload.mapLayers.map((layer) => layer.id))
+  const unknownLayerIds = parsed.payload.enabledLayerIds.filter((id) => !knownLayerIds.has(id) && !submittedLayerIds.has(id))
   const duplicateLayerIds = duplicateIds(parsed.payload.mapLayers)
   const duplicatePegIds = duplicateIds(parsed.payload.pegs)
   const duplicateFacilityIds = duplicateIds(parsed.payload.mapFacilities)
@@ -318,7 +316,6 @@ export function saveMapState(
 
   if (
     unknownLayerIds.length > 0 ||
-    unknownSubmittedLayerIds.length > 0 ||
     duplicateLayerIds.length > 0 ||
     duplicatePegIds.length > 0 ||
     duplicateFacilityIds.length > 0 ||
@@ -326,7 +323,6 @@ export function saveMapState(
   ) {
     return failure([
       ...unknownLayerIds.map((id) => `Neznáma vrstva mapy: ${id}.`),
-      ...unknownSubmittedLayerIds.map((id) => `Neznáma upravovaná vrstva mapy: ${id}.`),
       ...duplicateLayerIds.map((id) => `Duplicitná vrstva mapy: ${id}.`),
       ...duplicatePegIds.map((id) => `Duplicitné lovné miesto na mape: ${id}.`),
       ...duplicateFacilityIds.map((id) => `Duplicitný servisný bod na mape: ${id}.`),
@@ -336,20 +332,28 @@ export function saveMapState(
 
   const enabledLayerIds = new Set(parsed.payload.enabledLayerIds)
   const submittedLayers = new Map(parsed.payload.mapLayers.map((layer) => [layer.id, layer]))
+  const newSubmittedLayers = parsed.payload.mapLayers.filter((layer) => !knownLayerIds.has(layer.id))
 
   return {
     ok: true,
-    mapLayers: currentState.mapLayers.map((layer) => {
-      const submittedLayer = submittedLayers.get(layer.id)
+    mapLayers: [
+      ...currentState.mapLayers.map((layer) => {
+        const submittedLayer = submittedLayers.get(layer.id)
 
-      return {
+        return {
+          ...layer,
+          enabled: enabledLayerIds.has(layer.id),
+          imageSettings: layer.kind === 'background'
+            ? submittedLayer?.imageSettings ?? layer.imageSettings
+            : undefined,
+        }
+      }),
+      ...newSubmittedLayers.map((layer) => ({
         ...layer,
         enabled: enabledLayerIds.has(layer.id),
-        imageSettings: layer.kind === 'background'
-          ? submittedLayer?.imageSettings ?? layer.imageSettings
-          : undefined,
-      }
-    }),
+        imageSettings: layer.kind === 'background' ? layer.imageSettings : undefined,
+      })),
+    ],
     mapFacilities: parsed.payload.mapFacilities.map((facility) => ({ ...facility })),
     mapShapes: parsed.payload.mapShapes.map((shape) => ({
       ...shape,

@@ -39,7 +39,7 @@ Tento seed export je odlišný od runtime zálohy v `/admin/system`. Seed export
 
 Prvý export pokrýva:
 
-- venue, jazerá, lovné miesta, mapové vrstvy, servisné body a polygonové plochy,
+- venue, jazerá, lovné miesta, mapové vrstvy, servisné body, polygonové plochy a hlásenia nedostatkov,
 - povolenky, chaty, povinnú výbavu, požičovňu, doplnky a platobné metódy,
 - rezervácie, položky rezervácií a výpožičky,
 - uzávierky jazier a konkrétnych miest,

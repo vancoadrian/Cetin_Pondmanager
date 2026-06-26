@@ -4,17 +4,27 @@ import { requireAdminAccess } from '../../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'
 import { readLocalTournamentState, writeLocalTournamentState } from '../../../../../utils/localTournamentStore'
+import { requireTournamentMarshalMutationScope } from '../../../../../utils/tournamentMarshalScopeGuard'
 
 export default defineEventHandler(async (event) => {
   requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
 
   const catchId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()
-  const body = await readBody(event)
+  const body = await readBody<Record<string, unknown>>(event)
+  const catchItem = state.tournamentCatches.find((item) => item.id === catchId)
+  const scope = catchItem
+    ? requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
+        requestedMarshalId: body.marshalId,
+        sectorId: catchItem.sectorId,
+        tournamentId: catchItem.tournamentId,
+      })
+    : undefined
   const result = submitTournamentCatchVerification(
     {
       ...body,
       catchId,
+      marshalId: scope?.marshalId ?? body.marshalId,
     },
     state,
   )

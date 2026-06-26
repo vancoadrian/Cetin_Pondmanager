@@ -6,6 +6,8 @@ export type AdminModuleId =
   | 'dashboard'
   | 'reservations'
   | 'catches'
+  | 'fish'
+  | 'issues'
   | 'closures'
   | 'map'
   | 'rentals'
@@ -22,16 +24,6 @@ export interface AdminModuleDefinition {
   icon: string
   description: string
   access: Partial<Record<MockRole, AdminAccessMode>>
-}
-
-const allAccess: Record<MockRole, AdminAccessMode> = {
-  owner: 'full',
-  manager: 'full',
-  organizer: 'full',
-  marshal: 'operate',
-  team: 'read',
-  accountant: 'read',
-  worker: 'operate',
 }
 
 export const adminAccessModeLabels: Record<AdminAccessMode, string> = {
@@ -57,7 +49,6 @@ const mockAdminRoles = [
   'manager',
   'organizer',
   'marshal',
-  'team',
   'accountant',
   'worker',
 ] as const satisfies readonly MockRole[]
@@ -85,7 +76,10 @@ export const adminModules: AdminModuleDefinition[] = [
     to: '/admin',
     icon: 'i-heroicons-squares-2x2',
     description: 'Súhrn internej prevádzky podľa aktuálnej role.',
-    access: allAccess,
+    access: {
+      owner: 'full',
+      manager: 'full',
+    },
   },
   {
     id: 'reservations',
@@ -113,6 +107,29 @@ export const adminModules: AdminModuleDefinition[] = [
     },
   },
   {
+    id: 'fish',
+    label: 'Čipované ryby',
+    to: '/admin/ryby',
+    icon: 'i-heroicons-tag',
+    description: 'Register čipov, opakované merania, história rastu a CSV import.',
+    access: {
+      owner: 'full',
+      manager: 'full',
+    },
+  },
+  {
+    id: 'issues',
+    label: 'Hlásenia',
+    to: '/admin/hlasenia',
+    icon: 'i-heroicons-wrench-screwdriver',
+    description: 'Nedostatky na miestach, chatách a servisných bodoch.',
+    access: {
+      owner: 'full',
+      manager: 'full',
+      worker: 'operate',
+    },
+  },
+  {
     id: 'closures',
     label: 'Uzávierky',
     to: '/admin/uzavierky',
@@ -121,7 +138,6 @@ export const adminModules: AdminModuleDefinition[] = [
     access: {
       owner: 'full',
       manager: 'full',
-      worker: 'read',
     },
   },
   {
@@ -134,7 +150,6 @@ export const adminModules: AdminModuleDefinition[] = [
       owner: 'full',
       manager: 'full',
       organizer: 'read',
-      marshal: 'read',
       worker: 'read',
     },
   },
@@ -162,8 +177,6 @@ export const adminModules: AdminModuleDefinition[] = [
       manager: 'full',
       organizer: 'full',
       marshal: 'operate',
-      team: 'read',
-      worker: 'operate',
       accountant: 'read',
     },
   },
@@ -201,7 +214,6 @@ export const adminModules: AdminModuleDefinition[] = [
     access: {
       owner: 'full',
       manager: 'read',
-      accountant: 'read',
     },
   },
   {
@@ -213,7 +225,6 @@ export const adminModules: AdminModuleDefinition[] = [
     access: {
       owner: 'full',
       manager: 'read',
-      accountant: 'read',
     },
   },
 ]
@@ -222,6 +233,21 @@ export function getAdminModulesForRole(role?: MockRole | null) {
   if (!role) return []
 
   return adminModules.filter((module) => module.access[role])
+}
+
+export function getAdminNavigationItemsForRole(role?: MockRole | null): AdminModuleDefinition[] {
+  return getAdminModulesForRole(role).map((module) => {
+    if (role === 'marshal' && module.id === 'tournaments') {
+      return {
+        ...module,
+        description: 'Pridelené sektory, váženia, kontroly pravidiel a tresty.',
+        label: 'Moja súťaž',
+        to: '/admin/sutaze/kontrolor',
+      }
+    }
+
+    return module
+  })
 }
 
 export function getAdminModuleAccess(module: AdminModuleDefinition, role?: MockRole | null) {
@@ -270,11 +296,19 @@ export function canAccessAdminPath(role: MockRole | undefined | null, path: stri
   const module = findAdminModuleByPath(path)
   if (!module) return false
 
+  if (role === 'marshal') {
+    const marshalWorkspace = '/admin/sutaze/kontrolor'
+    const normalizedPath = path.replace(/\/$/, '')
+
+    return normalizedPath === marshalWorkspace || normalizedPath.startsWith(`${marshalWorkspace}/`)
+  }
+
   return Boolean(getAdminModuleAccess(module, role))
 }
 
 export function isMockAdminRole(value: string | null | undefined): value is MockRole {
-  return typeof value === 'string' && mockAdminRoles.includes(value as MockRole)
+  return typeof value === 'string'
+    && mockAdminRoles.includes(value as (typeof mockAdminRoles)[number])
 }
 
 export function getAdminApiAccessDecision(

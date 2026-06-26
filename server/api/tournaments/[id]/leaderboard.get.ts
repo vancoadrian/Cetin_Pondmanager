@@ -1,11 +1,13 @@
 import { createError, defineEventHandler, getRouterParam, setHeader } from 'h3'
 import { createTournamentLeaderboardFeed } from '~/utils/tournamentLeaderboard'
+import { createPublicTournamentStateResponse } from '~/utils/tournamentStateVisibility'
 import { readLocalTournamentState } from '../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event) => {
   const tournamentId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()
-  const tournament = state.tournaments.find((item) => item.id === tournamentId)
+  const publicState = createPublicTournamentStateResponse(state, state.updatedAt)
+  const tournament = publicState.tournaments.find((item) => item.id === tournamentId)
 
   if (!tournament) {
     throw createError({
@@ -16,5 +18,5 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'cache-control', 'public, max-age=30')
 
-  return createTournamentLeaderboardFeed(tournament, state.tournamentCatches)
+  return createTournamentLeaderboardFeed(tournament, publicState.tournamentCatches)
 })

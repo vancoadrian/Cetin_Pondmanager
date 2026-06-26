@@ -270,7 +270,7 @@ export function cloneNotificationState(state: NotificationState): NotificationSt
   }
 }
 
-function subscriptionMatchesTournamentAudience(
+function subscriptionMatchesAudience(
   subscription: PushSubscriptionRecord,
   audience?: NotificationAudience,
 ) {
@@ -321,7 +321,7 @@ export function getBroadcastTargetSubscriptions(
     subscription.enabled &&
     subscription.permission === 'granted' &&
     subscription.topics.some((topic) => targetTopics.includes(topic)) &&
-    subscriptionMatchesTournamentAudience(subscription, targetAudience),
+    subscriptionMatchesAudience(subscription, targetAudience),
   )
 }
 

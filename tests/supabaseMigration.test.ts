@@ -13,6 +13,7 @@ const requiredTables = [
   'map_facilities',
   'map_layers',
   'map_shapes',
+  'place_issues',
   'reservations',
   'payment_methods',
   'reservation_items',
@@ -88,11 +89,17 @@ describe('Supabase core migration', () => {
     expect(migrationSql).toContain('weather_condition text not null default')
     expect(migrationSql).toContain('pressure_hpa integer')
     expect(migrationSql).toContain('weather_cloud_cover_pct integer check')
+    expect(migrationSql).toContain('large_fish_threshold_kg numeric')
+    expect(migrationSql).toContain('large_fish_availability_windows jsonb')
+    expect(migrationSql).toContain('large_fish_outside_availability_instruction text')
+    expect(migrationSql).toContain('large_fish_presence_override jsonb')
     expect(migrationSql).toContain('file_name text not null default')
     expect(migrationSql).toContain('ai_fingerprint jsonb')
     expect(migrationSql).toContain('rental_item_id uuid not null references public.rental_items(id)')
     expect(migrationSql).toContain('closure_id uuid not null references public.lake_closures(id)')
     expect(migrationSql).toContain('catch_record_id uuid references public.catch_records(id)')
+    expect(migrationSql).toContain('target_peg_id uuid references public.pegs(id)')
+    expect(migrationSql).toContain('target_facility_id uuid references public.map_facilities(id)')
     expect(migrationSql).toContain('tournament_id uuid not null references public.tournaments(id)')
     expect(migrationSql).toContain('add column tournament_sector_id uuid references public.tournament_sectors(id)')
   })
@@ -105,6 +112,7 @@ describe('Supabase core migration', () => {
       'map_facilities_lake_type_idx',
       'rental_bookings_item_dates_idx',
       'lake_closures_venue_dates_idx',
+      'place_issues_venue_status_idx',
       'catch_records_lake_caught_at_idx',
       'map_shapes_tournament_sector_idx',
       'tournament_requests_status_idx',

@@ -8,6 +8,7 @@ interface SponsorStateOptions {
 
 export async function useSponsorState(options: SponsorStateOptions = {}) {
   const { sponsors } = usePondData()
+  const requestFetch = useRequestFetch()
   const fallbackSponsorState = (): SponsorStateResponse => ({
     ok: true,
     sponsors: options.admin ? sponsors : sponsors.filter((sponsor) => sponsor.active),
@@ -16,7 +17,7 @@ export async function useSponsorState(options: SponsorStateOptions = {}) {
 
   const { data, refresh } = await useAsyncData<SponsorStateResponse>(
     options.key ?? (options.admin ? 'admin-sponsor-state' : 'public-sponsor-state'),
-    () => $fetch<SponsorStateResponse>(options.admin ? '/api/admin/sponsors' : '/api/sponsors'),
+    () => requestFetch<SponsorStateResponse>(options.admin ? '/api/admin/sponsors' : '/api/sponsors'),
     {
       default: fallbackSponsorState,
     },

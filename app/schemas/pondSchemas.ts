@@ -723,6 +723,53 @@ export const mapShapeInputSchema = z.object({
   visibility: z.enum(['public', 'internal', 'competition']),
 })
 
+export const placeIssueInputSchema = z.object({
+  category: z.enum(['access', 'broken', 'cleanliness', 'lighting', 'missing-equipment', 'safety', 'other']),
+  description: z.string().trim().min(8, 'Doplňte popis nedostatku aspoň 8 znakmi.').max(700, 'Popis môže mať najviac 700 znakov.'),
+  lake: lakeSlugSchema,
+  photoLabel: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(120, 'Názov fotky môže mať najviac 120 znakov.').optional(),
+  ),
+  reporterName: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(80, 'Meno môže mať najviac 80 znakov.').optional(),
+  ),
+  reporterPhone: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    phoneSchema.max(40, 'Telefón môže mať najviac 40 znakov.').optional(),
+  ),
+  targetId: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().optional(),
+  ),
+  targetType: z.enum(['facility', 'lake', 'peg']),
+  title: z.string().trim().min(3, 'Názov hlásenia musí mať aspoň 3 znaky.').max(90, 'Názov môže mať najviac 90 znakov.'),
+}).superRefine((value, ctx) => {
+  if (value.targetType !== 'lake' && !value.targetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Vyberte konkrétne miesto alebo servisný bod.',
+      path: ['targetId'],
+    })
+  }
+})
+
+export const placeIssueActionInputSchema = z.object({
+  assignedTo: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(80, 'Priradenie môže mať najviac 80 znakov.').optional(),
+  ),
+  internalNote: z.string().trim().max(700, 'Interná poznámka môže mať najviac 700 znakov.').default(''),
+  issueId: z.string().min(1, 'Chýba identifikátor hlásenia.'),
+  priority: z.enum(['low', 'normal', 'urgent']),
+  resolutionNote: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().max(700, 'Poznámka k vyriešeniu môže mať najviac 700 znakov.').optional(),
+  ),
+  status: z.enum(['new', 'triaged', 'in-progress', 'resolved', 'rejected']),
+})
+
 export const reservationDecisionInputSchema = z.object({
   decisionMode: z.enum(['approve', 'call', 'reject']),
   note: z.string().trim().max(500, 'Interná poznámka môže mať najviac 500 znakov.'),

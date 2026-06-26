@@ -33,6 +33,10 @@ import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperatio
 useHead({ title: 'Panel kontrolóra' })
 
 const route = useRoute()
+const { user } = useMockAuth()
+const isRoleScopedMarshal = computed(() => user.value?.role === 'marshal')
+const roleMarshalId = computed(() => isRoleScopedMarshal.value ? user.value?.marshalId : undefined)
+const roleTournamentId = computed(() => isRoleScopedMarshal.value ? user.value?.tournamentId : undefined)
 
 const {
   getLakeName,
@@ -49,8 +53,7 @@ const {
   tournamentTeamRegistrations: seedTournamentTeamRegistrations,
 } = usePondData()
 
-const fallbackTournamentState = (): TournamentStateResponse => ({
-  ok: true,
+const seedTournamentState = {
   tournamentCatches: seedTournamentCatches,
   tournamentMarshals: seedTournamentMarshals,
   tournamentPenalties: seedTournamentPenalties,
@@ -58,12 +61,15 @@ const fallbackTournamentState = (): TournamentStateResponse => ({
   tournamentRuleChecks: seedTournamentRuleChecks,
   tournamentTeamRegistrations: seedTournamentTeamRegistrations,
   tournaments: seedTournaments,
-  updatedAt: 'seed',
-})
+}
+const fallbackTournamentState = (): TournamentStateResponse =>
+  createTournamentAccountStateResponse(seedTournamentState, user.value, 'seed')
+  ?? createPublicTournamentStateResponse(seedTournamentState, 'seed')
 
+const requestFetch = useRequestFetch()
 const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
   'admin-tournament-marshal-panel-state',
-  () => $fetch<TournamentStateResponse>('/api/tournaments'),
+  () => requestFetch<TournamentStateResponse>('/api/account/tournament-state'),
   {
     default: fallbackTournamentState,
   },
@@ -88,16 +94,23 @@ const requestedMarshalId = computed(() =>
   Array.isArray(route.query.kontrolor) ? route.query.kontrolor[0] : route.query.kontrolor,
 )
 const activeTournament = computed(() =>
-  liveTournaments.value.find((tournament) => tournament.id === requestedTournamentId.value)
+  liveTournaments.value.find((tournament) => tournament.id === roleTournamentId.value)
+  ?? liveTournaments.value.find((tournament) => tournament.id === requestedTournamentId.value)
   ?? liveTournaments.value.find((tournament) => tournament.status === 'live')
   ?? liveTournaments.value[0]
   ?? seedTournaments[0]!,
 )
 const selectedMarshalId = ref('')
 const defaultMarshal = computed(() =>
-  liveTournamentMarshals.value.find((marshal) => marshal.id === requestedMarshalId.value)
+  liveTournamentMarshals.value.find((marshal) => marshal.id === roleMarshalId.value)
+  ?? liveTournamentMarshals.value.find((marshal) => marshal.id === requestedMarshalId.value)
   ?? liveTournamentMarshals.value.find((marshal) => marshal.status !== 'off-duty')
   ?? liveTournamentMarshals.value[0],
+)
+const visibleMarshals = computed(() =>
+  isRoleScopedMarshal.value
+    ? liveTournamentMarshals.value.filter((marshal) => marshal.id === roleMarshalId.value)
+    : liveTournamentMarshals.value,
 )
 const activeMarshal = computed(() =>
   liveTournamentMarshals.value.find((marshal) => marshal.id === selectedMarshalId.value)
@@ -713,6 +726,11 @@ function handleOffline() {
 }
 
 watch([defaultMarshal, requestedMarshalId], () => {
+  if (isRoleScopedMarshal.value && roleMarshalId.value) {
+    selectedMarshalId.value = roleMarshalId.value
+    return
+  }
+
   const requestedMarshal = liveTournamentMarshals.value.find((marshal) => marshal.id === requestedMarshalId.value)
   if (requestedMarshal) {
     selectedMarshalId.value = requestedMarshal.id
@@ -800,15 +818,16 @@ onBeforeUnmount(() => {
               <span class="text-sm font-semibold">Kontrolór</span>
               <select
                 v-model="selectedMarshalId"
+                :disabled="isRoleScopedMarshal"
                 class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
               >
-                <option v-for="marshal in liveTournamentMarshals" :key="marshal.id" :value="marshal.id">
+                <option v-for="marshal in visibleMarshals" :key="marshal.id" :value="marshal.id">
                   {{ marshal.name }} · {{ tournamentMarshalStatusLabels[marshal.status] }}
                 </option>
               </select>
             </label>
             <div class="flex flex-wrap gap-2 lg:justify-end">
-              <UButton :to="adminTournamentUrl" icon="i-heroicons-arrow-left" variant="soft">
+              <UButton v-if="!isRoleScopedMarshal" :to="adminTournamentUrl" icon="i-heroicons-arrow-left" variant="soft">
                 Dispečing
               </UButton>
               <UButton :to="publicTournamentUrl" icon="i-heroicons-map" variant="soft">

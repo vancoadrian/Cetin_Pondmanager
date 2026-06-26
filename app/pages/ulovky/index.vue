@@ -8,6 +8,22 @@ import type {
 } from '~/services/catchApiService'
 import { filterPublicCatchWorkflowState } from '~/services/catchApiService'
 import {
+  createDefaultFishRegistrySettings,
+  fishManagerContactModeLabels,
+  formatFishManagerAvailability,
+  getFishManagerAvailability,
+  type FishLargeCatchRulesResponse,
+} from '~/services/fishRegistryService'
+import type {
+  LargeFishAssistanceMutationSuccess,
+  LargeFishAssistancePublicResponse,
+  LargeFishAssistanceRequest,
+} from '~/services/largeFishAssistanceService'
+import {
+  LARGE_FISH_ASSISTANCE_PHONE_FALLBACK_MINUTES,
+  largeFishAssistanceStatusLabels,
+} from '~/services/largeFishAssistanceService'
+import {
   catchRecordInputSchema,
   getValidationMessages,
   MAX_CATCH_PHOTO_BYTES,
@@ -26,6 +42,8 @@ import {
 
 useHead({ title: 'Úlovky' })
 
+const route = useRoute()
+const { account: anglerAccount, isLoggedIn: isAnglerLoggedIn } = useMockAnglerAuth()
 const {
   catches: seedCatches,
   catchPhotos: seedCatchPhotos,
@@ -41,6 +59,12 @@ const {
 
 type LogbookMode = keyof typeof tripLogbookModeLabels
 
+function currentDateTimeInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
 const fallbackCatchState = (): CatchStateResponse => ({
   ...filterPublicCatchWorkflowState({
     catches: seedCatches,
@@ -51,11 +75,23 @@ const fallbackCatchState = (): CatchStateResponse => ({
   ok: true,
   updatedAt: 'seed',
 })
+const fallbackLargeCatchRules = (): FishLargeCatchRulesResponse => ({
+  ok: true,
+  rules: createDefaultFishRegistrySettings().largeCatchRules,
+  updatedAt: 'seed',
+})
 const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
   'public-catch-state',
   () => $fetch<CatchStateResponse>('/api/catches'),
   {
     default: fallbackCatchState,
+  },
+)
+const { data: largeCatchRulesState } = await useAsyncData<FishLargeCatchRulesResponse>(
+  'public-large-catch-rules',
+  () => $fetch<FishLargeCatchRulesResponse>('/api/fish-registry/rules'),
+  {
+    default: fallbackLargeCatchRules,
   },
 )
 
@@ -66,7 +102,9 @@ const openedTripLogbooks = ref<TripLogbook[]>([])
 const openedTripLogbookEntries = ref<TripLogbookEntry[]>([])
 const logbookForm = reactive({
   lake: 'velky-cetin' as LakeSlug,
-  membersText: 'Marek H.\nTomáš K.\nLenka R.',
+  membersText: anglerAccount.value
+    ? `${anglerAccount.value.name}\nTomáš K.\nLenka R.`
+    : 'Marek H.\nTomáš K.\nLenka R.',
   pegId: 'vc-03',
   title: 'Chata 3 - víkend',
 })
@@ -74,15 +112,15 @@ const logbookCodeForm = reactive({
   code: '',
 })
 const catchForm = reactive({
-  angler: 'Marek H.',
-  bait: 'scopex boilies 20 mm',
-  caughtAt: '2026-05-16T18:30',
+  angler: '',
+  bait: '',
+  caughtAt: currentDateTimeInput(),
   lake: 'velky-cetin' as LakeSlug,
-  lengthCm: 82,
+  lengthCm: 0,
   pegId: 'vc-03',
   released: true,
   species: 'Kapor',
-  weightKg: 10.4,
+  weightKg: 0,
 })
 const logbookSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const logbookSubmitMessage = ref('')
@@ -90,6 +128,11 @@ const logbookLookupStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('id
 const logbookLookupMessage = ref('')
 const catchSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const catchSubmitMessage = ref('')
+const assistancePhone = ref('')
+const assistanceStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const assistanceMessage = ref('')
+const activeAssistance = ref<LargeFishAssistanceRequest | null>(null)
+const assistanceClock = ref(Date.now())
 const catchPhotoDraft = ref<{
   dataUrl: string
   fileName: string
@@ -103,6 +146,8 @@ const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
 const offlineSyncMessage = ref('')
 const isOnline = ref(true)
 let offlineSyncInProgress = false
+let assistancePollTimer: ReturnType<typeof setInterval> | undefined
+const assistanceStorageKey = 'rybolov-cetin-large-fish-assistance'
 const logbookModeOptions = Object.entries(tripLogbookModeLabels).map(([value, label]) => ({
   label,
   value: value as LogbookMode,
@@ -143,6 +188,38 @@ const liveTripLogbookEntries = computed(() => {
 })
 const logbookPegs = computed(() => pegs.filter((peg) => peg.lake === logbookForm.lake))
 const catchPegs = computed(() => pegs.filter((peg) => peg.lake === catchForm.lake))
+const activeLargeCatchRule = computed(() =>
+  largeCatchRulesState.value.rules.find((rule) => rule.lake === catchForm.lake),
+)
+const catchRequiresManager = computed(() =>
+  Boolean(
+    activeLargeCatchRule.value
+    && catchForm.weightKg >= activeLargeCatchRule.value.thresholdKg,
+  ),
+)
+const managerAvailability = computed(() =>
+  activeLargeCatchRule.value
+    ? getFishManagerAvailability(activeLargeCatchRule.value, catchForm.caughtAt)
+    : undefined,
+)
+const canRequestManager = computed(() =>
+  catchRequiresManager.value
+  && managerAvailability.value?.available
+  && assistancePhone.value.trim().length >= 7
+  && catchForm.angler.trim().length >= 2
+  && Boolean(catchForm.pegId),
+)
+const assistanceWaitMinutes = computed(() => {
+  if (!activeAssistance.value) return 0
+  const createdAt = Date.parse(activeAssistance.value.createdAt)
+  if (!Number.isFinite(createdAt)) return 0
+  return Math.max(0, Math.floor((assistanceClock.value - createdAt) / 60_000))
+})
+const showAssistancePhoneFallback = computed(() =>
+  activeAssistance.value?.status === 'waiting'
+  && assistanceWaitMinutes.value >= LARGE_FISH_ASSISTANCE_PHONE_FALLBACK_MINUTES
+  && Boolean(activeAssistance.value.managerPhone),
+)
 const compatibleLogbooks = computed(() =>
   liveTripLogbooks.value.filter((logbook) =>
     logbook.status !== 'closed' &&
@@ -185,6 +262,9 @@ const catchValidationMessages = computed(() => [
 ])
 const totalWeight = computed(() =>
   publicCatches.value.reduce((sum, catchItem) => sum + catchItem.weightKg, 0).toFixed(1),
+)
+const publicSpeciesCount = computed(() =>
+  new Set(publicCatches.value.map((catchItem) => catchItem.species)).size,
 )
 const biggestCatch = computed(() =>
   publicCatches.value.reduce(
@@ -233,7 +313,7 @@ const photoStatusMeta = {
     icon: 'i-heroicons-arrow-up-tray',
   },
   'ai-ready': {
-    label: 'AI-ready',
+    label: 'fotka uložená',
     class: 'bg-success-500/10 text-success-700',
     icon: 'i-heroicons-sparkles',
   },
@@ -344,6 +424,135 @@ const getApiErrorMessage = (error: unknown) => {
 
 const getQueueFallbackErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Offline zápis sa nepodarilo uložiť v zariadení.'
+
+function assistanceStatusClass(status: LargeFishAssistanceRequest['status']) {
+  if (status === 'on-route' || status === 'completed') {
+    return 'border-success-500/30 bg-success-500/10 text-success-900'
+  }
+  if (status === 'release-without-manager' || status === 'cancelled' || status === 'expired') {
+    return 'border-warning-500/30 bg-warning-500/10 text-warning-900'
+  }
+  return 'border-info-500/30 bg-info-500/10 text-info-900'
+}
+
+function assistanceStatusIcon(status: LargeFishAssistanceRequest['status']) {
+  if (status === 'on-route') return 'i-heroicons-truck'
+  if (status === 'completed') return 'i-heroicons-check-circle'
+  if (status === 'release-without-manager') return 'i-heroicons-arrow-uturn-left'
+  if (status === 'cancelled') return 'i-heroicons-x-circle'
+  return 'i-heroicons-clock'
+}
+
+function persistAssistanceAccess(request: LargeFishAssistanceRequest) {
+  if (!import.meta.client) return
+  localStorage.setItem(assistanceStorageKey, JSON.stringify({
+    id: request.id,
+    token: request.publicToken,
+  }))
+}
+
+function clearAssistanceAccess() {
+  activeAssistance.value = null
+  assistanceStatus.value = 'idle'
+  assistanceMessage.value = ''
+  if (import.meta.client) localStorage.removeItem(assistanceStorageKey)
+}
+
+async function refreshLargeFishAssistance(options: { silent?: boolean } = {}) {
+  if (!import.meta.client) return
+
+  const stored = localStorage.getItem(assistanceStorageKey)
+  if (!stored) return
+
+  try {
+    const access = JSON.parse(stored) as { id?: string, token?: string }
+    if (!access.id || !access.token) {
+      clearAssistanceAccess()
+      return
+    }
+
+    const response = await $fetch<LargeFishAssistancePublicResponse>(
+      `/api/large-fish-assistance/${encodeURIComponent(access.id)}`,
+      { query: { token: access.token } },
+    )
+    activeAssistance.value = response.request
+    catchForm.angler = response.request.anglerName
+    catchForm.caughtAt = response.request.caughtAt.slice(0, 16)
+    catchForm.lake = response.request.lake
+    await nextTick()
+    catchForm.pegId = response.request.pegId
+    catchForm.lengthCm = response.request.lengthCm
+    catchForm.species = response.request.species
+    catchForm.weightKg = response.request.weightKg
+    assistancePhone.value = response.request.phone
+    assistanceStatus.value = 'success'
+    assistanceMessage.value = response.request.responseMessage
+      ?? 'Požiadavka bola odoslaná. Čakáme na odpoveď správcu.'
+  }
+  catch (error) {
+    if (!options.silent) {
+      assistanceStatus.value = 'error'
+      assistanceMessage.value = getApiErrorMessage(error)
+    }
+  }
+}
+
+async function requestManagerAssistance() {
+  if (!canRequestManager.value || activeAssistance.value) return
+
+  assistanceStatus.value = 'submitting'
+  assistanceMessage.value = ''
+
+  try {
+    const result = await $fetch<LargeFishAssistanceMutationSuccess>('/api/large-fish-assistance', {
+      body: {
+        anglerName: catchForm.angler,
+        caughtAt: catchForm.caughtAt,
+        lake: catchForm.lake,
+        lengthCm: catchForm.lengthCm,
+        note: '',
+        pegId: catchForm.pegId,
+        phone: assistancePhone.value,
+        species: catchForm.species,
+        weightKg: catchForm.weightKg,
+      },
+      method: 'POST',
+    })
+    activeAssistance.value = result.request
+    assistanceStatus.value = 'success'
+    assistanceMessage.value = result.message
+    persistAssistanceAccess(result.request)
+  }
+  catch (error) {
+    assistanceStatus.value = 'error'
+    assistanceMessage.value = getApiErrorMessage(error)
+  }
+}
+
+async function cancelManagerAssistance() {
+  if (!activeAssistance.value || !['waiting', 'on-route'].includes(activeAssistance.value.status)) return
+
+  assistanceStatus.value = 'submitting'
+  assistanceMessage.value = ''
+
+  try {
+    const result = await $fetch<LargeFishAssistanceMutationSuccess>(
+      `/api/large-fish-assistance/${encodeURIComponent(activeAssistance.value.id)}/cancel`,
+      {
+        body: { token: activeAssistance.value.publicToken },
+        method: 'POST',
+      },
+    )
+    activeAssistance.value = result.request
+    assistanceStatus.value = 'success'
+    assistanceMessage.value = result.message
+    persistAssistanceAccess(result.request)
+  }
+  catch (error) {
+    assistanceStatus.value = 'error'
+    assistanceMessage.value = getApiErrorMessage(error)
+  }
+}
 
 async function refreshOfflineCatchQueue() {
   if (!import.meta.client) return
@@ -510,6 +719,14 @@ const openLogbookByCode = async () => {
   }
 }
 
+async function openLogbookFromQuery() {
+  const code = typeof route.query.zapisnik === 'string' ? route.query.zapisnik.trim() : ''
+  if (!code || logbookCodeForm.code === code && activeLogbook.value) return
+
+  logbookCodeForm.code = code
+  await openLogbookByCode()
+}
+
 const submitCatch = async () => {
   const validation = catchValidation.value
   if (!validation.success) {
@@ -571,6 +788,7 @@ onMounted(() => {
   if (!import.meta.client) return
 
   isOnline.value = navigator.onLine
+  void openLogbookFromQuery()
   void refreshOfflineCatchQueue().then(() => {
     if (navigator.onLine && offlineCatchQueue.value.length > 0) {
       void syncOfflineCatchQueue({ silent: true })
@@ -578,6 +796,13 @@ onMounted(() => {
   })
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+  void refreshLargeFishAssistance({ silent: true })
+  assistancePollTimer = setInterval(() => {
+    assistanceClock.value = Date.now()
+    if (activeAssistance.value && ['waiting', 'on-route'].includes(activeAssistance.value.status)) {
+      void refreshLargeFishAssistance({ silent: true })
+    }
+  }, 5_000)
 })
 
 onBeforeUnmount(() => {
@@ -585,6 +810,7 @@ onBeforeUnmount(() => {
 
   window.removeEventListener('online', handleOnline)
   window.removeEventListener('offline', handleOffline)
+  if (assistancePollTimer) clearInterval(assistancePollTimer)
 })
 
 watch(() => logbookForm.lake, () => {
@@ -593,6 +819,15 @@ watch(() => logbookForm.lake, () => {
 
 watch(() => catchForm.lake, () => {
   catchForm.pegId = catchPegs.value[0]?.id ?? ''
+})
+
+watch(() => route.query.zapisnik, () => {
+  if (import.meta.client) void openLogbookFromQuery()
+})
+
+watch(anglerAccount, (account, previousAccount) => {
+  if (!account || previousAccount || logbookForm.membersText.trim() === '') return
+  logbookForm.membersText = `${account.name}\n${logbookForm.membersText}`
 })
 
 watch(compatibleLogbooks, (items) => {
@@ -620,11 +855,34 @@ watch(catchValidation, () => {
   <div>
     <PageHeader
       eyebrow="Úlovky"
-      title="Denník úlovkov pripravený na analytiku"
-      description="Každý zápis zbiera miesto, čas, druh, mieru, váhu, nástrahu a fotku. Neskôr sa dá pridať AI identifikácia opakovaných rýb."
+      title="Úlovky z revíru"
+      description="Schválené úlovky z oboch jazier. Prihlásení rybári si môžu viesť vlastné aj skupinové zápisníky výprav."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div class="mb-6 flex flex-col gap-3 border-y border-primary-200 bg-primary-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-start gap-3">
+          <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-6 w-6 shrink-0 text-primary-800" />
+          <div>
+            <p class="font-bold">
+              {{ isAnglerLoggedIn ? `Prihlásený rybár: ${anglerAccount?.name}` : 'Verejný denník úlovkov' }}
+            </p>
+            <p class="mt-1 text-sm text-foreground-muted">
+              {{ isAnglerLoggedIn
+                ? 'Nové zápisníky a úlovky sa uložia do vašej histórie.'
+                : 'Na vytvorenie zápisníka alebo pridanie úlovku sa prihláste. Existujúci zápisník otvoríte jeho kódom.' }}
+            </p>
+          </div>
+        </div>
+        <UButton
+          to="/konto"
+          :icon="isAnglerLoggedIn ? 'i-heroicons-book-open' : 'i-heroicons-arrow-right-on-rectangle'"
+          variant="soft"
+        >
+          {{ isAnglerLoggedIn ? 'Moje zápisníky' : 'Prihlásiť sa' }}
+        </UButton>
+      </div>
+
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Verejné úlovky</p>
@@ -639,8 +897,8 @@ watch(catchValidation, () => {
           <p class="mt-2 text-3xl font-bold">{{ biggestCatch?.weightKg ?? 0 }} kg</p>
         </div>
         <div class="border-border bg-surface rounded-card border p-4">
-          <p class="text-foreground-muted text-sm">Otvorené zápisníky</p>
-          <p class="mt-2 text-3xl font-bold">{{ liveTripLogbooks.length }}</p>
+          <p class="text-foreground-muted text-sm">Druhy rýb</p>
+          <p class="mt-2 text-3xl font-bold">{{ publicSpeciesCount }}</p>
         </div>
       </div>
 
@@ -858,7 +1116,7 @@ watch(catchValidation, () => {
             </p>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div v-if="isAnglerLoggedIn || activeLogbook" class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Nový zápisník</h2>
@@ -867,6 +1125,24 @@ watch(catchValidation, () => {
                 </p>
               </div>
               <UIcon name="i-heroicons-table-cells" class="text-primary-800 h-5 w-5" />
+            </div>
+
+            <div
+              class="mt-4 flex items-start gap-3 rounded-md border px-3 py-3 text-sm"
+              :class="isAnglerLoggedIn
+                ? 'border-success-500/25 bg-success-500/10 text-success-900'
+                : 'border-border bg-muted text-foreground-muted'"
+            >
+              <UIcon
+                :name="isAnglerLoggedIn ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-key'"
+                class="mt-0.5 h-5 w-5 shrink-0"
+              />
+              <p>
+                <strong>{{ isAnglerLoggedIn ? 'Uloží sa do účtu.' : 'Uloží sa iba pod kódom.' }}</strong>
+                {{ isAnglerLoggedIn
+                  ? `Vlastníkom bude ${anglerAccount?.name}; prvé meno vo formulári nemusí byť zhodné.`
+                  : 'Kód si odložte alebo sa pred vytvorením prihláste.' }}
+              </p>
             </div>
 
             <form class="mt-5 space-y-4" @submit.prevent="submitLogbook">
@@ -958,7 +1234,7 @@ watch(catchValidation, () => {
             </form>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div v-if="isAnglerLoggedIn || activeLogbook" class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Pridať úlovok</h2>
             <div
               v-if="!isOnline || offlineCatchQueue.length > 0 || offlineSyncMessage"
@@ -1092,6 +1368,126 @@ watch(catchValidation, () => {
                   >
                 </label>
               </div>
+              <div
+                v-if="catchRequiresManager && activeLargeCatchRule"
+                class="rounded-md border p-4"
+                :class="managerAvailability?.available
+                  ? 'border-success-500/30 bg-success-500/10 text-success-900'
+                  : 'border-warning-500/30 bg-warning-500/10 text-warning-900'"
+              >
+                <div class="flex items-start gap-3">
+                  <UIcon
+                    :name="managerAvailability?.available
+                      ? 'i-heroicons-phone-arrow-up-right'
+                      : 'i-heroicons-clock'"
+                    class="mt-0.5 h-5 w-5 shrink-0"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold">
+                      {{ managerAvailability?.available
+                        ? `Pri rybe od ${activeLargeCatchRule.thresholdKg} kg privolajte správcu`
+                        : `Ryba je nad limitom ${activeLargeCatchRule.thresholdKg} kg, pre zadaný čas však správca nie je v službe` }}
+                    </p>
+                    <p class="mt-1 text-sm">
+                      {{ managerAvailability?.available
+                        ? activeLargeCatchRule.instruction
+                        : activeLargeCatchRule.outsideAvailabilityInstruction }}
+                    </p>
+                    <p v-if="managerAvailability?.available" class="mt-2 text-xs font-bold">
+                      {{ fishManagerContactModeLabels[activeLargeCatchRule.contactMode] }}
+                      <template v-if="activeLargeCatchRule.phone"> · {{ activeLargeCatchRule.phone }}</template>
+                      <template v-if="activeLargeCatchRule.email"> · {{ activeLargeCatchRule.email }}</template>
+                    </p>
+                    <p class="mt-2 text-xs font-semibold">
+                      Služba správcu: {{ formatFishManagerAvailability(activeLargeCatchRule) }}
+                    </p>
+
+                    <div
+                      v-if="activeAssistance"
+                      class="mt-4 rounded-md border p-4"
+                      :class="assistanceStatusClass(activeAssistance.status)"
+                    >
+                      <div class="flex items-start gap-3">
+                        <UIcon :name="assistanceStatusIcon(activeAssistance.status)" class="mt-0.5 h-5 w-5 shrink-0" />
+                        <div class="min-w-0 flex-1">
+                          <p class="font-bold">{{ largeFishAssistanceStatusLabels[activeAssistance.status] }}</p>
+                          <p class="mt-1 text-sm">
+                            {{ activeAssistance.responseMessage || assistanceMessage }}
+                          </p>
+                          <p v-if="activeAssistance.managerName" class="mt-2 text-xs font-bold">
+                            {{ activeAssistance.managerName }}
+                            <template v-if="activeAssistance.etaMinutes"> · do {{ activeAssistance.etaMinutes }} min</template>
+                          </p>
+                          <p v-if="activeAssistance.status === 'waiting'" class="mt-2 text-xs font-semibold">
+                            Čakáte {{ assistanceWaitMinutes }} min.
+                          </p>
+                          <a
+                            v-if="showAssistancePhoneFallback"
+                            :href="`tel:${activeAssistance.managerPhone}`"
+                            class="mt-3 inline-flex h-10 items-center gap-2 rounded-md bg-warning-600 px-3 text-sm font-bold text-white"
+                          >
+                            <UIcon name="i-heroicons-phone" class="h-4 w-4" />
+                            Zavolať správcovi
+                          </a>
+                          <p v-if="showAssistancePhoneFallback" class="mt-2 text-xs">
+                            Push mohol zostať bez odozvy. Rybu zbytočne nezadržiavajte.
+                          </p>
+                          <button
+                            v-if="['waiting', 'on-route'].includes(activeAssistance.status)"
+                            type="button"
+                            class="mt-3 block text-xs font-bold underline"
+                            :disabled="assistanceStatus === 'submitting'"
+                            @click="cancelManagerAssistance"
+                          >
+                            Zrušiť privolanie
+                          </button>
+                          <button
+                            v-if="['cancelled', 'completed', 'expired', 'release-without-manager'].includes(activeAssistance.status)"
+                            type="button"
+                            class="mt-3 text-xs font-bold underline"
+                            @click="clearAssistanceAccess"
+                          >
+                            Zavrieť stav
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-else-if="managerAvailability?.available" class="mt-4 space-y-3">
+                      <label class="block">
+                        <span class="text-xs font-bold">Telefón pre správcu</span>
+                        <input
+                          v-model="assistancePhone"
+                          type="tel"
+                          inputmode="tel"
+                          placeholder="+421 9..."
+                          class="mt-1 h-10 w-full rounded-md border border-success-500/30 bg-white px-3 text-sm text-foreground"
+                        >
+                      </label>
+                      <UButton
+                        type="button"
+                        icon="i-heroicons-bell-alert"
+                        color="success"
+                        :disabled="!canRequestManager"
+                        :loading="assistanceStatus === 'submitting'"
+                        @click="requestManagerAssistance"
+                      >
+                        Privolať správcu
+                      </UButton>
+                      <p class="text-xs">
+                        Správca dostane interné upozornenie. Jeho odpoveď sa zobrazí tu automaticky.
+                      </p>
+                    </div>
+
+                    <p
+                      v-if="assistanceStatus === 'error' && assistanceMessage"
+                      class="mt-3 rounded-md bg-error-500/10 px-3 py-2 text-xs font-semibold text-error-800"
+                    >
+                      {{ assistanceMessage }}
+                    </p>
+                  </div>
+                </div>
+              </div>
               <label class="block">
                 <span class="text-sm font-semibold">Nástraha</span>
                 <input
@@ -1136,7 +1532,7 @@ watch(catchValidation, () => {
                     {{ formatFileSize(catchPhotoDraft.sizeBytes) }} · pripravené na uloženie
                   </p>
                   <p class="mt-2 text-xs text-primary-700">
-                    Po uložení dostane fotka AI-ready metadata, ale verejná bude až po schválení úlovku.
+                    Fotka sa zverejní až po schválení úlovku správcom.
                   </p>
                   <button
                     type="button"
@@ -1177,12 +1573,20 @@ watch(catchValidation, () => {
             </form>
           </div>
 
-          <div class="border-border bg-primary-900 rounded-card border p-5 text-white">
-            <h2 class="text-lg font-bold">Budúca AI vrstva</h2>
-            <p class="mt-3 text-sm text-white/75">
-              Fotky budú ukladané pri zázname úlovku. Model potom môže porovnávať kresbu šupín,
-              jazvy a proporcie rýb, aby sa našli opakované jedince a sledoval sa ich rast.
+          <div v-if="!isAnglerLoggedIn && !activeLogbook" class="border-border bg-primary-900 rounded-card border p-5 text-white">
+            <UIcon name="i-heroicons-lock-closed" class="h-7 w-7 text-accent-300" />
+            <h2 class="mt-4 text-xl font-bold">Vlastný rybársky denník</h2>
+            <p class="mt-2 text-sm text-white/75">
+              Po prihlásení môžete vytvárať výpravy, zapisovať úlovky a vrátiť sa k celej svojej histórii.
             </p>
+            <UButton
+              :to="{ path: '/login', query: { redirect: '/ulovky' } }"
+              color="warning"
+              icon="i-heroicons-arrow-right-on-rectangle"
+              class="mt-5"
+            >
+              Prihlásiť sa
+            </UButton>
           </div>
         </aside>
       </div>

@@ -127,4 +127,59 @@ describe('notificationDeliveryRunner', () => {
       status: 'prepared',
     })
   })
+
+  it('opens a large catch notification directly in admin moderation', async () => {
+    const subscription = savePushSubscription({
+      auth: 'auth-secret',
+      endpoint: 'https://push.example.test/manager',
+      p256dh: 'p256dh-key',
+      permission: 'granted',
+      topics: ['service'],
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }, now)
+    if (!subscription.ok) throw new Error('Subscription should be valid.')
+    const state: NotificationState = {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: subscription.subscriptions.map((item) => ({
+        ...item,
+        audienceRole: 'manager',
+      })),
+    }
+    const broadcast = createNotificationBroadcast({
+      body: '21.4 kg Kapor · Chata 3 · Marek H.',
+      severity: 'water',
+      targetAudience: {
+        requestId: 'catch-20260621-vc-03-marek-h',
+        roles: ['owner', 'manager'],
+      },
+      targetTopics: ['service'],
+      title: 'Veľký úlovok čaká na kontrolu',
+      validUntil: 'do spracovania úlovku',
+    }, state, 'Evidencia úlovkov', now)
+    if (!broadcast.ok) throw new Error('Broadcast should be valid.')
+    const payloads: unknown[] = []
+
+    await runServerNotificationDelivery(broadcast.broadcast, state, {
+      hasVapidConfig: true,
+      now,
+      provider: 'web-push',
+      sendWebPush: async (_pushSubscription, payload) => {
+        payloads.push(JSON.parse(payload))
+        return { statusCode: 201 }
+      },
+      subject: 'mailto:spravca@example.test',
+      vapidPrivateKey: 'private-key',
+      vapidPublicKey: 'public-key',
+    })
+
+    expect(payloads).toContainEqual(expect.objectContaining({
+      url: '/admin/ulovky?catchId=catch-20260621-vc-03-marek-h',
+    }))
+  })
 })

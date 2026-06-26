@@ -43,6 +43,9 @@ import { createTournamentTeamAccessUrl } from '~/utils/tournamentTeamAccess'
 useHead({ title: 'Súťaže' })
 
 const route = useRoute()
+const { user } = useMockAuth()
+const canUseTeamPanel = computed(() => user.value?.role === 'team')
+const canViewCompetitionOperations = false
 
 const {
   getLakeName,
@@ -66,17 +69,16 @@ const {
 } = usePondData()
 const { activeSponsors } = await useSponsorState({ key: 'public-tournament-sponsor-state' })
 
-const fallbackTournamentState = (): TournamentStateResponse => ({
-  ok: true,
-  tournamentCatches: seedTournamentCatches,
-  tournamentMarshals: seedTournamentMarshals,
-  tournamentPenalties: seedTournamentPenalties,
-  tournamentRequests: seedTournamentRequests,
-  tournamentRuleChecks: seedTournamentRuleChecks,
-  tournamentTeamRegistrations: seedTournamentTeamRegistrations,
-  tournaments: seedTournaments,
-  updatedAt: 'seed',
-})
+const fallbackTournamentState = (): TournamentStateResponse =>
+  createPublicTournamentStateResponse({
+    tournamentCatches: seedTournamentCatches,
+    tournamentMarshals: seedTournamentMarshals,
+    tournamentPenalties: seedTournamentPenalties,
+    tournamentRequests: seedTournamentRequests,
+    tournamentRuleChecks: seedTournamentRuleChecks,
+    tournamentTeamRegistrations: seedTournamentTeamRegistrations,
+    tournaments: seedTournaments,
+  }, 'seed')
 const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
   'public-tournament-state',
   () => $fetch<TournamentStateResponse>('/api/tournaments'),
@@ -122,6 +124,14 @@ const activeTournament = computed(() =>
 const tournamentCapabilities = computed(() => getTournamentOperationalCapabilities(activeTournament.value))
 const canSubmitTeamRegistration = computed(() => tournamentCapabilities.value.allowsTeamRegistration)
 const canSubmitTournamentRequest = computed(() => tournamentCapabilities.value.allowsTeamRequests)
+const activeTeamCount = computed(() =>
+  activeTournament.value.sectors.filter((sector) => Boolean(sector.team)).length,
+)
+const tournamentStatusLabel = computed(() => ({
+  closed: 'Ukončená',
+  live: 'Prebieha',
+  planned: 'Pripravuje sa',
+})[activeTournament.value.status])
 const activeTournamentLake = computed(() => lakes.find((lake) => lake.slug === activeTournament.value.lake))
 const activeTournamentBackgroundLayer = computed(() =>
   liveMapLayers.value.find((layer) => layer.lake === activeTournament.value.lake && layer.kind === 'background' && layer.enabled),
@@ -222,17 +232,6 @@ const activeRequests = computed(() =>
 const tournamentTeamRegistrations = computed(() =>
   liveTournamentTeamRegistrations.value.filter((registration) => registration.tournamentId === activeTournament.value.id),
 )
-const pendingTeamRegistrationCount = computed(() =>
-  tournamentTeamRegistrations.value.filter((registration) => registration.status === 'submitted').length,
-)
-const approvedTeamRegistrationCount = computed(() =>
-  tournamentTeamRegistrations.value.filter((registration) => registration.status === 'approved').length,
-)
-const pendingMeasurements = computed(() =>
-  liveTournamentCatches.value.filter(
-    (catchItem) => catchItem.tournamentId === activeTournament.value.id && catchItem.status === 'waiting',
-  ),
-)
 const activePenalties = computed(() =>
   liveTournamentPenalties.value.filter(
     (penalty) => penalty.tournamentId === activeTournament.value.id && penalty.status === 'active',
@@ -244,7 +243,6 @@ const tournamentLeaderboard = computed(() =>
 const leaderboardStats = computed(() =>
   getTournamentLeaderboardStats(tournamentLeaderboard.value),
 )
-const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournament.value.id}/leaderboard`)
 const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
 const tournamentTeamAccessUrl = (sectorId: string) =>
   createTournamentTeamAccessUrl(activeTournament.value.id, sectorId)
@@ -611,8 +609,8 @@ watch(activeTournament, (tournament) => {
   <div>
     <PageHeader
       eyebrow="Súťaže"
-      title="Dispečing kontrolórov, merania a trestov"
-      description="Tím vie privolať kontrolóra k úlovku alebo nahlásiť porušenie. Kontrolór má sektory, kontroly, váženia a disciplinárne zásahy na jednom mieste."
+      title="Rybárske súťaže"
+      description="Termíny, sektory, pravidlá, priebežné výsledky a prihlasovanie tímov na podujatia v revíri."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -626,11 +624,17 @@ watch(activeTournament, (tournament) => {
               <h2 class="text-2xl font-bold">{{ activeTournament.name }}</h2>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="bg-success-500/10 text-success-700 rounded-md px-3 py-1 text-sm font-bold">
-                live
-              </span>
-              <span class="rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
-                {{ tournamentCapabilities.label }}
+              <span
+                class="rounded-md px-3 py-1 text-sm font-bold"
+                :class="
+                  activeTournament.status === 'live'
+                    ? 'bg-success-500/10 text-success-700'
+                    : activeTournament.status === 'planned'
+                      ? 'bg-warning-500/10 text-warning-800'
+                      : 'bg-muted text-foreground-muted'
+                "
+              >
+                {{ tournamentStatusLabel }}
               </span>
             </div>
           </div>
@@ -695,14 +699,14 @@ watch(activeTournament, (tournament) => {
             >
               {{ sector.label }}
               <span
-                v-if="requestsForSector(sector.id).length"
+                v-if="canViewCompetitionOperations && requestsForSector(sector.id).length"
                 class="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-xs text-error-700"
               >
                 {{ requestsForSector(sector.id).length }}
               </span>
             </button>
             <div class="absolute right-4 bottom-4 rounded-md bg-primary-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
-              {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }} sektorov z mapy
+              {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }} sektorov
             </div>
           </div>
 
@@ -713,7 +717,7 @@ watch(activeTournament, (tournament) => {
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p class="text-xs font-bold uppercase text-primary-700">Partneri súťaže</p>
-                <p class="text-foreground-muted mt-0.5 text-sm">Zobrazujú sa podľa slotu nastaveného v administrácii sponzorov.</p>
+                <p class="text-foreground-muted mt-0.5 text-sm">Ďakujeme partnerom za podporu podujatia.</p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <div
@@ -761,12 +765,12 @@ watch(activeTournament, (tournament) => {
         <aside class="space-y-6">
           <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             <div class="border-border bg-surface rounded-card border p-5">
-              <p class="text-foreground-muted text-sm">Aktívne hlásenia</p>
-              <p class="mt-2 text-3xl font-bold">{{ activeRequests.length }}</p>
+              <p class="text-foreground-muted text-sm">Zapojené tímy</p>
+              <p class="mt-2 text-3xl font-bold">{{ activeTeamCount }}</p>
             </div>
             <div class="border-border bg-surface rounded-card border p-5">
-              <p class="text-foreground-muted text-sm">Čaká na váženie</p>
-              <p class="mt-2 text-3xl font-bold">{{ pendingMeasurements.length }}</p>
+              <p class="text-foreground-muted text-sm">Overené úlovky</p>
+              <p class="mt-2 text-3xl font-bold">{{ leaderboardStats.totalVerifiedCatchCount }}</p>
             </div>
             <div class="border-border bg-surface rounded-card border p-5">
               <p class="text-foreground-muted text-sm">Priebežná váha</p>
@@ -775,44 +779,23 @@ watch(activeTournament, (tournament) => {
           </div>
 
           <div class="border-border bg-surface rounded-card border p-5">
-            <div class="flex items-start gap-3">
-              <div class="rounded-md bg-primary-50 p-2 text-primary-800">
-                <UIcon name="i-heroicons-adjustments-horizontal" class="h-5 w-5" />
-              </div>
-              <div>
-                <h2 class="text-lg font-bold">{{ tournamentCapabilities.label }}</h2>
-                <p class="text-foreground-muted mt-1 text-sm">{{ tournamentCapabilities.description }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <h2 class="text-lg font-bold">Live výsledkovka</h2>
+                <h2 class="text-lg font-bold">Priebežné výsledky</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
                   Poradie podľa súťažného skóre zo sektorov.
                 </p>
               </div>
               <div class="flex flex-col items-end gap-2">
                 <span class="rounded-md bg-success-500/10 px-2.5 py-1 text-xs font-bold text-success-700">
-                  {{ leaderboardStats.activeTeamCount }} tímov
+                  {{ activeTeamCount }} tímov
                 </span>
-                <a
-                  :href="leaderboardFeedUrl"
-                  target="_blank"
-                  rel="noopener"
-                  class="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
-                >
-                  <UIcon name="i-heroicons-rss" class="h-3.5 w-3.5" />
-                  JSON feed
-                </a>
                 <NuxtLink
                   :to="leaderboardKioskUrl"
                   class="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent-100 px-2 text-xs font-bold text-accent-700 transition-colors hover:bg-accent-200"
                 >
                   <UIcon name="i-heroicons-presentation-chart-bar" class="h-3.5 w-3.5" />
-                  Kiosk
+                  Celá výsledkovka
                 </NuxtLink>
               </div>
             </div>
@@ -833,10 +816,10 @@ watch(activeTournament, (tournament) => {
                 <div class="min-w-0">
                   <p class="truncate font-bold">{{ row.team }}</p>
                   <p class="text-foreground-muted mt-0.5 truncate text-xs">
-                    {{ row.sectorLabel }} · overené {{ row.verifiedCatchCount }} · čaká {{ row.pendingCatchCount + row.disputedCatchCount }}
+                    {{ row.sectorLabel }} · {{ row.verifiedCatchCount }} overených úlovkov
                   </p>
                   <NuxtLink
-                    v-if="canSubmitTournamentRequest"
+                  v-if="canUseTeamPanel && canSubmitTournamentRequest"
                     :to="tournamentTeamAccessUrl(row.sectorId)"
                     class="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
                   >
@@ -854,8 +837,7 @@ watch(activeTournament, (tournament) => {
             </div>
 
             <p class="text-foreground-muted mt-3 text-xs">
-              Overené úlovky: {{ leaderboardStats.totalVerifiedCatchCount }} · čaká/sporné:
-              {{ leaderboardStats.pendingReviewCatchCount }}.
+              Do priebežného poradia sa započítavajú iba úlovky potvrdené kontrolórom.
             </p>
           </div>
 
@@ -864,22 +846,8 @@ watch(activeTournament, (tournament) => {
               <div>
                 <h2 class="text-lg font-bold">Prihlásiť tím</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Organizátor dostane kontakt, počet členov a preferovaný sektor.
+                  Odošlite kontaktné údaje, počet členov a preferovaný sektor.
                 </p>
-              </div>
-              <span class="rounded-md bg-info-500/10 px-2.5 py-1 text-xs font-bold text-info-700">
-                {{ pendingTeamRegistrationCount }} čaká
-              </span>
-            </div>
-
-            <div class="mt-4 grid grid-cols-2 gap-2 text-center">
-              <div class="rounded-md bg-muted px-3 py-2">
-                <p class="text-xs font-semibold text-foreground-muted">schválené</p>
-                <p class="font-black">{{ approvedTeamRegistrationCount }}</p>
-              </div>
-              <div class="rounded-md bg-muted px-3 py-2">
-                <p class="text-xs font-semibold text-foreground-muted">prihlášky</p>
-                <p class="font-black">{{ tournamentTeamRegistrations.length }}</p>
               </div>
             </div>
 
@@ -988,7 +956,7 @@ watch(activeTournament, (tournament) => {
               <ValidationSummary
                 :messages="teamRegistrationValidationMessages"
                 valid-title="Prihláška je pripravená"
-                valid-description="Po odoslaní ju organizátor uvidí v internom súťažnom dispečingu."
+                valid-description="Po odoslaní ju organizátor skontroluje a ozve sa kontaktnej osobe."
               />
 
               <p
@@ -1015,13 +983,13 @@ watch(activeTournament, (tournament) => {
             </form>
 
             <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
-              <p class="font-bold">Online prihlášky nie sú v tomto režime zapnuté.</p>
+              <p class="font-bold">Online prihlásenie tímu nie je momentálne dostupné.</p>
               <p class="mt-1">
-                Organizátor môže používať len verejnú mapu a výsledkovku alebo prijímať tímy mimo aplikácie.
+                Informácie o prihlásení tímu vám poskytne organizátor súťaže.
               </p>
             </div>
 
-            <div v-if="tournamentTeamRegistrations.length > 0" class="mt-5 space-y-2">
+            <div v-if="canViewCompetitionOperations && tournamentTeamRegistrations.length > 0" class="mt-5 space-y-2">
               <div
                 v-for="registration in tournamentTeamRegistrations.slice(0, 3)"
                 :key="registration.id"
@@ -1045,7 +1013,7 @@ watch(activeTournament, (tournament) => {
             </div>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div v-if="canUseTeamPanel" class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Privolať kontrolóra</h2>
             <div
               v-if="!isOnline || offlineRequestQueue.length > 0 || offlineSyncMessage"
@@ -1191,12 +1159,12 @@ watch(activeTournament, (tournament) => {
             <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
               <p class="font-bold">Tímové hlásenia cez aplikáciu nie sú zapnuté.</p>
               <p class="mt-1">
-                Pri tejto súťaži organizátor používa verejnú prezentáciu alebo vlastný proces mimo dispečingu.
+                Pokyny pre tímy poskytne organizátor pred začiatkom súťaže.
               </p>
             </div>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div v-if="canViewCompetitionOperations" class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Kontrolóri a sektory</h2>
             <div class="mt-4 space-y-3">
               <div
@@ -1221,7 +1189,7 @@ watch(activeTournament, (tournament) => {
         </aside>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <div v-if="canViewCompetitionOperations" class="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div class="border-border bg-surface rounded-card border p-5">
           <h2 class="text-lg font-bold">Požiadavky tímov</h2>
           <div class="mt-4 space-y-3">
@@ -1264,7 +1232,7 @@ watch(activeTournament, (tournament) => {
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 class="text-lg font-bold">Meranie a evidencia úlovkov</h2>
-              <p class="text-foreground-muted mt-1 text-sm">Verejná výsledkovka používa samostatný sponzorský slot, prípadne partnerov súťaže.</p>
+              <p class="text-foreground-muted mt-1 text-sm">Vo výsledkoch sa zobrazujú iba úlovky potvrdené kontrolórom.</p>
             </div>
             <div
               v-if="scoreboardSponsors.length > 0"
@@ -1326,7 +1294,7 @@ watch(activeTournament, (tournament) => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-2">
+      <div v-if="canViewCompetitionOperations" class="mt-8 grid gap-6 lg:grid-cols-2">
         <div class="border-border bg-surface rounded-card border p-5">
           <h2 class="text-lg font-bold">Tresty a napomenutia</h2>
           <div class="mt-4 space-y-3">

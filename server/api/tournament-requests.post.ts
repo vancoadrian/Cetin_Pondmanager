@@ -1,10 +1,12 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
+import { canUseTournamentTeamScope } from '~/composables/useMockAuth'
 import { submitTournamentRequest } from '~/services/tournamentApiService'
 import { tournamentRequestTypeLabels } from '~/data/pond'
 import { resolveAuditActor } from '../utils/auditActor'
 import { appendLocalAuditEvent } from '../utils/localAuditLogStore'
 import { appendLocalTournamentRequest, readLocalTournamentState } from '../utils/localTournamentStore'
 import { tryAppendTournamentNotificationBroadcast } from '../utils/tournamentNotificationDispatcher'
+import { resolveAppSessionUser } from '../utils/appSession'
 
 function notificationBody(value: string) {
   return value.length > 280 ? `${value.slice(0, 277)}...` : value
@@ -17,8 +19,17 @@ function marshalIdsForSector(state: Awaited<ReturnType<typeof readLocalTournamen
 }
 
 export default defineEventHandler(async (event) => {
+  const payload = await readBody(event)
+  const sessionUser = resolveAppSessionUser(event)
+  if (!canUseTournamentTeamScope(sessionUser, payload?.tournamentId, payload?.sectorId)) {
+    throw createError({
+      statusCode: sessionUser ? 403 : 401,
+      statusMessage: sessionUser ? 'Tournament team scope denied' : 'Tournament team login required',
+    })
+  }
+
   const state = await readLocalTournamentState()
-  const result = submitTournamentRequest(await readBody(event), state)
+  const result = submitTournamentRequest(payload, state)
 
   if (!result.ok) {
     throw createError({

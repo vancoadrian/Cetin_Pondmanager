@@ -92,9 +92,10 @@ const fallbackTournamentState = (): TournamentStateResponse => ({
   tournaments: seedTournaments,
   updatedAt: 'seed',
 })
+const requestFetch = useRequestFetch()
 const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
   'admin-tournament-state',
-  () => $fetch<TournamentStateResponse>('/api/tournaments'),
+  () => requestFetch<TournamentStateResponse>('/api/admin/tournaments'),
   {
     default: fallbackTournamentState,
   },
@@ -111,8 +112,9 @@ const { data: mapState } = await useAsyncData<MapStateResponse>(
   'admin-tournament-map-state',
   async () => {
     try {
-      return await $fetch<MapStateResponse>('/api/admin/map')
-    } catch {
+      return await requestFetch<MapStateResponse>('/api/admin/map')
+    }
+    catch {
       return await $fetch<MapStateResponse>('/api/map')
     }
   },

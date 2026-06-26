@@ -85,6 +85,203 @@ export interface MapExportFrame {
   y: number
 }
 
+export type MapLayerPresetId = 'all' | 'background' | 'competition' | 'public' | 'service'
+
+export interface MapLayerPreset {
+  description: string
+  icon: string
+  id: MapLayerPresetId
+  label: string
+  layerKinds: Array<MapLayer['kind']>
+}
+
+export const mapLayerKindLabels: Record<MapLayer['kind'], string> = {
+  background: 'Podklad jazera',
+  cabins: 'Chaty',
+  pegs: 'Lovné miesta',
+  sectors: 'Súťažné sektory',
+  service: 'Servis a uzávierky',
+}
+
+export const mapLayerKindVisibility: Record<MapLayer['kind'], MapLayer['visibility']> = {
+  background: 'public',
+  cabins: 'public',
+  pegs: 'public',
+  sectors: 'competition',
+  service: 'internal',
+}
+
+export const mapStandardLayerKinds: Array<MapLayer['kind']> = ['background', 'pegs', 'cabins', 'sectors', 'service']
+
+export function getMissingMapLayerKinds(
+  layers: Array<Pick<MapLayer, 'kind'>>,
+  requiredKinds: Array<MapLayer['kind']> = mapStandardLayerKinds,
+) {
+  const existingKinds = new Set(layers.map((layer) => layer.kind))
+
+  return requiredKinds.filter((kind) => !existingKinds.has(kind))
+}
+
+function getMapLayerLakePrefix(lake: LakeSlug) {
+  return lake === 'velky-cetin' ? 'vc' : 'sk'
+}
+
+export function createMapLayerDraft(lake: LakeSlug, kind: MapLayer['kind'], existingLayerIds: string[] = []): MapLayer {
+  const existingIds = new Set(existingLayerIds)
+  const baseId = `layer-${getMapLayerLakePrefix(lake)}-${kind}`
+  let id = baseId
+  let index = 2
+
+  while (existingIds.has(id)) {
+    id = `${baseId}-${index}`
+    index += 1
+  }
+
+  return {
+    editable: kind !== 'background',
+    enabled: true,
+    id,
+    kind,
+    lake,
+    name: mapLayerKindLabels[kind],
+    visibility: mapLayerKindVisibility[kind],
+  }
+}
+
+export function getMapLayerKindForShapeType(type: MapShape['type']): MapLayer['kind'] {
+  if (type === 'sector') return 'sectors'
+  if (type === 'service') return 'service'
+
+  return 'background'
+}
+
+export function getMapLayerKindForPegType(type: Peg['type']): MapLayer['kind'] {
+  return type === 'cabin' ? 'cabins' : 'pegs'
+}
+
+export interface MapLayerContentSummary {
+  cabinCount: number
+  facilityCount: number
+  pegCount: number
+  shapeCount: number
+  totalCount: number
+}
+
+export interface MapLayerContentSummaryInput {
+  kind: MapLayer['kind']
+  lake: LakeSlug
+  mapFacilities: Array<Pick<MapFacility, 'lake'>>
+  mapShapes: Array<Pick<MapShape, 'lake' | 'type'>>
+  pegs: Array<Pick<Peg, 'lake' | 'type'>>
+}
+
+export function formatMapLayerContentSummary(summary: MapLayerContentSummary) {
+  if (summary.totalCount === 0) return 'bez objektov'
+
+  return [
+    summary.pegCount > 0
+      ? `${summary.pegCount} ${formatCountLabel(summary.pegCount, 'miesto', 'miesta', 'miest')}`
+      : '',
+    summary.cabinCount > 0
+      ? `${summary.cabinCount} ${formatCountLabel(summary.cabinCount, 'chata', 'chaty', 'chát')}`
+      : '',
+    summary.facilityCount > 0
+      ? `${summary.facilityCount} ${formatCountLabel(summary.facilityCount, 'bod', 'body', 'bodov')}`
+      : '',
+    summary.shapeCount > 0
+      ? `${summary.shapeCount} ${formatCountLabel(summary.shapeCount, 'plocha', 'plochy', 'plôch')}`
+      : '',
+  ].filter(Boolean).join(' · ')
+}
+
+export function getMapLayerContentSummary(input: MapLayerContentSummaryInput): MapLayerContentSummary {
+  const pegCount = input.kind === 'pegs'
+    ? input.pegs.filter((peg) => peg.lake === input.lake && getMapLayerKindForPegType(peg.type) === 'pegs').length
+    : 0
+  const cabinCount = input.kind === 'cabins'
+    ? input.pegs.filter((peg) => peg.lake === input.lake && getMapLayerKindForPegType(peg.type) === 'cabins').length
+    : 0
+  const facilityCount = input.kind === 'service'
+    ? input.mapFacilities.filter((facility) => facility.lake === input.lake).length
+    : 0
+  const shapeCount = input.mapShapes.filter((shape) =>
+    shape.lake === input.lake && getMapLayerKindForShapeType(shape.type) === input.kind,
+  ).length
+
+  return {
+    cabinCount,
+    facilityCount,
+    pegCount,
+    shapeCount,
+    totalCount: cabinCount + facilityCount + pegCount + shapeCount,
+  }
+}
+
+export const mapLayerPresetOptions: MapLayerPreset[] = [
+  {
+    description: 'Podklad a kreslené plochy bez bodov. Hodí sa na ladenie obrázka, vody, zákazov a zón.',
+    icon: 'i-heroicons-photo',
+    id: 'background',
+    label: 'Podklad',
+    layerKinds: ['background'],
+  },
+  {
+    description: 'Bežná orientačná mapa s lovnými miestami a chatami.',
+    icon: 'i-heroicons-map-pin',
+    id: 'public',
+    label: 'Miesta',
+    layerKinds: ['background', 'pegs', 'cabins'],
+  },
+  {
+    description: 'Prevádzkové body a zóny spolu s miestami kvôli orientácii pri vode.',
+    icon: 'i-heroicons-wrench-screwdriver',
+    id: 'service',
+    label: 'Servis',
+    layerKinds: ['background', 'pegs', 'cabins', 'service'],
+  },
+  {
+    description: 'Súťažné sektory bez servisného šumu.',
+    icon: 'i-heroicons-trophy',
+    id: 'competition',
+    label: 'Súťaž',
+    layerKinds: ['background', 'sectors'],
+  },
+  {
+    description: 'Všetky dostupné vrstvy aktuálneho jazera.',
+    icon: 'i-heroicons-squares-2x2',
+    id: 'all',
+    label: 'Všetko',
+    layerKinds: ['background', 'pegs', 'cabins', 'sectors', 'service'],
+  },
+]
+
+export function getMapLayerPresetLayerIds(layers: Array<Pick<MapLayer, 'id' | 'kind'>>, presetId: MapLayerPresetId) {
+  const preset = mapLayerPresetOptions.find((option) => option.id === presetId)
+  if (!preset) return []
+
+  const layerKinds = new Set(preset.layerKinds)
+  return layers
+    .filter((layer) => layerKinds.has(layer.kind))
+    .map((layer) => layer.id)
+}
+
+export function getActiveMapLayerPresetId(
+  layers: Array<Pick<MapLayer, 'id' | 'kind'>>,
+  enabledLayerIds: string[],
+): MapLayerPresetId | 'manual' {
+  const layerIds = new Set(layers.map((layer) => layer.id))
+  const activeIds = enabledLayerIds
+    .filter((id) => layerIds.has(id))
+    .sort()
+    .join('|')
+
+  const activePreset = mapLayerPresetOptions.find((preset) =>
+    getMapLayerPresetLayerIds(layers, preset.id).sort().join('|') === activeIds,
+  )
+
+  return activePreset?.id ?? 'manual'
+}
+
 export const mapExportFramePresets: MapExportFramePreset[] = [
   {
     aspectRatio: MAP_VIEWBOX_ASPECT_RATIO,
@@ -150,6 +347,24 @@ export function getMapExportFrame(id: MapExportFramePresetId): MapExportFrame {
 }
 
 export type MapQualityIssueSeverity = 'error' | 'info' | 'warning'
+export type MapQualityIssueTargetKind =
+  | 'cabinProduct'
+  | 'facility'
+  | 'lake'
+  | 'layer'
+  | 'peg'
+  | 'shape'
+  | 'tournamentSector'
+export type MapQualityIssueTargetAction = 'createShoreline' | 'openBackground' | 'openLayers'
+
+export interface MapQualityIssueTarget {
+  action?: MapQualityIssueTargetAction
+  id?: string
+  kind: MapQualityIssueTargetKind
+  lake?: LakeSlug
+  sectorId?: string
+  tournamentId?: string
+}
 
 export interface MapQualityIssue {
   actionLabel?: string
@@ -157,6 +372,7 @@ export interface MapQualityIssue {
   entityLabel?: string
   id: string
   severity: MapQualityIssueSeverity
+  target?: MapQualityIssueTarget
   title: string
 }
 
@@ -178,6 +394,10 @@ export interface MapQualityCheckInput {
   pegs: Array<Pick<Peg, 'id' | 'lake' | 'label' | 'requiresCabinReservation' | 'status' | 'type'>>
 }
 
+export interface MapPublishQualityCheckInput extends Omit<MapQualityCheckInput, 'focusedTournament'> {
+  tournaments?: Array<Pick<Tournament, 'id' | 'lake' | 'name' | 'sectors'>>
+}
+
 function getQualityScopeFilter(lake?: LakeSlug) {
   return <Item extends { lake: LakeSlug }>(item: Item) => !lake || item.lake === lake
 }
@@ -189,8 +409,18 @@ function formatCountLabel(count: number, one: string, few: string, many: string)
   return many
 }
 
+function getLayerCoverageItemLabel(kind: MapLayer['kind'], count: number) {
+  if (kind === 'background') return formatCountLabel(count, 'kreslená plocha', 'kreslené plochy', 'kreslených plôch')
+  if (kind === 'cabins') return formatCountLabel(count, 'chata', 'chaty', 'chát')
+  if (kind === 'pegs') return formatCountLabel(count, 'brehové miesto', 'brehové miesta', 'brehových miest')
+  if (kind === 'sectors') return formatCountLabel(count, 'súťažný sektor', 'súťažné sektory', 'súťažných sektorov')
+
+  return formatCountLabel(count, 'servisný objekt', 'servisné objekty', 'servisných objektov')
+}
+
 export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssue[] {
   const isInScope = getQualityScopeFilter(input.lake)
+  const allPegById = new Map(input.pegs.map((peg) => [peg.id, peg]))
   const pegsInScope = input.pegs.filter(isInScope)
   const layersInScope = input.mapLayers.filter(isInScope)
   const facilitiesInScope = input.mapFacilities.filter(isInScope)
@@ -200,28 +430,79 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
   const issues: MapQualityIssue[] = []
   const pegById = new Map(pegsInScope.map((peg) => [peg.id, peg]))
   const cabinProductsByPegId = new Map<string, Array<Pick<CabinProduct, 'id' | 'label' | 'pegIds'>>>()
+  const layerCoverageItems = [
+    ...pegsInScope.map((peg) => ({
+      kind: getMapLayerKindForPegType(peg.type),
+      lake: peg.lake,
+      label: peg.label,
+    })),
+    ...facilitiesInScope.map((facility) => ({
+      kind: 'service' as MapLayer['kind'],
+      lake: facility.lake,
+      label: facility.label,
+    })),
+    ...shapesInScope.map((shape) => ({
+      kind: getMapLayerKindForShapeType(shape.type),
+      lake: shape.lake,
+      label: shape.label,
+    })),
+  ]
+
+  for (const lake of [...new Set(layerCoverageItems.map((item) => item.lake))]) {
+    for (const kind of mapStandardLayerKinds) {
+      const affectedItems = layerCoverageItems.filter((item) => item.lake === lake && item.kind === kind)
+      if (affectedItems.length === 0) continue
+
+      const layersForKind = layersInScope.filter((layer) => layer.lake === lake && layer.kind === kind)
+      const enabledLayer = layersForKind.find((layer) => enabledLayerIds.has(layer.id))
+      if (enabledLayer) continue
+
+      const fallbackLayer = layersForKind[0]
+      const itemLabel = getLayerCoverageItemLabel(kind, affectedItems.length)
+      const layerLabel = mapLayerKindLabels[kind]
+
+      issues.push({
+        actionLabel: fallbackLayer ? 'Zapnúť vrstvu alebo vybrať pracovný režim' : 'Doplniť chýbajúcu vrstvu',
+        description: `Na mape je ${affectedItems.length} ${itemLabel}, ale vrstva ${fallbackLayer ? 'nie je zapnutá' : 'v jazere ešte neexistuje'}. Tieto prvky sa nezobrazia v náhľade ani v exporte.`,
+        entityLabel: affectedItems[0]?.label,
+        id: `layer-not-visible-${kind}-${lake}`,
+        severity: 'warning',
+        target: fallbackLayer
+          ? { id: fallbackLayer.id, kind: 'layer', lake }
+          : { action: 'openLayers', kind: 'lake', lake },
+        title: fallbackLayer ? `Vypnutá vrstva: ${layerLabel}` : `Chýba vrstva: ${layerLabel}`,
+      })
+    }
+  }
 
   for (const product of cabinProducts) {
-    if (product.pegIds.length === 0) {
+    if (product.pegIds.length === 0 && !input.lake) {
       issues.push({
         actionLabel: 'Priradiť lovné miesto v katalógu chát',
         description: 'Produkt chaty sa dá ponúknuť v rezervácii až po naviazaní na konkrétne lovné miesto.',
         entityLabel: product.label,
         id: `cabin-product-empty-${product.id}`,
         severity: 'warning',
+        target: { id: product.id, kind: 'cabinProduct' },
         title: 'Chata nemá priradené miesto',
       })
     }
 
     for (const pegId of product.pegIds) {
+      const globalPeg = allPegById.get(pegId)
+      if (input.lake && globalPeg?.lake !== input.lake) continue
+
       const linkedPeg = pegById.get(pegId)
       if (!linkedPeg) {
+        if (input.lake) continue
+
         issues.push({
           actionLabel: 'Skontrolovať pegIds v katalógu chát',
           description: 'Produkt odkazuje na miesto, ktoré v tejto mape neexistuje alebo patrí inému jazeru.',
           entityLabel: `${product.label} · ${pegId}`,
           id: `cabin-product-missing-peg-${product.id}-${pegId}`,
           severity: 'error',
+          target: { id: product.id, kind: 'cabinProduct' },
           title: 'Chata odkazuje na neexistujúce miesto',
         })
         continue
@@ -234,6 +515,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
           entityLabel: `${product.label} · ${linkedPeg.label}`,
           id: `cabin-product-shore-peg-${product.id}-${pegId}`,
           severity: 'warning',
+          target: { id: linkedPeg.id, kind: 'peg', lake: linkedPeg.lake },
           title: 'Produkt chaty je na brehovom mieste',
         })
       }
@@ -252,6 +534,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
         entityLabel: peg.label,
         id: `required-cabin-without-product-${peg.id}`,
         severity: 'error',
+        target: { id: peg.id, kind: 'peg', lake: peg.lake },
         title: 'Povinná chata nemá produkt',
       })
     }
@@ -262,6 +545,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
         entityLabel: peg.label,
         id: `optional-cabin-without-product-${peg.id}`,
         severity: 'warning',
+        target: { id: peg.id, kind: 'peg', lake: peg.lake },
         title: 'Chata bez produktu',
       })
     }
@@ -273,6 +557,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
         entityLabel: `${peg.label} · ${linkedProducts.map((product) => product.label).join(', ')}`,
         id: `cabin-peg-multiple-products-${peg.id}`,
         severity: 'error',
+        target: { id: peg.id, kind: 'peg', lake: peg.lake },
         title: 'Miesto má viac produktov chaty',
       })
     }
@@ -289,6 +574,11 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
       entityLabel: enabledPublicServiceLayers.map((layer) => layer.name).join(', '),
       id: `public-service-layer-with-internal-facilities-${input.lake ?? 'all'}`,
       severity: 'warning',
+      target: internalFacilities[0]
+        ? { id: internalFacilities[0].id, kind: 'facility', lake: internalFacilities[0].lake }
+        : enabledPublicServiceLayers[0]
+          ? { id: enabledPublicServiceLayers[0].id, kind: 'layer', lake: enabledPublicServiceLayers[0].lake }
+          : undefined,
       title: 'Servisná vrstva mieša verejné a interné body',
     })
   }
@@ -300,6 +590,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
       entityLabel: shape.label,
       id: `public-service-shape-${shape.id}`,
       severity: 'warning',
+      target: { id: shape.id, kind: 'shape', lake: shape.lake },
       title: 'Servisná zóna je verejná',
     })
   }
@@ -311,6 +602,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
       description: 'Mapa bude fungovať aj bez nej, ale verejný náhľad a automatické súťažné sektory budú menej čitateľné.',
       id: `missing-public-shoreline-${input.lake ?? 'all'}`,
       severity: 'info',
+      target: input.lake ? { action: 'createShoreline', kind: 'lake', lake: input.lake } : undefined,
       title: 'Chýba verejná vodná oblasť',
     })
   }
@@ -324,6 +616,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
       description: 'SVG mapa ostane použiteľná, no publikovaný náhľad bude presnejší s reálnym podkladom jazera.',
       id: `missing-background-source-${input.lake ?? 'all'}`,
       severity: 'info',
+      target: input.lake ? { action: 'openBackground', kind: 'lake', lake: input.lake } : undefined,
       title: 'Mapa nemá aktívny obrázkový podklad',
     })
   }
@@ -337,6 +630,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
         entityLabel: shape.label,
         id: `sector-shape-non-competition-visibility-${shape.id}`,
         severity: 'warning',
+        target: { id: shape.id, kind: 'shape', lake: shape.lake, sectorId: shape.sectorId, tournamentId: shape.tournamentId },
         title: 'Súťažný sektor nemá súťažnú viditeľnosť',
       })
     }
@@ -348,6 +642,7 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
         entityLabel: shape.label,
         id: `sector-shape-without-sector-${shape.id}`,
         severity: 'warning',
+        target: { id: shape.id, kind: 'shape', lake: shape.lake, tournamentId: shape.tournamentId },
         title: 'Súťažný polygon nemá sektor',
       })
     }
@@ -371,6 +666,12 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
           entityLabel: `${input.focusedTournament.name} · ${sector.label}`,
           id: `missing-tournament-sector-shape-${input.focusedTournament.id}-${sector.id}`,
           severity: 'warning',
+          target: {
+            kind: 'tournamentSector',
+            lake: input.focusedTournament.lake,
+            sectorId: sector.id,
+            tournamentId: input.focusedTournament.id,
+          },
           title: 'Sektor súťaže nemá polygon v mape',
         })
       }
@@ -381,6 +682,13 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
           entityLabel: `${input.focusedTournament.name} · ${sector.label}`,
           id: `duplicate-tournament-sector-shape-${input.focusedTournament.id}-${sector.id}`,
           severity: 'error',
+          target: {
+            id: shapesForSector[0]?.id,
+            kind: 'shape',
+            lake: input.focusedTournament.lake,
+            sectorId: sector.id,
+            tournamentId: input.focusedTournament.id,
+          },
           title: 'Sektor súťaže má viac polygonov',
         })
       }
@@ -388,6 +696,48 @@ export function getMapQualityIssues(input: MapQualityCheckInput): MapQualityIssu
   }
 
   return issues
+}
+
+export function getMapPublishQualityIssues(input: MapPublishQualityCheckInput): MapQualityIssue[] {
+  const issueById = new Map<string, MapQualityIssue>()
+  const scopedLakes = input.lake
+    ? [input.lake]
+    : [
+        ...new Set([
+          ...input.mapFacilities.map((facility) => facility.lake),
+          ...input.mapLayers.map((layer) => layer.lake),
+          ...input.mapShapes.map((shape) => shape.lake),
+          ...input.pegs.map((peg) => peg.lake),
+          ...(input.tournaments ?? []).map((tournament) => tournament.lake),
+        ]),
+      ]
+
+  for (const lake of scopedLakes) {
+    for (const issue of getMapQualityIssues({ ...input, lake })) {
+      issueById.set(issue.id, issue)
+    }
+  }
+
+  for (const issue of getMapQualityIssues(input).filter((item) => item.target?.kind === 'cabinProduct')) {
+    issueById.set(issue.id, issue)
+  }
+
+  for (const tournament of input.tournaments ?? []) {
+    const tournamentIssues = getMapQualityIssues({
+      ...input,
+      lake: tournament.lake,
+      focusedTournament: tournament,
+    }).filter((issue) =>
+      issue.id.startsWith('duplicate-tournament-sector-shape-') ||
+      issue.id.startsWith('missing-tournament-sector-shape-'),
+    )
+
+    for (const issue of tournamentIssues) {
+      issueById.set(issue.id, issue)
+    }
+  }
+
+  return [...issueById.values()]
 }
 
 export function getMapQualityIssueSummary(issues: MapQualityIssue[]): MapQualityIssueSummary {

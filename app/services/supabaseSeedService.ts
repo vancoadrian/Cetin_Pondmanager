@@ -12,6 +12,7 @@ import type {
   PaymentMethod,
   Peg,
   PermitProduct,
+  PlaceIssue,
   RentalBooking,
   RentalItem,
   RequiredEquipmentItem,
@@ -27,10 +28,19 @@ import type {
   TripLogbook,
   TripLogbookEntry,
 } from '../data/pond'
-
 export const CETIN_VENUE_SLUG = 'rybolov-cetin'
 export const CETIN_VENUE_NAME = 'Rybolov Cetín'
 export const CETIN_TIMEZONE = 'Europe/Bratislava'
+const CETIN_LARGE_FISH_THRESHOLD_KG = 18
+const CETIN_LARGE_FISH_AVAILABILITY_WINDOWS = [{
+  daysOfWeek: [6, 0],
+  endsAt: '18:00',
+  id: 'weekend-service',
+  label: 'Víkendová služba',
+  startsAt: '07:00',
+}]
+const CETIN_LARGE_FISH_INSTRUCTION = 'Rybár privolá správcu. Správca načíta čip, uloží meranie alebo rybu označí novým čipom.'
+const CETIN_LARGE_FISH_OUTSIDE_INSTRUCTION = 'Úlovok hneď zapíšte s fotkou. Mimo služby správcu nevolajte a rybu zbytočne nezadržiavajte; správca záznam preverí neskôr.'
 
 type SeedPrimitive = string | number | boolean | null
 type SeedValue = SeedPrimitive | SeedValue[] | { [key: string]: SeedValue }
@@ -48,6 +58,7 @@ export interface SupabaseSeedSource {
   mapLayers: MapLayer[]
   mapShapes: MapShape[]
   pegs: Peg[]
+  placeIssues: PlaceIssue[]
   paymentMethods: PaymentMethod[]
   permitProducts: PermitProduct[]
   rentalBookings: RentalBooking[]
@@ -193,6 +204,16 @@ export function buildSupabaseSeedPayload(
   const venueId = rowId('venues', CETIN_VENUE_SLUG)
   const lakeIds = mapBy(source.lakes, (lake) => lake.slug, (lake) => rowId('lakes', lake.slug))
   const pegIds = mapBy(source.pegs, (peg) => peg.id, (peg) => rowId('pegs', peg.id))
+  const mapFacilityIds = mapBy(
+    source.mapFacilities,
+    (facility) => facility.id,
+    (facility) => rowId('map_facilities', facility.id),
+  )
+  const placeIssueIds = mapBy(
+    source.placeIssues,
+    (issue) => issue.id,
+    (issue) => rowId('place_issues', issue.id),
+  )
   const permitProductIds = mapBy(
     source.permitProducts,
     (permit) => permit.id,
@@ -434,6 +455,21 @@ export function buildSupabaseSeedPayload(
       highlights: lake.highlights,
       id: lakeIds[lake.slug]!,
       image_url: lake.image,
+      large_fish_availability_windows: CETIN_LARGE_FISH_AVAILABILITY_WINDOWS.map((window) => ({
+        daysOfWeek: [...window.daysOfWeek],
+        endsAt: window.endsAt,
+        id: window.id,
+        label: window.label,
+        startsAt: window.startsAt,
+      })),
+      large_fish_contact_email: '',
+      large_fish_contact_mode: 'phone',
+      large_fish_contact_phone: '0911 298 702',
+      large_fish_instruction: CETIN_LARGE_FISH_INSTRUCTION,
+      large_fish_outside_availability_instruction: CETIN_LARGE_FISH_OUTSIDE_INSTRUCTION,
+      large_fish_presence_override: null,
+      large_fish_rule_enabled: true,
+      large_fish_threshold_kg: CETIN_LARGE_FISH_THRESHOLD_KG,
       map_image_url: lake.mapImage ?? null,
       mode: lake.mode,
       name: lake.name,
@@ -444,7 +480,7 @@ export function buildSupabaseSeedPayload(
       venue_id: venueId,
     })),
     map_facilities: source.mapFacilities.map((facility) => ({
-      id: rowId('map_facilities', facility.id),
+      id: mapFacilityIds[facility.id]!,
       label: facility.label,
       lake_id: lakeIds[facility.lake]!,
       map_x: facility.x,
@@ -495,6 +531,28 @@ export function buildSupabaseSeedPayload(
       requires_cabin_reservation: Boolean(peg.requiresCabinReservation),
       status: snakeValue(peg.status),
       type: peg.type,
+      venue_id: venueId,
+    })),
+    place_issues: source.placeIssues.map((issue) => ({
+      assigned_to: issue.assignedTo ?? null,
+      category: snakeValue(issue.category),
+      created_at: issue.createdAt,
+      description: issue.description,
+      id: placeIssueIds[issue.id]!,
+      internal_note: issue.internalNote,
+      lake_id: lakeIds[issue.lake]!,
+      photo_label: issue.photoLabel ?? null,
+      priority: issue.priority,
+      reporter_name: issue.reporterName ?? null,
+      reporter_phone: issue.reporterPhone ?? null,
+      resolution_note: issue.resolutionNote ?? null,
+      status: snakeValue(issue.status),
+      target_facility_id: issue.targetType === 'facility' && issue.targetId ? mapFacilityIds[issue.targetId] ?? null : null,
+      target_label: issue.targetLabel,
+      target_peg_id: issue.targetType === 'peg' && issue.targetId ? pegIds[issue.targetId] ?? null : null,
+      target_type: issue.targetType,
+      title: issue.title,
+      updated_at: issue.updatedAt,
       venue_id: venueId,
     })),
     payment_methods: source.paymentMethods.map((method) => ({
@@ -796,6 +854,7 @@ export function buildSupabaseSeedPayload(
         logbook_id: tripLogbookIds[logbook.id]!,
         name: member.name,
         role: member.role,
+        // Mock account ids are not auth.users UUIDs; production import links them after signup.
         user_id: null,
       })),
     ),
@@ -812,6 +871,8 @@ export function buildSupabaseSeedPayload(
       mode: logbook.mode,
       note: logbook.note,
       owner_name: logbook.owner,
+      // Mock account ids are not auth.users UUIDs; production import links them after signup.
+      owner_user_id: null,
       share_code: logbook.shareCode,
       starts_on: dateOnly(logbook.from),
       status: logbook.status,
@@ -843,8 +904,9 @@ export function buildSupabaseSeedPayload(
     catchRecords: catchRecordIds,
     catchPhotos: mapBy(source.catchPhotos, (photo) => photo.id, (photo) => rowId('catch_photos', photo.id)),
     lakes: lakeIds,
-    mapFacilities: mapBy(source.mapFacilities, (facility) => facility.id, (facility) => rowId('map_facilities', facility.id)),
+    mapFacilities: mapFacilityIds,
     pegs: pegIds,
+    placeIssues: placeIssueIds,
     paymentMethods: paymentMethodIds,
     permitProducts: permitProductIds,
     rentalItems: rentalItemIds,
@@ -919,6 +981,7 @@ export function validateSupabaseSeedPayload(payload: SupabaseSeedPayload) {
     'map_layers',
     'map_shapes',
     'pegs',
+    'place_issues',
     'reservations',
     'payment_methods',
     'reservation_items',
@@ -942,6 +1005,7 @@ export function validateSupabaseSeedPayload(payload: SupabaseSeedPayload) {
   }
 
   const lakeIds = rowIdsByTable.lakes ?? new Set<string>()
+  const mapFacilityIds = rowIdsByTable.map_facilities ?? new Set<string>()
   const pegIds = rowIdsByTable.pegs ?? new Set<string>()
   const reservationIds = rowIdsByTable.reservations ?? new Set<string>()
   const tournamentIds = rowIdsByTable.tournaments ?? new Set<string>()
@@ -958,6 +1022,18 @@ export function validateSupabaseSeedPayload(payload: SupabaseSeedPayload) {
     }
     if (typeof reservation.peg_id === 'string' && !pegIds.has(reservation.peg_id)) {
       messages.push(`Rezervácia ${reservation.id} odkazuje na neznáme miesto.`)
+    }
+  }
+
+  for (const issue of payload.tables.place_issues ?? []) {
+    if (typeof issue.lake_id === 'string' && !lakeIds.has(issue.lake_id)) {
+      messages.push(`Hlásenie nedostatku ${issue.id} odkazuje na neznáme jazero.`)
+    }
+    if (typeof issue.target_peg_id === 'string' && !pegIds.has(issue.target_peg_id)) {
+      messages.push(`Hlásenie nedostatku ${issue.id} odkazuje na neznáme lovné miesto.`)
+    }
+    if (typeof issue.target_facility_id === 'string' && !mapFacilityIds.has(issue.target_facility_id)) {
+      messages.push(`Hlásenie nedostatku ${issue.id} odkazuje na neznámy servisný bod.`)
     }
   }
 

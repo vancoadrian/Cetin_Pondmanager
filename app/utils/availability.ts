@@ -101,6 +101,7 @@ function buildResult(status: AvailabilityStatus, reasons: string[], sourceIds: s
 }
 
 export function getPegAvailability(peg: Peg, input: AvailabilityInput): AvailabilityResult {
+  const hasExplicitDateRange = Boolean(input.dateFrom || input.dateTo)
   const dateFrom = normalizeDate(input.dateFrom)
   const dateTo = normalizeDate(input.dateTo || input.dateFrom)
   const reasons: string[] = []
@@ -121,7 +122,7 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
     return buildResult('closed', reasons, sourceIds)
   }
 
-  if (peg.status === 'reserved') {
+  if (peg.status === 'reserved' && !hasExplicitDateRange) {
     reasons.push('Miesto je označené ako rezervované správcom.')
     sourceIds.push(peg.id)
     return buildResult('reserved', reasons, sourceIds)
@@ -172,7 +173,7 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
     return buildResult('limited', reasons, sourceIds)
   }
 
-  if (peg.status === 'weekend-free') {
+  if (peg.status === 'weekend-free' && !hasExplicitDateRange) {
     reasons.push('Najbližší víkend je dostupný, ale vyžaduje potvrdenie termínu.')
     sourceIds.push(peg.id)
     return buildResult('limited', reasons, sourceIds)

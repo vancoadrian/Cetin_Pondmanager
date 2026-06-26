@@ -699,7 +699,7 @@ async function savePaymentMethodSettings() {
           <p class="mt-2 text-3xl font-bold">{{ reservationStats.blocked }}</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Z webu</p>
+          <p class="text-foreground-muted text-sm">Verejné žiadosti</p>
           <p class="mt-2 text-3xl font-bold">{{ reservationStats.web }}</p>
         </div>
       </div>

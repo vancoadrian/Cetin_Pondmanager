@@ -6,22 +6,45 @@ interface NavItem {
 }
 
 const nav: NavItem[] = [
-  { label: 'Prehľad', to: '/', icon: 'i-heroicons-squares-2x2' },
   { label: 'Revíry', to: '/reviry', icon: 'i-heroicons-map' },
   { label: 'Mapa', to: '/mapa', icon: 'i-heroicons-map-pin' },
   { label: 'Rezervácie', to: '/rezervacie', icon: 'i-heroicons-calendar-days' },
   { label: 'Úlovky', to: '/ulovky', icon: 'i-heroicons-camera' },
   { label: 'Súťaže', to: '/sutaze', icon: 'i-heroicons-trophy' },
-  { label: 'Výstrahy', to: '/notifikacie', icon: 'i-heroicons-bell-alert' },
-  { label: 'Info', to: '/info', icon: 'i-heroicons-information-circle' },
-  { label: 'Sponzori', to: '/sponzori', icon: 'i-heroicons-star' },
-  { label: 'Kontakt', to: '/kontakt', icon: 'i-heroicons-phone' },
+  { label: 'Informácie', to: '/info', icon: 'i-heroicons-information-circle' },
 ]
 
 const route = useRoute()
 const config = useRuntimeConfig()
 const mobileOpen = ref(false)
+const { isLoggedIn, logout, user } = useMockAuth()
 const { total: offlineQueueTotal } = useOfflineQueueSummary()
+const accountAction = computed(() => {
+  if (!user.value) {
+    return {
+      icon: 'i-heroicons-arrow-right-on-rectangle',
+      label: 'Prihlásiť',
+      to: '/login',
+    }
+  }
+
+  const actions: Partial<Record<MockRole, { icon: string, label: string, to: string }>> = {
+    accountant: { icon: 'i-heroicons-calculator', label: 'Interný prehľad', to: '/admin/rezervacie' },
+    angler: { icon: 'i-heroicons-user-circle', label: 'Môj účet', to: '/konto' },
+    manager: { icon: 'i-heroicons-wrench-screwdriver', label: 'Správa revíru', to: '/admin' },
+    marshal: { icon: 'i-heroicons-scale', label: 'Panel kontrolóra', to: '/admin/sutaze/kontrolor' },
+    organizer: { icon: 'i-heroicons-trophy', label: 'Organizácia súťaže', to: '/admin/sutaze' },
+    owner: { icon: 'i-heroicons-shield-check', label: 'Správa revíru', to: '/admin' },
+    team: { icon: 'i-heroicons-user-group', label: 'Tímový panel', to: '/sutaze/tim' },
+    worker: { icon: 'i-heroicons-clipboard-document-check', label: 'Prevádzka', to: '/admin/hlasenia' },
+  }
+
+  return actions[user.value.role] ?? {
+    icon: 'i-heroicons-user-circle',
+    label: 'Môj účet',
+    to: getAuthenticatedHome(user.value.role),
+  }
+})
 
 const offlineQueueLabel = computed(() =>
   offlineQueueTotal.value === 1
@@ -39,6 +62,12 @@ watch(
 const isActive = (to: string) => {
   if (to === '/') return route.path === '/'
   return route.path.startsWith(to)
+}
+
+async function signOut() {
+  logout()
+  mobileOpen.value = false
+  await navigateTo('/')
 }
 </script>
 
@@ -72,6 +101,14 @@ const isActive = (to: string) => {
       </nav>
 
       <div class="flex items-center gap-2">
+        <UButton
+          to="/notifikacie"
+          icon="i-heroicons-bell-alert"
+          color="neutral"
+          variant="ghost"
+          class="hidden text-white hover:bg-white/10 sm:inline-flex"
+          aria-label="Výstrahy a oznamy"
+        />
         <NuxtLink
           v-if="offlineQueueTotal > 0"
           to="/offline"
@@ -86,13 +123,14 @@ const isActive = (to: string) => {
           </span>
         </NuxtLink>
         <UButton
-          to="/admin"
-          icon="i-heroicons-shield-check"
+          :to="accountAction.to"
+          :icon="accountAction.icon"
           color="neutral"
           variant="ghost"
           class="hidden text-white hover:bg-white/10 lg:inline-flex"
+          :aria-label="accountAction.label"
         >
-          Admin
+          {{ accountAction.label }}
         </UButton>
         <UButton
           to="/rezervacie"
@@ -137,6 +175,15 @@ const isActive = (to: string) => {
         </NuxtLink>
         <nav class="flex flex-col gap-1">
           <NuxtLink
+            to="/"
+            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
+            :class="route.path === '/' ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
+            @click="mobileOpen = false"
+          >
+            <UIcon name="i-heroicons-home" class="h-5 w-5" />
+            Domov
+          </NuxtLink>
+          <NuxtLink
             v-for="item in nav"
             :key="item.to"
             :to="item.to"
@@ -151,7 +198,42 @@ const isActive = (to: string) => {
             <UIcon :name="item.icon" class="h-5 w-5" />
             {{ item.label }}
           </NuxtLink>
+          <NuxtLink
+            to="/notifikacie"
+            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
+            :class="isActive('/notifikacie') ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
+            @click="mobileOpen = false"
+          >
+            <UIcon name="i-heroicons-bell-alert" class="h-5 w-5" />
+            Výstrahy a oznamy
+          </NuxtLink>
+          <NuxtLink
+            to="/kontakt"
+            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
+            :class="isActive('/kontakt') ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
+            @click="mobileOpen = false"
+          >
+            <UIcon name="i-heroicons-phone" class="h-5 w-5" />
+            Kontakt
+          </NuxtLink>
         </nav>
+        <NuxtLink
+          :to="accountAction.to"
+          class="mt-3 flex items-center gap-3 border-t border-border px-3 pt-4 text-base font-medium text-foreground"
+          @click="mobileOpen = false"
+        >
+          <UIcon :name="accountAction.icon" class="h-5 w-5" />
+          {{ accountAction.label }}
+        </NuxtLink>
+        <button
+          v-if="isLoggedIn"
+          type="button"
+          class="mt-3 flex w-full items-center gap-3 px-3 py-3 text-left text-base font-medium text-foreground-muted hover:text-foreground"
+          @click="signOut"
+        >
+          <UIcon name="i-heroicons-arrow-left-on-rectangle" class="h-5 w-5" />
+          Odhlásiť
+        </button>
       </template>
     </USlideover>
   </header>

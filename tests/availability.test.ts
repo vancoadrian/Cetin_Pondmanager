@@ -127,12 +127,24 @@ describe('getPegAvailability', () => {
     const result = getPegAvailability(basePeg({ status: 'reserved' }), {
       closures: [],
       reservations: [],
-      dateFrom: '2026-06-11',
     })
 
     expect(result.status).toBe('reserved')
     expect(result.reservable).toBe(false)
     expect(result.reasons).toContain('Miesto je označené ako rezervované správcom.')
+  })
+
+  it('uses calendar reservations instead of a legacy snapshot for an explicit future range', () => {
+    const result = getPegAvailability(basePeg({ status: 'reserved' }), {
+      closures: [],
+      dateFrom: '2026-07-10',
+      dateTo: '2026-07-12',
+      reservations: [],
+    })
+
+    expect(result.status).toBe('available')
+    expect(result.reservable).toBe(true)
+    expect(result.reasons).toContain('Bez konfliktu v zvolenom termíne.')
   })
 
   it('keeps spawning periods reservable but requiring approval', () => {

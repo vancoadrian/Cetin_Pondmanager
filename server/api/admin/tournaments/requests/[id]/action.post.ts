@@ -4,6 +4,7 @@ import { requireAdminAccess } from '../../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'
 import { readLocalTournamentState, writeLocalTournamentState } from '../../../../../utils/localTournamentStore'
+import { requireTournamentMarshalMutationScope } from '../../../../../utils/tournamentMarshalScopeGuard'
 import { tryAppendTournamentNotificationBroadcast } from '../../../../../utils/tournamentNotificationDispatcher'
 
 export default defineEventHandler(async (event) => {
@@ -11,10 +12,20 @@ export default defineEventHandler(async (event) => {
 
   const requestId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()
-  const body = await readBody(event)
+  const body = await readBody<Record<string, unknown>>(event)
+  const request = state.tournamentRequests.find((item) => item.id === requestId)
+  const scope = request
+    ? requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
+        assignedMarshalId: request.assignedMarshalId,
+        requestedMarshalId: body.marshalId,
+        sectorId: request.sectorId,
+        tournamentId: request.tournamentId,
+      })
+    : undefined
   const result = submitTournamentRequestAction(
     {
       ...body,
+      marshalId: scope?.marshalId ?? body.marshalId,
       requestId,
     },
     state,

@@ -42,6 +42,43 @@ describe('catchApiService', () => {
     expect(result.logbook.shareCode).toMatch(/^CETIN-CHAT-[2-9A-HJ-NP-Z]{6}$/)
   })
 
+  it('uses the authenticated account as owner instead of trusting the first submitted name', () => {
+    const result = submitTripLogbook(
+      {
+        lake: 'velky-cetin',
+        memberNames: ['Cudzie meno', 'Tomáš K.'],
+        mode: 'group',
+        pegIds: ['vc-03'],
+        title: 'Účtová výprava',
+      },
+      createState(),
+      undefined,
+      '2026-05-17T10:00:00.000Z',
+      undefined,
+      {
+        id: 'angler-marek',
+        name: 'Marek H.',
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Account logbook should be valid.')
+    expect(result.logbook).toMatchObject({
+      owner: 'Marek H.',
+      ownerUserId: 'angler-marek',
+    })
+    expect(result.logbook.members[0]).toMatchObject({
+      name: 'Marek H.',
+      role: 'owner',
+      userId: 'angler-marek',
+    })
+    expect(result.logbook.members.map((member) => member.name)).toEqual([
+      'Marek H.',
+      'Cudzie meno',
+      'Tomáš K.',
+    ])
+  })
+
   it('retries share code generation when a random suffix collides', () => {
     const state = createState()
     state.tripLogbooks.push({

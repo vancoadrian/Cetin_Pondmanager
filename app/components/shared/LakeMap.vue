@@ -16,6 +16,8 @@ import {
 
 const props = defineProps<{
   closures?: LakeClosure[]
+  dateFrom?: string
+  dateTo?: string
   facilities?: MapFacility[]
   title: string
   image?: string
@@ -47,13 +49,35 @@ const visibleFacilities = computed(() =>
 )
 const selectedAvailability = computed(() =>
   selectedPeg.value
-    ? getPegAvailability(selectedPeg.value, { closures: activeClosures.value, reservations: activeReservations.value })
+    ? getPegAvailability(selectedPeg.value, {
+        closures: activeClosures.value,
+        dateFrom: props.dateFrom,
+        dateTo: props.dateTo,
+        reservations: activeReservations.value,
+      })
     : undefined,
 )
 
 function markerStyle(point: Peg) {
-  const availability = getPegAvailability(point, { closures: activeClosures.value, reservations: activeReservations.value })
+  const availability = getPegAvailability(point, {
+    closures: activeClosures.value,
+    dateFrom: props.dateFrom,
+    dateTo: props.dateTo,
+    reservations: activeReservations.value,
+  })
   return getMapMarkerStyle(availability.status)
+}
+
+function reservationTarget(point: Peg) {
+  return {
+    path: '/rezervacie',
+    query: {
+      do: props.dateTo,
+      jazero: point.lake,
+      miesto: point.id,
+      od: props.dateFrom,
+    },
+  }
 }
 
 function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
@@ -229,7 +253,7 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
             </div>
           </dl>
           <UButton
-            :to="`/rezervacie?miesto=${selectedPeg.id}`"
+            :to="reservationTarget(selectedPeg)"
             icon="i-heroicons-calendar-days"
             block
           >

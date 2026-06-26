@@ -151,6 +151,7 @@ export interface TripLogbookMember {
   id: string
   name: string
   role: 'owner' | 'member' | 'guest'
+  userId?: string
 }
 
 export interface TripLogbook {
@@ -166,6 +167,7 @@ export interface TripLogbook {
   shareCode: string
   members: TripLogbookMember[]
   note: string
+  ownerUserId?: string
 }
 
 export interface TripLogbookEntry {
@@ -529,6 +531,39 @@ export interface MapFacility {
   notes: string
 }
 
+export type PlaceIssueTargetType = 'facility' | 'lake' | 'peg'
+export type PlaceIssueCategory =
+  | 'access'
+  | 'broken'
+  | 'cleanliness'
+  | 'lighting'
+  | 'missing-equipment'
+  | 'safety'
+  | 'other'
+export type PlaceIssuePriority = 'low' | 'normal' | 'urgent'
+export type PlaceIssueStatus = 'new' | 'triaged' | 'in-progress' | 'resolved' | 'rejected'
+
+export interface PlaceIssue {
+  id: string
+  lake: LakeSlug
+  targetType: PlaceIssueTargetType
+  targetId?: string
+  targetLabel: string
+  category: PlaceIssueCategory
+  title: string
+  description: string
+  reporterName?: string
+  reporterPhone?: string
+  photoLabel?: string
+  priority: PlaceIssuePriority
+  status: PlaceIssueStatus
+  assignedTo?: string
+  internalNote: string
+  resolutionNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MapShape {
   id: string
   lake: LakeSlug
@@ -601,7 +636,7 @@ export interface Sponsor {
   active: boolean
 }
 
-export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'logbooks' | 'tournaments' | 'map' | 'sponsors' | 'system'
+export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'fish' | 'issues' | 'logbooks' | 'tournaments' | 'map' | 'sponsors' | 'system'
 export type AuditActorRole =
   | 'owner'
   | 'manager'
@@ -1489,6 +1524,44 @@ export const lakes: Lake[] = [
   },
 ]
 
+export const placeIssues: PlaceIssue[] = [
+  {
+    id: 'issue-20260610-vc-03-light',
+    lake: 'velky-cetin',
+    targetType: 'peg',
+    targetId: 'vc-03',
+    targetLabel: 'Chata 3',
+    category: 'lighting',
+    title: 'Nesvieti vonkajšie svetlo pri chate',
+    description: 'Pri vstupe do chaty nesvieti svetlo, večer je zle vidieť na schody.',
+    reporterName: 'Marek H.',
+    reporterPhone: '+421 900 456 123',
+    priority: 'normal',
+    status: 'triaged',
+    assignedTo: 'Brigádnik',
+    internalNote: 'Skontrolovať poistku a žiarovku pri najbližšej obchôdzke.',
+    createdAt: '2026-06-10T18:40:00.000Z',
+    updatedAt: '2026-06-11T08:20:00.000Z',
+  },
+  {
+    id: 'issue-20260612-storage-net',
+    lake: 'velky-cetin',
+    targetType: 'facility',
+    targetId: 'facility-vc-storage',
+    targetLabel: 'Sklad výbavy',
+    category: 'missing-equipment',
+    title: 'Chýba rezervný podberák',
+    description: 'V sklade už nie je voľný veľký podberák, pri rezerváciách sa uvádza dostupnosť.',
+    reporterName: 'Správca',
+    priority: 'urgent',
+    status: 'in-progress',
+    assignedTo: 'Prevádzka',
+    internalNote: 'Dočasne znížiť sklad a overiť vrátenie pri poslednej rezervácii.',
+    createdAt: '2026-06-12T09:15:00.000Z',
+    updatedAt: '2026-06-12T11:00:00.000Z',
+  },
+]
+
 export const pegs: Peg[] = [
   {
     id: 'vc-01',
@@ -1792,9 +1865,10 @@ export const tripLogbooks: TripLogbook[] = [
     mode: 'group',
     status: 'active',
     owner: 'Marek H.',
+    ownerUserId: 'angler-marek',
     shareCode: 'CETIN-3MAY',
     members: [
-      { id: 'member-marek', name: 'Marek H.', role: 'owner' },
+      { id: 'member-marek', name: 'Marek H.', role: 'owner', userId: 'angler-marek' },
       { id: 'member-tomas', name: 'Tomáš K.', role: 'member' },
       { id: 'member-lenka', name: 'Lenka R.', role: 'member' },
     ],
@@ -1810,8 +1884,9 @@ export const tripLogbooks: TripLogbook[] = [
     mode: 'personal',
     status: 'draft',
     owner: 'Lenka R.',
+    ownerUserId: 'angler-lenka',
     shareCode: 'KOCKA-1717',
-    members: [{ id: 'member-lenka-kocka', name: 'Lenka R.', role: 'owner' }],
+    members: [{ id: 'member-lenka-kocka', name: 'Lenka R.', role: 'owner', userId: 'angler-lenka' }],
     note: 'Krátka osobná výprava s možnosťou neskoršieho zdieľania so správcom.',
   },
 ]
@@ -2166,6 +2241,36 @@ export const occupancyLegend = {
   'weekend-free': 'voľný víkend',
   maintenance: 'údržba',
 } as const
+
+export const placeIssueCategoryLabels: Record<PlaceIssueCategory, string> = {
+  access: 'prístup',
+  broken: 'pokazené',
+  cleanliness: 'čistota',
+  lighting: 'osvetlenie',
+  'missing-equipment': 'chýba výbava',
+  other: 'iné',
+  safety: 'bezpečnosť',
+}
+
+export const placeIssuePriorityLabels: Record<PlaceIssuePriority, string> = {
+  low: 'nízka',
+  normal: 'bežná',
+  urgent: 'urgentná',
+}
+
+export const placeIssueStatusLabels: Record<PlaceIssueStatus, string> = {
+  'in-progress': 'rieši sa',
+  new: 'nové',
+  rejected: 'zamietnuté',
+  resolved: 'vyriešené',
+  triaged: 'prijaté',
+}
+
+export const placeIssueTargetTypeLabels: Record<PlaceIssueTargetType, string> = {
+  facility: 'servisný bod',
+  lake: 'jazero',
+  peg: 'lovné miesto',
+}
 
 export function getLakeName(slug: LakeSlug) {
   return lakes.find((lake) => lake.slug === slug)?.name ?? slug

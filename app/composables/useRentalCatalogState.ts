@@ -8,6 +8,7 @@ interface RentalCatalogStateOptions {
 
 export async function useRentalCatalogState(options: RentalCatalogStateOptions = {}) {
   const { rentalItems, reservationExtras } = usePondData()
+  const requestFetch = useRequestFetch()
   const fallbackRentalCatalogState = (): RentalCatalogStateResponse => ({
     ok: true,
     rentalItems: options.admin ? rentalItems : rentalItems.filter((item) => item.active),
@@ -19,7 +20,7 @@ export async function useRentalCatalogState(options: RentalCatalogStateOptions =
 
   const { data, refresh } = await useAsyncData<RentalCatalogStateResponse>(
     options.key ?? (options.admin ? 'admin-rental-catalog-state' : 'public-rental-catalog-state'),
-    () => $fetch<RentalCatalogStateResponse>(options.admin ? '/api/admin/rental-catalog' : '/api/rental-catalog'),
+    () => requestFetch<RentalCatalogStateResponse>(options.admin ? '/api/admin/rental-catalog' : '/api/rental-catalog'),
     {
       default: fallbackRentalCatalogState,
     },

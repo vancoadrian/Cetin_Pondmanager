@@ -8,6 +8,7 @@ describe('admin API access guard', () => {
   it('recognizes only configured mock admin roles', () => {
     expect(isMockAdminRole('manager')).toBe(true)
     expect(isMockAdminRole('angler')).toBe(false)
+    expect(isMockAdminRole('team')).toBe(false)
     expect(isMockAdminRole(null)).toBe(false)
   })
 
@@ -41,6 +42,14 @@ describe('admin API access guard', () => {
       moduleId: 'notifications',
       mode: 'operate',
     }).allowed).toBe(true)
+    expect(getAdminApiAccessDecision('worker', {
+      moduleId: 'issues',
+      mode: 'operate',
+    }).allowed).toBe(true)
+    expect(getAdminApiAccessDecision('marshal', {
+      moduleId: 'issues',
+      mode: 'operate',
+    }).allowed).toBe(false)
     expect(getAdminApiAccessDecision('organizer', {
       moduleId: 'map',
       mode: 'full',
@@ -49,5 +58,13 @@ describe('admin API access guard', () => {
       moduleId: 'map',
       mode: 'full',
     }).allowed).toBe(true)
+    expect(getAdminApiAccessDecision('marshal', {
+      moduleId: 'fish',
+      mode: 'operate',
+    }).allowed).toBe(false)
+    expect(getAdminApiAccessDecision('accountant', {
+      moduleId: 'fish',
+      mode: 'operate',
+    }).allowed).toBe(false)
   })
 })

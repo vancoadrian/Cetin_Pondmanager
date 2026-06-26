@@ -79,22 +79,22 @@ const showing = computed(() => visible.value && deferred.value !== null)
   >
     <div
       v-if="showing"
-      class="border-border bg-surface fixed inset-x-3 bottom-3 z-50 rounded-lg border p-4 shadow-lg sm:right-6 sm:bottom-6 sm:left-auto sm:max-w-sm"
+      class="border-border bg-surface fixed inset-x-3 bottom-3 z-50 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border p-4 shadow-lg sm:right-6 sm:bottom-6 sm:left-auto sm:max-w-sm"
       role="dialog"
       aria-labelledby="pwa-install-title"
     >
       <div class="flex items-start gap-3">
-        <div class="bg-primary-50 text-primary-700 rounded-full p-2">
+        <div class="bg-primary-50 text-primary-700 shrink-0 rounded-full p-2">
           <UIcon name="i-heroicons-device-phone-mobile" class="h-5 w-5" />
         </div>
-        <div class="flex-1">
-          <p id="pwa-install-title" class="text-foreground text-sm font-semibold">
+        <div class="min-w-0 flex-1">
+          <p id="pwa-install-title" class="text-foreground break-words text-sm font-semibold">
             Inštalovať Rybolov Cetín
           </p>
-          <p class="text-foreground-muted mt-0.5 text-xs">
+          <p class="text-foreground-muted mt-0.5 break-words text-xs">
             Rezervácie, obsadenosť a výstrahy otvoríte rýchlo z plochy aj pri slabšom signále.
           </p>
-          <div class="mt-3 flex gap-2">
+          <div class="mt-3 flex flex-wrap gap-2">
             <UButton size="xs" color="primary" :loading="installing" @click="install">
               Inštalovať
             </UButton>
@@ -103,7 +103,7 @@ const showing = computed(() => visible.value && deferred.value !== null)
         </div>
         <button
           type="button"
-          class="text-foreground-muted hover:text-foreground -mt-1 -mr-1 p-1"
+          class="text-foreground-muted hover:text-foreground -mt-1 -mr-1 shrink-0 p-1"
           aria-label="Zavrieť"
           @click="dismiss"
         >

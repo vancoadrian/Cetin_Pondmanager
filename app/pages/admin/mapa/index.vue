@@ -11,17 +11,29 @@ import type { MapDraftChangeSummary, MapDraftDiscardSuccess, MapEntityChangeSumm
 import type { CabinCatalogMutationSuccess } from '~/services/cabinCatalogService'
 import {
   clampMapPercent,
+  createMapLayerDraft,
   createMapShapePointLegendCsv,
   defaultMapLayerImageSettings,
   filterMapShapePointLegendRows,
+  formatMapLayerContentSummary,
+  getActiveMapLayerPresetId,
   getMapExportFrame,
   getMapExportFramePreset,
+  getMapLayerContentSummary,
+  getMapLayerKindForPegType,
+  getMapLayerKindForShapeType,
+  getMapLayerPresetLayerIds,
+  getMissingMapLayerKinds,
+  getMapPublishQualityIssues,
   getMapQualityIssues,
   getMapQualityIssueSummary,
   getMapShapePointLegendRows,
   getMapShapePointRoleSummary,
   mapExportFramePresets,
   mapFacilityTypeLabels,
+  mapLayerKindLabels,
+  mapLayerPresetOptions,
+  mapStandardLayerKinds,
   mapShapePointRoleLabels,
   mapShapeToneLabels,
   mapShapeTypeLabels,
@@ -29,6 +41,8 @@ import {
   normalizeMapLayerImageSettings,
   toSvgY,
   type MapExportFramePresetId,
+  type MapLayerPreset,
+  type MapQualityIssue,
   type MapQualityIssueSeverity,
   type MapShapePointLegendRow,
 } from '~/utils/map'
@@ -69,6 +83,11 @@ type PegReservationPreset = {
   requiresCabinReservation?: boolean
   status: Peg['status']
   type?: Peg['type']
+}
+type FacilityQuickAddOption = {
+  icon: string
+  label: string
+  type: MapFacilityType
 }
 
 const { cabinProducts: seedCabinProducts, getLakeName, lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, tournaments } = usePondData()
@@ -113,9 +132,10 @@ const fallbackMapState = (): MapStateResponse => ({
   publishedAt: 'seed',
   updatedAt: 'seed',
 })
+const requestFetch = useRequestFetch()
 const { data: mapState, refresh: refreshMapState } = await useAsyncData<MapStateResponse>(
   'admin-map-state',
-  () => $fetch<MapStateResponse>('/api/admin/map'),
+  () => requestFetch<MapStateResponse>('/api/admin/map'),
   {
     default: fallbackMapState,
   },
@@ -160,8 +180,16 @@ const discardStatus = ref<'idle' | 'discarding' | 'success' | 'error'>('idle')
 const discardMessage = ref('')
 const backgroundUploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('idle')
 const backgroundUploadMessage = ref('')
+const backgroundPanelRef = ref<HTMLElement | null>(null)
+const backgroundUploadRef = ref<HTMLElement | null>(null)
+const highlightBackgroundUpload = ref(false)
+const layersPanelRef = ref<HTMLElement | null>(null)
+const highlightLayersPanel = ref(false)
+const cabinCatalogPanelRef = ref<HTMLElement | null>(null)
+const highlightCabinCatalogPanel = ref(false)
 const cabinCatalogStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const cabinCatalogMessage = ref('')
+const mapQualityFocusMessage = ref('')
 const routeFocusStatus = ref<'idle' | 'success' | 'warning'>('idle')
 const routeFocusMessage = ref('')
 const sectorShapeWidth = ref(14)
@@ -171,11 +199,26 @@ const mapExportFramePresetId = ref<MapExportFramePresetId>('map-4-3')
 const shapePointLegendRoleFilter = ref<'all' | NonNullable<MapCoordinate['role']>>('all')
 const shapePointLegendVisibilityFilter = ref<'all' | MapShape['visibility']>('all')
 const shapePointLegendPrintGeneratedAt = ref('')
+let backgroundUploadHighlightTimeout: number | undefined
+let layersPanelHighlightTimeout: number | undefined
+let cabinCatalogHighlightTimeout: number | undefined
 
 const facilityTypeOptions = Object.entries(mapFacilityTypeLabels).map(([value, label]) => ({ label, value: value as MapFacilityType }))
 const shapeTypeOptions = Object.entries(mapShapeTypeLabels).map(([value, label]) => ({ label, value: value as MapShape['type'] }))
 const shapeToneOptions = Object.entries(mapShapeToneLabels).map(([value, label]) => ({ label, value: value as MapShape['tone'] }))
 const shapePointRoleOptions = Object.entries(mapShapePointRoleLabels).map(([value, label]) => ({ label, value: value as NonNullable<MapCoordinate['role']> }))
+const facilityQuickAddOptions: FacilityQuickAddOption[] = [
+  { icon: 'i-heroicons-wrench-screwdriver', label: 'WC', type: 'toilet' },
+  { icon: 'i-heroicons-sparkles', label: 'Sprchy', type: 'shower' },
+  { icon: 'i-heroicons-archive-box', label: 'Sklad', type: 'storage' },
+  { icon: 'i-heroicons-fire', label: 'Drevo', type: 'wood' },
+  { icon: 'i-heroicons-bolt', label: 'Rozvodňa', type: 'electricity' },
+  { icon: 'i-heroicons-arrow-right-circle', label: 'Vjazd', type: 'entry' },
+  { icon: 'i-heroicons-building-office', label: 'Recepcia', type: 'reception' },
+  { icon: 'i-heroicons-truck', label: 'Parkovanie', type: 'parking' },
+  { icon: 'i-heroicons-trash', label: 'Odpad', type: 'waste' },
+  { icon: 'i-heroicons-plus-circle', label: 'Prvá pomoc', type: 'first-aid' },
+]
 const shapePresetOptions: ShapePreset[] = [
   { icon: 'i-heroicons-sparkles', label: 'Vodná oblasť', type: 'shoreline' },
   { icon: 'i-heroicons-map', label: 'Ostrov / porast', type: 'island' },
@@ -274,13 +317,10 @@ const visibleFacilities = computed(() =>
 )
 const visibleShapes = computed(() =>
   lakeShapes.value.filter((shape) => {
-    return enabledLayers.value.some((layer) => layer.kind === getLayerKindForShape(shape))
+    return enabledLayers.value.some((layer) => layer.kind === getMapLayerKindForShapeType(shape.type))
   }),
 )
 const selectedPeg = computed(() => lakePegs.value.find((peg) => peg.id === selectedPegId.value) ?? lakePegs.value[0])
-const selectedPegStatusLabel = computed(() =>
-  pegStatusOptions.find((option) => option.value === selectedPeg.value?.status)?.label ?? '',
-)
 const selectedPegCabinProduct = computed(() =>
   selectedPeg.value?.type === 'cabin'
     ? editorCabinProducts.value.find((cabin) => cabin.pegIds.includes(selectedPeg.value?.id ?? ''))
@@ -299,6 +339,35 @@ const selectedPegReservationSummary = computed(() => {
 
   return 'Samostatné lovné miesto bez povinnej chaty.'
 })
+const selectedPegLayerHint = computed(() => {
+  const peg = selectedPeg.value
+  if (!peg) return ''
+
+  const readiness = getLayerReadiness(getMapLayerKindForPegType(peg.type))
+  const typeLabel = peg.type === 'cabin' ? 'Miesto s chatou' : 'Brehové lovné miesto'
+
+  if (readiness.status === 'active') {
+    return `${typeLabel} je viditeľné vo vrstve ${readiness.label}.`
+  }
+  if (readiness.status === 'disabled') {
+    return `${typeLabel} sa pri úprave zapne vo vrstve ${readiness.label}.`
+  }
+
+  return `${typeLabel} pri úprave vytvorí vrstvu ${readiness.label}.`
+})
+const selectedPegCabinCatalogHint = computed(() => {
+  const peg = selectedPeg.value
+  if (!peg || peg.type !== 'cabin') return ''
+
+  if (selectedPegCabinProduct.value) {
+    return `Rezervácia automaticky pridá položku ${selectedPegCabinProduct.value.label}.`
+  }
+  if (peg.requiresCabinReservation) {
+    return 'Chata je povinná, ale miesto ešte nemá cenníkovú položku.'
+  }
+
+  return 'Chata je voliteľná a môže ostať bez povinnej cenníkovej väzby.'
+})
 const selectedFacility = computed(() =>
   lakeFacilities.value.find((facility) => facility.id === selectedFacilityId.value) ?? lakeFacilities.value[0],
 )
@@ -314,7 +383,7 @@ const shapeTypeCounts = computed(() =>
 const selectedShapeLayerName = computed(() => {
   if (!selectedShape.value) return ''
 
-  const layerKind = getLayerKindForShape(selectedShape.value)
+  const layerKind = getMapLayerKindForShapeType(selectedShape.value.type)
   return lakeLayers.value.find((layer) => layer.kind === layerKind)?.name ?? 'Vrstva mapy'
 })
 const selectedShapePreset = computed(() =>
@@ -399,9 +468,26 @@ const mapQualityIssues = computed(() =>
   }),
 )
 const mapQualitySummary = computed(() => getMapQualityIssueSummary(mapQualityIssues.value))
-const mapQualityBlockingIssues = computed(() =>
-  mapQualityIssues.value.filter((issue) => issue.severity === 'error'),
+const mapPublishQualityIssues = computed(() =>
+  getMapPublishQualityIssues({
+    cabinProducts: editorCabinProducts.value,
+    enabledLayerIds: enabledLayerIds.value,
+    mapFacilities: editorFacilities.value,
+    mapLayers: editorMapLayers.value,
+    mapShapes: editorShapes.value,
+    pegs: editorPegs.value,
+    tournaments,
+  }),
 )
+const mapPublishQualitySummary = computed(() => getMapQualityIssueSummary(mapPublishQualityIssues.value))
+const mapPublishBlockingIssues = computed(() =>
+  mapPublishQualityIssues.value.filter((issue) => issue.severity === 'error'),
+)
+const mapPublishExtraIssues = computed(() => {
+  const currentIssueIds = new Set(mapQualityIssues.value.map((issue) => issue.id))
+
+  return mapPublishQualityIssues.value.filter((issue) => !currentIssueIds.has(issue.id))
+})
 const mapQualitySummaryLabel = computed(() => {
   if (mapQualityIssues.value.length === 0) return 'bez nálezov'
 
@@ -409,6 +495,15 @@ const mapQualitySummaryLabel = computed(() => {
     mapQualitySummary.value.errorCount > 0 ? `${mapQualitySummary.value.errorCount} kritické` : '',
     mapQualitySummary.value.warningCount > 0 ? `${mapQualitySummary.value.warningCount} upozornenia` : '',
     mapQualitySummary.value.infoCount > 0 ? `${mapQualitySummary.value.infoCount} info` : '',
+  ].filter(Boolean).join(' · ')
+})
+const mapPublishQualitySummaryLabel = computed(() => {
+  if (mapPublishQualityIssues.value.length === 0) return 'bez nálezov'
+
+  return [
+    mapPublishQualitySummary.value.errorCount > 0 ? `${mapPublishQualitySummary.value.errorCount} kritické` : '',
+    mapPublishQualitySummary.value.warningCount > 0 ? `${mapPublishQualitySummary.value.warningCount} upozornenia` : '',
+    mapPublishQualitySummary.value.infoCount > 0 ? `${mapPublishQualitySummary.value.infoCount} info` : '',
   ].filter(Boolean).join(' · ')
 })
 const linkedCabinPegIds = computed(() =>
@@ -458,6 +553,143 @@ const changedLayers = computed(() =>
 )
 const selectedLayerSummary = computed(() =>
   enabledLayers.value.map((layer) => layer.name).join(', ') || 'žiadna aktívna vrstva',
+)
+const activeLayerPresetId = computed(() => getActiveMapLayerPresetId(lakeLayers.value, enabledLayerIds.value))
+const activeLayerPresetLabel = computed(() =>
+  activeLayerPresetId.value === 'manual'
+    ? 'Ručný výber'
+    : mapLayerPresetOptions.find((preset) => preset.id === activeLayerPresetId.value)?.label ?? 'Ručný výber',
+)
+const missingStandardLayerKinds = computed(() => getMissingMapLayerKinds(lakeLayers.value))
+const missingStandardLayerLabels = computed(() =>
+  missingStandardLayerKinds.value.map((kind) => mapLayerKindLabels[kind]),
+)
+const layerPresetRows = computed(() =>
+  mapLayerPresetOptions.map((preset) => {
+    const layerIds = getMapLayerPresetLayerIds(lakeLayers.value, preset.id)
+    const missingKinds = getMissingMapLayerKinds(lakeLayers.value, preset.layerKinds)
+
+    return {
+      ...preset,
+      expectedLayerCount: preset.layerKinds.length,
+      layerCount: layerIds.length,
+      missingLayerLabels: missingKinds.map((kind) => mapLayerKindLabels[kind]),
+    }
+  }),
+)
+const layerContentKindRows = computed(() =>
+  mapStandardLayerKinds.map((kind) => {
+    const contentSummary = getMapLayerContentSummary({
+      kind,
+      lake: selectedLake.value,
+      mapFacilities: editorFacilities.value,
+      mapShapes: editorShapes.value,
+      pegs: editorPegs.value,
+    })
+    const layers = lakeLayers.value.filter((layer) => layer.kind === kind)
+    const enabled = layers.some((layer) => enabledLayerIds.value.includes(layer.id))
+
+    return {
+      contentSummary,
+      enabled,
+      hasHiddenContent: contentSummary.totalCount > 0 && !enabled,
+      kind,
+      kindLabel: mapLayerKindLabels[kind],
+      layers,
+      missing: layers.length === 0,
+    }
+  }),
+)
+const hiddenContentLayerRows = computed(() =>
+  layerContentKindRows.value.filter((row) => row.hasHiddenContent),
+)
+const hiddenContentLayerSummaryLabel = computed(() =>
+  hiddenContentLayerRows.value.map((row) => row.kindLabel).join(', '),
+)
+function getLayerReadiness(kind: MapLayer['kind']) {
+  const layers = lakeLayers.value.filter((layer) => layer.kind === kind)
+  const enabled = layers.some((layer) => enabledLayerIds.value.includes(layer.id))
+
+  return {
+    kind,
+    label: mapLayerKindLabels[kind],
+    status: enabled ? 'active' : layers.length > 0 ? 'disabled' : 'missing',
+    statusLabel: enabled ? 'aktívna' : layers.length > 0 ? 'zapne sa' : 'vytvorí sa',
+  }
+}
+
+const addPanelLayerReadinessRows = computed(() => [
+  {
+    ...getLayerReadiness(getMapLayerKindForPegType('shore')),
+    icon: 'i-heroicons-map-pin',
+    id: 'shore-peg',
+    title: 'Brehové miesto',
+  },
+  {
+    ...getLayerReadiness(getMapLayerKindForPegType('cabin')),
+    icon: 'i-heroicons-home-modern',
+    id: 'cabin-peg',
+    title: 'Miesto s chatou',
+  },
+  {
+    ...getLayerReadiness('service'),
+    icon: 'i-heroicons-wrench-screwdriver',
+    id: 'facility',
+    title: 'Servisný bod',
+  },
+  {
+    ...getLayerReadiness(getMapLayerKindForShapeType(drawShapeType.value)),
+    icon: 'i-heroicons-pencil-square',
+    id: 'shape',
+    title: mapShapeTypeLabels[drawShapeType.value],
+  },
+])
+const selectedElementLayerReadiness = computed(() => {
+  if (selectedKind.value === 'peg' && selectedPeg.value) {
+    return {
+      ...getLayerReadiness(getMapLayerKindForPegType(selectedPeg.value.type)),
+      itemLabel: selectedPeg.value.label,
+      title: 'Vrstva miesta',
+    }
+  }
+
+  if (selectedKind.value === 'facility' && selectedFacility.value) {
+    return {
+      ...getLayerReadiness('service'),
+      itemLabel: selectedFacility.value.label,
+      title: 'Vrstva servisného bodu',
+    }
+  }
+
+  if (selectedKind.value === 'shape' && selectedShape.value) {
+    return {
+      ...getLayerReadiness(getMapLayerKindForShapeType(selectedShape.value.type)),
+      itemLabel: selectedShape.value.label,
+      title: 'Vrstva plochy',
+    }
+  }
+
+  return undefined
+})
+const layerRows = computed(() =>
+  lakeLayers.value.map((layer) => {
+    const kindRow = layerContentKindRows.value.find((row) => row.kind === layer.kind)
+    const contentSummary = kindRow?.contentSummary ?? getMapLayerContentSummary({
+      kind: layer.kind,
+      lake: selectedLake.value,
+      mapFacilities: editorFacilities.value,
+      mapShapes: editorShapes.value,
+      pegs: editorPegs.value,
+    })
+    const enabled = enabledLayerIds.value.includes(layer.id)
+
+    return {
+      contentSummary,
+      enabled,
+      hasHiddenContent: contentSummary.totalCount > 0 && !(kindRow?.enabled ?? enabled),
+      layer,
+    }
+  }),
 )
 const selectedPegValidation = computed(() =>
   selectedPeg.value ? mapPegInputSchema.safeParse(selectedPeg.value) : mapPegInputSchema.safeParse({}),
@@ -612,6 +844,9 @@ watch(selectedLake, () => {
   publishMessage.value = ''
   discardStatus.value = 'idle'
   discardMessage.value = ''
+  mapQualityFocusMessage.value = ''
+  highlightBackgroundUpload.value = false
+  highlightCabinCatalogPanel.value = false
   resetBackgroundUploadFeedback()
   resetCabinCatalogFeedback()
 })
@@ -640,13 +875,6 @@ function cloneCabinProduct(cabin: CabinProduct): CabinProduct {
     equipment: [...cabin.equipment],
     pegIds: [...cabin.pegIds],
   }
-}
-
-function getLayerKindForShape(shape: Pick<MapShape, 'type'>) {
-  if (shape.type === 'sector') return 'sectors'
-  if (shape.type === 'service') return 'service'
-
-  return 'background'
 }
 
 function getDefaultShapeTone(type: MapShape['type']): MapShape['tone'] {
@@ -710,15 +938,75 @@ function applyShapeTournamentDefaults(shape: MapShape) {
     : tournament ? getNextUnlinkedSectorId(tournament.id, shape.id) : undefined
 }
 
-function ensureShapeLayerVisible(type: MapShape['type']) {
-  const draftLayerKind = getLayerKindForShape({ type })
-  const layerIds = lakeLayers.value
-    .filter((layer) => layer.kind === draftLayerKind)
-    .map((layer) => layer.id)
-  const missingLayerIds = layerIds.filter((layerId) => !enabledLayerIds.value.includes(layerId))
-  if (missingLayerIds.length > 0) {
-    enabledLayerIds.value = [...enabledLayerIds.value, ...missingLayerIds]
+function ensureLayerKindsExist(kinds: Array<MapLayer['kind']>) {
+  const targetKinds = new Set(kinds)
+  for (const kind of targetKinds) {
+    const layerExists = editorMapLayers.value.some((layer) =>
+      layer.lake === selectedLake.value && layer.kind === kind,
+    )
+    if (layerExists) continue
+
+    editorMapLayers.value.push(createMapLayerDraft(
+      selectedLake.value,
+      kind,
+      editorMapLayers.value.map((item) => item.id),
+    ))
   }
+
+  return editorMapLayers.value
+    .filter((layer) => layer.lake === selectedLake.value && targetKinds.has(layer.kind))
+    .map((layer) => layer.id)
+}
+
+function ensureLayerKindVisible(kind: MapLayer['kind']) {
+  const targetLayerIds = ensureLayerKindsExist([kind])
+  const missingLayerIds = targetLayerIds.filter((layerId) => !enabledLayerIds.value.includes(layerId))
+  if (missingLayerIds.length > 0) {
+    setLakeEnabledLayerIds([
+      ...lakeLayers.value
+        .filter((layer) => enabledLayerIds.value.includes(layer.id))
+        .map((layer) => layer.id),
+      ...missingLayerIds,
+    ])
+  }
+}
+
+function ensureShapeLayerVisible(type: MapShape['type']) {
+  ensureLayerKindVisible(getMapLayerKindForShapeType(type))
+}
+
+function ensurePegLayerVisible(type: Peg['type']) {
+  ensureLayerKindVisible(getMapLayerKindForPegType(type))
+}
+
+function showContentLayers() {
+  if (!canManageMap.value || hiddenContentLayerRows.value.length === 0) return
+
+  const targetKinds = hiddenContentLayerRows.value.map((row) => row.kind)
+  const targetLabel = hiddenContentLayerSummaryLabel.value
+  const targetLayerIds = ensureLayerKindsExist(targetKinds)
+  setLakeEnabledLayerIds([
+    ...lakeLayers.value
+      .filter((layer) => enabledLayerIds.value.includes(layer.id))
+      .map((layer) => layer.id),
+    ...targetLayerIds,
+  ])
+  resetSaveFeedback()
+  mapQualityFocusMessage.value = `Zapnuté vrstvy s obsahom: ${targetLabel}.`
+}
+
+function showSelectedElementLayer() {
+  if (!canManageMap.value || !selectedElementLayerReadiness.value) return
+
+  ensureLayerKindVisible(selectedElementLayerReadiness.value.kind)
+  resetSaveFeedback()
+}
+
+function getLayerReadinessClasses(status: string) {
+  if (status === 'active') return 'border-success-500/20 bg-success-500/10 text-success-800'
+  if (status === 'disabled') return 'border-warning-200 bg-warning-50/80 text-warning-950'
+
+  return 'border-info-500/20 bg-info-500/10 text-info-800'
 }
 
 function getLakePrefix(lake: LakeSlug) {
@@ -746,6 +1034,43 @@ function resetSaveFeedback() {
 function resetBackgroundUploadFeedback() {
   backgroundUploadStatus.value = 'idle'
   backgroundUploadMessage.value = ''
+}
+
+async function focusBackgroundUploadPanel() {
+  if (!import.meta.client) return
+
+  await nextTick()
+  const focusTarget = backgroundUploadRef.value ?? backgroundPanelRef.value
+  focusTarget?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  highlightBackgroundUpload.value = true
+  window.clearTimeout(backgroundUploadHighlightTimeout)
+  backgroundUploadHighlightTimeout = window.setTimeout(() => {
+    highlightBackgroundUpload.value = false
+  }, 3600)
+}
+
+async function focusCabinCatalogPanel() {
+  if (!import.meta.client) return
+
+  await nextTick()
+  cabinCatalogPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  highlightCabinCatalogPanel.value = true
+  window.clearTimeout(cabinCatalogHighlightTimeout)
+  cabinCatalogHighlightTimeout = window.setTimeout(() => {
+    highlightCabinCatalogPanel.value = false
+  }, 3600)
+}
+
+async function focusLayersPanel() {
+  if (!import.meta.client) return
+
+  await nextTick()
+  layersPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  highlightLayersPanel.value = true
+  window.clearTimeout(layersPanelHighlightTimeout)
+  layersPanelHighlightTimeout = window.setTimeout(() => {
+    highlightLayersPanel.value = false
+  }, 3600)
 }
 
 function resetCabinCatalogFeedback() {
@@ -876,16 +1201,49 @@ function downloadShapePointLegendCsv() {
   URL.revokeObjectURL(url)
 }
 
-function toggleLayer(layerId: string) {
-  if (enabledLayerIds.value.includes(layerId)) {
-    enabledLayerIds.value = enabledLayerIds.value.filter((id) => id !== layerId)
-    return
-  }
-
-  enabledLayerIds.value = [...enabledLayerIds.value, layerId]
-  saveStatus.value = 'idle'
-  saveMessage.value = ''
+function setLakeEnabledLayerIds(layerIds: string[]) {
+  const lakeLayerIds = new Set(lakeLayers.value.map((layer) => layer.id))
+  const nextLakeLayerIds = new Set(layerIds)
+  enabledLayerIds.value = [
+    ...enabledLayerIds.value.filter((id) => !lakeLayerIds.has(id)),
+    ...lakeLayers.value
+      .filter((layer) => nextLakeLayerIds.has(layer.id))
+      .map((layer) => layer.id),
+  ]
+  editorMapLayers.value = editorMapLayers.value.map((layer) =>
+    lakeLayerIds.has(layer.id)
+      ? { ...layer, enabled: nextLakeLayerIds.has(layer.id) }
+      : layer,
+  )
+  resetSaveFeedback()
   resetBackgroundUploadFeedback()
+}
+
+function toggleLayer(layerId: string) {
+  if (!canManageMap.value) return
+
+  const currentLakeEnabledLayerIds = lakeLayers.value
+    .filter((layer) => enabledLayerIds.value.includes(layer.id))
+    .map((layer) => layer.id)
+  const nextLayerIds = currentLakeEnabledLayerIds.includes(layerId)
+    ? currentLakeEnabledLayerIds.filter((id) => id !== layerId)
+    : [...currentLakeEnabledLayerIds, layerId]
+
+  setLakeEnabledLayerIds(nextLayerIds)
+}
+
+function applyLayerPreset(preset: MapLayerPreset & { isAvailable?: boolean }) {
+  if (!canManageMap.value) return
+
+  const layerIds = ensureLayerKindsExist(preset.layerKinds)
+  setLakeEnabledLayerIds(layerIds)
+}
+
+function addMissingStandardLayers() {
+  if (!canManageMap.value || missingStandardLayerKinds.value.length === 0) return
+
+  const layerIds = ensureLayerKindsExist(mapStandardLayerKinds)
+  setLakeEnabledLayerIds(layerIds)
 }
 
 function fileToDataUrl(file: File) {
@@ -987,6 +1345,7 @@ async function uploadBackgroundImage(event: Event) {
 function addPegDraft(type: Peg['type']) {
   if (!canManageMap.value) return
 
+  ensureLayerKindVisible(getMapLayerKindForPegType(type))
   const id = createUniqueId(`peg-${getLakePrefix(selectedLake.value)}-${type}`, editorPegs.value.map((peg) => peg.id))
   const peg: Peg = {
     capacity: 2,
@@ -1008,6 +1367,7 @@ function addPegDraft(type: Peg['type']) {
 function addFacilityDraft(type: MapFacilityType) {
   if (!canManageMap.value) return
 
+  ensureLayerKindVisible('service')
   const id = createUniqueId(`facility-${getLakePrefix(selectedLake.value)}-${type}`, editorFacilities.value.map((facility) => facility.id))
   const facility: MapFacility = {
     id,
@@ -1275,6 +1635,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleDrawingShortcut)
+  window.clearTimeout(backgroundUploadHighlightTimeout)
+  window.clearTimeout(layersPanelHighlightTimeout)
+  window.clearTimeout(cabinCatalogHighlightTimeout)
 })
 
 watch([requestedTournamentId, requestedSectorId], () => {
@@ -1344,6 +1707,8 @@ function updateSelectedPegType() {
   const peg = selectedPeg.value
   if (!canManageMap.value || !peg) return
 
+  ensurePegLayerVisible(peg.type)
+
   if (peg.type === 'shore') {
     peg.requiresCabinReservation = undefined
     removePegFromCabinProducts(peg.id)
@@ -1363,6 +1728,7 @@ function applySelectedPegReservationPreset(preset: PegReservationPreset) {
     peg.type = preset.type
   }
   peg.status = preset.status
+  ensurePegLayerVisible(peg.type)
 
   if (peg.type === 'shore') {
     peg.requiresCabinReservation = undefined
@@ -1382,9 +1748,12 @@ function setSelectedPegCabinProduct(cabinProductId: string) {
   const peg = selectedPeg.value
   if (!canManageMap.value || !peg) return
 
-  if (peg.type !== 'cabin') {
+  if (cabinProductId && peg.type !== 'cabin') {
     peg.type = 'cabin'
     peg.requiresCabinReservation = true
+  }
+  if (peg.type === 'cabin') {
+    ensurePegLayerVisible('cabin')
   }
 
   editorCabinProducts.value = editorCabinProducts.value.map((cabin) => {
@@ -1584,6 +1953,196 @@ function getMapQualityIssueClasses(severity: MapQualityIssueSeverity) {
   return 'border-info-500/25 bg-info-500/10 text-info-800'
 }
 
+function canFocusMapQualityIssue(issue: MapQualityIssue) {
+  return Boolean(issue.target?.lake)
+}
+
+function shouldFocusCabinCatalogPanel(issue: MapQualityIssue) {
+  return [
+    'cabin-peg-multiple-products-',
+    'optional-cabin-without-product-',
+    'required-cabin-without-product-',
+  ].some((prefix) => issue.id.startsWith(prefix))
+}
+
+function getMapQualityIssueFocusLabel(issue: MapQualityIssue) {
+  if (issue.target?.kind === 'peg' && shouldFocusCabinCatalogPanel(issue)) return 'Otvoriť väzbu chaty'
+  if (issue.target?.kind === 'peg') return 'Otvoriť miesto'
+  if (issue.target?.kind === 'facility') return 'Otvoriť servisný bod'
+  if (issue.target?.kind === 'shape') return 'Otvoriť polygon'
+  if (issue.target?.kind === 'tournamentSector') return canManageMap.value ? 'Doplniť polygon sektora' : 'Otvoriť sektor'
+  if (issue.target?.action === 'createShoreline') return canManageMap.value ? 'Pripraviť vodnú oblasť' : 'Otvoriť jazero'
+  if (issue.target?.action === 'openBackground') return 'Nahrať podklad'
+  if (issue.target?.action === 'openLayers') return 'Otvoriť vrstvy'
+  if (issue.target?.kind === 'layer') return canManageMap.value ? 'Zapnúť vrstvu' : 'Otvoriť vrstvu'
+  if (issue.target?.kind === 'lake') return 'Prepnúť jazero'
+
+  return 'Zobraziť v editore'
+}
+
+function createLakeShorelineShapeDraft(lake: LakeSlug): MapShape {
+  return {
+    id: createUniqueId(`shape-${getLakePrefix(lake)}-shoreline`, editorShapes.value.map((shape) => shape.id)),
+    lake,
+    label: 'Vodná oblasť',
+    points: [
+      { x: 12, y: 31 },
+      { x: 25, y: 18 },
+      { x: 51, y: 13 },
+      { x: 77, y: 22 },
+      { x: 89, y: 43 },
+      { x: 81, y: 62 },
+      { x: 51, y: 69 },
+      { x: 20, y: 58 },
+    ],
+    tone: 'water',
+    type: 'shoreline',
+    visibility: 'public',
+  }
+}
+
+async function focusMapQualityIssue(issue: MapQualityIssue) {
+  const target = issue.target
+  if (!target?.lake) return
+
+  mapQualityFocusMessage.value = ''
+  if (selectedLake.value !== target.lake) {
+    selectedLake.value = target.lake
+    await nextTick()
+  }
+
+  if (target.kind === 'lake' && target.action === 'createShoreline') {
+    ensureShapeLayerVisible('shoreline')
+    selectedKind.value = 'shape'
+
+    const existingShoreline = editorShapes.value.find((shape) =>
+      shape.lake === target.lake
+      && shape.type === 'shoreline',
+    )
+
+    if (existingShoreline) {
+      cancelShapeDrawing()
+      selectShape(existingShoreline)
+      mapQualityFocusMessage.value = existingShoreline.visibility === 'public'
+        ? 'Otvorená existujúca vodná oblasť.'
+        : 'Otvorená existujúca vodná oblasť. Ak má ísť na verejnú mapu, nastav viditeľnosť na verejné.'
+      return
+    }
+
+    if (!canManageMap.value) {
+      mapQualityFocusMessage.value = 'Jazero je otvorené, ale vodnú oblasť vie založiť iba rola s plným prístupom k mape.'
+      return
+    }
+
+    const shape = createLakeShorelineShapeDraft(target.lake)
+    editorShapes.value.push(shape)
+    cancelShapeDrawing()
+    selectShape(shape)
+    resetSaveFeedback()
+    mapQualityFocusMessage.value = 'Pripravená nová neuložená vodná oblasť. Uprav vrcholy podľa brehu a ulož draft mapy.'
+    return
+  }
+
+  if (target.kind === 'lake' && target.action === 'openBackground') {
+    cancelShapeDrawing()
+    isEditingBackground.value = Boolean(activeBackgroundImage.value)
+    await focusBackgroundUploadPanel()
+    mapQualityFocusMessage.value = activeBackgroundImage.value
+      ? 'Otvorený podklad mapy. Skontroluj napasovanie alebo nahraj presnejší obrázok.'
+      : 'Jazero je otvorené. V paneli podkladu nahraj JPG, PNG alebo WebP mapu.'
+    return
+  }
+
+  if ((target.kind === 'lake' && target.action === 'openLayers') || target.kind === 'layer') {
+    cancelShapeDrawing()
+
+    const targetLayer = target.id
+      ? lakeLayers.value.find((layer) => layer.id === target.id)
+      : undefined
+
+    if (targetLayer && canManageMap.value && !enabledLayerIds.value.includes(targetLayer.id)) {
+      setLakeEnabledLayerIds([
+        ...lakeLayers.value
+          .filter((layer) => enabledLayerIds.value.includes(layer.id))
+          .map((layer) => layer.id),
+        targetLayer.id,
+      ])
+      resetSaveFeedback()
+      mapQualityFocusMessage.value = `Vrstva ${targetLayer.name} je zapnutá v neuloženom drafte mapy.`
+    }
+    else {
+      mapQualityFocusMessage.value = targetLayer
+        ? `Otvorená vrstva ${targetLayer.name}.`
+        : 'Otvorený panel vrstiev. Doplň chýbajúcu vrstvu alebo vyber pracovný režim.'
+    }
+
+    await focusLayersPanel()
+    return
+  }
+
+  if (target.kind === 'peg' && target.id && editorPegs.value.some((peg) => peg.id === target.id)) {
+    selectedKind.value = 'peg'
+    selectedPegId.value = target.id
+    if (shouldFocusCabinCatalogPanel(issue)) {
+      await focusCabinCatalogPanel()
+      mapQualityFocusMessage.value = 'Otvorená väzba cenníkovej chaty pre vybrané miesto.'
+      return
+    }
+  }
+  else if (target.kind === 'facility' && target.id && editorFacilities.value.some((facility) => facility.id === target.id)) {
+    selectedKind.value = 'facility'
+    selectedFacilityId.value = target.id
+  }
+  else if (target.kind === 'shape' && target.id && editorShapes.value.some((shape) => shape.id === target.id)) {
+    selectedKind.value = 'shape'
+    selectedShapeId.value = target.id
+  }
+  else if (target.kind === 'tournamentSector') {
+    ensureShapeLayerVisible('sector')
+    selectedKind.value = 'shape'
+
+    const tournament = tournaments.find((item) => item.id === target.tournamentId && item.lake === target.lake)
+    const sector = tournament?.sectors.find((item) => item.id === target.sectorId)
+    if (!tournament || !sector) {
+      mapQualityFocusMessage.value = 'Jazero súťaže je otvorené, ale turnaj alebo sektor už v dátach neexistuje.'
+      return
+    }
+
+    const existingShape = editorShapes.value.find((shape) =>
+      shape.lake === tournament.lake
+      && shape.type === 'sector'
+      && shape.tournamentId === tournament.id
+      && shape.sectorId === sector.id,
+    )
+
+    if (existingShape) {
+      cancelShapeDrawing()
+      selectShape(existingShape)
+      mapQualityFocusMessage.value = `Otvorený polygon sektora ${sector.label}.`
+      return
+    }
+
+    if (!canManageMap.value) {
+      mapQualityFocusMessage.value = `Sektor ${sector.label} zatiaľ nemá polygon. Na vytvorenie treba plný prístup k mape.`
+      return
+    }
+
+    const shape = createTournamentSectorShapeDraft(
+      tournament,
+      sector,
+      editorShapes.value.map((item) => item.id),
+    )
+    editorShapes.value.push(shape)
+    cancelShapeDrawing()
+    selectShape(shape)
+    resetSaveFeedback()
+    mapQualityFocusMessage.value = `Pripravený nový neuložený polygon pre sektor ${sector.label}. Uprav vrcholy a ulož draft mapy.`
+    return
+  }
+
+  mapQualityFocusMessage.value = `Otvorený nález: ${issue.title}.`
+}
+
 function validateEditorState() {
   const messages: string[] = []
 
@@ -1654,7 +2213,7 @@ function validateMapBeforePublish() {
     return false
   }
 
-  const blockingIssue = mapQualityBlockingIssues.value[0]
+  const blockingIssue = mapPublishBlockingIssues.value[0]
   if (blockingIssue) {
     publishStatus.value = 'error'
     publishMessage.value = `${blockingIssue.title}: ${blockingIssue.description}`
@@ -1764,7 +2323,7 @@ async function discardMapDraft() {
       <PageHeader
         eyebrow="Admin"
         title="Mapa a editor miest"
-        description="Mock admin editor lovných miest, chát, servisných zón a súťažných vrstiev. Body sú už vedené ako SVG model s lokálnou drag úpravou."
+        description="Editor lovných miest, chát, servisných bodov, obmedzení a súťažných vrstiev mapy."
       />
 
       <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -1853,24 +2412,81 @@ async function discardMapDraft() {
               <UIcon name="i-heroicons-map-pin" class="text-primary-800 h-5 w-5" />
             </div>
             <div class="mt-4 grid gap-2 sm:grid-cols-2">
-              <UButton type="button" icon="i-heroicons-plus" variant="soft" :disabled="!canManageMap" @click="addPegDraft('shore')">
-                Lovné miesto
-              </UButton>
-              <UButton type="button" icon="i-heroicons-home-modern" variant="soft" :disabled="!canManageMap" @click="addPegDraft('cabin')">
-                Miesto s chatou
-              </UButton>
-              <UButton type="button" icon="i-heroicons-wrench-screwdriver" variant="soft" :disabled="!canManageMap" @click="addFacilityDraft('toilet')">
-                WC / bod
-              </UButton>
-              <UButton type="button" icon="i-heroicons-bolt" variant="soft" :disabled="!canManageMap" @click="addFacilityDraft('electricity')">
-                Rozvodňa
-              </UButton>
-              <UButton type="button" icon="i-heroicons-no-symbol" color="warning" variant="soft" :disabled="!canManageMap" @click="addShapeDraft('zone')">
-                Zákaz / režim
-              </UButton>
-              <UButton type="button" icon="i-heroicons-flag" color="warning" variant="soft" :disabled="!canManageMap" @click="addShapeDraft('sector')">
-                Súťažný sektor
-              </UButton>
+              <div
+                v-for="row in addPanelLayerReadinessRows"
+                :key="row.id"
+                class="rounded-md border px-3 py-2"
+                :class="
+                  row.status === 'active'
+                    ? 'border-success-500/20 bg-success-500/10 text-success-800'
+                    : row.status === 'disabled'
+                      ? 'border-warning-200 bg-warning-50/80 text-warning-950'
+                    : 'border-info-500/20 bg-info-500/10 text-info-800'
+                "
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <UIcon :name="row.icon" class="h-4 w-4 shrink-0" />
+                    <span class="truncate text-xs font-bold">{{ row.title }}</span>
+                  </span>
+                  <span class="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
+                    {{ row.statusLabel }}
+                  </span>
+                </div>
+                <p class="text-foreground-muted mt-1 truncate text-xs">{{ row.label }}</p>
+              </div>
+            </div>
+            <div class="mt-4 space-y-4">
+              <div>
+                <p class="text-xs font-bold uppercase text-foreground-muted">Miesta</p>
+                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                  <UButton type="button" icon="i-heroicons-plus" variant="soft" :disabled="!canManageMap" @click="addPegDraft('shore')">
+                    Lovné miesto
+                  </UButton>
+                  <UButton type="button" icon="i-heroicons-home-modern" variant="soft" :disabled="!canManageMap" @click="addPegDraft('cabin')">
+                    Miesto s chatou
+                  </UButton>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-xs font-bold uppercase text-foreground-muted">Servisné body</p>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                  <UButton
+                    v-for="option in facilityQuickAddOptions"
+                    :key="option.type"
+                    type="button"
+                    :icon="option.icon"
+                    variant="soft"
+                    size="sm"
+                    class="min-h-10 justify-start"
+                    :disabled="!canManageMap"
+                    @click="addFacilityDraft(option.type)"
+                  >
+                    {{ option.label }}
+                  </UButton>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-xs font-bold uppercase text-foreground-muted">Plochy</p>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                  <UButton
+                    v-for="preset in shapePresetOptions"
+                    :key="preset.type"
+                    type="button"
+                    :icon="preset.icon"
+                    :color="preset.type === 'zone' || preset.type === 'sector' ? 'warning' : 'primary'"
+                    variant="soft"
+                    size="sm"
+                    class="min-h-10 justify-start"
+                    :disabled="!canManageMap"
+                    @click="addShapeDraft(preset.type)"
+                  >
+                    {{ preset.label }}
+                  </UButton>
+                </div>
+              </div>
             </div>
 
             <div
@@ -2051,37 +2667,150 @@ async function discardMapDraft() {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            ref="layersPanelRef"
+            class="rounded-card border border-border bg-surface p-5 transition-shadow"
+            :class="highlightLayersPanel ? 'ring-2 ring-warning-300 shadow-sm' : ''"
+          >
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Vrstvy mapy</h2>
-                <p class="text-foreground-muted mt-1 text-sm">{{ selectedLayerSummary }}</p>
+                <p class="text-foreground-muted mt-1 text-sm">{{ activeLayerPresetLabel }} · {{ selectedLayerSummary }}</p>
               </div>
               <UIcon name="i-heroicons-squares-2x2" class="text-primary-800 h-5 w-5" />
             </div>
+            <div class="mt-4">
+              <p class="text-xs font-bold uppercase text-foreground-muted">Pracovný režim</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  v-for="preset in layerPresetRows"
+                  :key="preset.id"
+                  type="button"
+                  class="min-h-16 rounded-md border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  :class="
+                    activeLayerPresetId === preset.id
+                      ? 'border-primary-300 bg-primary-50 text-primary-950'
+                      : preset.missingLayerLabels.length > 0
+                        ? 'border-warning-200 bg-warning-50/70 text-warning-950 hover:bg-warning-50'
+                      : 'border-border bg-white text-foreground hover:bg-muted'
+                  "
+                  :disabled="!canManageMap"
+                  :title="preset.missingLayerLabels.length > 0 ? `Kliknutie doplní vrstvy: ${preset.missingLayerLabels.join(', ')}.` : preset.description"
+                  @click="applyLayerPreset(preset)"
+                >
+                  <span class="flex items-center justify-between gap-2">
+                    <span class="flex min-w-0 items-center gap-2">
+                      <UIcon :name="preset.icon" class="h-4 w-4 shrink-0 text-primary-800" />
+                      <span class="truncate text-sm font-bold">{{ preset.label }}</span>
+                    </span>
+                    <span class="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-primary-900">
+                      {{ preset.layerCount }}/{{ preset.expectedLayerCount }}
+                    </span>
+                  </span>
+                  <span class="text-foreground-muted mt-1 line-clamp-2 block text-xs">
+                    {{ preset.missingLayerLabels.length > 0 ? `Doplní: ${preset.missingLayerLabels.join(', ')}` : preset.description }}
+                  </span>
+                </button>
+              </div>
+              <div
+                v-if="missingStandardLayerKinds.length > 0"
+                class="mt-3 rounded-md border border-warning-200 bg-warning-50/80 p-3"
+              >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-sm font-bold text-warning-950">Jazero nemá kompletnú sadu vrstiev</p>
+                    <p class="text-foreground-muted mt-1 text-xs">
+                      Chýba: {{ missingStandardLayerLabels.join(', ') }}.
+                    </p>
+                  </div>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-squares-plus"
+                    color="warning"
+                    variant="soft"
+                    size="sm"
+                    :disabled="!canManageMap"
+                    @click="addMissingStandardLayers"
+                  >
+                    Doplniť vrstvy
+                  </UButton>
+                </div>
+              </div>
+              <div
+                v-if="hiddenContentLayerRows.length > 0"
+                class="mt-3 rounded-md border border-warning-200 bg-warning-50/80 p-3"
+              >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-sm font-bold text-warning-950">Niektoré objekty sú mimo náhľadu</p>
+                    <p class="text-foreground-muted mt-1 text-xs">
+                      Zapnúť alebo doplniť: {{ hiddenContentLayerSummaryLabel }}.
+                    </p>
+                    <ul class="mt-2 space-y-1 text-xs text-warning-950">
+                      <li
+                        v-for="row in hiddenContentLayerRows"
+                        :key="row.kind"
+                        class="flex flex-wrap items-center gap-1.5"
+                      >
+                        <span class="font-bold">{{ row.kindLabel }}</span>
+                        <span class="text-foreground-muted">
+                          {{ row.missing ? 'chýba vrstva' : 'vrstva je vypnutá' }} ·
+                          {{ formatMapLayerContentSummary(row.contentSummary) }}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-eye"
+                    color="warning"
+                    variant="soft"
+                    size="sm"
+                    :disabled="!canManageMap"
+                    @click="showContentLayers"
+                  >
+                    Zobraziť objekty
+                  </UButton>
+                </div>
+              </div>
+            </div>
             <div class="mt-4 space-y-2">
               <button
-                v-for="layer in lakeLayers"
-                :key="layer.id"
+                v-for="row in layerRows"
+                :key="row.layer.id"
                 type="button"
                 class="flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors"
                 :class="
-                  enabledLayerIds.includes(layer.id)
+                  row.enabled
                     ? 'border-primary-200 bg-primary-50'
+                    : row.hasHiddenContent
+                      ? 'border-warning-200 bg-warning-50/80 hover:bg-warning-50'
                     : 'border-border bg-white hover:bg-muted'
                 "
-                @click="toggleLayer(layer.id)"
+                @click="toggleLayer(row.layer.id)"
               >
-                <span>
-                  <span class="block text-sm font-bold">{{ layer.name }}</span>
+                <span class="min-w-0">
+                  <span class="block text-sm font-bold">{{ row.layer.name }}</span>
                   <span class="text-foreground-muted text-xs">
-                    {{ layer.visibility }} · {{ layer.editable ? 'editovateľná' : 'fixná' }}
+                    {{ row.layer.visibility }} · {{ row.layer.editable ? 'editovateľná' : 'fixná' }} ·
+                    {{ formatMapLayerContentSummary(row.contentSummary) }}
+                  </span>
+                  <span v-if="row.hasHiddenContent" class="mt-1 block text-xs font-bold text-warning-900">
+                    Skryté v náhľade mapy
                   </span>
                 </span>
-                <UIcon
-                  :name="enabledLayerIds.includes(layer.id) ? 'i-heroicons-eye' : 'i-heroicons-eye-slash'"
-                  class="h-4 w-4"
-                />
+                <span class="flex shrink-0 items-center gap-2">
+                  <span
+                    v-if="row.contentSummary.totalCount > 0"
+                    class="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-primary-900"
+                  >
+                    {{ row.contentSummary.totalCount }}
+                  </span>
+                  <UIcon
+                    :name="row.enabled ? 'i-heroicons-eye' : 'i-heroicons-eye-slash'"
+                    class="h-4 w-4"
+                  />
+                </span>
               </button>
             </div>
             <div class="mt-4 border-t border-border pt-4">
@@ -2102,7 +2831,7 @@ async function discardMapDraft() {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div ref="backgroundPanelRef" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Podklad mapy</h2>
@@ -2271,8 +3000,12 @@ async function discardMapDraft() {
             </div>
 
             <label
+              ref="backgroundUploadRef"
               class="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary-300 bg-primary-50 px-3 py-3 text-sm font-bold text-primary-900 transition-colors hover:bg-primary-100"
-              :class="!canManageMap || backgroundUploadStatus === 'uploading' ? 'pointer-events-none opacity-60' : ''"
+              :class="[
+                !canManageMap || backgroundUploadStatus === 'uploading' ? 'pointer-events-none opacity-60' : '',
+                highlightBackgroundUpload ? 'ring-2 ring-warning-300 shadow-sm' : '',
+              ]"
             >
               <UIcon
                 :name="backgroundUploadStatus === 'uploading' ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-up-tray'"
@@ -2340,6 +3073,33 @@ async function discardMapDraft() {
               </button>
             </div>
 
+            <div
+              v-if="selectedElementLayerReadiness"
+              class="mt-4 rounded-md border p-3"
+              :class="getLayerReadinessClasses(selectedElementLayerReadiness.status)"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="text-sm font-bold">{{ selectedElementLayerReadiness.title }}</p>
+                  <p class="text-foreground-muted mt-1 text-xs">
+                    {{ selectedElementLayerReadiness.itemLabel }} · {{ selectedElementLayerReadiness.label }} ·
+                    {{ selectedElementLayerReadiness.statusLabel }}
+                  </p>
+                </div>
+                <UButton
+                  v-if="selectedElementLayerReadiness.status !== 'active'"
+                  type="button"
+                  icon="i-heroicons-eye"
+                  size="sm"
+                  variant="soft"
+                  :disabled="!canManageMap"
+                  @click="showSelectedElementLayer"
+                >
+                  Zobraziť vrstvu
+                </UButton>
+              </div>
+            </div>
+
             <form v-if="selectedKind === 'peg' && selectedPeg" class="mt-5 space-y-4">
               <div class="rounded-md border border-primary-200 bg-primary-50 p-3">
                 <div class="flex items-start justify-between gap-3">
@@ -2350,9 +3110,7 @@ async function discardMapDraft() {
                       {{ selectedPegCabinProduct ? selectedPegCabinProduct.label : 'Chata zatiaľ nie je naviazaná v cenníku.' }}
                     </p>
                   </div>
-                  <span class="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-bold text-primary-900">
-                    {{ selectedPegStatusLabel }}
-                  </span>
+                  <PegStatusBadge class="shrink-0" :status="selectedPeg.status" />
                 </div>
               </div>
               <div class="grid gap-2 sm:grid-cols-2">
@@ -2371,13 +3129,18 @@ async function discardMapDraft() {
               </div>
               <div
                 v-if="selectedPeg.type === 'cabin'"
-                class="rounded-md border border-border bg-white p-3"
+                ref="cabinCatalogPanelRef"
+                class="rounded-md border border-border bg-white p-3 transition-shadow"
+                :class="highlightCabinCatalogPanel ? 'ring-2 ring-warning-300 shadow-sm' : ''"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="text-sm font-bold">Cenníková chata</p>
                     <p class="text-foreground-muted mt-1 text-xs">
                       Naviazané miesta v katalógu: {{ linkedCabinPegIds.size }}.
+                    </p>
+                    <p class="mt-2 text-xs font-semibold text-primary-900">
+                      {{ selectedPegCabinCatalogHint }}
                     </p>
                   </div>
                   <span
@@ -2458,6 +3221,9 @@ async function discardMapDraft() {
                     <option value="shore">lovné miesto</option>
                     <option value="cabin">miesto s chatou</option>
                   </select>
+                  <span class="text-foreground-muted mt-1 block text-xs">
+                    {{ selectedPegLayerHint }}
+                  </span>
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Kapacita</span>
@@ -2718,7 +3484,7 @@ async function discardMapDraft() {
                 type="button"
                 icon="i-heroicons-cloud-arrow-up"
                 color="warning"
-                :disabled="!canManageMap || !selectedValidationIsValid || mapQualitySummary.blockingCount > 0 || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
+                :disabled="!canManageMap || !selectedValidationIsValid || mapPublishQualitySummary.blockingCount > 0 || saveStatus === 'saving' || publishStatus === 'publishing' || discardStatus === 'discarding'"
                 :loading="publishStatus === 'publishing'"
                 @click="publishMapChanges"
               >
@@ -2765,68 +3531,138 @@ async function discardMapDraft() {
               <div>
                 <h2 class="text-lg font-bold">Kontrola pred publikovaním</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Chytá konflikty medzi lovnými miestami, chatami, vrstvami a súťažnými sektormi pre aktuálne jazero.
+                  Chytá konflikty medzi lovnými miestami, chatami, vrstvami a súťažnými sektormi pred serverovým publishom.
                 </p>
               </div>
               <UIcon
-                :name="mapQualitySummary.blockingCount > 0 ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-shield-check'"
+                :name="mapPublishQualitySummary.blockingCount > 0 ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-shield-check'"
                 class="h-5 w-5 shrink-0"
-                :class="mapQualitySummary.blockingCount > 0 ? 'text-error-700' : 'text-success-700'"
+                :class="mapPublishQualitySummary.blockingCount > 0 ? 'text-error-700' : 'text-success-700'"
               />
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 text-xs font-bold">
               <span class="rounded-full bg-error-500/10 px-2.5 py-1 text-error-700">
-                {{ mapQualitySummary.errorCount }} kritické
+                {{ mapPublishQualitySummary.errorCount }} kritické celkom
               </span>
               <span class="rounded-full bg-warning-500/10 px-2.5 py-1 text-warning-700">
-                {{ mapQualitySummary.warningCount }} upozornenia
+                {{ mapPublishQualitySummary.warningCount }} upozornenia celkom
               </span>
               <span class="rounded-full bg-info-500/10 px-2.5 py-1 text-info-700">
-                {{ mapQualitySummary.infoCount }} info
+                {{ mapPublishQualitySummary.infoCount }} info celkom
               </span>
             </div>
 
             <div
-              v-if="mapQualityIssues.length === 0"
+              v-if="mapPublishQualityIssues.length === 0"
               class="mt-4 rounded-md border border-success-500/25 bg-success-500/10 p-3 text-sm text-success-700"
             >
               <div class="flex items-start gap-2">
                 <UIcon name="i-heroicons-check-circle" class="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <p class="font-bold">Mapa je pripravená na publikovanie</p>
-                  <p class="mt-1">Pre aktuálne jazero nie sú otvorené žiadne nálezy.</p>
+                  <p class="mt-1">V celom drafte nie sú otvorené žiadne nálezy.</p>
                 </div>
               </div>
             </div>
 
-            <ul v-else class="mt-4 space-y-2">
-              <li
-                v-for="issue in mapQualityIssues"
-                :key="issue.id"
-                class="rounded-md border p-3 text-sm"
-                :class="getMapQualityIssueClasses(issue.severity)"
-              >
-                <div class="flex items-start gap-3">
-                  <UIcon :name="getMapQualityIssueIcon(issue.severity)" class="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                      <p class="font-bold">{{ issue.title }}</p>
-                      <span v-if="issue.entityLabel" class="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">
-                        {{ issue.entityLabel }}
-                      </span>
-                    </div>
-                    <p class="mt-1">{{ issue.description }}</p>
-                    <p v-if="issue.actionLabel" class="mt-2 text-xs font-bold">
-                      {{ issue.actionLabel }}
-                    </p>
-                  </div>
+            <div v-else class="mt-4 space-y-4">
+              <div>
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-sm font-bold">Aktuálne jazero</p>
+                  <span class="text-foreground-muted text-xs">{{ mapQualitySummaryLabel }}</span>
                 </div>
-              </li>
-            </ul>
+                <div
+                  v-if="mapQualityIssues.length === 0"
+                  class="mt-2 rounded-md border border-success-500/25 bg-success-500/10 p-3 text-sm text-success-700"
+                >
+                  Pre aktuálne jazero nie sú otvorené žiadne nálezy.
+                </div>
+                <ul v-else class="mt-2 space-y-2">
+                  <li
+                    v-for="issue in mapQualityIssues"
+                    :key="issue.id"
+                    class="rounded-md border p-3 text-sm"
+                    :class="getMapQualityIssueClasses(issue.severity)"
+                  >
+                    <div class="flex items-start gap-3">
+                      <UIcon :name="getMapQualityIssueIcon(issue.severity)" class="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p class="font-bold">{{ issue.title }}</p>
+                          <span v-if="issue.entityLabel" class="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">
+                            {{ issue.entityLabel }}
+                          </span>
+                        </div>
+                        <p class="mt-1">{{ issue.description }}</p>
+                        <p v-if="issue.actionLabel" class="mt-2 text-xs font-bold">
+                          {{ issue.actionLabel }}
+                        </p>
+                        <UButton
+                          v-if="canFocusMapQualityIssue(issue)"
+                          type="button"
+                          size="xs"
+                          variant="soft"
+                          icon="i-heroicons-arrow-right-circle"
+                          class="mt-3"
+                          @click="focusMapQualityIssue(issue)"
+                        >
+                          {{ getMapQualityIssueFocusLabel(issue) }}
+                        </UButton>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="mapPublishExtraIssues.length > 0" class="border-t border-border pt-4">
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-sm font-bold">Mimo aktuálneho výberu</p>
+                  <span class="text-foreground-muted text-xs">{{ mapPublishExtraIssues.length }} nálezov</span>
+                </div>
+                <ul class="mt-2 space-y-2">
+                  <li
+                    v-for="issue in mapPublishExtraIssues"
+                    :key="issue.id"
+                    class="rounded-md border p-3 text-sm"
+                    :class="getMapQualityIssueClasses(issue.severity)"
+                  >
+                    <div class="flex items-start gap-3">
+                      <UIcon :name="getMapQualityIssueIcon(issue.severity)" class="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p class="font-bold">{{ issue.title }}</p>
+                          <span v-if="issue.entityLabel" class="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">
+                            {{ issue.entityLabel }}
+                          </span>
+                        </div>
+                        <p class="mt-1">{{ issue.description }}</p>
+                        <p v-if="issue.actionLabel" class="mt-2 text-xs font-bold">
+                          {{ issue.actionLabel }}
+                        </p>
+                        <UButton
+                          v-if="canFocusMapQualityIssue(issue)"
+                          type="button"
+                          size="xs"
+                          variant="soft"
+                          icon="i-heroicons-arrow-right-circle"
+                          class="mt-3"
+                          @click="focusMapQualityIssue(issue)"
+                        >
+                          {{ getMapQualityIssueFocusLabel(issue) }}
+                        </UButton>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
 
             <p class="text-foreground-muted mt-4 text-xs">
-              Stav: {{ mapQualitySummaryLabel }}. Upozornenia neblokujú draft, kritické nálezy blokujú iba publikovanie.
+              Stav publikácie: {{ mapPublishQualitySummaryLabel }}. Upozornenia neblokujú draft, kritické nálezy blokujú iba publikovanie.
+            </p>
+            <p v-if="mapQualityFocusMessage" class="mt-3 rounded-md bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-900">
+              {{ mapQualityFocusMessage }}
             </p>
           </div>
 

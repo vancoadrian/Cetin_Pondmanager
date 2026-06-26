@@ -5,12 +5,10 @@ import type {
   PushUnsubscribeSuccess,
 } from '~/services/notificationService'
 import {
-  createMockPushSubscriptionPayload,
   createWebPushSubscribeOptions,
   createWebPushSubscriptionPayload,
   getClientPushSupport,
   PUSH_ENDPOINT_STORAGE_KEY,
-  type ClientPushMode,
   type ClientPushSupport,
 } from '~/services/pushSubscriptionClient'
 
@@ -43,18 +41,18 @@ const subscriptionEndpoint = ref('')
 const subscriptionSubmitMessage = ref('')
 const subscriptionSubmitStatus = ref<'idle' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
-const activeSubscriptionCount = computed(() => notificationState.value?.subscriptionCount ?? 0)
-const pushModeLabel: Record<ClientPushMode, string> = {
-  mock: 'mock fallback',
-  'web-push': 'reálny Web Push',
-}
-const pushSupportReasonLabels: Record<ClientPushSupport['reason'], string> = {
-  'missing-notification': 'Prehliadač nepodporuje notifikácie.',
-  'missing-push-manager': 'Prehliadač nepodporuje Push API.',
-  'missing-service-worker': 'Service worker nie je dostupný.',
-  'missing-vapid-public-key': 'Chýba verejný VAPID kľúč v konfigurácii.',
-  ready: 'Browser endpoint sa uloží ako reálny Web Push odber.',
-}
+const notificationsAvailable = computed(() => pushSupport.value.mode === 'web-push')
+const notificationAvailabilityMessage = computed(() => {
+  if (notificationsAvailable.value) {
+    return 'Upozornenia sú v tomto zariadení dostupné.'
+  }
+
+  if (pushSupport.value.reason === 'missing-notification' || pushSupport.value.reason === 'missing-push-manager') {
+    return 'Tento prehliadač nepodporuje upozornenia. Aktuálne výstrahy zostávajú dostupné na tejto stránke.'
+  }
+
+  return 'Upozornenia momentálne nie sú dostupné. Aktuálne výstrahy zostávajú dostupné na tejto stránke.'
+})
 
 onMounted(() => {
   const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
@@ -85,17 +83,17 @@ async function createSubscriptionPayload(permission: NotificationPermission) {
     vapidPublicKey,
   })
 
-  if (pushSupport.value.mode === 'web-push') {
-    const registration = await navigator.serviceWorker.ready
-    const existingSubscription = await registration.pushManager.getSubscription()
-    const subscription = existingSubscription ?? await registration.pushManager.subscribe({
-      ...createWebPushSubscribeOptions(vapidPublicKey),
-    })
-
-    return createWebPushSubscriptionPayload(subscription, normalizedPermission)
+  if (pushSupport.value.mode !== 'web-push') {
+    throw new Error(notificationAvailabilityMessage.value)
   }
 
-  return createMockPushSubscriptionPayload(localStorage, normalizedPermission, () => crypto.randomUUID())
+  const registration = await navigator.serviceWorker.ready
+  const existingSubscription = await registration.pushManager.getSubscription()
+  const subscription = existingSubscription ?? await registration.pushManager.subscribe({
+    ...createWebPushSubscribeOptions(vapidPublicKey),
+  })
+
+  return createWebPushSubscriptionPayload(subscription, normalizedPermission)
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -205,19 +203,14 @@ function alertClass(severity: string) {
   }
 }
 
-function pushModeClass() {
-  return pushSupport.value.mode === 'web-push'
-    ? 'bg-success-500/10 text-success-700'
-    : 'bg-warning-500/10 text-warning-700'
-}
 </script>
 
 <template>
   <div>
     <PageHeader
       eyebrow="Výstrahy"
-      title="Push notifikácie pre situácie pri vode"
-      description="Búrka, vietor, zmena rezervácie, servis chaty alebo súťažný oznam. PWA vie po povolení posielať upozornenia aj mimo otvoreného prehliadača."
+      title="Dôležité upozornenia pri vode"
+      description="Búrka, silný vietor, zmena rezervácie, servisný oznam alebo informácia k súťaži na jednom mieste."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -230,8 +223,8 @@ function pushModeClass() {
             <div>
               <h2 class="text-xl font-bold">Povolenie notifikácií</h2>
               <p class="text-foreground-muted mt-2 text-sm">
-                V prototype sa uloží iba povolenie prehliadača. Reálne odosielanie pôjde cez web
-                push subscription a serverový dispatcher.
+                Povoľte upozornenia, aby ste dostali výstrahy a dôležité prevádzkové oznamy aj
+                mimo otvorenej stránky.
               </p>
             </div>
           </div>
@@ -239,33 +232,20 @@ function pushModeClass() {
           <div class="bg-muted mt-5 rounded-md p-4">
             <p class="text-foreground-muted text-sm">Stav</p>
             <p class="mt-1 text-lg font-bold">
-              <span v-if="subscriptionEndpoint">zapnuté v aplikácii</span>
-              <span v-else-if="notificationStatus === 'granted'">povolené v prehliadači</span>
+              <span v-if="notificationsAvailable && subscriptionEndpoint">zapnuté</span>
+              <span v-else-if="notificationsAvailable && notificationStatus === 'granted'">povolené v prehliadači</span>
               <span v-else-if="notificationStatus === 'denied'">zamietnuté</span>
-              <span v-else-if="notificationStatus === 'unsupported'">nepodporované</span>
-              <span v-else>neznáme</span>
+              <span v-else-if="!notificationsAvailable || notificationStatus === 'unsupported'">nedostupné</span>
+              <span v-else>vypnuté</span>
             </p>
-            <p class="text-foreground-muted mt-1 text-xs">
-              Aktívne odbery: {{ activeSubscriptionCount }}
-            </p>
-            <div class="mt-3 rounded-md border border-border bg-white px-3 py-2">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p class="text-foreground-muted text-xs font-semibold uppercase">Režim odberu</p>
-                <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="pushModeClass()">
-                  {{ pushModeLabel[pushSupport.mode] }}
-                </span>
-              </div>
-              <p class="text-foreground-muted mt-2 text-xs">
-                {{ pushSupportReasonLabels[pushSupport.reason] }}
-              </p>
-            </div>
+            <p class="text-foreground-muted mt-2 text-sm">{{ notificationAvailabilityMessage }}</p>
           </div>
 
           <div class="mt-5 grid gap-2 sm:grid-cols-2">
             <UButton
               icon="i-heroicons-bell"
               :loading="requesting"
-              :disabled="notificationStatus === 'unsupported'"
+              :disabled="!notificationsAvailable || notificationStatus === 'unsupported'"
               block
               @click="requestNotifications"
             >

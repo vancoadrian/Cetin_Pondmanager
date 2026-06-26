@@ -51,9 +51,10 @@ const fallbackNotificationState = (): NotificationStateResponse => ({
   subscriptions: [],
   updatedAt: 'seed',
 })
+const requestFetch = useRequestFetch()
 const { data: notificationState, refresh: refreshNotifications } = await useAsyncData<NotificationStateResponse>(
   'admin-notifications',
-  () => $fetch<NotificationStateResponse>('/api/admin/notifications'),
+  () => requestFetch<NotificationStateResponse>('/api/admin/notifications'),
   {
     default: fallbackNotificationState,
   },
@@ -232,7 +233,7 @@ function deliveryDiagnosticsLabel() {
   if (deliveryDiagnostics.value.provider === 'disabled') return 'doručovanie vypnuté'
   if (deliveryDiagnostics.value.provider === 'web-push') return 'chýba VAPID'
 
-  return 'mock režim'
+  return 'testovací režim'
 }
 
 function formatDurationSeconds(value: number) {
@@ -539,7 +540,7 @@ async function submitMockSubscription() {
   }
   catch (error) {
     mockSubscriptionSubmitStatus.value = 'error'
-    mockSubscriptionSubmitMessage.value = getApiErrorMessage(error, 'Mock odber sa nepodarilo uložiť.')
+    mockSubscriptionSubmitMessage.value = getApiErrorMessage(error, 'Testovacie zariadenie sa nepodarilo uložiť.')
   }
 }
 
@@ -921,7 +922,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Mock interný odber</h2>
+            <h2 class="text-lg font-bold">Interné testovacie zariadenie</h2>
             <p class="text-foreground-muted mt-1 text-sm">
               Testovací odber pre interné role, súťažné sektory a kontrolórov.
             </p>
@@ -1017,7 +1018,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 :loading="mockSubscriptionSubmitStatus === 'submitting'"
                 @click="submitMockSubscription"
               >
-                Uložiť mock odber
+                Uložiť testovacie zariadenie
               </UButton>
               <p
                 v-if="mockSubscriptionSubmitMessage"

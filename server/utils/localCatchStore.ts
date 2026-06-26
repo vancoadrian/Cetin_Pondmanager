@@ -78,6 +78,8 @@ export async function readLocalCatchState(filePath = resolveLocalCatchStorePath(
         ...parsed,
         catchPhotos: cloneCatchPhotos(parsed.catchPhotos),
         catches: cloneCatches(parsed.catches),
+        tripLogbookEntries: cloneTripLogbookEntries(parsed.tripLogbookEntries),
+        tripLogbooks: cloneTripLogbooks(parsed.tripLogbooks),
       }
     }
   }

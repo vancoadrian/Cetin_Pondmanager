@@ -17,8 +17,8 @@ const year = new Date().getFullYear()
             <span class="font-semibold text-white">{{ config.public.appName }}</span>
           </div>
           <p class="mt-4 max-w-sm text-sm text-white/70">
-            PWA pre obsadenosť lovných miest, rezervácie, úlovky, súťaže a rýchle výstrahy pri
-            vode.
+            Informácie o revíri, voľných miestach, rezerváciách, úlovkoch, súťažiach a dôležitých
+            oznamoch pri vode.
           </p>
         </div>
 
@@ -39,9 +39,9 @@ const year = new Date().getFullYear()
           <ul class="mt-4 space-y-2 text-sm">
             <li><NuxtLink to="/rezervacie" class="hover:text-accent-300">Rezervácie</NuxtLink></li>
             <li><NuxtLink to="/ulovky" class="hover:text-accent-300">Evidencia úlovkov</NuxtLink></li>
+            <li><NuxtLink to="/login" class="hover:text-accent-300">Prihlásenie</NuxtLink></li>
             <li><NuxtLink to="/info" class="hover:text-accent-300">Povinná výbava</NuxtLink></li>
             <li><NuxtLink to="/kontakt" class="hover:text-accent-300">Kontakt</NuxtLink></li>
-            <li><NuxtLink to="/admin" class="hover:text-accent-300">Interná zóna</NuxtLink></li>
           </ul>
         </div>
       </div>
@@ -50,7 +50,7 @@ const year = new Date().getFullYear()
         class="mt-10 flex flex-col items-start gap-2 border-t border-white/10 pt-6 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between"
       >
         <p>© {{ year }} {{ config.public.venueName }}.</p>
-        <p>Rybolov Cetín · pilotný PWA prototyp</p>
+        <p>Rybolov Cetín · informácie, rezervácie a služby pri vode</p>
       </div>
     </div>
   </footer>

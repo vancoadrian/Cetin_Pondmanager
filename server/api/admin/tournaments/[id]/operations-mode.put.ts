@@ -7,7 +7,7 @@ import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import { readLocalTournamentState, writeLocalTournamentState } from '../../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
+  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'full' })
 
   const tournamentId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()

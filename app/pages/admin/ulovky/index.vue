@@ -27,6 +27,13 @@ import {
   catchReportCadenceLabels,
   catchReportDeliveryLabels,
 } from '~/services/catchReportService'
+import {
+  createDefaultFishRegistrySettings,
+  formatFishManagerAvailability,
+  getFishLargeCatchRule,
+  getFishManagerAvailability,
+  type FishCatchCandidateResponse,
+} from '~/services/fishRegistryService'
 import { catchCorrectionInputSchema, getValidationMessages } from '~/schemas/pondSchemas'
 import {
   createCatchAnalytics,
@@ -73,8 +80,16 @@ const fallbackCatchReportState = (): CatchReportStateResponse => ({
   savedReports: [],
   updatedAt: 'seed',
 })
+const fallbackFishCandidateState = (): FishCatchCandidateResponse => ({
+  candidates: [],
+  ok: true,
+  settings: createDefaultFishRegistrySettings(),
+  thresholdKg: 18,
+  updatedAt: 'seed',
+})
 
 const requestFetch = useRequestFetch()
+const route = useRoute()
 const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
   'admin-catch-state',
   () => requestFetch<CatchStateResponse>('/api/admin/catches'),
@@ -84,9 +99,16 @@ const { data: catchState, refresh: refreshCatchState } = await useAsyncData<Catc
 )
 const { data: catchReportState, refresh: refreshCatchReports } = await useAsyncData<CatchReportStateResponse>(
   'admin-catch-report-state',
-  () => $fetch<CatchReportStateResponse>('/api/admin/catch-reports'),
+  () => requestFetch<CatchReportStateResponse>('/api/admin/catch-reports'),
   {
     default: fallbackCatchReportState,
+  },
+)
+const { data: fishCandidateState } = await useAsyncData<FishCatchCandidateResponse>(
+  'admin-catch-fish-candidates',
+  () => requestFetch<FishCatchCandidateResponse>('/api/admin/fish-registry/candidates'),
+  {
+    default: fallbackFishCandidateState,
   },
 )
 const {
@@ -99,6 +121,9 @@ const {
 const statusFilter = ref<CatchRecordStatus | 'all'>('pending')
 const statusFilterTouched = ref(false)
 const selectedCatchId = ref('')
+const openedQueryCatchId = ref('')
+const scrolledQueryCatchId = ref('')
+const catchDetailElement = ref<HTMLElement | null>(null)
 const decisionMode = ref<CatchModerationDecisionMode>('approve')
 const reviewNote = ref('')
 const decisionSubmitStatus = ref<'idle' | 'submitting' | 'error'>('idle')
@@ -181,6 +206,31 @@ const filteredCatches = computed(() =>
 const selectedCatch = computed(() =>
   liveCatches.value.find((catchItem) => catchItem.id === selectedCatchId.value),
 )
+const selectedCatchFishCandidate = computed(() =>
+  fishCandidateState.value.candidates.find((candidate) => candidate.catchId === selectedCatch.value?.id),
+)
+const selectedCatchLargeFishRule = computed(() =>
+  selectedCatch.value
+    ? getFishLargeCatchRule(selectedCatch.value.lake, fishCandidateState.value.settings)
+    : undefined,
+)
+const selectedCatchNeedsChipWorkflow = computed(() => {
+  const catchItem = selectedCatch.value
+  const rule = selectedCatchLargeFishRule.value
+  return Boolean(
+    catchItem
+    && rule?.enabled
+    && catchItem.status !== 'rejected'
+    && catchItem.weightKg >= rule.thresholdKg,
+  )
+})
+const selectedCatchManagerAvailability = computed(() => {
+  const catchItem = selectedCatch.value
+  const rule = selectedCatchLargeFishRule.value
+  return catchItem && rule
+    ? getFishManagerAvailability(rule, catchItem.caughtAt)
+    : undefined
+})
 const selectedLogbookEntry = computed(() =>
   liveTripLogbookEntries.value.find((entry) => entry.catchId === selectedCatch.value?.id),
 )
@@ -464,6 +514,42 @@ watch(
     }
   },
   { immediate: true },
+)
+
+watch(
+  [() => route.query.catchId, liveCatches],
+  ([queryCatchId, catches]) => {
+    const catchId = typeof queryCatchId === 'string' ? queryCatchId : ''
+    if (!catchId || openedQueryCatchId.value === catchId) return
+
+    const catchItem = catches.find((item) => item.id === catchId)
+    if (!catchItem) return
+
+    openedQueryCatchId.value = catchId
+    scrolledQueryCatchId.value = ''
+    statusFilter.value = catchItem.status
+    selectedCatchId.value = catchItem.id
+  },
+  { immediate: true },
+)
+
+watch(
+  [selectedCatchId, () => route.query.catchId, catchDetailElement],
+  async ([selectedId, queryCatchId, detailElement]) => {
+    const catchId = typeof queryCatchId === 'string' ? queryCatchId : ''
+    if (
+      !import.meta.client
+      || !catchId
+      || selectedId !== catchId
+      || scrolledQueryCatchId.value === catchId
+      || !detailElement
+    ) return
+
+    scrolledQueryCatchId.value = catchId
+    await nextTick()
+    detailElement.scrollIntoView({ behavior: 'auto', block: 'start' })
+  },
+  { flush: 'post', immediate: true },
 )
 
 watch(
@@ -1274,7 +1360,7 @@ async function saveCorrection() {
               <div>
                 <h3 class="font-bold">Uložené reporty</h3>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Pripravené konfigurácie pre budúci e-mail alebo plánovač.
+                  Uložené nastavenia pravidelných e-mailových reportov.
                 </p>
               </div>
               <div class="flex shrink-0 flex-col items-end gap-2">
@@ -1871,7 +1957,11 @@ async function saveCorrection() {
         </div>
 
         <aside class="space-y-6">
-          <div v-if="selectedCatch" class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="selectedCatch"
+            ref="catchDetailElement"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Detail úlovku</h2>
@@ -1939,6 +2029,61 @@ async function saveCorrection() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div
+              v-if="selectedCatchNeedsChipWorkflow"
+              class="mt-5 rounded-md border p-4"
+              :class="selectedCatchFishCandidate
+                ? 'border-warning-500/30 bg-warning-500/10'
+                : 'border-success-500/30 bg-success-500/10'"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-sm font-bold">
+                    {{ selectedCatchFishCandidate ? 'Vyžaduje kontrolu čipu' : 'Kontrola čipu je spracovaná' }}
+                  </p>
+                  <p class="mt-1 text-sm text-foreground-muted">
+                    {{ getLakeName(selectedCatch.lake) }} má nastavený limit
+                    {{ selectedCatchLargeFishRule?.thresholdKg }} kg.
+                  </p>
+                  <p
+                    class="mt-2 text-xs font-bold"
+                    :class="selectedCatchManagerAvailability?.available ? 'text-success-700' : 'text-warning-800'"
+                  >
+                    {{ selectedCatchManagerAvailability?.available
+                      ? `Úlovok vznikol počas služby: ${selectedCatchManagerAvailability.matchingWindow?.label}`
+                      : 'Úlovok vznikol mimo služby správcu' }}
+                  </p>
+                  <p v-if="selectedCatchLargeFishRule" class="mt-1 text-xs text-foreground-muted">
+                    Služba: {{ formatFishManagerAvailability(selectedCatchLargeFishRule) }}
+                  </p>
+                </div>
+                <StatusBadge
+                  :icon="selectedCatchFishCandidate ? 'i-heroicons-identification' : 'i-heroicons-check-circle'"
+                  :label="selectedCatchFishCandidate ? 'čaká' : 'prepojené'"
+                  :tone="selectedCatchFishCandidate ? 'warning' : 'success'"
+                  size="xs"
+                />
+              </div>
+              <UButton
+                v-if="selectedCatchFishCandidate"
+                class="mt-4"
+                :to="{ path: '/admin/ryby', query: { catchId: selectedCatch.id } }"
+                icon="i-heroicons-arrow-top-right-on-square"
+                color="warning"
+              >
+                Spracovať v registri rýb
+              </UButton>
+              <UButton
+                v-else
+                class="mt-4"
+                to="/admin/ryby"
+                icon="i-heroicons-tag"
+                variant="soft"
+              >
+                Otvoriť register rýb
+              </UButton>
             </div>
 
             <form class="mt-5 rounded-md border border-border bg-white p-4" @submit.prevent="saveCorrection">

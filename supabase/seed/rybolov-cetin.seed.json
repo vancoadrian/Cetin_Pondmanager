@@ -16,6 +16,7 @@
       "payment_methods": 3,
       "pegs": 12,
       "permit_products": 3,
+      "place_issues": 2,
       "rental_bookings": 5,
       "rental_items": 5,
       "required_equipment_items": 5,
@@ -89,6 +90,10 @@
       "sk-02": "4a5e6e6a-a95b-53fa-9ff1-efc9671d862c",
       "sk-03": "35743edd-fc29-5008-ac66-af6897dbab54",
       "sk-04": "c588df83-66af-54e7-ba64-2f43d1078acd"
+    },
+    "placeIssues": {
+      "issue-20260610-vc-03-light": "ba80f089-bbd9-5222-8e8c-7076380fad17",
+      "issue-20260612-storage-net": "6d8461de-6d12-5063-bbae-d840baa10309"
     },
     "paymentMethods": {
       "cash-on-site": "56ed8a91-d4a3-5750-8b58-39142fbbb6c7",
@@ -426,6 +431,26 @@
         ],
         "id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
         "image_url": "/images/source-web/velky-cetin-card.png",
+        "large_fish_availability_windows": [
+          {
+            "daysOfWeek": [
+              6,
+              0
+            ],
+            "endsAt": "18:00",
+            "id": "weekend-service",
+            "label": "Víkendová služba",
+            "startsAt": "07:00"
+          }
+        ],
+        "large_fish_contact_email": "",
+        "large_fish_contact_mode": "phone",
+        "large_fish_contact_phone": "0911 298 702",
+        "large_fish_instruction": "Rybár privolá správcu. Správca načíta čip, uloží meranie alebo rybu označí novým čipom.",
+        "large_fish_outside_availability_instruction": "Úlovok hneď zapíšte s fotkou. Mimo služby správcu nevolajte a rybu zbytočne nezadržiavajte; správca záznam preverí neskôr.",
+        "large_fish_presence_override": null,
+        "large_fish_rule_enabled": true,
+        "large_fish_threshold_kg": 18,
         "map_image_url": "/images/source-web/velky-cetin-map-original.jpg",
         "mode": "chyť a pusť",
         "name": "Veľký Cetín",
@@ -465,6 +490,26 @@
         ],
         "id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
         "image_url": "/images/source-web/strkovisko-kocka.png",
+        "large_fish_availability_windows": [
+          {
+            "daysOfWeek": [
+              6,
+              0
+            ],
+            "endsAt": "18:00",
+            "id": "weekend-service",
+            "label": "Víkendová služba",
+            "startsAt": "07:00"
+          }
+        ],
+        "large_fish_contact_email": "",
+        "large_fish_contact_mode": "phone",
+        "large_fish_contact_phone": "0911 298 702",
+        "large_fish_instruction": "Rybár privolá správcu. Správca načíta čip, uloží meranie alebo rybu označí novým čipom.",
+        "large_fish_outside_availability_instruction": "Úlovok hneď zapíšte s fotkou. Mimo služby správcu nevolajte a rybu zbytočne nezadržiavajte; správca záznam preverí neskôr.",
+        "large_fish_presence_override": null,
+        "large_fish_rule_enabled": true,
+        "large_fish_threshold_kg": 18,
         "map_image_url": null,
         "mode": "súkromný revír",
         "name": "Štrkovisko Kocka",
@@ -1259,6 +1304,52 @@
         "requires_cabin_reservation": false,
         "status": "free",
         "type": "shore",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91"
+      }
+    ],
+    "place_issues": [
+      {
+        "assigned_to": "Brigádnik",
+        "category": "lighting",
+        "created_at": "2026-06-10T18:40:00.000Z",
+        "description": "Pri vstupe do chaty nesvieti svetlo, večer je zle vidieť na schody.",
+        "id": "ba80f089-bbd9-5222-8e8c-7076380fad17",
+        "internal_note": "Skontrolovať poistku a žiarovku pri najbližšej obchôdzke.",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "photo_label": null,
+        "priority": "normal",
+        "reporter_name": "Marek H.",
+        "reporter_phone": "+421 900 456 123",
+        "resolution_note": null,
+        "status": "triaged",
+        "target_facility_id": null,
+        "target_label": "Chata 3",
+        "target_peg_id": "f7f41407-5780-596b-a7ca-066f4a4e835c",
+        "target_type": "peg",
+        "title": "Nesvieti vonkajšie svetlo pri chate",
+        "updated_at": "2026-06-11T08:20:00.000Z",
+        "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91"
+      },
+      {
+        "assigned_to": "Prevádzka",
+        "category": "missing_equipment",
+        "created_at": "2026-06-12T09:15:00.000Z",
+        "description": "V sklade už nie je voľný veľký podberák, pri rezerváciách sa uvádza dostupnosť.",
+        "id": "6d8461de-6d12-5063-bbae-d840baa10309",
+        "internal_note": "Dočasne znížiť sklad a overiť vrátenie pri poslednej rezervácii.",
+        "lake_id": "76df028a-aee5-5dbf-8fe6-3c1195354118",
+        "photo_label": null,
+        "priority": "urgent",
+        "reporter_name": "Správca",
+        "reporter_phone": null,
+        "resolution_note": null,
+        "status": "in_progress",
+        "target_facility_id": "c3449a69-a02a-5b60-8765-8c2ede8a9ef4",
+        "target_label": "Sklad výbavy",
+        "target_peg_id": null,
+        "target_type": "facility",
+        "title": "Chýba rezervný podberák",
+        "updated_at": "2026-06-12T11:00:00.000Z",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91"
       }
     ],

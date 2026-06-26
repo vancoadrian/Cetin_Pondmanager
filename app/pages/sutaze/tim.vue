@@ -40,6 +40,10 @@ import {
 useHead({ title: 'Tímový panel súťaže' })
 
 const route = useRoute()
+const { logout, user } = useMockAuth()
+const isRoleScopedTeam = computed(() => user.value?.role === 'team')
+const roleTournamentId = computed(() => isRoleScopedTeam.value ? user.value?.tournamentId : undefined)
+const roleSectorId = computed(() => isRoleScopedTeam.value ? user.value?.sectorId : undefined)
 
 const {
   getLakeName,
@@ -55,8 +59,7 @@ const {
   tournamentTeamRegistrations: seedTournamentTeamRegistrations,
 } = usePondData()
 
-const fallbackTournamentState = (): TournamentStateResponse => ({
-  ok: true,
+const seedTournamentState = {
   tournamentCatches: seedTournamentCatches,
   tournamentMarshals: seedTournamentMarshals,
   tournamentPenalties: seedTournamentPenalties,
@@ -64,12 +67,15 @@ const fallbackTournamentState = (): TournamentStateResponse => ({
   tournamentRuleChecks: seedTournamentRuleChecks,
   tournamentTeamRegistrations: seedTournamentTeamRegistrations,
   tournaments: seedTournaments,
-  updatedAt: 'seed',
-})
+}
+const fallbackTournamentState = (): TournamentStateResponse =>
+  createTournamentAccountStateResponse(seedTournamentState, user.value, 'seed')
+  ?? createPublicTournamentStateResponse(seedTournamentState, 'seed')
 
+const requestFetch = useRequestFetch()
 const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
   'team-tournament-state',
-  () => $fetch<TournamentStateResponse>('/api/tournaments'),
+  () => requestFetch<TournamentStateResponse>('/api/account/tournament-state'),
   {
     default: fallbackTournamentState,
   },
@@ -96,23 +102,29 @@ const accessCodeMatch = computed(() =>
   resolveTournamentTeamAccessCode(liveTournaments.value, requestedAccessCode.value),
 )
 const hasInvalidRequestedAccessCode = computed(() =>
-  Boolean(normalizedRequestedAccessCode.value && !accessCodeMatch.value),
+  !isRoleScopedTeam.value && Boolean(normalizedRequestedAccessCode.value && !accessCodeMatch.value),
 )
 const activeTournament = computed(() =>
-  liveTournaments.value.find((tournament) => tournament.id === accessCodeMatch.value?.tournamentId)
+  liveTournaments.value.find((tournament) => tournament.id === roleTournamentId.value)
+  ?? liveTournaments.value.find((tournament) => tournament.id === accessCodeMatch.value?.tournamentId)
   ?? liveTournaments.value.find((tournament) => tournament.id === requestedTournamentId.value)
   ?? liveTournaments.value.find((tournament) => tournament.status === 'live')
   ?? liveTournaments.value[0]
   ?? seedTournaments[0]!,
 )
 const defaultSectorId = computed(() => {
-  const querySector = accessCodeMatch.value?.sectorId ?? requestedSectorId.value
+  const querySector = roleSectorId.value ?? accessCodeMatch.value?.sectorId ?? requestedSectorId.value
 
   return activeTournament.value.sectors.find((sector) => sector.id === querySector)?.id
     ?? activeTournament.value.sectors.find((sector) => sector.team)?.id
     ?? activeTournament.value.sectors[0]?.id
     ?? ''
 })
+const visibleTeamSectors = computed(() =>
+  isRoleScopedTeam.value
+    ? activeTournament.value.sectors.filter((sector) => sector.id === roleSectorId.value)
+    : activeTournament.value.sectors,
+)
 const requestForm = reactive<{
   description: string
   sectorId: string
@@ -572,6 +584,11 @@ function clearTeamSession() {
   teamSessionMessage.value = 'Tímový prístup bol z tohto zariadenia odhlásený.'
 }
 
+async function signOutTeamAccount() {
+  logout()
+  await navigateTo('/')
+}
+
 function handleOnline() {
   isOnline.value = true
   void syncOfflineRequestQueue({ silent: true })
@@ -589,7 +606,8 @@ onMounted(() => {
   browserOrigin.value = window.location.origin
   loadTeamSessionFromStorage()
   if (
-    !requestedAccessCode.value
+    !isRoleScopedTeam.value
+    && !requestedAccessCode.value
     && !requestedSectorId.value
     && teamSession.value?.tournamentId === activeTournament.value.id
     && activeTournament.value.sectors.some((sector) => sector.id === teamSession.value?.sectorId)
@@ -637,6 +655,11 @@ watch(() => teamCodeForm.code, () => {
 }, { flush: 'sync' })
 
 watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
+  if (isRoleScopedTeam.value && roleSectorId.value) {
+    requestForm.sectorId = roleSectorId.value
+    return
+  }
+
   if (!activeTournament.value.sectors.some((sector) => sector.id === requestForm.sectorId)) {
     requestForm.sectorId = defaultSectorId.value
   }
@@ -719,9 +742,10 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 <span class="text-sm font-semibold">Sektor</span>
                 <select
                   v-model="requestForm.sectorId"
+                  :disabled="isRoleScopedTeam"
                   class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
                 >
-                  <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
+                  <option v-for="sector in visibleTeamSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team || 'voľný sektor' }}
                   </option>
                 </select>
@@ -867,16 +891,16 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <h2 class="text-lg font-bold">Tímový prístup</h2>
+                <h2 class="text-lg font-bold">Prístup tímu</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  {{ activeTeamSession ? 'Aktívny v tomto zariadení' : 'Lokálny prístup pre aktuálny sektor' }}
+                  {{ isRoleScopedTeam ? 'Priradený k používateľskému účtu' : activeTeamSession ? 'Aktívny v tomto zariadení' : 'Lokálny prístup pre aktuálny sektor' }}
                 </p>
               </div>
               <span
                 class="rounded-md px-2.5 py-1 text-xs font-bold"
-                :class="activeTeamSession ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
+                :class="isRoleScopedTeam || activeTeamSession ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
               >
-                {{ activeTeamSession ? 'aktívny' : 'neuložený' }}
+                {{ isRoleScopedTeam || activeTeamSession ? 'aktívny' : 'neuložený' }}
               </span>
             </div>
 
@@ -887,7 +911,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               </p>
             </div>
 
-            <form class="mt-4 space-y-2" @submit.prevent="submitTeamCode">
+            <form v-if="!isRoleScopedTeam" class="mt-4 space-y-2" @submit.prevent="submitTeamCode">
               <label for="team-access-code" class="block text-sm font-semibold">Zadať tímový kód</label>
               <div class="flex flex-col gap-2 sm:flex-row">
                 <input
@@ -934,7 +958,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               {{ teamSessionMessage }}
             </p>
 
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div v-if="!isRoleScopedTeam" class="mt-4 flex flex-wrap gap-2">
               <UButton
                 icon="i-heroicons-device-phone-mobile"
                 size="sm"
@@ -962,6 +986,16 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 Odhlásiť
               </UButton>
             </div>
+            <UButton
+              v-else
+              icon="i-heroicons-arrow-left-on-rectangle"
+              size="sm"
+              variant="ghost"
+              class="mt-4"
+              @click="signOutTeamAccount"
+            >
+              Odhlásiť účet
+            </UButton>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
@@ -1009,7 +1043,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="!isRoleScopedTeam" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Odkaz pre tím</h2>

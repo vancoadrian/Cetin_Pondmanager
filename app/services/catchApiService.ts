@@ -45,6 +45,18 @@ export interface TripLogbookSubmissionSuccess {
   statusCode: 201
 }
 
+export interface AnglerLogbooksResponse {
+  account: {
+    email: string
+    id: string
+    name: string
+  }
+  ok: true
+  tripLogbookEntries: TripLogbookEntry[]
+  tripLogbooks: TripLogbook[]
+  updatedAt: string
+}
+
 export interface TripLogbookLookupSuccess {
   catchPhotos: CatchPhoto[]
   catches: CatchRecord[]
@@ -59,6 +71,11 @@ export type CatchSubmissionResult = ApiValidationFailure | CatchSubmissionSucces
 export type TripLogbookLookupResult = ApiValidationFailure | TripLogbookLookupSuccess
 export type TripLogbookSubmissionResult = ApiValidationFailure | TripLogbookSubmissionSuccess
 type ShareCodeRandomPartFactory = () => string
+
+export interface TripLogbookOwnerIdentity {
+  id: string
+  name: string
+}
 
 export interface CatchPhotoUpload {
   dataUrl: string
@@ -78,6 +95,20 @@ function sanitizePublicCatch(catchItem: CatchRecord): CatchRecord {
   delete publicCatch.reviewedBy
 
   return publicCatch
+}
+
+function sanitizeSharedTripLogbook(logbook: TripLogbook): TripLogbook {
+  const sharedLogbook: TripLogbook = {
+    ...logbook,
+    members: logbook.members.map((member) => {
+      const sharedMember = { ...member }
+      delete sharedMember.userId
+      return sharedMember
+    }),
+    pegIds: [...logbook.pegIds],
+  }
+  delete sharedLogbook.ownerUserId
+  return sharedLogbook
 }
 
 export function filterPublicCatchWorkflowState(state: CatchWorkflowState): CatchWorkflowState {
@@ -350,6 +381,7 @@ export function submitTripLogbook(
   service: PondService = pondService,
   now = new Date().toISOString(),
   shareCodeRandomPartFactory: ShareCodeRandomPartFactory = createSecureShareCodeRandomPart,
+  ownerIdentity?: TripLogbookOwnerIdentity,
 ): TripLogbookSubmissionResult {
   const inputResult = tripLogbookInputSchema.safeParse(rawInput)
   if (!inputResult.success) {
@@ -375,8 +407,16 @@ export function submitTripLogbook(
     lake: input.lake,
     title: input.title,
   }
+  const memberNames = ownerIdentity
+    ? [
+        ownerIdentity.name,
+        ...input.memberNames.filter((name) =>
+          name.toLocaleLowerCase('sk') !== ownerIdentity.name.toLocaleLowerCase('sk'),
+        ),
+      ]
+    : input.memberNames
   const memberIds = new Set<string>()
-  const members = input.memberNames.map((name, index) => {
+  const members = memberNames.map((name, index) => {
     const memberId = uniqueId(`member-${slugify(name).slice(0, 22)}`, memberIds)
     memberIds.add(memberId)
 
@@ -384,6 +424,7 @@ export function submitTripLogbook(
       id: memberId,
       name,
       role: index === 0 ? 'owner' as const : 'member' as const,
+      userId: index === 0 ? ownerIdentity?.id : undefined,
     }
   })
   const logbook: TripLogbook = {
@@ -392,7 +433,8 @@ export function submitTripLogbook(
     members,
     mode: input.mode,
     note: 'Lokálne vytvorený zápisník výpravy. Dáta sa neskôr dajú migrovať do účtov a pozvánok.',
-    owner: input.memberNames[0]!,
+    owner: memberNames[0]!,
+    ownerUserId: ownerIdentity?.id,
     pegIds: input.pegIds,
     shareCode: createShareCode(logbookDraft, state, shareCodeRandomPartFactory),
     status: 'active',
@@ -401,7 +443,9 @@ export function submitTripLogbook(
 
   return {
     logbook,
-    message: `Zápisník ${logbook.shareCode} je uložený lokálne.`,
+    message: ownerIdentity
+      ? `Zápisník ${logbook.shareCode} je uložený v účte ${ownerIdentity.name}.`
+      : `Zápisník ${logbook.shareCode} je uložený lokálne.`,
     ok: true,
     statusCode: 201,
   }
@@ -431,7 +475,7 @@ export function lookupTripLogbookByShareCode(
   return {
     catchPhotos,
     catches,
-    logbook,
+    logbook: sanitizeSharedTripLogbook(logbook),
     message: `Zápisník ${logbook.shareCode} je otvorený.`,
     ok: true,
     statusCode: 200,

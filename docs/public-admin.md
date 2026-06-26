@@ -1,80 +1,76 @@
-# Public a interná časť
+# Verejná a chránená časť
 
-## Cieľ rozdelenia
+## Prístupový model
 
-Rybolov Cetín má mať jasne oddelené verejné obrazovky pre rybárov a interné obrazovky pre správcu, majiteľa, kontrolórov a súťažné tímy.
+Rybolov Cetín používa jednu prihlasovaciu obrazovku `/login` s e-mailom a heslom. Po prihlásení sa používateľ presmeruje do priestoru zodpovedajúceho jeho role. Verejná navigácia neukazuje interné moduly ani odkaz „Admin“.
 
-Public časť má byť rýchla, zrozumiteľná a použiteľná bez účtu. Interná časť má riešiť prevádzku, rozhodnutia, schvaľovanie a citlivejšie dáta.
+Aktuálna lokálna autentifikácia používa cookie `rybolov_cetin_mock_session`. Rozhranie a route guardy sú pripravené na nahradenie produkčným identity providerom bez zmeny informačnej architektúry.
 
-## Public routy
+## Verejné routy
 
-| Route | Účel |
+| Route | Verejný obsah |
 | --- | --- |
-| `/` | verejný prehľad revíru |
-| `/reviry` | jazerá, fotky, základné pravidlá |
-| `/mapa` | mapa lovných miest a chát |
-| `/rezervacie` | verejná žiadosť o rezerváciu |
-| `/ulovky` | verejný alebo komunitný denník úlovkov |
-| `/sutaze` | verejný pohľad na súťaž a live stav |
+| `/` | prehľad revíru, dostupnosť a dôležité oznamy |
+| `/reviry` | zoznam jazier, fotky a základné pravidlá |
+| `/reviry/[slug]` | detail konkrétneho jazera |
+| `/mapa` | publikovaná mapa, lovné miesta, chaty a dostupnosť |
+| `/rezervacie` | žiadosť o rezerváciu a doplnkové služby |
+| `/ulovky` | iba úlovky schválené správcom; otvorenie zápisníka platným kódom |
+| `/sutaze` | verejný program, sektory, prihláška tímu a výsledkovka |
+| `/sutaze/vysledkovka` | verejná výsledkovka |
 | `/notifikacie` | verejné výstrahy a oznamy |
-| `/admin/notifikacie` | interná príprava PWA výstrah, servisných oznamov a mock broadcastov |
-| `/info` | pravidlá, cenník, výbava |
+| `/info` | pravidlá, cenník, výbava a chaty |
 | `/kontakt` | kontakt na správcu |
 | `/sponzori` | partneri revíru a súťaží |
 
-## Interné routy
+Verejné odpovede nesmú obsahovať interné poznámky, súkromné kontakty rybárov, prístupové kódy, rozpracované mapové vrstvy ani živý súťažný dispečing.
 
-| Route | Stav | Účel |
+## Chránené priestory
+
+| Rola | Vstup | Viditeľný obsah |
 | --- | --- | --- |
-| `/login` | mock | výber role bez hesla |
-| `/admin` | mock | interný dashboard |
-| `/admin/rezervacie` | mock | schvaľovanie a kalendár rezervácií |
-| `/admin/ulovky` | mock + chránené API | oprava a schvaľovanie verejných úlovkov, presun alebo odpojenie zápisníka, poznámky správcu a interný report |
-| `/admin/mapa` | mock | SVG editor lovných miest, chát, vrstiev a servisných zón |
-| `/admin/uzavierky` | mock | sezóny, neres, údržba, preteky, mimoriadne uzávierky |
-| `/admin/pozicovna` | mock | tvorba a úprava výbavy, aktívne doplnky, cenníkový text, bezpečné mazanie nepoužitých položiek a priradenie k rezerváciám |
-| `/admin/sutaze` | mock | organizácia pretekov, kontrolóri, tresty |
-| `/admin/sponzori` | mock + lokálny store | partneri, aktívnosť, tier, web, logá, umiestnenia, poradie a platnosť kampane |
-| `/admin/audit` | mock | audit log lokálnych rozhodnutí a zmien |
+| `angler` | `/konto` | vlastné zápisníky, výpravy a história úlovkov |
+| `tournament_team` | `/sutaze/tim` | vlastný sektor, privolanie kontrolóra, hlásenia a stav tímu |
+| `marshal` | `/admin/sutaze/kontrolor` | pridelené sektory, váženia, kontroly a tresty |
+| `tournament_organizer` | `/admin/sutaze` | súťažný dispečing, tímy, sektory, kontrolóri a výsledky |
+| `worker` | `/admin/hlasenia` | rezervácie, hlásenia, mapa v režime prehľadu a požičovňa |
+| `accountant` | `/admin/rezervacie` | rezervácie, úlovkové reporty, požičovňa, súťažné a sponzorské podklady iba na čítanie |
+| `manager` | `/admin` | rezervácie, úlovky, ryby, mapa, uzávierky, notifikácie a denná prevádzka |
+| `owner` | `/admin` | všetky interné moduly a systémové nastavenia |
 
-## Mock auth
+## Ochrana rout
 
-Aktuálne je interný prístup riešený cez `useMockAuth` a cookie `rybolov_cetin_mock_session`.
-Mock admin používa spoločnú access matrix v `app/utils/adminAccess.ts`; z nej sa skladá interná navigácia, dashboard pre aktuálnu rolu, route guard pre `/admin/*` aj serverový guard pre `/api/admin/*`.
+Globálny middleware:
 
-Mock roly:
+- presmeruje neprihláseného používateľa z chránenej routy na `/login`,
+- po prihlásení rešpektuje pôvodný bezpečný interný redirect,
+- nepustí rybára ani súťažný tím do `/admin`,
+- nepustí inú rolu do rybárskeho účtu alebo tímového panelu,
+- používa `app/utils/adminAccess.ts` pre modulové oprávnenia interných rolí.
 
-- `owner`,
-- `manager`,
-- `organizer`,
-- `marshal`,
-- `team`,
-- `accountant`,
-- `worker`.
+Serverový guard pre `/api/admin/*` používa rovnakú access matrix. Neprihlásená požiadavka dostane `401`, rola bez dostatočného oprávnenia `403`.
 
-Toto je iba prototyp. Produkčne má byť nahradený Supabase Auth a RLS politikami. Prvá lokálna verzia audit logu už existuje a má sa pri Supabase preniesť do tabuľky `audit_events`.
+Kontrolór má výnimku na úrovni konkrétnej routy: modul súťaží používa iba cez `/admin/sutaze/kontrolor`. Nemá prístup k organizačnému dispečingu `/admin/sutaze` ani k plnému admin súťažnému feedu.
 
-## Produkčné práva
+## Súťažné API
 
-| Rola | Verejný web | Interné moduly |
-| --- | --- | --- |
-| `public` | čítanie verejných dát | nič |
-| `angler` | vlastné rezervácie a úlovky | vlastný profil |
-| `tournament_team` | vlastný sektor a súťaž | hlásenia, vlastné úlovky, námietky |
-| `marshal` | súťaže | pridelené sektory, váženia, kontroly, tresty |
-| `tournament_organizer` | súťaže | súťaže, sektory, tímy, pravidlá, výsledkovka |
-| `accountant` | všetko public | platby, rezervácie, exporty, podklady |
-| `worker` | všetko public | nástupy, požičovňa, údržba a prevádzkové úlohy |
-| `manager` | všetko public | rezervácie, výstrahy, požičovňa, uzávierky |
-| `owner` | všetko public | všetko interné vrátane nastavení a sponzorov |
+| Endpoint | Obsah |
+| --- | --- |
+| `GET /api/tournaments` | verejné turnaje a iba overené úlovky bez interných poznámok a identity kontrolóra |
+| `GET /api/account/tournament-state` | sektor prihláseného tímu alebo pridelené sektory prihláseného kontrolóra |
+| `GET /api/admin/tournaments` | plný súťažný stav pre oprávnené interné roly okrem kontrolóra |
 
-Access matrix rozlišuje tri mock režimy: `plný`, `prevádzka` a `prehľad`. Produkčne sa táto logika presunie do reálneho RBAC/RLS modelu, ale UX už teraz ukazuje iba moduly patriace zvolenej role. Vybrané moduly už rešpektujú režim aj v akciách: rezervácie vypínajú rozhodnutia, vytváranie rezervácie a prepínače platobných metód pre read-only role, úlovky ponechávajú účtovníkovi exporty a prehľady, ale vypínajú korekcie, schvaľovanie a reportové mutácie, súťažný dispečing vypína priradenia, váženia, tresty a kontroly pre read-only role, mapový editor povoľuje uloženie a drag úpravy iba pri plnom prístupe, notifikácie vyžadujú aspoň prevádzkový prístup a mock formuláre sponzorov, požičovne a uzávierok sa vypínajú podľa príslušnej role. Rovnaká matrix chráni aj admin API: neprihlásená požiadavka dostane `401`, rola bez dostatočného režimu `403`.
+Kontrolórske zápisy server overuje voči `marshalId`, súťaži a aktuálnemu zoznamu pridelených sektorov. Klientom poslaná cudzia identita alebo sektor sa odmietne stavom `403`.
 
-## Bezpečnostné poznámky
+## Obsahové pravidlá
 
-- Public dáta nesmú obsahovať súkromné telefóny rybárov alebo interné poznámky.
-- Súťažné tresty môžu byť verejné iba podľa nastavenia organizátora.
-- Úlovky od rybárov môžu byť verejné až po schválení správcom.
-- Zápisník výpravy môže fungovať cez link alebo kód bez účtu, no osobný účet má odomknúť históriu rybára.
-- Interné uzávierky môžu byť neverejné, ale musia blokovať dostupnosť.
-- Každé produkčné rozhodnutie správcu má mať audit stopu.
+- Úlovok je verejný až po schválení správcom.
+- Zápisník možno otvoriť platným linkom alebo kódom, ale vytváranie osobných zápisníkov patrí prihlásenému rybárovi.
+- Verejná súťaž ukazuje výsledky a publikované informácie, nie živé hlásenia, kontakty kontrolórov ani interné kontroly, a to aj keď ju otvorí prihlásená interná rola.
+- Verejné skóre a najväčší úlovok sa počítajú iba z úlovkov potvrdených kontrolórom. Čakajúce a sporné váženia sa nezobrazujú ani nezapočítavajú.
+- Verejné obrazovky nepoužívajú texty o mock dátach, lokálnom store, API feedoch, administračných slotoch ani internom workflow.
+- Tímové hlásenia patria do tímového panelu.
+- Tímový účet je pevne viazaný na konkrétnu súťaž a sektor; klient ani server neprijmú hlásenie za iný sektor.
+- Kontrolór vidí iba súťažné úlohy a sektory, ktoré potrebuje pre výkon svojej role.
+- Rozpracovaná mapa a interné servisné body sa zobrazujú iba oprávneným interným rolám.
+- Každé citlivé rozhodnutie správcu má auditnú stopu.

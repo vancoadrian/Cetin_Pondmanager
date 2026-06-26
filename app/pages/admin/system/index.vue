@@ -953,7 +953,7 @@ async function restoreImportedBackup() {
             v-if="highlightedReadinessItems.length === 0"
             class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted lg:col-span-2"
           >
-            {{ environmentReadiness ? 'Pre aktuálny profil nie sú žiadne chýbajúce alebo mock položky na pozornosť.' : 'Detail položiek je dostupný po úspešnom admin health načítaní.' }}
+            {{ environmentReadiness ? 'Pre aktuálne prostredie nie sú evidované žiadne chýbajúce alebo testovacie nastavenia.' : 'Detail položiek je dostupný po úspešnom načítaní stavu systému.' }}
           </p>
         </div>
       </div>
@@ -965,7 +965,7 @@ async function restoreImportedBackup() {
               <div>
                 <h2 class="text-lg font-bold">Health checky</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Krátke kontroly, ktoré sa dajú neskôr napojiť na hostingový uptime monitor.
+                  Kontroly dostupnosti aplikácie, úložiska a dôležitých služieb.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
@@ -1013,7 +1013,7 @@ async function restoreImportedBackup() {
               <div>
                 <h2 class="text-lg font-bold">Lokálne dáta</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  JSON store a assety, ktoré treba zálohovať pred presunom na Supabase.
+                  Prevádzkové dáta a súbory zahrnuté v zálohe systému.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
@@ -1021,7 +1021,7 @@ async function restoreImportedBackup() {
               </span>
             </div>
             <p class="text-foreground-muted mt-2 text-sm">
-              Prototyp zatiaľ používa lokálne JSON súbory. Produkčne sa tento stav nahradí Supabase a externým monitoringom.
+              Stav dátového úložiska, posledných chýb a pripravenosti prevádzkových služieb.
             </p>
             <p class="mt-4 break-all rounded-md bg-muted p-3 text-xs font-semibold text-foreground-muted">
               {{ systemHealth?.dataDirectory ?? 'bez cesty' }}

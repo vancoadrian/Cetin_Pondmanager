@@ -11,6 +11,7 @@ import {
   mapLayers,
   mapShapes,
   pegs,
+  placeIssues,
   paymentMethods,
   permitProducts,
   rentalBookings,
@@ -47,6 +48,7 @@ const createSource = (): SupabaseSeedSource => ({
   mapLayers,
   mapShapes,
   pegs,
+  placeIssues,
   paymentMethods,
   permitProducts,
   rentalBookings,
@@ -85,8 +87,21 @@ describe('supabaseSeedService', () => {
       timezone: 'Europe/Bratislava',
     })
     expect(payload.tables.lakes).toHaveLength(lakes.length)
+    expect(payload.tables.lakes[0]).toMatchObject({
+      large_fish_availability_windows: [
+        expect.objectContaining({
+          daysOfWeek: [6, 0],
+          endsAt: '18:00',
+          startsAt: '07:00',
+        }),
+      ],
+      large_fish_rule_enabled: true,
+      large_fish_presence_override: null,
+      large_fish_threshold_kg: 18,
+    })
     expect(payload.tables.map_facilities).toHaveLength(mapFacilities.length)
     expect(payload.tables.pegs).toHaveLength(pegs.length)
+    expect(payload.tables.place_issues).toHaveLength(placeIssues.length)
     expect(payload.tables.reservations).toHaveLength(reservations.length)
     expect(payload.tables.payment_methods).toHaveLength(paymentMethods.length)
     expect(payload.tables.catch_photos).toHaveLength(catchPhotos.length)

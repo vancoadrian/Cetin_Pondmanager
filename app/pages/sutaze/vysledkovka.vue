@@ -8,7 +8,7 @@ definePageMeta({
   layout: false,
 })
 
-useHead({ title: 'Live výsledkovka' })
+useHead({ title: 'Priebežné výsledky' })
 
 const route = useRoute()
 
@@ -24,17 +24,16 @@ const {
 } = usePondData()
 const { activeSponsors } = await useSponsorState({ key: 'public-scoreboard-sponsor-state' })
 
-const fallbackTournamentState = (): TournamentStateResponse => ({
-  ok: true,
-  tournamentCatches: seedTournamentCatches,
-  tournamentMarshals: seedTournamentMarshals,
-  tournamentPenalties: seedTournamentPenalties,
-  tournamentRequests: seedTournamentRequests,
-  tournamentRuleChecks: seedTournamentRuleChecks,
-  tournamentTeamRegistrations: seedTournamentTeamRegistrations,
-  tournaments: seedTournaments,
-  updatedAt: 'seed',
-})
+const fallbackTournamentState = (): TournamentStateResponse =>
+  createPublicTournamentStateResponse({
+    tournamentCatches: seedTournamentCatches,
+    tournamentMarshals: seedTournamentMarshals,
+    tournamentPenalties: seedTournamentPenalties,
+    tournamentRequests: seedTournamentRequests,
+    tournamentRuleChecks: seedTournamentRuleChecks,
+    tournamentTeamRegistrations: seedTournamentTeamRegistrations,
+    tournaments: seedTournaments,
+  }, 'seed')
 
 const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
   'public-scoreboard-tournament-state',
@@ -96,13 +95,12 @@ const rows = computed(() => leaderboardFeed.value.rows)
 const stats = computed(() => leaderboardFeed.value.stats)
 const topRows = computed(() => rows.value.slice(0, 3))
 const remainingRows = computed(() => rows.value.slice(3))
-const pendingRows = computed(() =>
-  rows.value.filter((row) => row.pendingCatchCount + row.disputedCatchCount > 0),
+const teamCount = computed(() =>
+  activeTournament.value.sectors.filter((sector) => Boolean(sector.team)).length,
 )
 const largestCatchRow = computed(() =>
   [...rows.value].sort((first, second) => second.largestCatchKg - first.largestCatchKg)[0],
 )
-const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournamentId.value}/leaderboard`)
 const publicCompetitionUrl = computed(() => `/sutaze?turnaj=${encodeURIComponent(activeTournamentId.value)}`)
 const tournamentOptions = computed(() =>
   liveTournaments.value.map((tournament) => ({
@@ -136,7 +134,7 @@ const leaderGapLabel = computed(() => {
 
 const statusLabels = {
   closed: 'uzavreté',
-  live: 'live',
+  live: 'prebieha',
   planned: 'plánované',
 } as const
 
@@ -254,12 +252,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto] lg:min-w-[650px]">
-          <label class="block">
+        <div class="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:min-w-[520px]">
+          <label class="block min-w-0">
             <span class="sr-only">Súťaž</span>
             <select
               v-model="selectedTournamentId"
-              class="h-11 w-full rounded-md border border-white/15 bg-white/10 px-3 text-sm font-bold text-white"
+              class="h-11 min-w-0 max-w-full w-full rounded-md border border-white/15 bg-white/10 px-3 text-sm font-bold text-white"
             >
               <option
                 v-for="option in tournamentOptions"
@@ -271,15 +269,6 @@ onBeforeUnmount(() => {
               </option>
             </select>
           </label>
-          <a
-            :href="leaderboardFeedUrl"
-            target="_blank"
-            rel="noopener"
-            class="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
-          >
-            <UIcon name="i-heroicons-rss" class="h-4 w-4" />
-            JSON
-          </a>
           <button
             type="button"
             class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 text-sm font-black text-primary-950 transition-colors hover:bg-accent-300 disabled:opacity-60"
@@ -337,14 +326,10 @@ onBeforeUnmount(() => {
               <p class="mt-6 text-5xl font-black leading-none">
                 {{ formatWeight(row.scoreWeightKg) }} kg
               </p>
-              <div class="mt-5 grid grid-cols-3 gap-2 text-sm">
+              <div class="mt-5 grid grid-cols-2 gap-2 text-sm">
                 <div class="rounded-md bg-primary-950/10 p-2">
                   <p class="font-bold opacity-70">overené</p>
                   <p class="text-lg font-black">{{ row.verifiedCatchCount }}</p>
-                </div>
-                <div class="rounded-md bg-primary-950/10 p-2">
-                  <p class="font-bold opacity-70">čaká</p>
-                  <p class="text-lg font-black">{{ row.pendingCatchCount + row.disputedCatchCount }}</p>
                 </div>
                 <div class="rounded-md bg-primary-950/10 p-2">
                   <p class="font-bold opacity-70">max</p>
@@ -404,14 +389,14 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <p v-if="leaderboardError" class="mt-3 rounded-md bg-error-500 px-3 py-2 text-sm font-bold text-white">
-              Feed sa nepodarilo načítať, zobrazujem posledný dostupný stav.
+              Výsledky sa nepodarilo obnoviť, zobrazujeme posledný dostupný stav.
             </p>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div class="rounded-card border border-white/10 bg-white/10 p-4">
               <p class="text-sm font-bold text-white/70">Tímy</p>
-              <p class="mt-2 text-3xl font-black">{{ stats.activeTeamCount }}</p>
+              <p class="mt-2 text-3xl font-black">{{ teamCount }}</p>
             </div>
             <div class="rounded-card border border-white/10 bg-white/10 p-4">
               <p class="text-sm font-bold text-white/70">Skóre</p>
@@ -420,10 +405,6 @@ onBeforeUnmount(() => {
             <div class="rounded-card border border-white/10 bg-white/10 p-4">
               <p class="text-sm font-bold text-white/70">Overené</p>
               <p class="mt-2 text-3xl font-black">{{ stats.totalVerifiedCatchCount }}</p>
-            </div>
-            <div class="rounded-card border border-white/10 bg-white/10 p-4">
-              <p class="text-sm font-bold text-white/70">Čaká</p>
-              <p class="mt-2 text-3xl font-black">{{ stats.pendingReviewCatchCount }}</p>
             </div>
           </div>
 
@@ -442,30 +423,6 @@ onBeforeUnmount(() => {
             </p>
             <p class="mt-2 text-sm font-semibold text-white/70">
               {{ largestCatchRow?.largestCatchSpecies ?? 'bez druhu' }} · {{ largestCatchRow?.team ?? 'bez tímu' }}
-            </p>
-          </div>
-
-          <div class="rounded-card border border-white/10 bg-white/10 p-5">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-sm font-black text-white/70">Čakajúce merania</p>
-              <span class="rounded-md bg-warning-500 px-2 py-1 text-xs font-black text-primary-950">
-                {{ pendingRows.length }}
-              </span>
-            </div>
-            <div v-if="pendingRows.length > 0" class="mt-4 space-y-2">
-              <div
-                v-for="row in pendingRows"
-                :key="`pending-${row.sectorId}`"
-                class="rounded-md bg-white px-3 py-2 text-primary-950"
-              >
-                <p class="truncate text-sm font-black">{{ row.team }}</p>
-                <p class="mt-0.5 text-xs font-semibold text-foreground-muted">
-                  {{ row.sectorLabel }} · {{ row.pendingCatchCount + row.disputedCatchCount }} ks · {{ formatWeight(row.pendingWeightKg + row.disputedWeightKg) }} kg
-                </p>
-              </div>
-            </div>
-            <p v-else class="mt-4 text-sm font-semibold text-white/70">
-              Nič nečaká na kontrolóra.
             </p>
           </div>
 

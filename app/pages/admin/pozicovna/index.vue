@@ -359,7 +359,7 @@ async function saveRentalCatalogSettings() {
     <PageHeader
       eyebrow="Admin"
       title="Požičovňa a doplnky"
-      description="Mock sklad povinnej výbavy, vecí k chate a doplnkov, ktoré si rybár vie pridať k rezervácii."
+      description="Sklad povinnej výbavy, vybavenia k chatám a doplnkov dostupných pri rezervácii."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -802,8 +802,8 @@ async function saveRentalCatalogSettings() {
                       :disabled="!canOperateRentals"
                       class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
                     >
-                      <option value="web">z webu</option>
-                      <option value="proposal">návrh</option>
+                      <option value="web">existujúca ponuka</option>
+                      <option value="proposal">nový doplnok</option>
                     </select>
                   </label>
                   <label class="block">

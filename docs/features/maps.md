@@ -55,17 +55,25 @@ Admin má vedieť:
 | `cabin_product_pegs` | väzba cenníkovej chaty na jedno alebo viac mapových miest |
 | `map_facilities` | servisné a prevádzkové body na mape |
 | `map_shapes` | sektor, zóna, breh, interný polygon |
+| `place_issues` | nahlásené nedostatky viazané na jazero, lovné miesto alebo servisný bod |
 | `tournament_sectors` | súťažné sektory |
 
 ## Stav v prototype
 
 - `/mapa` používa SVG canvas s obrázkovým alebo generovaným podkladom.
+- `/mapa` má verejné nahlásenie nedostatku pre aktuálne jazero, lovné miesto alebo verejný servisný bod vrátane offline fronty v zariadení pri slabom signáli.
 - Lovné miesta, chaty a verejné servisné body sú kreslené ako SVG body z percentuálnych súradníc.
 - `/admin/mapa` má drag editor lovných miest, chát, servisných bodov, polygonových plôch, vrstvy, náhľad exportu modelu a lokálne uloženie zmien.
 - Admin vie pridať nové lovné miesto, miesto s chatou, WC/servisný bod, rozvodňu, zákaz/režim a súťažný sektor.
+- Karta `Pridať do mapy` má samostatnú paletu servisných bodov pre WC, sprchy, sklad, drevo, elektrickú rozvodňu, vjazd, recepciu, parkovanie, odpad a prvú pomoc.
+- Karta `Pridať do mapy` ukazuje pripravenosť vrstiev pre nové brehové miesto, miesto s chatou, servisný bod a aktuálne zvolený typ kreslenej plochy: `aktívna`, `zapne sa` alebo `vytvorí sa`.
+- Rovnaká karta ponúka aj rýchle pridanie všetkých základných polygonov: vodná oblasť, ostrov/porast, zákaz/režim, súťažný sektor a servisná zóna.
 - Admin vie zapnúť režim kreslenia plochy, zvoliť typ a názov, klikmi pridať očíslované vrcholy, vrátiť posledný bod, zrušiť kreslenie alebo polygon dokončiť po aspoň troch bodoch aj dvojklikom.
 - Vybraná polygonová plocha má rýchle režimy vodná oblasť, ostrov/porast, zákaz/režim, súťažný sektor a servisná zóna; režim automaticky nastaví farbu, viditeľnosť aj príslušnú mapovú vrstvu.
 - Vybrané lovné miesto má rýchle rezervačné režimy: brehové miesto, chata povinná, chata voliteľná, termín na potvrdenie, ručne rezervované a údržba/blokácia. Verejná aj admin rezervácia čítajú živé lovné miesta z mapového store.
+- Stav vybraného miesta v admin editore používa rovnaký ikonový `PegStatusBadge` ako verejná mapa a rezervácie, aby `voľné`, `rezervované`, `víkendovo voľné` a `údržba` nepôsobili v každom module inak.
+- Pri zmene typu vybraného miesta editor automaticky pripraví správnu vrstvu a priamo pri poli `Typ` vysvetlí, či je vrstva lovných miest alebo chát aktívna, zapne sa, alebo sa vytvorí. Naviazanie cenníkovej chaty rovnako zapne vrstvu chát.
+- Karta `Vybraný prvok` ukazuje vrstvu aktuálneho miesta, servisného bodu alebo polygonu a jej stav. Ak je vrstva vypnutá alebo chýba, správca ju vie zapnúť alebo doplniť cez `Zobraziť vrstvu`.
 - Vybrané miesto s chatou má v adminovi väzbu na cenníkovú chatu. Väzba sa ukladá do samostatného lokálneho store, validuje, že jedno miesto nepatrí do viacerých cenníkových produktov, a public/admin rezervácie podľa nej automaticky doplnia položku chaty.
 - Editor má voliteľnú mriežku, snap na krok 1 %, 2.5 %, 5 % alebo 10 % a klávesové ovládanie kreslenia pre rýchle opravy.
 - Vrcholy polygonov môžu mať voliteľný typ a krátky názov, napríklad breh, hranica, vstup, kotva podkladu alebo servisný bod; pri posune bodov a hromadnom zarovnaní sektorov sa tieto metadáta zachovávajú.
@@ -73,13 +81,20 @@ Admin má vedieť:
 - Admin vie nahrať nový JPG/PNG/WebP podklad mapy pre vybrané jazero; súbor sa uloží do `.data/rybolov-cetin/map-assets/` a vrstva dostane URL `/api/map-assets/:id`.
 - Admin vie pri obrázkovom podklade meniť `cover`, `contain` alebo `stretch`, mierku, X/Y posun a priehľadnosť; podklad vie posúvať aj priamo ťahaním v SVG mape. Rovnaké nastavenie číta aj verejná mapa.
 - Admin mapa má exportné rámy pre celý viewBox, A4/A3 na šírku, A4 na výšku, štvorec a 16:9. Editor ich ukazuje ako SVG výrez nad mapou a počíta, koľko lovných miest, servisných bodov a vrcholov polygonov ostáva vo vybranom ráme.
-- `/admin/mapa` má kontrolu pred publikovaním pre aktuálne jazero. Upozorní na chatu bez produktu, povinnú chatu bez cenníkovej väzby, duplicitné väzby chaty, verejné servisné zóny, zapnutú verejnú servisnú vrstvu s internými bodmi, chýbajúcu vodnú oblasť, chýbajúci obrázkový podklad, súťažné polygony mimo súťažnej viditeľnosti, chýbajúce sektory a duplicitné polygony jedného sektora. Kritické nálezy blokujú iba publikovanie, nie uloženie draftu.
+- Karta `Vrstvy mapy` má pracovné režimy Podklad, Miesta, Servis, Súťaž a Všetko. Predvoľby zapnú správne vrstvy aktuálneho jazera, zachovajú ostatné jazerá a správne sa počítajú do draft zmien.
+- Riadky vrstiev ukazujú počet a skladbu objektov vo vrstve, napríklad lovné miesta, chaty, servisné body alebo plochy. Ak vypnutá alebo chýbajúca vrstva skrýva existujúce objekty, panel vypíše typ vrstvy, stav `chýba vrstva` alebo `vrstva je vypnutá`, počet skrytých objektov a ponúkne akciu `Zobraziť objekty`, ktorá potrebné vrstvy doplní alebo zapne v neuloženom drafte mapy.
+- Ak jazero ešte nemá potrebnú vrstvu, editor ju pri prvom použití doplní do draftu. Režim vrstiev ukazuje pomer existujúcich vrstiev, napríklad `2/3`, vypíše chýbajúce vrstvy a tlačidlom `Doplniť vrstvy` vie pripraviť kompletnú sadu pre aktuálne jazero. Napríklad súťažný režim na Kocke vytvorí vrstvu `Súťažné sektory`, miesto s chatou vytvorí vrstvu `Chaty` a servisný bod vytvorí servisnú vrstvu.
+- `/admin/mapa` má kontrolu pred publikovaním pre aktuálne jazero. Upozorní na chatu bez produktu, povinnú chatu bez cenníkovej väzby, duplicitné väzby chaty, verejné servisné zóny, zapnutú verejnú servisnú vrstvu s internými bodmi, chýbajúcu alebo vypnutú vrstvu s existujúcimi prvkami, chýbajúcu vodnú oblasť, chýbajúci obrázkový podklad, súťažné polygony mimo súťažnej viditeľnosti, chýbajúce sektory a duplicitné polygony jedného sektora. Kritické nálezy blokujú iba publikovanie, nie uloženie draftu.
+- `POST /api/admin/map/publish` používa rovnakú map quality kontrolu aj na serveri. Pred zápisom public mapy číta aktuálny katalóg chát a aktuálny tournament store, takže kritická chyba neprejde ani priamym API volaním mimo admin UI.
+- Admin panel ukazuje zvlášť nálezy aktuálneho jazera a nálezy mimo aktuálneho výberu, aby správca videl rovnaké blokovanie, aké použije serverový publish. Nálezy nesú cieľový objekt, takže správca vie z kontroly rovno prepnúť jazero, otvoriť konkrétne lovné miesto, servisný bod, polygon alebo panel vrstiev. Pri vypnutej vrstve ju kontrola vie zapnúť do neuloženého draftu, pri chýbajúcej vodnej oblasti vie pripraviť nový verejný SVG polygon vody a pri chýbajúcom súťažnom sektore vie rovno pripraviť nový neuložený polygon sektora.
+- Nálezy chát bez produktu alebo s duplicitnou väzbou vedia správcu preniesť priamo na blok `Cenníková chata` pri vybranom mieste a krátko ho zvýrazniť.
+- Publish kontrola prechádza každé jazero samostatne, takže napríklad vodná oblasť na Veľkom Cetíne už nezakryje chýbajúcu vodnú oblasť na Kocke.
 - `mapLayers`, `mapFacilities` a `mapShapes` sú seednuté v `app/data/pond.ts`.
 - Pomocné mapové funkcie sú v `app/utils/map.ts`.
 - `GET /api/map` vracia sanitizovaný publikovaný mapový stav z `.data/rybolov-cetin/map-state.json`: public a súťažné vrstvy/tvary/body áno, interné servisné body, interné zóny a interné vrstvy nie.
 - `GET /api/admin/map` vracia plný rozpracovaný mapový stav z `.data/rybolov-cetin/map-draft-state.json`; ak draft ešte neexistuje, vychádza z publikovanej mapy.
 - Admin mapové odpovede nesú `draftChanges`, teda počet aj názvy pridaných, upravených a odstránených vrstiev, miest, servisných bodov a plôch oproti verejnej mape.
-- `PUT /api/admin/map` ukladá validované lovné miesta, servisné body, polygonové tvary a aktívne vrstvy do draftu.
+- `PUT /api/admin/map` ukladá validované lovné miesta, servisné body, polygonové tvary a aktívne vrstvy do draftu. Payload môže pridať aj novú validnú mapovú vrstvu, ak ide o chýbajúcu pracovnú vrstvu konkrétneho jazera.
 - `POST /api/admin/map/publish` prepíše publikovanú public mapu aktuálnym draftom a zapíše audit stopu.
 - `POST /api/admin/map/discard-draft` zahodí rozpracovaný draft, načíta späť publikovanú mapu a zapíše audit stopu.
 - `GET /api/cabin-products`, `GET /api/admin/cabin-products` a `PUT /api/admin/cabin-products` držia živý katalóg chát a väzby na mapové miesta v `.data/rybolov-cetin/cabin-catalog-state.json`.

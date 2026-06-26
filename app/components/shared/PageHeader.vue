@@ -17,10 +17,10 @@ withDefaults(defineProps<Props>(), {
       <p v-if="eyebrow" class="text-primary-700 mb-2 text-sm font-semibold tracking-wide uppercase">
         {{ eyebrow }}
       </p>
-      <h1 class="text-foreground text-3xl font-bold tracking-tight sm:text-4xl">
+      <h1 class="text-foreground max-w-full break-words text-3xl font-bold tracking-tight sm:text-4xl">
         {{ title }}
       </h1>
-      <p v-if="description" class="text-foreground-muted mt-3 max-w-3xl text-base">
+      <p v-if="description" class="text-foreground-muted mt-3 max-w-3xl break-words text-base">
         {{ description }}
       </p>
     </div>

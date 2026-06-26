@@ -24,7 +24,7 @@ export function requireAdminAccess(event: H3Event, requirement: AdminApiAccessRe
         currentModeLabel: decision.currentMode ? adminAccessModeLabels[decision.currentMode] : null,
         message: role
           ? `Rola nemá oprávnenie ${adminAccessModeLabels[decision.requiredMode]} pre modul ${decision.moduleLabel}.`
-          : 'Pre internú akciu je potrebné mock admin prihlásenie.',
+          : 'Pre internú akciu je potrebné prihlásenie.',
         moduleId: decision.moduleId,
         moduleLabel: decision.moduleLabel,
         requiredMode: decision.requiredMode,

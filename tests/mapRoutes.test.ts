@@ -15,6 +15,7 @@ import adminMapPutHandler from '~/server/api/admin/map.put'
 import mapAssetHandler from '~/server/api/map-assets/[id].get'
 import mapGetHandler from '~/server/api/map.get'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { writeLocalCabinCatalogState } from '~/server/utils/localCabinCatalogStore'
 import { readLocalMapDraftState, readLocalMapState } from '~/server/utils/localMapStore'
 
 const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
@@ -22,9 +23,11 @@ const MARSHAL_COOKIE = 'rybolov_cetin_mock_session=marshal'
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
+  'RYBOLOV_LOCAL_CABIN_CATALOG_STORE',
   'RYBOLOV_LOCAL_MAP_ASSET_DIR',
   'RYBOLOV_LOCAL_MAP_DRAFT_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
+  'RYBOLOV_LOCAL_TOURNAMENT_STORE',
 ] as const
 
 const originalEnv = new Map<string, string | undefined>()
@@ -66,9 +69,11 @@ beforeEach(async () => {
 
   const dataDir = join(tempDir, 'data')
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
+  process.env.RYBOLOV_LOCAL_CABIN_CATALOG_STORE = join(dataDir, 'cabin-catalog.json')
   process.env.RYBOLOV_LOCAL_MAP_ASSET_DIR = join(dataDir, 'map-assets')
   process.env.RYBOLOV_LOCAL_MAP_DRAFT_STORE = join(dataDir, 'map-draft-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
+  process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(dataDir, 'tournament-state.json')
 })
 
 afterEach(async () => {
@@ -200,7 +205,7 @@ describe('map API routes', () => {
     }
   })
 
-  it('returns full map state only to roles with map read access', async () => {
+  it('returns full map state only to configured map roles', async () => {
     const server = await startRouteServer()
 
     try {
@@ -208,13 +213,16 @@ describe('map API routes', () => {
       expect(anonymous.response.status).toBe(401)
       expect(anonymous.body.statusMessage).toBe('Admin login required')
 
-      const marshal = await requestJson<MapStateResponse>(server, '/api/admin/map', {
+      const marshal = await requestJson<ValidationErrorResponse>(server, '/api/admin/map', {
         cookie: MARSHAL_COOKIE,
       })
-      expect(marshal.response.status).toBe(200)
-      expect(marshal.body.mapLayers.map((layer) => layer.id)).toContain('layer-vc-service')
-      expect(marshal.body.mapFacilities.map((facility) => facility.id)).toContain('facility-vc-storage')
-      expect(marshal.body.mapShapes.map((shape) => shape.id)).toContain('shape-vc-spawning-zone')
+      expect(marshal.response.status).toBe(403)
+
+      const manager = await requestJson<MapStateResponse>(server, '/api/admin/map')
+      expect(manager.response.status).toBe(200)
+      expect(manager.body.mapLayers.map((layer) => layer.id)).toContain('layer-vc-service')
+      expect(manager.body.mapFacilities.map((facility) => facility.id)).toContain('facility-vc-storage')
+      expect(manager.body.mapShapes.map((shape) => shape.id)).toContain('shape-vc-spawning-zone')
     }
     finally {
       await server.close()
@@ -496,6 +504,31 @@ describe('map API routes', () => {
       expect(invalidSave.body.statusMessage).toBe('Map save validation failed')
       expect(invalidSave.body.data.messages).toContain('Neznáma vrstva mapy: missing-layer.')
       expect(invalidSave.body.data.messages).toContain(`Duplicitné lovné miesto na mape: ${state.body.pegs[0]!.id}.`)
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('blocks publishing when critical map quality issues remain in the draft', async () => {
+    const server = await startRouteServer()
+
+    try {
+      await writeLocalCabinCatalogState({ cabinProducts: [] })
+
+      const publish = await requestJson<ValidationErrorResponse>(server, '/api/admin/map/publish', {
+        method: 'POST',
+      })
+
+      expect(publish.response.status).toBe(422)
+      expect(publish.body.statusMessage).toBe('Map publish validation failed')
+      expect(publish.body.data.messages?.some((message) => message.includes('Povinná chata nemá produkt'))).toBe(true)
+
+      const publicMap = await requestJson<MapStateResponse>(server, '/api/map', { cookie: null })
+      expect(publicMap.body.pegs.find((peg) => peg.id === 'vc-03')).toMatchObject({
+        requiresCabinReservation: true,
+        type: 'cabin',
+      })
     }
     finally {
       await server.close()

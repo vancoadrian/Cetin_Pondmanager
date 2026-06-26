@@ -21,10 +21,17 @@ create type public.trip_logbook_status as enum ('draft', 'active', 'closed');
 create type public.trip_member_role as enum ('owner', 'member', 'guest');
 create type public.catch_record_status as enum ('pending', 'approved', 'rejected');
 create type public.catch_photo_status as enum ('missing', 'uploaded', 'ai_ready');
+create type public.fish_registry_status as enum ('active', 'missing', 'dead', 'transferred');
+create type public.fish_tagging_context as enum ('capture', 'routine', 'tournament');
+create type public.fish_observation_source as enum ('manager', 'public_catch', 'tournament', 'import');
 create type public.map_layer_kind as enum ('background', 'pegs', 'cabins', 'sectors', 'service');
 create type public.map_shape_type as enum ('shoreline', 'island', 'zone', 'sector', 'service');
 create type public.map_tone as enum ('water', 'reed', 'warning', 'service', 'sector');
 create type public.map_facility_type as enum ('electricity', 'entry', 'first_aid', 'other', 'parking', 'reception', 'shower', 'storage', 'toilet', 'waste', 'wood');
+create type public.place_issue_target_type as enum ('facility', 'lake', 'peg');
+create type public.place_issue_category as enum ('access', 'broken', 'cleanliness', 'lighting', 'missing_equipment', 'safety', 'other');
+create type public.place_issue_priority as enum ('low', 'normal', 'urgent');
+create type public.place_issue_status as enum ('new', 'triaged', 'in_progress', 'resolved', 'rejected');
 create type public.tournament_status as enum ('planned', 'live', 'closed');
 create type public.tournament_marshal_status as enum ('available', 'on_route', 'measuring', 'off_duty');
 create type public.tournament_request_type as enum ('catch_measurement', 'rule_report', 'technical_help', 'other');
@@ -35,7 +42,7 @@ create type public.tournament_penalty_type as enum ('warning', 'fishing_pause', 
 create type public.tournament_penalty_status as enum ('active', 'served', 'appealed');
 create type public.tournament_rule_check_result as enum ('ok', 'warning', 'penalty');
 create type public.sponsor_tier as enum ('main', 'partner', 'sector', 'tournament');
-create type public.audit_area as enum ('reservations', 'catches', 'logbooks', 'tournaments', 'map', 'system');
+create type public.audit_area as enum ('reservations', 'rentals', 'catches', 'fish', 'issues', 'logbooks', 'tournaments', 'map', 'sponsors', 'system');
 create type public.audit_severity as enum ('info', 'warning', 'critical');
 
 create or replace function public.set_updated_at()
@@ -79,6 +86,19 @@ create table public.lakes (
   facilities text[] not null default '{}',
   fish_stock text[] not null default '{}',
   rules text[] not null default '{}',
+  large_fish_rule_enabled boolean not null default true,
+  large_fish_threshold_kg numeric(8, 2) not null default 18 check (large_fish_threshold_kg > 0),
+  large_fish_contact_mode text not null default 'phone'
+    check (large_fish_contact_mode in ('phone', 'email', 'phone-or-email')),
+  large_fish_contact_phone text not null default '',
+  large_fish_contact_email text not null default '',
+  large_fish_instruction text not null default '',
+  large_fish_outside_availability_instruction text not null default '',
+  large_fish_availability_windows jsonb not null
+    default '[{"id":"weekend-service","label":"Víkendová služba","daysOfWeek":[6,0],"startsAt":"07:00","endsAt":"18:00"}]'::jsonb
+    check (jsonb_typeof(large_fish_availability_windows) = 'array'),
+  large_fish_presence_override jsonb
+    check (large_fish_presence_override is null or jsonb_typeof(large_fish_presence_override) = 'object'),
   image_url text,
   gallery_image_urls text[] not null default '{}',
   map_image_url text,
@@ -136,6 +156,34 @@ create table public.map_facilities (
   notes text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table public.place_issues (
+  id uuid primary key default gen_random_uuid(),
+  venue_id uuid not null references public.venues(id) on delete cascade,
+  lake_id uuid not null references public.lakes(id) on delete cascade,
+  target_type public.place_issue_target_type not null,
+  target_peg_id uuid references public.pegs(id) on delete set null,
+  target_facility_id uuid references public.map_facilities(id) on delete set null,
+  target_label text not null default '',
+  category public.place_issue_category not null,
+  title text not null,
+  description text not null default '',
+  reporter_name text,
+  reporter_phone text,
+  photo_label text,
+  priority public.place_issue_priority not null default 'normal',
+  status public.place_issue_status not null default 'new',
+  assigned_to text,
+  internal_note text not null default '',
+  resolution_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (target_type = 'lake' and target_peg_id is null and target_facility_id is null)
+    or (target_type = 'peg' and target_peg_id is not null and target_facility_id is null)
+    or (target_type = 'facility' and target_facility_id is not null and target_peg_id is null)
+  )
 );
 
 create table public.map_shapes (
@@ -571,6 +619,47 @@ create table public.tournament_catches (
   updated_at timestamptz not null default now()
 );
 
+create table public.tagged_fish (
+  id uuid primary key default gen_random_uuid(),
+  venue_id uuid not null references public.venues(id) on delete cascade,
+  chip_code text not null,
+  name text not null default '',
+  species text not null,
+  status public.fish_registry_status not null default 'active',
+  current_lake_id uuid not null references public.lakes(id) on delete restrict,
+  tagged_at timestamptz not null,
+  tagged_peg_id uuid not null references public.pegs(id) on delete restrict,
+  tagged_weight_kg numeric(8, 2) check (tagged_weight_kg > 0),
+  tagged_length_cm integer check (tagged_length_cm > 0),
+  tagging_context public.fish_tagging_context not null default 'capture',
+  tagger_name text not null default '',
+  notes text not null default '',
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (venue_id, chip_code),
+  check ((tagged_weight_kg is null) = (tagged_length_cm is null))
+);
+
+create table public.fish_observations (
+  id uuid primary key default gen_random_uuid(),
+  fish_id uuid not null references public.tagged_fish(id) on delete cascade,
+  lake_id uuid not null references public.lakes(id) on delete restrict,
+  peg_id uuid not null references public.pegs(id) on delete restrict,
+  observed_at timestamptz not null,
+  weight_kg numeric(8, 2) not null check (weight_kg > 0),
+  length_cm integer not null check (length_cm > 0),
+  bait text not null default '',
+  angler_name text not null default '',
+  chip_read_by text not null,
+  source public.fish_observation_source not null default 'manager',
+  catch_record_id uuid references public.catch_records(id) on delete set null,
+  tournament_catch_id uuid references public.tournament_catches(id) on delete set null,
+  notes text not null default '',
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 create table public.tournament_penalties (
   id uuid primary key default gen_random_uuid(),
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
@@ -703,7 +792,13 @@ create index reservations_venue_dates_idx on public.reservations (venue_id, star
 create index reservations_peg_dates_idx on public.reservations (peg_id, starts_on, ends_on);
 create index rental_bookings_item_dates_idx on public.rental_bookings (rental_item_id, starts_on, ends_on, status);
 create index lake_closures_venue_dates_idx on public.lake_closures (venue_id, starts_on, ends_on);
+create index place_issues_venue_status_idx on public.place_issues (venue_id, status, priority, created_at desc);
+create index place_issues_lake_status_idx on public.place_issues (lake_id, status, created_at desc);
 create index catch_records_lake_caught_at_idx on public.catch_records (lake_id, caught_at desc);
+create index tagged_fish_venue_chip_idx on public.tagged_fish (venue_id, chip_code);
+create index tagged_fish_venue_name_idx on public.tagged_fish (venue_id, lower(name));
+create index fish_observations_fish_observed_idx on public.fish_observations (fish_id, observed_at desc);
+create index fish_observations_lake_peg_idx on public.fish_observations (lake_id, peg_id, observed_at desc);
 create index trip_logbook_entries_logbook_idx on public.trip_logbook_entries (logbook_id, caught_at desc);
 create index map_shapes_tournament_sector_idx on public.map_shapes (tournament_id, tournament_sector_id);
 create index tournament_requests_status_idx on public.tournament_requests (tournament_id, status, priority);
@@ -725,6 +820,7 @@ create trigger lakes_set_updated_at before update on public.lakes for each row e
 create trigger pegs_set_updated_at before update on public.pegs for each row execute function public.set_updated_at();
 create trigger map_layers_set_updated_at before update on public.map_layers for each row execute function public.set_updated_at();
 create trigger map_facilities_set_updated_at before update on public.map_facilities for each row execute function public.set_updated_at();
+create trigger place_issues_set_updated_at before update on public.place_issues for each row execute function public.set_updated_at();
 create trigger map_shapes_set_updated_at before update on public.map_shapes for each row execute function public.set_updated_at();
 create trigger permit_products_set_updated_at before update on public.permit_products for each row execute function public.set_updated_at();
 create trigger cabin_products_set_updated_at before update on public.cabin_products for each row execute function public.set_updated_at();
@@ -738,6 +834,7 @@ create trigger lake_closures_set_updated_at before update on public.lake_closure
 create trigger season_rules_set_updated_at before update on public.season_rules for each row execute function public.set_updated_at();
 create trigger alerts_set_updated_at before update on public.alerts for each row execute function public.set_updated_at();
 create trigger catch_records_set_updated_at before update on public.catch_records for each row execute function public.set_updated_at();
+create trigger tagged_fish_set_updated_at before update on public.tagged_fish for each row execute function public.set_updated_at();
 create trigger trip_logbooks_set_updated_at before update on public.trip_logbooks for each row execute function public.set_updated_at();
 create trigger trip_logbook_entries_set_updated_at before update on public.trip_logbook_entries for each row execute function public.set_updated_at();
 create trigger tournament_organizations_set_updated_at before update on public.tournament_organizations for each row execute function public.set_updated_at();
@@ -792,6 +889,7 @@ alter table public.lakes enable row level security;
 alter table public.pegs enable row level security;
 alter table public.map_layers enable row level security;
 alter table public.map_facilities enable row level security;
+alter table public.place_issues enable row level security;
 alter table public.map_shapes enable row level security;
 alter table public.permit_products enable row level security;
 alter table public.cabin_products enable row level security;
@@ -808,6 +906,8 @@ alter table public.lake_closure_pegs enable row level security;
 alter table public.season_rules enable row level security;
 alter table public.alerts enable row level security;
 alter table public.catch_records enable row level security;
+alter table public.tagged_fish enable row level security;
+alter table public.fish_observations enable row level security;
 alter table public.catch_photos enable row level security;
 alter table public.trip_logbooks enable row level security;
 alter table public.trip_logbook_pegs enable row level security;
@@ -871,6 +971,19 @@ create policy map_facilities_public_read on public.map_facilities for select usi
 create policy map_facilities_manager_all on public.map_facilities for all using (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
 ) with check (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+);
+
+create policy place_issues_public_insert on public.place_issues for insert with check (status = 'new');
+create policy place_issues_staff_read on public.place_issues for select using (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager', 'worker', 'marshal', 'tournament_organizer']::public.venue_role[])
+);
+create policy place_issues_staff_update on public.place_issues for update using (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager', 'worker']::public.venue_role[])
+) with check (
+  public.current_user_has_venue_role(venue_id, array['owner', 'manager', 'worker']::public.venue_role[])
+);
+create policy place_issues_manager_delete on public.place_issues for delete using (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
 );
 
@@ -1069,6 +1182,54 @@ create policy fish_identity_candidates_manager_all on public.fish_identity_candi
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
 ) with check (
   public.current_user_has_venue_role(venue_id, array['owner', 'manager']::public.venue_role[])
+);
+
+create policy tagged_fish_internal_read on public.tagged_fish for select using (
+  public.current_user_has_venue_role(
+    venue_id,
+    array['owner', 'manager', 'tournament_organizer', 'marshal', 'accountant', 'worker']::public.venue_role[]
+  )
+);
+create policy tagged_fish_operator_write on public.tagged_fish for all using (
+  public.current_user_has_venue_role(
+    venue_id,
+    array['owner', 'manager', 'tournament_organizer', 'marshal', 'worker']::public.venue_role[]
+  )
+) with check (
+  public.current_user_has_venue_role(
+    venue_id,
+    array['owner', 'manager', 'tournament_organizer', 'marshal', 'worker']::public.venue_role[]
+  )
+);
+
+create policy fish_observations_internal_read on public.fish_observations for select using (
+  exists (
+    select 1 from public.tagged_fish fish
+    where fish.id = fish_observations.fish_id
+      and public.current_user_has_venue_role(
+        fish.venue_id,
+        array['owner', 'manager', 'tournament_organizer', 'marshal', 'accountant', 'worker']::public.venue_role[]
+      )
+  )
+);
+create policy fish_observations_operator_write on public.fish_observations for all using (
+  exists (
+    select 1 from public.tagged_fish fish
+    where fish.id = fish_observations.fish_id
+      and public.current_user_has_venue_role(
+        fish.venue_id,
+        array['owner', 'manager', 'tournament_organizer', 'marshal', 'worker']::public.venue_role[]
+      )
+  )
+) with check (
+  exists (
+    select 1 from public.tagged_fish fish
+    where fish.id = fish_observations.fish_id
+      and public.current_user_has_venue_role(
+        fish.venue_id,
+        array['owner', 'manager', 'tournament_organizer', 'marshal', 'worker']::public.venue_role[]
+      )
+  )
 );
 
 create policy tournaments_public_read on public.tournaments for select using (status in ('planned', 'live', 'closed'));

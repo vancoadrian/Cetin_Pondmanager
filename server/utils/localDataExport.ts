@@ -33,6 +33,11 @@ import { readLocalCatchReportState, resolveLocalCatchReportStorePath } from './l
 import { readLocalCatchState, resolveLocalCatchStorePath } from './localCatchStore'
 import { readLocalClosureState, resolveLocalClosureStorePath } from './localClosureStore'
 import { readLocalErrorLogState, resolveLocalErrorLogStorePath } from './localErrorLogStore'
+import { readLocalFishRegistryState, resolveLocalFishRegistryStorePath } from './localFishRegistryStore'
+import {
+  readLocalLargeFishAssistanceState,
+  resolveLocalLargeFishAssistanceStorePath,
+} from './localLargeFishAssistanceStore'
 import { resolveLocalMapAssetDir } from './localMapAssetStore'
 import {
   readLocalMapDraftState,
@@ -42,6 +47,7 @@ import {
 } from './localMapStore'
 import { readLocalNotificationState, resolveLocalNotificationStorePath } from './localNotificationStore'
 import { readLocalPaymentMethodState, resolveLocalPaymentMethodStorePath } from './localPaymentMethodStore'
+import { readLocalPlaceIssueState, resolveLocalPlaceIssueStorePath } from './localPlaceIssueStore'
 import { readLocalRentalCatalogState, resolveLocalRentalCatalogStorePath } from './localRentalCatalogStore'
 import { readLocalReservationState, resolveLocalReservationStorePath } from './localReservationStore'
 import { resolveLocalSponsorAssetDir } from './localSponsorAssetStore'
@@ -117,12 +123,16 @@ const defaultCountLabels: Record<string, string> = {
   deliveryLogs: 'Doručenia',
   errors: 'Chyby',
   events: 'Audit udalosti',
+  fish: 'Čipované ryby',
+  requests: 'Privolania správcu',
+  observations: 'Merania rýb',
   lakeClosures: 'Uzávierky',
   mapFacilities: 'Servisné body',
   mapLayers: 'Vrstvy mapy',
   mapShapes: 'Polygony mapy',
   paymentMethods: 'Platobné metódy',
   pegs: 'Lovné miesta',
+  placeIssues: 'Hlásenia nedostatkov',
   rentalBookings: 'Rezervácie výbavy',
   rentalItems: 'Požičovňa',
   reservationExtras: 'Doplnky',
@@ -192,10 +202,28 @@ export function getDefaultLocalDataStoreDefinitions(): LocalDataStoreDefinition[
       read: () => toExportState(readLocalClosureState()),
     },
     {
+      id: 'placeIssues',
+      label: 'Hlásenia nedostatkov',
+      path: resolveLocalPlaceIssueStorePath(),
+      read: () => toExportState(readLocalPlaceIssueState()),
+    },
+    {
       id: 'catches',
       label: 'Úlovky a zápisníky',
       path: resolveLocalCatchStorePath(),
       read: () => toExportState(readLocalCatchState()),
+    },
+    {
+      id: 'fishRegistry',
+      label: 'Register čipovaných rýb',
+      path: resolveLocalFishRegistryStorePath(),
+      read: () => toExportState(readLocalFishRegistryState()),
+    },
+    {
+      id: 'largeFishAssistance',
+      label: 'Privolania správcu k veľkým rybám',
+      path: resolveLocalLargeFishAssistanceStorePath(),
+      read: () => toExportState(readLocalLargeFishAssistanceState()),
     },
     {
       id: 'catchReports',

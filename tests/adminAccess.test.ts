@@ -20,17 +20,33 @@ describe('admin access matrix', () => {
   it('limits accountant to finance and reporting oriented modules', () => {
     const modules = getAdminModulesForRole('accountant').map((module) => module.id)
 
-    expect(modules).toEqual(['dashboard', 'reservations', 'catches', 'rentals', 'tournaments', 'sponsors', 'system', 'audit'])
+    expect(modules).toEqual(['reservations', 'catches', 'rentals', 'tournaments', 'sponsors'])
     expect(canAccessAdminPath('accountant', '/admin/mapa')).toBe(false)
     expect(canAccessAdminPath('accountant', '/admin/rezervacie')).toBe(true)
+    expect(canAccessAdminPath('accountant', '/admin/system')).toBe(false)
   })
 
   it('keeps workers in operating modules without sponsor or audit access', () => {
     const modules = getAdminModulesForRole('worker').map((module) => module.id)
 
-    expect(modules).toEqual(['dashboard', 'reservations', 'closures', 'map', 'rentals', 'tournaments'])
+    expect(modules).toEqual(['reservations', 'issues', 'map', 'rentals'])
+    expect(canAccessAdminPath('worker', '/admin/hlasenia')).toBe(true)
     expect(canAccessAdminPath('worker', '/admin/pozicovna')).toBe(true)
     expect(canAccessAdminPath('worker', '/admin/sponzori')).toBe(false)
+    expect(canAccessAdminPath('worker', '/admin/sutaze')).toBe(false)
+  })
+
+  it('keeps competition roles inside their dedicated workspaces', () => {
+    expect(getAdminModulesForRole('marshal').map((module) => module.id)).toEqual(['tournaments'])
+    expect(canAccessAdminPath('marshal', '/admin/sutaze/kontrolor')).toBe(true)
+    expect(canAccessAdminPath('marshal', '/admin/sutaze')).toBe(false)
+    expect(canAccessAdminPath('marshal', '/admin/ryby')).toBe(false)
+    expect(getAdminModulesForRole('organizer').map((module) => module.id)).toEqual([
+      'map',
+      'tournaments',
+      'notifications',
+      'sponsors',
+    ])
   })
 
   it('matches nested admin routes to the owning module', () => {
@@ -39,6 +55,12 @@ describe('admin access matrix', () => {
     expect(module?.id).toBe('reservations')
     expect(getAdminModuleAccess(module!, 'manager')).toBe('full')
     expect(canAccessAdminPath('team', '/admin/rezervacie/detail/test')).toBe(false)
+  })
+
+  it('keeps anglers and tournament teams outside the admin navigation', () => {
+    expect(getAdminModulesForRole('angler')).toEqual([])
+    expect(getAdminModulesForRole('team')).toEqual([])
+    expect(canAccessAdminPath('team', '/admin/sutaze')).toBe(false)
   })
 
   it('distinguishes read, operate and full write levels', () => {
@@ -55,6 +77,8 @@ describe('admin access matrix', () => {
     expect(canOperateAdminModule('accountant', 'sponsors')).toBe(false)
     expect(canOperateAdminModule('accountant', 'system')).toBe(false)
     expect(canOperateAdminModule('worker', 'rentals')).toBe(true)
+    expect(canOperateAdminModule('worker', 'issues')).toBe(true)
+    expect(canManageAdminModule('worker', 'issues')).toBe(false)
     expect(canManageAdminModule('worker', 'closures')).toBe(false)
   })
 })

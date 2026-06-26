@@ -31,6 +31,14 @@ export interface ServerNotificationDeliveryRunnerOptions extends ServerNotificat
 }
 
 function createNotificationUrl(broadcast: NotificationBroadcast) {
+  const requestId = broadcast.targetAudience?.requestId
+  if (requestId?.startsWith('fish-help-')) {
+    return `/admin/ryby?privolanie=${encodeURIComponent(requestId)}`
+  }
+  if (requestId?.startsWith('catch-')) {
+    return `/admin/ulovky?catchId=${encodeURIComponent(requestId)}`
+  }
+
   if (broadcast.targetTopics.includes('tournaments')) {
     const tournamentId = broadcast.targetAudience?.tournamentId
 

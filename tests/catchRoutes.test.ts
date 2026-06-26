@@ -8,9 +8,11 @@ import { createApp, createRouter, toNodeListener } from 'h3'
 import type {
   CatchStateResponse,
   CatchSubmissionSuccess,
+  AnglerLogbooksResponse,
   TripLogbookLookupSuccess,
   TripLogbookSubmissionSuccess,
 } from '~/app/services/catchApiService'
+import accountLogbooksGetHandler from '~/server/api/account/logbooks.get'
 import type { CatchCorrectionSuccess } from '~/app/services/catchCorrectionService'
 import type { CatchModerationSuccess } from '~/app/services/catchModerationService'
 import adminCatchesGetHandler from '~/server/api/admin/catches.get'
@@ -24,15 +26,25 @@ import logbooksPostHandler from '~/server/api/logbooks.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalCatchPhotoFile } from '~/server/utils/localCatchPhotoStore'
 import { readLocalCatchState } from '~/server/utils/localCatchStore'
+import { writeLocalLargeFishAssistanceState } from '~/server/utils/localLargeFishAssistanceStore'
+import {
+  readLocalNotificationState,
+  writeLocalNotificationState,
+} from '~/server/utils/localNotificationStore'
 
 const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
 const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+const MAREK_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-marek'
+const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_PHOTO_DIR',
   'RYBOLOV_LOCAL_CATCH_STORE',
+  'RYBOLOV_LOCAL_FISH_REGISTRY_STORE',
+  'RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
+  'RYBOLOV_LOCAL_NOTIFICATION_STORE',
   'RYBOLOV_WEATHER_PROVIDER',
 ] as const
 
@@ -83,7 +95,10 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CATCH_PHOTO_DIR = join(dataDir, 'catch-photos')
   process.env.RYBOLOV_LOCAL_CATCH_STORE = join(dataDir, 'catch-state.json')
+  process.env.RYBOLOV_LOCAL_FISH_REGISTRY_STORE = join(dataDir, 'fish-registry-state.json')
+  process.env.RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE = join(dataDir, 'large-fish-assistance-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
+  process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notification-state.json')
   process.env.RYBOLOV_WEATHER_PROVIDER = 'mock'
 })
 
@@ -110,6 +125,7 @@ function createCatchRouteServerApp() {
   const router = createRouter()
 
   router.get('/api/catches', catchesGetHandler)
+  router.get('/api/account/logbooks', accountLogbooksGetHandler)
   router.get('/api/catch-photos/:id', catchPhotoGetHandler)
   router.post('/api/catches', catchesPostHandler)
   router.get('/api/logbooks/:code', logbookLookupHandler)
@@ -195,6 +211,110 @@ async function requestRaw(
 }
 
 describe('catch API routes', () => {
+  it('notifies internal managers about a large catch without duplicating an existing assistance call', async () => {
+    const server = await startRouteServer()
+    const now = '2026-06-21T16:30:00.000Z'
+
+    try {
+      await writeLocalNotificationState({
+        alerts: [],
+        broadcasts: [],
+        deliveryLogs: [],
+        subscriptions: [{
+          audienceRole: 'manager',
+          createdAt: now,
+          deviceLabel: 'Správca - mobil',
+          enabled: true,
+          endpoint: 'mock://manager-device',
+          id: 'push-manager',
+          lastSeenAt: now,
+          permission: 'granted',
+          topics: ['service'],
+          updatedAt: now,
+          userAgent: 'Vitest',
+        }],
+      })
+
+      const largeCatchPayload = {
+        ...catchPayload,
+        angler: 'Marek bez privolania',
+        caughtAt: '2026-06-21T18:25',
+        lengthCm: 101,
+        logbookId: undefined,
+        photo: undefined,
+        species: 'Kapor',
+        weightKg: 21.4,
+      }
+      const submission = await requestJson<CatchSubmissionSuccess>(server, '/api/catches', {
+        body: JSON.stringify(largeCatchPayload),
+        cookie: null,
+        method: 'POST',
+      })
+      expect(submission.response.status).toBe(201)
+
+      const notificationState = await readLocalNotificationState()
+      expect(notificationState.broadcasts[0]).toMatchObject({
+        recipientCount: 1,
+        targetAudience: {
+          requestId: submission.body.catch.id,
+          roles: ['owner', 'manager'],
+        },
+        title: 'Veľký úlovok čaká na kontrolu',
+      })
+      expect(notificationState.alerts).toEqual([])
+
+      const assistedPayload = {
+        ...largeCatchPayload,
+        angler: 'Marek s privolaním',
+        caughtAt: '2026-06-21T18:40',
+        pegId: 'vc-04',
+        weightKg: 22.1,
+      }
+      await writeLocalLargeFishAssistanceState({
+        requests: [{
+          anglerName: assistedPayload.angler,
+          caughtAt: assistedPayload.caughtAt,
+          createdAt: now,
+          id: 'fish-help-20260621-miesto-4',
+          lake: assistedPayload.lake,
+          lengthCm: assistedPayload.lengthCm,
+          managerPhone: '0911 298 702',
+          note: '',
+          pegId: assistedPayload.pegId,
+          pegLabel: 'Miesto 4',
+          phone: '+421 900 111 222',
+          publicToken: 'secret-token',
+          species: assistedPayload.species,
+          status: 'on-route',
+          updatedAt: now,
+          weightKg: assistedPayload.weightKg,
+        }],
+      })
+
+      const assistedSubmission = await requestJson<CatchSubmissionSuccess>(server, '/api/catches', {
+        body: JSON.stringify(assistedPayload),
+        cookie: null,
+        method: 'POST',
+      })
+      expect(assistedSubmission.response.status).toBe(201)
+
+      const notificationStateAfterAssistedCatch = await readLocalNotificationState()
+      expect(notificationStateAfterAssistedCatch.broadcasts).toHaveLength(1)
+      expect(notificationStateAfterAssistedCatch.broadcasts[0]?.targetAudience?.requestId).toBe(
+        submission.body.catch.id,
+      )
+
+      const auditState = await readLocalAuditLogState()
+      expect(auditState.events).toContainEqual(expect.objectContaining({
+        action: 'notification.large_catch.created',
+        entityType: 'notification_broadcast',
+      }))
+    }
+    finally {
+      await server.close()
+    }
+  })
+
   it('keeps newly submitted catches private until admin approval', async () => {
     const server = await startRouteServer()
 
@@ -364,6 +484,8 @@ describe('catch API routes', () => {
       expect(lookup.body.ok).toBe(true)
       expect(lookup.body.logbook.id).toBe(body.logbook.id)
       expect(lookup.body.logbook.shareCode).toBe(body.logbook.shareCode)
+      expect(lookup.body.logbook).not.toHaveProperty('ownerUserId')
+      expect(lookup.body.logbook.members.every((member) => !('userId' in member))).toBe(true)
       expect(lookup.body.tripLogbookEntries).toEqual([])
 
       const missingLookup = await requestJson<ValidationErrorResponse>(
@@ -382,6 +504,70 @@ describe('catch API routes', () => {
         area: 'logbooks',
         entityId: body.logbook.id,
       }))
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('keeps an authenticated angler logbook in account history', async () => {
+    const server = await startRouteServer()
+
+    try {
+      const created = await requestJson<TripLogbookSubmissionSuccess>(server, '/api/logbooks', {
+        body: JSON.stringify({
+          lake: 'velky-cetin',
+          memberNames: ['Nesprávny vlastník', 'Tomáš Route'],
+          mode: 'group',
+          pegIds: ['vc-03'],
+          title: 'Výprava v účte',
+        }),
+        cookie: MAREK_ANGLER_COOKIE,
+        method: 'POST',
+      })
+      expect(created.response.status).toBe(201)
+      expect(created.body.logbook).toMatchObject({
+        owner: 'Marek H.',
+        ownerUserId: 'angler-marek',
+      })
+      expect(created.body.logbook.members[0]).toMatchObject({
+        role: 'owner',
+        userId: 'angler-marek',
+      })
+
+      const marekHistory = await requestJson<AnglerLogbooksResponse>(
+        server,
+        '/api/account/logbooks',
+        { cookie: MAREK_ANGLER_COOKIE },
+      )
+      expect(marekHistory.response.status).toBe(200)
+      expect(marekHistory.body.account.email).toBe('marek.horvath@example.test')
+      expect(marekHistory.body.tripLogbooks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: created.body.logbook.id }),
+        expect.objectContaining({ id: 'logbook-cabin-3-may' }),
+      ]))
+      expect(
+        marekHistory.body.tripLogbooks.find((logbook) => logbook.id === created.body.logbook.id)?.ownerUserId,
+      ).toBe('angler-marek')
+
+      const lenkaHistory = await requestJson<AnglerLogbooksResponse>(
+        server,
+        '/api/account/logbooks',
+        { cookie: LENKA_ANGLER_COOKIE },
+      )
+      expect(lenkaHistory.response.status).toBe(200)
+      expect(lenkaHistory.body.tripLogbooks.some((logbook) => logbook.id === created.body.logbook.id)).toBe(false)
+      expect(lenkaHistory.body.tripLogbooks).toContainEqual(expect.objectContaining({
+        id: 'logbook-kocka-evening',
+      }))
+
+      const anonymousHistory = await requestJson<{ statusMessage: string }>(
+        server,
+        '/api/account/logbooks',
+        { cookie: null },
+      )
+      expect(anonymousHistory.response.status).toBe(401)
+      expect(anonymousHistory.body.statusMessage).toBe('Angler login required')
     }
     finally {
       await server.close()

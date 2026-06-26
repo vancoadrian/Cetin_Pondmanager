@@ -1,6 +1,7 @@
 export const OFFLINE_QUEUE_STORES = {
   adminTournamentActions: 'admin-tournament-actions',
   catches: 'catch-submissions',
+  placeIssues: 'place-issues',
   reservations: 'reservation-requests',
   tournamentRequests: 'tournament-requests',
 } as const
@@ -8,7 +9,7 @@ export const OFFLINE_QUEUE_STORES = {
 export const OFFLINE_QUEUE_CHANGED_EVENT = 'rybolov:offline-queue-changed'
 
 const DB_NAME = 'rybolov-cetin-offline'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 export type OfflineQueueStoreName = typeof OFFLINE_QUEUE_STORES[keyof typeof OFFLINE_QUEUE_STORES]
 
@@ -52,6 +53,7 @@ export function openOfflineQueueDb() {
       const database = request.result
 
       ensureStore(database, OFFLINE_QUEUE_STORES.catches)
+      ensureStore(database, OFFLINE_QUEUE_STORES.placeIssues)
       ensureStore(database, OFFLINE_QUEUE_STORES.reservations)
       ensureStore(database, OFFLINE_QUEUE_STORES.tournamentRequests)
       ensureStore(database, OFFLINE_QUEUE_STORES.adminTournamentActions)
