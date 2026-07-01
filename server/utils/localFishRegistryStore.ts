@@ -22,7 +22,7 @@ const seedFish: TaggedFish[] = [
     id: 'fish-985141000312845',
     lake: 'velky-cetin',
     name: 'Aurora',
-    notes: 'Mock ryba pre ukážku histórie rastu. Označená počas súťaže.',
+    notes: 'Ukážková ryba pre históriu rastu. Označená počas súťaže.',
     species: 'Kapor lysec',
     status: 'active',
     taggedAt: '2024-05-18T09:10:00.000Z',
@@ -39,7 +39,7 @@ const seedFish: TaggedFish[] = [
     id: 'fish-985141000401772',
     lake: 'strkovisko-kocka',
     name: 'Mica',
-    notes: 'Mock ryba označená po úlovku nad internou hranicou 18 kg.',
+    notes: 'Ryba označená po úlovku nad internou hranicou 18 kg.',
     species: 'Kapor šupináč',
     status: 'active',
     taggedAt: '2025-04-12T14:20:00.000Z',
@@ -156,6 +156,28 @@ function isFishRegistryState(value: unknown): value is LocalFishRegistryState {
     && Array.isArray(candidate.observations)
 }
 
+function migrateLegacyFishNotes(state: FishRegistryState) {
+  return {
+    ...state,
+    fish: state.fish.map((fish) => {
+      if (fish.notes === 'Mock ryba pre ukážku histórie rastu. Označená počas súťaže.') {
+        return {
+          ...fish,
+          notes: 'Ukážková ryba pre históriu rastu. Označená počas súťaže.',
+        }
+      }
+      if (fish.notes === 'Mock ryba označená po úlovku nad internou hranicou 18 kg.') {
+        return {
+          ...fish,
+          notes: 'Ryba označená po úlovku nad internou hranicou 18 kg.',
+        }
+      }
+
+      return fish
+    }),
+  } satisfies FishRegistryState
+}
+
 export async function readLocalFishRegistryState(
   filePath = resolveLocalFishRegistryStorePath(),
 ): Promise<LocalFishRegistryState> {
@@ -163,8 +185,9 @@ export async function readLocalFishRegistryState(
     const raw = await readFile(filePath, 'utf8')
     const parsed: unknown = JSON.parse(raw)
     if (isFishRegistryState(parsed)) {
+      const migratedState = migrateLegacyFishNotes(parsed)
       return {
-        ...cloneFishRegistryState(parsed),
+        ...cloneFishRegistryState(migratedState),
         settings: normalizeFishRegistrySettings(parsed.settings),
         updatedAt: parsed.updatedAt,
         version: 1,

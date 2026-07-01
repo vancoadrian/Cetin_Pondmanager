@@ -1,6 +1,11 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
+import type { LakeSlug } from '~/data/pond'
 import { createMockPondRepository, createPondSnapshot } from '~/repositories/pondRepository'
 import { submitCatchCorrection } from '~/services/catchCorrectionService'
+import {
+  createAsyncCatchWeatherResolver,
+  type CatchWeatherLookupInput,
+} from '~/services/catchWeatherService'
 import { createPondService } from '~/services/pondService'
 import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
@@ -10,6 +15,27 @@ import {
   replaceLocalCatchState,
 } from '../../../../utils/localCatchStore'
 import { readLocalMapState } from '../../../../utils/localMapStore'
+
+function getWeatherLookupInput(rawBody: unknown): CatchWeatherLookupInput | undefined {
+  const body = rawBody as Partial<{
+    caughtAt: unknown
+    lake: unknown
+    pegId: unknown
+  }>
+  if (
+    typeof body.caughtAt === 'string' &&
+    (body.lake === 'velky-cetin' || body.lake === 'strkovisko-kocka') &&
+    typeof body.pegId === 'string'
+  ) {
+    return {
+      caughtAt: body.caughtAt,
+      lake: body.lake as LakeSlug,
+      pegId: body.pegId,
+    }
+  }
+
+  return undefined
+}
 
 export default defineEventHandler(async (event) => {
   requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
@@ -32,6 +58,9 @@ export default defineEventHandler(async (event) => {
     actorLabel: 'Admin',
     actorRole: 'manager',
   })
+  const weatherLookupInput = getWeatherLookupInput(body)
+  const asyncWeatherResolver = createAsyncCatchWeatherResolver()
+  const weather = weatherLookupInput ? await asyncWeatherResolver(weatherLookupInput) : undefined
   const result = submitCatchCorrection(
     {
       ...body,
@@ -39,6 +68,7 @@ export default defineEventHandler(async (event) => {
     },
     state,
     service,
+    () => weather,
   )
 
   if (!result.ok) {

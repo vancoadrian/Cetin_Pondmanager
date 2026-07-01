@@ -26,6 +26,12 @@ export interface SystemHealthOptions {
 
 const serviceName = 'Rybolov Cetín'
 
+const notificationProviderLabels: Record<string, string> = {
+  disabled: 'vypnuté',
+  mock: 'skúšobné',
+  'web-push': 'push cez prehliadač',
+}
+
 export function resolveLocalDataDirectory() {
   return process.env.RYBOLOV_LOCAL_DATA_DIR
     ?? join(process.cwd(), '.data', 'rybolov-cetin')
@@ -38,10 +44,10 @@ function runtimeHealthCheck(checkedAt: string): SystemHealthCheck {
   return {
     checkedAt,
     detail: status === 'ok'
-      ? `Node runtime ${process.version} spĺňa požiadavku projektu.`
-      : `Node runtime ${process.version} je nižší než odporúčané >=22.`,
+      ? `Node.js ${process.version} spĺňa požiadavku projektu.`
+      : `Node.js ${process.version} je nižší než odporúčané >=22.`,
     id: 'runtime',
-    label: 'Runtime',
+    label: 'Serverové prostredie',
     metadata: {
       node: process.version,
     },
@@ -84,19 +90,20 @@ function notificationHealthCheck(checkedAt: string): SystemHealthCheck {
   const status: SystemHealthStatus = diagnostics.provider === 'web-push' && !diagnostics.webPushReady
     ? 'degraded'
     : 'ok'
+  const providerLabel = notificationProviderLabels[diagnostics.provider] ?? diagnostics.provider
 
   return {
     checkedAt,
     detail: diagnostics.webPushReady
-      ? 'Web Push provider je pripravený na reálne odosielanie.'
+      ? 'Doručovanie notifikácií je pripravené na reálne odosielanie.'
       : diagnostics.provider === 'web-push'
-        ? `Web Push provider nemá kompletné VAPID nastavenie: ${diagnostics.missingConfigKeys.join(', ')}.`
-        : `Notifikačný provider beží v režime ${diagnostics.provider}.`,
+        ? `Doručovanie notifikácií nemá kompletné kľúče: ${diagnostics.missingConfigKeys.join(', ')}.`
+        : `Doručovanie notifikácií beží v režime ${providerLabel}.`,
     id: 'notifications',
     label: 'Notifikácie',
     metadata: {
       missingConfigKeys: diagnostics.missingConfigKeys.length,
-      provider: diagnostics.provider,
+      provider: providerLabel,
       webPushReady: diagnostics.webPushReady,
     },
     status,
@@ -112,10 +119,10 @@ function environmentReadinessHealthCheck(
   return {
     checkedAt,
     detail: report.status === 'ready'
-      ? 'Environment profil má všetky povinné a odporúčané hodnoty pripravené.'
-      : `Environment profil je ${environmentReadinessSummaryLabels[report.status]}: ${report.missingRequiredCount} povinných chýba, ${report.attentionCount} odporúčaných alebo mock položiek je na pozornosť.`,
+      ? 'Profil prostredia má všetky povinné a odporúčané hodnoty pripravené.'
+      : `Profil prostredia je ${environmentReadinessSummaryLabels[report.status]}: ${report.missingRequiredCount} povinných chýba, ${report.attentionCount} odporúčaných alebo skúšobných položiek je na pozornosť.`,
     id: 'environment-readiness',
-    label: 'Environment',
+    label: 'Pripravenosť prostredia',
     metadata: {
       attentionCount: report.attentionCount,
       environment: report.environment,

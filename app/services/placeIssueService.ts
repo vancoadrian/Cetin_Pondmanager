@@ -201,7 +201,7 @@ export function submitPlaceIssueAction(
   const input = inputResult.data
   const existingIssue = state.placeIssues.find((issue) => issue.id === input.issueId)
   if (!existingIssue) {
-    return failure(['Hlásenie sa v lokálnom store nenašlo.'], 404)
+    return failure(['Hlásenie sa nenašlo.'], 404)
   }
 
   const issue: PlaceIssue = {

@@ -54,7 +54,7 @@ export default defineEventHandler(async (event): Promise<RentalCatalogMutationSu
     entityLabel: 'Požičovňa a doplnky',
     entityType: 'rental_catalog',
     severity: 'info',
-    summary: 'Správca upravil lokálny katalóg požičovne a doplnkov.',
+    summary: 'Správca upravil katalóg požičovne a doplnkov.',
   })
   setResponseStatus(event, result.statusCode)
 

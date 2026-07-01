@@ -359,7 +359,7 @@ export function saveMapState(
       ...shape,
       points: shape.points.map((point) => ({ ...point })),
     })),
-    message: 'Mapa je uložená do lokálneho store.',
+    message: 'Mapa je uložená.',
     pegs: parsed.payload.pegs.map((peg) => ({
       ...peg,
       requiresCabinReservation: peg.type === 'cabin' ? Boolean(peg.requiresCabinReservation) : undefined,

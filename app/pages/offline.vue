@@ -49,6 +49,14 @@ import {
 
 useHead({ title: 'Offline režim' })
 
+interface QueueSection {
+  count: number
+  description: string
+  icon: string
+  label: string
+  to: string
+}
+
 const {
   getLakeName,
   getPegLabel,
@@ -66,6 +74,8 @@ const isOnline = ref(true)
 const queueLoadError = ref('')
 const syncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
 const syncMessage = ref('')
+const { user } = useMockAuth()
+const currentRole = computed(() => user.value?.role ?? null)
 
 const offlineItems = [
   {
@@ -94,65 +104,88 @@ const offlineItems = [
   },
 ]
 
+const canSeeTournamentRequests = computed(() =>
+  currentRole.value === 'team' || canOperateAdminModule(currentRole.value, 'tournaments'),
+)
+const canSeeAdminTournamentActions = computed(() =>
+  canOperateAdminModule(currentRole.value, 'tournaments'),
+)
+const visibleTournamentRequests = computed(() =>
+  canSeeTournamentRequests.value ? offlineTournamentRequests.value : [],
+)
+const visibleTournamentAdminActions = computed(() =>
+  canSeeAdminTournamentActions.value ? offlineTournamentAdminActions.value : [],
+)
+
 const totalQueued = computed(() =>
   offlineReservations.value.length +
   offlineCatches.value.length +
   offlinePlaceIssues.value.length +
-  offlineTournamentRequests.value.length +
-  offlineTournamentAdminActions.value.length,
+  visibleTournamentRequests.value.length +
+  visibleTournamentAdminActions.value.length,
 )
 const issueCount = computed(() =>
   offlineReservations.value.filter((item) => item.lastError).length +
   offlineCatches.value.filter((item) => item.lastError).length +
   offlinePlaceIssues.value.filter((item) => item.lastError).length +
-  offlineTournamentRequests.value.filter((item) => item.lastError).length +
-  offlineTournamentAdminActions.value.filter((item) => item.lastError).length,
+  visibleTournamentRequests.value.filter((item) => item.lastError).length +
+  visibleTournamentAdminActions.value.filter((item) => item.lastError).length,
 )
 
-const queueSections = computed(() => [
-  {
-    count: offlineReservations.value.length,
-    description: 'Žiadosti o miesto, chatu, výbavu a doplnky čakajúce na odoslanie správcovi.',
-    icon: 'i-heroicons-calendar-days',
-    label: 'Rezervácie',
-    to: '/rezervacie',
-  },
-  {
-    count: offlineCatches.value.length,
-    description: 'Úlovky a fotky čakajúce na uloženie a následné schválenie správcom.',
-    icon: 'i-heroicons-camera',
-    label: 'Úlovky',
-    to: '/ulovky',
-  },
-  {
-    count: offlinePlaceIssues.value.length,
-    description: 'Nedostatky na lovných miestach, chatách a servisných bodoch čakajúce na odoslanie.',
-    icon: 'i-heroicons-wrench-screwdriver',
-    label: 'Nedostatky',
-    to: '/mapa',
-  },
-  {
-    count: offlineTournamentRequests.value.length,
-    description: 'Privolanie kontrolóra, hlásenie porušenia alebo technická pomoc pre dispečing.',
-    icon: 'i-heroicons-flag',
-    label: 'Súťažné hlásenia',
-    to: '/sutaze',
-  },
-  {
-    count: offlineTournamentAdminActions.value.length,
-    description: 'Prevzatie hlásenia, uzavretie hlásenia, váženia, tresty a kontroly sektorov čakajúce na admin dispečing.',
-    icon: 'i-heroicons-clipboard-document-check',
-    label: 'Kontrolórske úkony',
-    to: '/admin/sutaze',
-  },
-])
+const queueSections = computed<QueueSection[]>(() => {
+  const sections: QueueSection[] = [
+    {
+      count: offlineReservations.value.length,
+      description: 'Žiadosti o miesto, chatu, výbavu a doplnky čakajúce na odoslanie správcovi.',
+      icon: 'i-heroicons-calendar-days',
+      label: 'Rezervácie',
+      to: '/rezervacie',
+    },
+    {
+      count: offlineCatches.value.length,
+      description: 'Úlovky a fotky čakajúce na uloženie a následné schválenie správcom.',
+      icon: 'i-heroicons-camera',
+      label: 'Úlovky',
+      to: '/ulovky',
+    },
+    {
+      count: offlinePlaceIssues.value.length,
+      description: 'Nedostatky na lovných miestach, chatách a servisných bodoch čakajúce na odoslanie.',
+      icon: 'i-heroicons-wrench-screwdriver',
+      label: 'Nedostatky',
+      to: '/mapa',
+    },
+  ]
+
+  if (canSeeTournamentRequests.value) {
+    sections.push({
+      count: visibleTournamentRequests.value.length,
+      description: 'Privolanie kontrolóra, hlásenie porušenia alebo technická pomoc počas súťaže.',
+      icon: 'i-heroicons-flag',
+      label: 'Súťažné hlásenia',
+      to: currentRole.value === 'team' ? '/sutaze/tim' : '/admin/sutaze',
+    })
+  }
+
+  if (canSeeAdminTournamentActions.value) {
+    sections.push({
+      count: visibleTournamentAdminActions.value.length,
+      description: 'Prevzatie hlásení, váženia, tresty a kontroly sektorov čakajúce na odoslanie.',
+      icon: 'i-heroicons-clipboard-document-check',
+      label: 'Kontrolórske úkony',
+      to: currentRole.value === 'marshal' ? '/admin/sutaze/kontrolor' : '/admin/sutaze',
+    })
+  }
+
+  return sections
+})
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function getQueueFallbackErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Offline fronty sa nepodarilo načítať.'
+  return error instanceof Error ? error.message : 'Čakajúce položky sa nepodarilo načítať.'
 }
 
 function getAttemptLabel(attempts: number) {
@@ -197,7 +230,7 @@ function getQueueActionCopy(
     return 'Skontroluj jazero, miesto, servisný bod alebo popis nedostatku na mape.'
   }
   if (kind === 'admin-tournament-action') {
-    return 'Skontroluj súťažný stav, sektor, kontrolóra alebo konkrétny úlovok v admin dispečingu.'
+    return 'Skontroluj súťažný stav, sektor, kontrolóra alebo konkrétny úlovok v pracovnom súťažnom paneli.'
   }
 
   return 'Skontroluj sektor, typ hlásenia alebo popis v súťažnom formulári.'
@@ -253,8 +286,8 @@ async function refreshOfflineQueues() {
       readOfflineReservationQueue(),
       readOfflineCatchQueue(),
       readOfflinePlaceIssueQueue(),
-      readOfflineTournamentRequestQueue(),
-      readOfflineTournamentAdminActionQueue(),
+      canSeeTournamentRequests.value ? readOfflineTournamentRequestQueue() : Promise.resolve([]),
+      canSeeAdminTournamentActions.value ? readOfflineTournamentAdminActionQueue() : Promise.resolve([]),
     ])
 
     offlineReservations.value = reservations
@@ -292,7 +325,7 @@ async function discardQueuedItem(
 
     await refreshOfflineQueues()
     syncStatus.value = 'success'
-    syncMessage.value = 'Položka bola odstránená z offline fronty v tomto zariadení.'
+    syncMessage.value = 'Položka bola odstránená z čakajúcich odoslaní v tomto zariadení.'
   }
   catch (error) {
     syncStatus.value = 'error'
@@ -313,7 +346,7 @@ async function syncAllQueues() {
   await refreshOfflineQueues()
   if (totalQueued.value === 0) {
     syncStatus.value = 'success'
-    syncMessage.value = 'Offline fronta je prázdna.'
+    syncMessage.value = 'V zariadení nič nečaká na odoslanie.'
     return
   }
 
@@ -363,7 +396,7 @@ async function syncAllQueues() {
     }
   }
 
-  for (const item of [...offlineTournamentRequests.value]) {
+  for (const item of [...visibleTournamentRequests.value]) {
     try {
       await $fetch<TournamentRequestSubmissionSuccess>('/api/tournament-requests', {
         body: item.payload,
@@ -377,7 +410,7 @@ async function syncAllQueues() {
     }
   }
 
-  for (const item of [...offlineTournamentAdminActions.value]) {
+  for (const item of [...visibleTournamentAdminActions.value]) {
     try {
       const payload = withTournamentAdminActionClientMutationId(item.payload, { id: item.id })
 
@@ -451,6 +484,10 @@ onMounted(() => {
   void refreshOfflineQueues()
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+})
+
+watch(currentRole, () => {
+  void refreshOfflineQueues()
 })
 
 onBeforeUnmount(() => {
@@ -546,7 +583,7 @@ onBeforeUnmount(() => {
           <div>
             <p class="font-bold">Niektoré položky sa neodoslali</p>
             <p class="mt-1">
-              Server ich odmietol alebo sa zmenila dostupnosť. Otvor príslušný formulár, uprav údaje a potom položku z offline fronty odstráň alebo skús odoslať znova.
+              Odoslanie zlyhalo alebo sa zmenila dostupnosť. Otvor príslušný formulár, uprav údaje a potom položku odstráň z čakajúcich odoslaní alebo ju skús odoslať znova.
             </p>
           </div>
         </div>
@@ -558,7 +595,7 @@ onBeforeUnmount(() => {
             <div>
               <h2 class="text-lg font-bold">Rezervácie</h2>
               <p class="text-foreground-muted mt-1 text-sm">
-                Miesto, termín, výbava a doplnky čakajúce na server.
+                Miesto, termín, výbava a doplnky čakajúce na odoslanie správcovi.
               </p>
             </div>
             <UButton to="/rezervacie" icon="i-heroicons-plus" size="sm" variant="soft">
@@ -616,7 +653,7 @@ onBeforeUnmount(() => {
           <AppState
             v-else
             title="Bez čakajúcich rezervácií"
-            description="Rezervačný formulár nemá v tomto zariadení uložený offline odosielací rad."
+            description="Rezervačný formulár nemá v tomto zariadení uloženú neodoslanú žiadosť."
           />
         </section>
 
@@ -685,7 +722,7 @@ onBeforeUnmount(() => {
           <AppState
             v-else
             title="Bez čakajúcich úlovkov"
-            description="Denník úlovkov nemá v tomto zariadení uložený offline odosielací rad."
+            description="Denník úlovkov nemá v tomto zariadení uložený neodoslaný zápis."
           />
         </section>
 
@@ -754,22 +791,27 @@ onBeforeUnmount(() => {
           />
         </section>
 
-        <section class="rounded-card border border-border bg-surface p-5">
+        <section v-if="canSeeTournamentRequests" class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold">Súťažné hlásenia</h2>
               <p class="text-foreground-muted mt-1 text-sm">
-                Požiadavky tímov čakajúce na súťažný dispečing.
+                Požiadavky tímu čakajúce na odoslanie do súťažnej prevádzky.
               </p>
             </div>
-            <UButton to="/sutaze" icon="i-heroicons-plus" size="sm" variant="soft">
+            <UButton
+              :to="currentRole === 'team' ? '/sutaze/tim' : '/admin/sutaze'"
+              icon="i-heroicons-plus"
+              size="sm"
+              variant="soft"
+            >
               Pridať
             </UButton>
           </div>
 
-          <div v-if="offlineTournamentRequests.length" class="mt-4 space-y-3">
+          <div v-if="visibleTournamentRequests.length" class="mt-4 space-y-3">
             <div
-              v-for="item in offlineTournamentRequests"
+              v-for="item in visibleTournamentRequests"
               :key="item.id"
               class="rounded-md border bg-white p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
@@ -795,7 +837,12 @@ onBeforeUnmount(() => {
                 <p class="mt-1">{{ getQueueActionCopy('tournament-request') }}</p>
               </div>
               <div class="mt-3 flex flex-wrap gap-2">
-                <UButton to="/sutaze" icon="i-heroicons-pencil-square" size="xs" variant="soft">
+                <UButton
+                  :to="currentRole === 'team' ? '/sutaze/tim' : '/admin/sutaze'"
+                  icon="i-heroicons-pencil-square"
+                  size="xs"
+                  variant="soft"
+                >
                   Skontrolovať
                 </UButton>
                 <UButton
@@ -813,26 +860,31 @@ onBeforeUnmount(() => {
           <AppState
             v-else
             title="Bez čakajúcich hlásení"
-            description="Súťažný formulár nemá v tomto zariadení uložený offline odosielací rad."
+            description="V tomto zariadení nie sú uložené žiadne neodoslané súťažné hlásenia."
           />
         </section>
 
-        <section class="rounded-card border border-border bg-surface p-5">
+        <section v-if="canSeeAdminTournamentActions" class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold">Kontrolórske úkony</h2>
               <p class="text-foreground-muted mt-1 text-sm">
-                Prevzatia hlásení, uzavretia, váženia, tresty a kontroly sektorov z admin dispečingu.
+                Prevzatia hlásení, váženia, tresty a kontroly sektorov čakajúce na odoslanie.
               </p>
             </div>
-            <UButton to="/admin/sutaze" icon="i-heroicons-shield-check" size="sm" variant="soft">
-              Admin
+            <UButton
+              :to="currentRole === 'marshal' ? '/admin/sutaze/kontrolor' : '/admin/sutaze'"
+              icon="i-heroicons-shield-check"
+              size="sm"
+              variant="soft"
+            >
+              Otvoriť
             </UButton>
           </div>
 
-          <div v-if="offlineTournamentAdminActions.length" class="mt-4 space-y-3">
+          <div v-if="visibleTournamentAdminActions.length" class="mt-4 space-y-3">
             <div
-              v-for="item in offlineTournamentAdminActions"
+              v-for="item in visibleTournamentAdminActions"
               :key="item.id"
               class="rounded-md border bg-white p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
@@ -858,7 +910,12 @@ onBeforeUnmount(() => {
                 <p class="mt-1">{{ getQueueActionCopy('admin-tournament-action') }}</p>
               </div>
               <div class="mt-3 flex flex-wrap gap-2">
-                <UButton to="/admin/sutaze" icon="i-heroicons-pencil-square" size="xs" variant="soft">
+                <UButton
+                  :to="currentRole === 'marshal' ? '/admin/sutaze/kontrolor' : '/admin/sutaze'"
+                  icon="i-heroicons-pencil-square"
+                  size="xs"
+                  variant="soft"
+                >
                   Skontrolovať
                 </UButton>
                 <UButton
@@ -876,7 +933,7 @@ onBeforeUnmount(() => {
           <AppState
             v-else
             title="Bez čakajúcich kontrolórskych úkonov"
-            description="Admin súťažný dispečing nemá v tomto zariadení uložený offline odosielací rad."
+            description="V tomto zariadení nie sú uložené žiadne neodoslané kontrolórske úkony."
           />
         </section>
       </div>

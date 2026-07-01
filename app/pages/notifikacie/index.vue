@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { StatusBadgeTone } from '~/utils/ui'
 import type {
   PublicNotificationStateResponse,
   PushSubscriptionMutationSuccess,
@@ -23,7 +24,12 @@ const fallbackNotificationState = (): PublicNotificationStateResponse => ({
   subscriptionCount: 0,
   updatedAt: 'seed',
 })
-const { data: notificationState, refresh: refreshNotifications } = await useAsyncData<PublicNotificationStateResponse>(
+const {
+  data: notificationState,
+  error: notificationError,
+  refresh: refreshNotifications,
+  status: notificationFetchStatus,
+} = await useAsyncData<PublicNotificationStateResponse>(
   'public-notifications',
   () => $fetch<PublicNotificationStateResponse>('/api/notifications'),
   {
@@ -41,6 +47,12 @@ const subscriptionEndpoint = ref('')
 const subscriptionSubmitMessage = ref('')
 const subscriptionSubmitStatus = ref<'idle' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
+const isLoadingNotifications = computed(() => notificationFetchStatus.value === 'pending')
+const notificationLoadError = computed(() =>
+  notificationError.value
+    ? 'Výstrahy sa nepodarilo obnoviť. Skontrolujte pripojenie a skúste to znova.'
+    : '',
+)
 const notificationsAvailable = computed(() => pushSupport.value.mode === 'web-push')
 const notificationAvailabilityMessage = computed(() => {
   if (notificationsAvailable.value) {
@@ -52,6 +64,49 @@ const notificationAvailabilityMessage = computed(() => {
   }
 
   return 'Upozornenia momentálne nie sú dostupné. Aktuálne výstrahy zostávajú dostupné na tejto stránke.'
+})
+const notificationStatusBadge = computed<{
+  icon: string
+  label: string
+  tone: StatusBadgeTone
+}>(() => {
+  if (notificationsAvailable.value && subscriptionEndpoint.value) {
+    return {
+      icon: 'i-heroicons-bell-alert',
+      label: 'zapnuté',
+      tone: 'success',
+    }
+  }
+
+  if (notificationsAvailable.value && notificationStatus.value === 'granted') {
+    return {
+      icon: 'i-heroicons-bell',
+      label: 'povolené v prehliadači',
+      tone: 'primary',
+    }
+  }
+
+  if (notificationStatus.value === 'denied') {
+    return {
+      icon: 'i-heroicons-bell-slash',
+      label: 'zamietnuté',
+      tone: 'error',
+    }
+  }
+
+  if (!notificationsAvailable.value || notificationStatus.value === 'unsupported') {
+    return {
+      icon: 'i-heroicons-no-symbol',
+      label: 'nedostupné',
+      tone: 'neutral',
+    }
+  }
+
+  return {
+    icon: 'i-heroicons-bell',
+    label: 'vypnuté',
+    tone: 'warning',
+  }
 })
 
 onMounted(() => {
@@ -190,17 +245,29 @@ async function disableNotifications() {
   }
 }
 
-function alertClass(severity: string) {
+async function retryNotifications() {
+  await refreshNotifications()
+}
+
+function alertTone(severity: string): StatusBadgeTone {
   switch (severity) {
     case 'storm':
-      return 'bg-error-500/10 text-error-500'
+      return 'error'
     case 'water':
-      return 'bg-info-500/10 text-info-500'
+      return 'info'
     case 'service':
-      return 'bg-warning-500/10 text-warning-500'
+      return 'warning'
     default:
-      return 'bg-primary-50 text-primary-700'
+      return 'primary'
   }
+}
+
+function alertIcon(severity: string) {
+  if (severity === 'storm') return 'i-heroicons-bolt'
+  if (severity === 'water') return 'i-heroicons-beaker'
+  if (severity === 'service') return 'i-heroicons-wrench-screwdriver'
+
+  return 'i-heroicons-information-circle'
 }
 
 </script>
@@ -231,13 +298,12 @@ function alertClass(severity: string) {
 
           <div class="bg-muted mt-5 rounded-md p-4">
             <p class="text-foreground-muted text-sm">Stav</p>
-            <p class="mt-1 text-lg font-bold">
-              <span v-if="notificationsAvailable && subscriptionEndpoint">zapnuté</span>
-              <span v-else-if="notificationsAvailable && notificationStatus === 'granted'">povolené v prehliadači</span>
-              <span v-else-if="notificationStatus === 'denied'">zamietnuté</span>
-              <span v-else-if="!notificationsAvailable || notificationStatus === 'unsupported'">nedostupné</span>
-              <span v-else>vypnuté</span>
-            </p>
+            <StatusBadge
+              class="mt-2"
+              :icon="notificationStatusBadge.icon"
+              :label="notificationStatusBadge.label"
+              :tone="notificationStatusBadge.tone"
+            />
             <p class="text-foreground-muted mt-2 text-sm">{{ notificationAvailabilityMessage }}</p>
           </div>
 
@@ -273,21 +339,49 @@ function alertClass(severity: string) {
         </div>
 
         <div class="space-y-4">
-          <article
-            v-for="alert in alerts"
-            :key="alert.id"
-            class="border-border bg-surface rounded-card border p-5"
+          <AppState
+            v-if="isLoadingNotifications"
+            type="loading"
+            title="Načítavam výstrahy"
+            description="Kontrolujeme aktuálne oznamy pre revír, počasie, rezervácie a súťaže."
+          />
+          <AppState
+            v-else-if="notificationLoadError"
+            type="error"
+            title="Výstrahy sa nedajú načítať"
+            :description="notificationLoadError"
           >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 class="text-xl font-bold">{{ alert.title }}</h2>
-                <p class="text-foreground-muted mt-2 text-sm">{{ alert.body }}</p>
+            <UButton icon="i-heroicons-arrow-path" variant="soft" @click="retryNotifications">
+              Skúsiť znova
+            </UButton>
+          </AppState>
+          <AppState
+            v-else-if="alerts.length === 0"
+            title="Žiadne aktívne výstrahy"
+            description="Momentálne nie je zverejnený žiadny oznam pre revír."
+            icon="i-heroicons-bell"
+          />
+          <template v-else>
+            <article
+              v-for="alert in alerts"
+              :key="alert.id"
+              class="border-border bg-surface rounded-card border p-5"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 class="text-xl font-bold">{{ alert.title }}</h2>
+                  <p class="text-foreground-muted mt-2 text-sm">{{ alert.body }}</p>
+                </div>
+                <StatusBadge
+                  class="shrink-0"
+                  :icon="alertIcon(alert.severity)"
+                  :label="`do ${alert.validUntil}`"
+                  :tone="alertTone(alert.severity)"
+                  size="xs"
+                />
               </div>
-              <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="alertClass(alert.severity)">
-                do {{ alert.validUntil }}
-              </span>
-            </div>
-          </article>
+            </article>
+          </template>
         </div>
       </div>
 

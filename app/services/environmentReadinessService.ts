@@ -1,5 +1,5 @@
 export type DeploymentEnvironment = 'development' | 'production' | 'staging'
-export type EnvironmentReadinessCategory = 'core' | 'notifications' | 'reports' | 'storage' | 'weather'
+export type EnvironmentReadinessCategory = 'core' | 'notifications' | 'reports' | 'reservations' | 'storage' | 'weather'
 export type EnvironmentReadinessSeverity = 'optional' | 'recommended' | 'required'
 export type EnvironmentReadinessStatus = 'configured' | 'missing' | 'mock' | 'not-applicable'
 export type EnvironmentReadinessSummaryStatus = 'attention' | 'blocked' | 'ready'
@@ -47,6 +47,7 @@ export const environmentReadinessCategoryLabels: Record<EnvironmentReadinessCate
   core: 'Jadro',
   notifications: 'Notifikácie',
   reports: 'Reporty',
+  reservations: 'Rezervácie',
   storage: 'Úložisko',
   weather: 'Počasie',
 }
@@ -54,7 +55,7 @@ export const environmentReadinessCategoryLabels: Record<EnvironmentReadinessCate
 export const environmentReadinessStatusLabels: Record<EnvironmentReadinessStatus, string> = {
   configured: 'nastavené',
   missing: 'chýba',
-  mock: 'mock',
+  mock: 'skúšobné',
   'not-applicable': 'netreba',
 }
 
@@ -62,6 +63,16 @@ export const environmentReadinessSummaryLabels: Record<EnvironmentReadinessSumma
   attention: 'na pozornosť',
   blocked: 'blokované',
   ready: 'pripravené',
+}
+
+const providerValueLabels: Record<string, string> = {
+  disabled: 'vypnuté',
+  manual: 'manuálne',
+  mock: 'skúšobné',
+  resend: 'Resend',
+  station: 'lokálna stanica',
+  'weather-api': 'Weather API',
+  'web-push': 'Web Push',
 }
 
 function parseDeploymentEnvironment(value?: string, nodeEnv?: string): DeploymentEnvironment {
@@ -125,6 +136,8 @@ function createMockProviderItem(options: {
   const isProductionLike = options.environment === 'production' || options.environment === 'staging'
   const provider = options.provider?.trim() || 'mock'
   const isRecommendedProvider = provider === options.recommendedProvider
+  const providerLabel = providerValueLabels[provider] ?? provider
+  const recommendedProviderLabel = providerValueLabels[options.recommendedProvider] ?? options.recommendedProvider
 
   return {
     category: options.category,
@@ -132,13 +145,13 @@ function createMockProviderItem(options: {
     key: options.key,
     label: options.label,
     message: isRecommendedProvider
-      ? `Provider je nastavený na ${provider}.`
+      ? `Provider je nastavený na ${providerLabel}.`
       : isProductionLike
-        ? `Pre ${deploymentEnvironmentLabels[options.environment]} odporúčame ${options.recommendedProvider}; aktuálne je ${provider}.`
-        : `V dev režime je ${provider} v poriadku.`,
+        ? `Pre ${deploymentEnvironmentLabels[options.environment]} odporúčame ${recommendedProviderLabel}; aktuálne je ${providerLabel}.`
+        : `V dev režime je ${providerLabel} v poriadku.`,
     severity: isProductionLike ? 'recommended' : 'optional',
     status: isRecommendedProvider ? 'configured' : isProductionLike ? 'mock' : 'not-applicable',
-    valuePreview: provider,
+    valuePreview: providerLabel,
   } satisfies EnvironmentReadinessItem
 }
 
@@ -155,6 +168,7 @@ export function createEnvironmentReadinessReport(
   const isProductionLike = environment === 'production' || environment === 'staging'
   const pushProvider = envValue(env, 'RYBOLOV_PUSH_PROVIDER') || 'mock'
   const reportProvider = envValue(env, 'RYBOLOV_REPORT_DELIVERY_PROVIDER') || 'mock'
+  const reservationProvider = envValue(env, 'RYBOLOV_RESERVATION_DELIVERY_PROVIDER') || 'mock'
   const weatherProvider = envValue(env, 'RYBOLOV_WEATHER_PROVIDER') || 'mock'
   const items: EnvironmentReadinessItem[] = [
     createRequirement(env, {
@@ -184,10 +198,10 @@ export function createEnvironmentReadinessReport(
     }),
     createRequirement(env, {
       category: 'storage',
-      description: 'Perzistentný adresár pre lokálne JSON a asset stores, kým nie je napojený Supabase backend.',
+      description: 'Perzistentný adresár pre runtime JSON dáta a nahraté súbory.',
       key: 'RYBOLOV_LOCAL_DATA_DIR',
       label: 'Lokálny dátový adresár',
-      missingMessage: 'Pre produkčný beh s lokálnymi store nastav perzistentný volume path.',
+      missingMessage: 'Pre produkčný beh nastav perzistentný volume path.',
       recommended: environment === 'staging',
       required: isProduction,
     }),
@@ -259,6 +273,31 @@ export function createEnvironmentReadinessReport(
       sensitive: true,
     }),
     createMockProviderItem({
+      category: 'reservations',
+      description: 'Provider pre potvrdenia a zamietnutia rezervácií.',
+      environment,
+      key: 'RYBOLOV_RESERVATION_DELIVERY_PROVIDER',
+      label: 'Reservation delivery provider',
+      provider: reservationProvider,
+      recommendedProvider: 'resend',
+    }),
+    createRequirement(env, {
+      category: 'reservations',
+      description: 'Resend API kľúč pre odosielanie potvrdení rezervácií e-mailom.',
+      key: 'RYBOLOV_RESEND_API_KEY',
+      label: 'Resend API key',
+      required: reservationProvider === 'resend',
+      sensitive: true,
+    }),
+    createRequirement(env, {
+      category: 'reservations',
+      description: 'Odosielateľ rezervačných e-mailov.',
+      key: 'RYBOLOV_RESERVATION_EMAIL_FROM',
+      label: 'Rezervačný e-mail odosielateľ',
+      recommended: isProductionLike,
+      required: reservationProvider === 'resend',
+    }),
+    createMockProviderItem({
       category: 'weather',
       description: 'Provider počasia pri nových úlovkoch a reportoch.',
       environment,
@@ -269,18 +308,31 @@ export function createEnvironmentReadinessReport(
     }),
     createRequirement(env, {
       category: 'weather',
-      description: 'Endpoint externej meteoslužby.',
+      description: 'Endpoint externej meteoslužby. Predvolený adaptér používa Open-Meteo Historical Weather API.',
       key: 'RYBOLOV_WEATHER_API_ENDPOINT',
       label: 'Weather API endpoint',
+      recommended: weatherProvider === 'weather-api',
+    }),
+    createRequirement(env, {
+      category: 'weather',
+      description: 'API kľúč externej meteoslužby, ak zvolený provider nie je verejný Open-Meteo endpoint.',
+      key: 'RYBOLOV_WEATHER_API_KEY',
+      label: 'Weather API key',
+      sensitive: true,
+    }),
+    createRequirement(env, {
+      category: 'weather',
+      description: 'Zemepisná šírka revíru pre hodinový weather lookup.',
+      key: 'RYBOLOV_WEATHER_LATITUDE',
+      label: 'Weather latitude',
       required: weatherProvider === 'weather-api',
     }),
     createRequirement(env, {
       category: 'weather',
-      description: 'API kľúč externej meteoslužby.',
-      key: 'RYBOLOV_WEATHER_API_KEY',
-      label: 'Weather API key',
+      description: 'Zemepisná dĺžka revíru pre hodinový weather lookup.',
+      key: 'RYBOLOV_WEATHER_LONGITUDE',
+      label: 'Weather longitude',
       required: weatherProvider === 'weather-api',
-      sensitive: true,
     }),
   ]
   const missingRequiredCount = items.filter((item) => item.severity === 'required' && item.status === 'missing').length

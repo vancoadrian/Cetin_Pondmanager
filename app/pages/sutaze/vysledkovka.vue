@@ -35,7 +35,12 @@ const fallbackTournamentState = (): TournamentStateResponse =>
     tournaments: seedTournaments,
   }, 'seed')
 
-const { data: tournamentState, refresh: refreshTournamentState } = await useAsyncData<TournamentStateResponse>(
+const {
+  data: tournamentState,
+  error: tournamentStateError,
+  refresh: refreshTournamentState,
+  status: tournamentStateStatus,
+} = await useAsyncData<TournamentStateResponse>(
   'public-scoreboard-tournament-state',
   () => $fetch<TournamentStateResponse>('/api/tournaments'),
   {
@@ -78,6 +83,7 @@ const {
   data: leaderboardFeed,
   error: leaderboardError,
   refresh: refreshLeaderboard,
+  status: leaderboardStatus,
 } = await useAsyncData<TournamentLeaderboardFeed>(
   'public-scoreboard-leaderboard-feed',
   () => $fetch<TournamentLeaderboardFeed>(`/api/tournaments/${activeTournamentId.value}/leaderboard`),
@@ -95,6 +101,8 @@ const rows = computed(() => leaderboardFeed.value.rows)
 const stats = computed(() => leaderboardFeed.value.stats)
 const topRows = computed(() => rows.value.slice(0, 3))
 const remainingRows = computed(() => rows.value.slice(3))
+const hasLeaderboardRows = computed(() => rows.value.length > 0)
+const hasRemainingRows = computed(() => remainingRows.value.length > 0)
 const teamCount = computed(() =>
   activeTournament.value.sectors.filter((sector) => Boolean(sector.team)).length,
 )
@@ -130,6 +138,15 @@ const leaderGapLabel = computed(() => {
   }
 
   return `${formatWeight(Number((leader.scoreWeightKg - runnerUp.scoreWeightKg).toFixed(1)))} kg`
+})
+const isScoreboardLoading = computed(() =>
+  tournamentStateStatus.value === 'pending' || leaderboardStatus.value === 'pending',
+)
+const scoreboardLoadError = computed(() => tournamentStateError.value || leaderboardError.value)
+const scoreboardStatusLabel = computed(() => {
+  if (isRefreshing.value || isScoreboardLoading.value) return 'obnovujem dáta'
+  if (scoreboardLoadError.value) return 'posledný dostupný stav'
+  return 'živý stav'
 })
 
 const statusLabels = {
@@ -245,6 +262,9 @@ onBeforeUnmount(() => {
               <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-white/80">
                 {{ activeTournament.dateRange }}
               </span>
+              <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-white/80">
+                {{ scoreboardStatusLabel }}
+              </span>
             </div>
             <h1 class="mt-2 truncate text-2xl font-black sm:text-3xl lg:text-4xl">
               {{ activeTournament.name }}
@@ -276,7 +296,7 @@ onBeforeUnmount(() => {
             @click="refreshScoreboard"
           >
             <UIcon name="i-heroicons-arrow-path" class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" />
-            Obnoviť
+            {{ isRefreshing ? 'Obnovujem' : 'Obnoviť' }}
           </button>
         </div>
       </header>
@@ -307,74 +327,86 @@ onBeforeUnmount(() => {
 
       <section class="grid flex-1 gap-5 py-5 xl:grid-cols-[1fr_380px]">
         <div class="space-y-5">
-          <div class="grid gap-4 lg:grid-cols-3">
-            <article
-              v-for="row in topRows"
-              :key="row.sectorId"
-              class="rounded-card border p-5"
-              :class="podiumClass(row)"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                  <p class="text-sm font-black opacity-80">#{{ row.rank }} · {{ row.sectorLabel }}</p>
-                  <h2 class="mt-2 truncate text-2xl font-black">{{ row.team }}</h2>
+          <template v-if="hasLeaderboardRows">
+            <div class="grid gap-4 lg:grid-cols-3">
+              <article
+                v-for="row in topRows"
+                :key="row.sectorId"
+                class="rounded-card border p-5"
+                :class="podiumClass(row)"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-black opacity-80">#{{ row.rank }} · {{ row.sectorLabel }}</p>
+                    <h2 class="mt-2 truncate text-2xl font-black">{{ row.team }}</h2>
+                  </div>
+                  <span class="flex h-12 min-w-12 items-center justify-center rounded-md bg-primary-950 px-2 text-lg font-black text-white">
+                    {{ row.rank }}.
+                  </span>
                 </div>
-                <span class="flex h-12 min-w-12 items-center justify-center rounded-md bg-primary-950 px-2 text-lg font-black text-white">
+                <p class="mt-6 text-5xl font-black leading-none">
+                  {{ formatWeight(row.scoreWeightKg) }} kg
+                </p>
+                <div class="mt-5 grid grid-cols-2 gap-2 text-sm">
+                  <div class="rounded-md bg-primary-950/10 p-2">
+                    <p class="font-bold opacity-70">overené</p>
+                    <p class="text-lg font-black">{{ row.verifiedCatchCount }}</p>
+                  </div>
+                  <div class="rounded-md bg-primary-950/10 p-2">
+                    <p class="font-bold opacity-70">max</p>
+                    <p class="text-lg font-black">{{ formatWeight(row.largestCatchKg) }}</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div
+              v-if="hasRemainingRows"
+              class="overflow-hidden rounded-card border border-white/10 bg-white text-primary-950"
+            >
+              <div class="grid grid-cols-[72px_1fr_110px] gap-3 border-b border-border bg-muted px-4 py-3 text-xs font-black text-foreground-muted sm:grid-cols-[80px_120px_1fr_120px_120px_130px]">
+                <span>Poradie</span>
+                <span class="hidden sm:block">Sektor</span>
+                <span>Tím</span>
+                <span class="text-right">Skóre</span>
+                <span class="hidden text-right sm:block">Overené</span>
+                <span class="hidden text-right sm:block">Najväčšia</span>
+              </div>
+              <div
+                v-for="row in remainingRows"
+                :key="row.sectorId"
+                class="grid grid-cols-[72px_1fr_110px] items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 sm:grid-cols-[80px_120px_1fr_120px_120px_130px]"
+              >
+                <span
+                  class="flex h-9 min-w-9 items-center justify-center rounded-md text-sm font-black"
+                  :class="rowBadgeClass(row)"
+                >
                   {{ row.rank }}.
                 </span>
-              </div>
-              <p class="mt-6 text-5xl font-black leading-none">
-                {{ formatWeight(row.scoreWeightKg) }} kg
-              </p>
-              <div class="mt-5 grid grid-cols-2 gap-2 text-sm">
-                <div class="rounded-md bg-primary-950/10 p-2">
-                  <p class="font-bold opacity-70">overené</p>
-                  <p class="text-lg font-black">{{ row.verifiedCatchCount }}</p>
+                <span class="hidden text-sm font-black sm:block">{{ row.sectorLabel }}</span>
+                <div class="min-w-0">
+                  <p class="truncate font-black">{{ row.team }}</p>
+                  <p class="mt-0.5 text-xs font-semibold text-foreground-muted sm:hidden">
+                    {{ row.sectorLabel }} · overené {{ row.verifiedCatchCount }} · max {{ formatWeight(row.largestCatchKg) }} kg
+                  </p>
                 </div>
-                <div class="rounded-md bg-primary-950/10 p-2">
-                  <p class="font-bold opacity-70">max</p>
-                  <p class="text-lg font-black">{{ formatWeight(row.largestCatchKg) }}</p>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div class="overflow-hidden rounded-card border border-white/10 bg-white text-primary-950">
-            <div class="grid grid-cols-[72px_1fr_110px] gap-3 border-b border-border bg-muted px-4 py-3 text-xs font-black text-foreground-muted sm:grid-cols-[80px_120px_1fr_120px_120px_130px]">
-              <span>Poradie</span>
-              <span class="hidden sm:block">Sektor</span>
-              <span>Tím</span>
-              <span class="text-right">Skóre</span>
-              <span class="hidden text-right sm:block">Overené</span>
-              <span class="hidden text-right sm:block">Najväčšia</span>
-            </div>
-            <div
-              v-for="row in remainingRows"
-              :key="row.sectorId"
-              class="grid grid-cols-[72px_1fr_110px] items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 sm:grid-cols-[80px_120px_1fr_120px_120px_130px]"
-            >
-              <span
-                class="flex h-9 min-w-9 items-center justify-center rounded-md text-sm font-black"
-                :class="rowBadgeClass(row)"
-              >
-                {{ row.rank }}.
-              </span>
-              <span class="hidden text-sm font-black sm:block">{{ row.sectorLabel }}</span>
-              <div class="min-w-0">
-                <p class="truncate font-black">{{ row.team }}</p>
-                <p class="mt-0.5 text-xs font-semibold text-foreground-muted sm:hidden">
-                  {{ row.sectorLabel }} · overené {{ row.verifiedCatchCount }} · max {{ formatWeight(row.largestCatchKg) }} kg
+                <p class="text-right text-xl font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
+                <p class="hidden text-right text-sm font-bold text-success-700 sm:block">
+                  {{ row.verifiedCatchCount }} / {{ formatWeight(row.verifiedWeightKg) }} kg
+                </p>
+                <p class="hidden text-right text-sm font-bold sm:block">
+                  {{ formatWeight(row.largestCatchKg) }} kg
                 </p>
               </div>
-              <p class="text-right text-xl font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
-              <p class="hidden text-right text-sm font-bold text-success-700 sm:block">
-                {{ row.verifiedCatchCount }} / {{ formatWeight(row.verifiedWeightKg) }} kg
-              </p>
-              <p class="hidden text-right text-sm font-bold sm:block">
-                {{ formatWeight(row.largestCatchKg) }} kg
-              </p>
             </div>
-          </div>
+          </template>
+          <AppState
+            v-else
+            class="text-primary-950"
+            icon="i-heroicons-trophy"
+            title="Výsledkovka je zatiaľ prázdna"
+            description="Po prvom overenom úlovku sa tu automaticky zobrazí poradie tímov, skóre a najväčšie ryby."
+          />
         </div>
 
         <aside class="space-y-4">
@@ -388,9 +420,29 @@ onBeforeUnmount(() => {
                 {{ refreshIntervalSeconds }} s
               </span>
             </div>
-            <p v-if="leaderboardError" class="mt-3 rounded-md bg-error-500 px-3 py-2 text-sm font-bold text-white">
-              Výsledky sa nepodarilo obnoviť, zobrazujeme posledný dostupný stav.
-            </p>
+            <div
+              v-if="scoreboardLoadError"
+              class="mt-3 rounded-md border border-error-300/30 bg-error-500/15 p-3"
+            >
+              <div class="flex items-start gap-2">
+                <UIcon name="i-heroicons-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0 text-error-200" />
+                <div class="min-w-0">
+                  <p class="text-sm font-black text-white">Výsledky sa nepodarilo obnoviť.</p>
+                  <p class="mt-1 text-sm font-semibold text-white/75">
+                    Zobrazujeme posledný dostupný stav. Obnova bude pokračovať automaticky.
+                  </p>
+                  <button
+                    type="button"
+                    class="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-black text-primary-950 transition-colors hover:bg-white/90 disabled:opacity-60"
+                    :disabled="isRefreshing"
+                    @click="refreshScoreboard"
+                  >
+                    <UIcon name="i-heroicons-arrow-path" class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" />
+                    Skúsiť znova
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">

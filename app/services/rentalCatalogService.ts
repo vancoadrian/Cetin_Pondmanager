@@ -249,7 +249,7 @@ export function updateRentalCatalogSettings(
       ? `Požičovňa bola uložená, pribudlo ${createdRentalCount} položiek výbavy a ${createdExtraCount} doplnkov.`
       : removedRentalItemIds.length > 0 || removedReservationExtraIds.length > 0
         ? `Požičovňa bola uložená, odstránené položky: ${removedRentalItemIds.length} výbava, ${removedReservationExtraIds.length} doplnky.`
-        : 'Požičovňa a doplnky boli uložené do lokálneho stavu.',
+        : 'Požičovňa a doplnky boli uložené.',
     ok: true,
     removedRentalItemIds,
     removedReservationExtraIds,

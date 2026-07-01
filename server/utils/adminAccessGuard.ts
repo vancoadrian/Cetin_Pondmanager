@@ -1,4 +1,4 @@
-import { createError, getCookie, type H3Event } from 'h3'
+import { createError, type H3Event } from 'h3'
 import type { MockRole } from '~/composables/useMockAuth'
 import {
   adminAccessModeLabels,
@@ -6,11 +6,12 @@ import {
   isMockAdminRole,
   type AdminApiAccessRequirement,
 } from '~/utils/adminAccess'
+import { resolveAppSessionUser } from './appSession'
 
 export function resolveMockAdminRole(event: H3Event): MockRole | undefined {
-  const session = getCookie(event, 'rybolov_cetin_mock_session')
+  const role = resolveAppSessionUser(event)?.role
 
-  return isMockAdminRole(session) ? session : undefined
+  return isMockAdminRole(role) ? role : undefined
 }
 
 export function requireAdminAccess(event: H3Event, requirement: AdminApiAccessRequirement) {

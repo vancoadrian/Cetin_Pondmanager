@@ -16,8 +16,9 @@ import {
   type OfflineReservationPayload,
   type OfflineReservationQueueItem,
 } from '~/services/offlineReservationQueueService'
-import { getPegAvailability } from '~/utils/availability'
+import { getPegAvailability, type AvailabilityStatus } from '~/utils/availability'
 import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
+import { buildCalendarDays } from '~/utils/calendar'
 import { getRentalAvailability } from '~/utils/rentals'
 
 useHead({ title: 'Rezervácie' })
@@ -44,7 +45,12 @@ const fallbackReservationState = (): ReservationStateResponse => ({
   reservations,
   updatedAt: 'seed',
 })
-const { data: reservationState, refresh: refreshReservationState } = await useAsyncData<ReservationStateResponse>(
+const {
+  data: reservationState,
+  error: reservationStateError,
+  refresh: refreshReservationState,
+  status: reservationStateStatus,
+} = await useAsyncData<ReservationStateResponse>(
   'public-reservation-state',
   () => $fetch<ReservationStateResponse>('/api/reservations'),
   {
@@ -59,7 +65,12 @@ const fallbackMapState = (): MapStateResponse => ({
   pegs,
   updatedAt: 'seed',
 })
-const { data: mapState } = await useAsyncData<MapStateResponse>(
+const {
+  data: mapState,
+  error: mapStateError,
+  refresh: refreshMapState,
+  status: mapStateStatus,
+} = await useAsyncData<MapStateResponse>(
   'public-reservation-map-state',
   () => $fetch<MapStateResponse>('/api/map'),
   {
@@ -76,22 +87,62 @@ const {
 
 const route = useRoute()
 const router = useRouter()
+const { account: anglerAccount } = useMockAnglerAuth()
+
+const normalizeRouteIdList = (value: unknown) => {
+  const values = Array.isArray(value) ? value : [value]
+
+  return values
+    .flatMap((item) => (typeof item === 'string' ? item.split(',') : []))
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+const routeRentalIds = normalizeRouteIdList(route.query.vybava ?? route.query.vybavy)
+const routeExtraIds = normalizeRouteIdList(route.query.doplnok ?? route.query.doplnky)
+const routeCabinProductId = normalizeRouteIdList(route.query.chata)[0] ?? ''
+const requestedCabinProduct = (liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts)
+  .find((cabin) => cabin.id === routeCabinProductId)
+const requestedCabinPeg = requestedCabinProduct
+  ? pegs.find((peg) => requestedCabinProduct.pegIds.includes(peg.id))
+  : undefined
+const requestedExtraLake = routeExtraIds
+  .map((id) => activeReservationExtras.value.find((extra) => extra.id === id)?.lake)
+  .find((lake): lake is LakeSlug => Boolean(lake))
 const routeLake = lakes.find((lake) => lake.slug === route.query.jazero)?.slug
+const initialLake = routeLake ?? requestedCabinPeg?.lake ?? requestedExtraLake ?? 'velky-cetin'
 const initialDateRange = resolveAvailabilityDateRange(route.query.od, route.query.do, new Date(), 2)
-const selectedLake = ref<LakeSlug>(routeLake ?? 'velky-cetin')
+const selectedLake = ref<LakeSlug>(initialLake)
 const requestedPegId = String(route.query.miesto ?? '')
+const routePrefersCabin = route.query.typ === 'chata'
+  || Boolean(requestedCabinProduct)
+  || routeExtraIds.some((id) => activeReservationExtras.value.find((extra) => extra.id === id)?.appliesTo === 'cabin')
+const requestedCabinPegId = requestedCabinProduct?.pegIds.find((pegId) =>
+  pegs.some((peg) => peg.id === pegId && peg.lake === selectedLake.value),
+)
+const firstCabinPegId = routePrefersCabin
+  ? pegs.find((peg) => peg.lake === selectedLake.value && peg.type === 'cabin')?.id
+  : undefined
 const selectedPegId = ref(
   pegs.find((peg) => peg.id === requestedPegId && peg.lake === selectedLake.value)?.id
+  ?? requestedCabinPegId
+  ?? firstCabinPegId
   ?? pegs.find((peg) => peg.lake === selectedLake.value)?.id
   ?? '',
 )
 const selectedPermitId = ref('permit-48h')
 const reservationFrom = ref(initialDateRange.dateFrom)
 const reservationTo = ref(initialDateRange.dateTo)
-const reservationContactName = ref('Marek H.')
-const reservationContactPhone = ref('+421 900 123 456')
-const selectedRentalIds = ref<string[]>([])
-const selectedExtraIds = ref<string[]>([])
+const reservationContactName = ref(anglerAccount.value?.name ?? '')
+const reservationContactEmail = ref(anglerAccount.value?.email ?? '')
+const reservationContactPhone = ref('')
+const selectedRentalIds = ref<string[]>(
+  routeRentalIds.filter((id) => activeRentalItems.value.some((item) => item.id === id)),
+)
+const selectedExtraIds = ref<string[]>(
+  routeExtraIds.filter((id) => activeReservationExtras.value.some((item) => item.id === id)),
+)
+let rentalDefaultSelectionApplied = false
 const reservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reservationSubmitMessage = ref('')
 const offlineReservationQueue = ref<OfflineReservationQueueItem[]>([])
@@ -100,6 +151,10 @@ const offlineSyncMessage = ref('')
 const isOnline = ref(true)
 let offlineSyncInProgress = false
 
+const isReservationDataLoading = computed(() =>
+  reservationStateStatus.value === 'pending' || mapStateStatus.value === 'pending',
+)
+const hasReservationDataError = computed(() => Boolean(reservationStateError.value || mapStateError.value))
 const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
 const liveRentalBookings = computed(() => reservationState.value?.rentalBookings ?? rentalBookings)
 const livePegs = computed(() => mapState.value?.pegs ?? pegs)
@@ -113,8 +168,48 @@ const availabilityRows = computed(() =>
       reservations: liveReservations.value,
     }),
     peg,
-    reservations: liveReservations.value.filter((reservation) => reservation.pegId === peg.id),
   })),
+)
+const publicAvailabilityReason = (row: (typeof availabilityRows.value)[number]) => {
+  const reason = row.availability.reasons[0]
+  if (reason) return reason
+
+  if (row.availability.reservable) {
+    return row.peg.requiresCabinReservation
+      ? 'Miesto je dostupné, rezervácia je viazaná na chatu.'
+      : 'Miesto je dostupné pre zvolený termín.'
+  }
+
+  return row.availability.description
+}
+const availabilityOverviewDays = computed(() => buildCalendarDays(reservationFrom.value, 14))
+const availabilityOverviewRows = computed(() =>
+  lakePegs.value.map((peg) => ({
+    days: availabilityOverviewDays.value.map((day) => ({
+      availability: getPegAvailability(peg, {
+        closures: liveClosures.value,
+        dateFrom: day.iso,
+        dateTo: day.iso,
+        reservations: liveReservations.value,
+      }),
+      day,
+    })),
+    peg,
+  })),
+)
+const availabilityOverviewRangeLabel = computed(() => {
+  const firstDay = availabilityOverviewDays.value[0]
+  const lastDay = availabilityOverviewDays.value.at(-1)
+
+  return firstDay && lastDay
+    ? `${formatShortDate(firstDay.iso)} - ${formatShortDate(lastDay.iso)}`
+    : 'zvolený termín'
+})
+const availabilityOverviewFreeCells = computed(() =>
+  availabilityOverviewRows.value.reduce(
+    (count, row) => count + row.days.filter((day) => day.availability.reservable).length,
+    0,
+  ),
 )
 
 const actionablePegs = computed(() =>
@@ -146,6 +241,13 @@ const mapTarget = computed(() => ({
     od: reservationFrom.value,
   },
 }))
+
+async function retryReservationData() {
+  await Promise.all([
+    refreshReservationState(),
+    refreshMapState(),
+  ])
+}
 const selectedPermit = computed(
   () => permitProducts.find((permit) => permit.id === selectedPermitId.value) ?? permitProducts[2]!,
 )
@@ -183,6 +285,7 @@ const selectedExtras = computed(() =>
 )
 const reservationDraft = computed(() => ({
   cabinProductId: selectedCabin.value?.id,
+  contactEmail: reservationContactEmail.value,
   contactName: reservationContactName.value,
   contactPhone: reservationContactPhone.value,
   dateFrom: reservationFrom.value,
@@ -198,6 +301,11 @@ const reservationDraft = computed(() => ({
 }))
 const reservationValidation = computed(() => reservationRequestSchema.safeParse(reservationDraft.value))
 const reservationValidationMessages = computed(() => getValidationMessages(reservationValidation.value))
+const reservationAccountHint = computed(() =>
+  anglerAccount.value
+    ? `${anglerAccount.value.name} · ${anglerAccount.value.email}`
+    : '',
+)
 
 const getApiErrorMessage = (error: unknown) => {
   const fetchError = error as {
@@ -216,6 +324,7 @@ const getApiErrorMessage = (error: unknown) => {
 
 const createReservationPayload = (data: OfflineReservationPayload): OfflineReservationPayload => ({
   cabinProductId: data.cabinProductId,
+  contactEmail: data.contactEmail,
   contactName: data.contactName,
   contactPhone: data.contactPhone,
   dateFrom: data.dateFrom,
@@ -232,6 +341,76 @@ const getQueueFallbackErrorMessage = (error: unknown) =>
 
 const getLivePegLabel = (pegId: string) =>
   livePegs.value.find((peg) => peg.id === pegId)?.label ?? getPegLabel(pegId)
+
+const availabilityCellClasses: Record<AvailabilityStatus, string> = {
+  available: 'border-success-200 bg-success-500/10 text-success-700 hover:bg-success-500/20',
+  blocked: 'border-border bg-muted text-foreground-muted hover:bg-border',
+  closed: 'border-error-200 bg-error-500/10 text-error-700 hover:bg-error-500/20',
+  limited: 'border-warning-200 bg-warning-500/10 text-warning-700 hover:bg-warning-500/20',
+  requires_approval: 'border-primary-200 bg-primary-50 text-primary-800 hover:bg-primary-100',
+  reserved: 'border-error-200 bg-error-500/10 text-error-700 hover:bg-error-500/20',
+}
+
+const availabilityLegend = [
+  { classes: availabilityCellClasses.available, icon: 'i-heroicons-check-circle', label: 'Dostupné' },
+  { classes: availabilityCellClasses.limited, icon: 'i-heroicons-exclamation-triangle', label: 'Čaká na potvrdenie' },
+  { classes: availabilityCellClasses.reserved, icon: 'i-heroicons-lock-closed', label: 'Obsadené' },
+  { classes: availabilityCellClasses.closed, icon: 'i-heroicons-no-symbol', label: 'Zatvorené' },
+]
+
+function formatShortDate(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString('sk-SK', {
+    day: 'numeric',
+    month: 'numeric',
+  })
+}
+
+function selectAvailabilityOverviewCell(pegId: string, dayIso: string) {
+  selectedPegId.value = pegId
+  reservationFrom.value = dayIso
+  reservationTo.value = dayIso
+}
+
+function csvCell(value: string | number | undefined) {
+  const rawValue = value ?? ''
+  const stringValue = typeof rawValue === 'number'
+    ? rawValue.toLocaleString('sk-SK')
+    : rawValue
+
+  if (/[;"\n\r]/.test(stringValue)) {
+    return `"${stringValue.replaceAll('"', '""')}"`
+  }
+
+  return stringValue
+}
+
+function exportAvailabilityOverviewCsv() {
+  if (!import.meta.client || availabilityOverviewRows.value.length === 0) return
+
+  const header = ['Jazero', 'Lovné miesto', 'Dátum', 'Stav', 'Dôvod']
+  const rows = availabilityOverviewRows.value.flatMap((row) =>
+    row.days.map((day) => [
+      getLakeName(row.peg.lake),
+      row.peg.label,
+      day.day.iso,
+      day.availability.label,
+      day.availability.reasons.join(', '),
+    ]),
+  )
+  const csv = [header, ...rows]
+    .map((row) => row.map(csvCell).join(';'))
+    .join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = `rybolov-cetin-dostupnost-${selectedLake.value}-${reservationFrom.value}.csv`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
 
 async function refreshOfflineReservationQueue() {
   if (!import.meta.client) return
@@ -418,6 +597,22 @@ watch(selectedPegId, () => {
   cleanSelectedExtras()
 })
 
+watch(
+  anglerAccount,
+  (account, previousAccount) => {
+    if (!account) return
+
+    if (!reservationContactName.value || reservationContactName.value === previousAccount?.name) {
+      reservationContactName.value = account.name
+    }
+
+    if (!reservationContactEmail.value || reservationContactEmail.value === previousAccount?.email) {
+      reservationContactEmail.value = account.email
+    }
+  },
+  { immediate: true },
+)
+
 watch(reservationDraft, () => {
   if (reservationSubmitStatus.value !== 'submitting') {
     reservationSubmitStatus.value = 'idle'
@@ -425,31 +620,63 @@ watch(reservationDraft, () => {
   }
 })
 
+const selectedQueryList = (ids: string[]) => ids.length > 0 ? ids.join(',') : undefined
+
 watch(
-  [selectedLake, selectedPegId, reservationFrom, reservationTo],
+  () => [
+    selectedLake.value,
+    selectedPegId.value,
+    reservationFrom.value,
+    reservationTo.value,
+    selectedRentalIds.value.join(','),
+    selectedExtraIds.value.join(','),
+    selectedCabin.value?.id ?? '',
+  ],
   () => {
     if (!import.meta.client) return
     void router.replace({
       query: {
         ...route.query,
+        chata: selectedCabin.value?.id,
         do: reservationTo.value,
+        doplnok: selectedQueryList(selectedExtraIds.value),
         jazero: selectedLake.value,
         miesto: selectedPegId.value || undefined,
         od: reservationFrom.value,
+        typ: selectedCabin.value ? 'chata' : undefined,
+        vybava: selectedQueryList(selectedRentalIds.value),
       },
     })
   },
 )
 
 watch(
-  activeRentalItems,
-  (items) => {
-    const activeIds = new Set(items.map((item) => item.id))
-    const filteredIds = selectedRentalIds.value.filter((id) => activeIds.has(id))
+  rentalAvailabilityRows,
+  (rows) => {
+    if (rows.length === 0) return
 
-    selectedRentalIds.value = filteredIds.length > 0
-      ? filteredIds
-      : items.filter((item) => item.recommended).map((item) => item.id)
+    const reservableIds = new Set(
+      rows
+        .filter((row) => row.availability.reservable)
+        .map((row) => row.item.id),
+    )
+    const filteredIds = selectedRentalIds.value.filter((id) => reservableIds.has(id))
+
+    if (filteredIds.length !== selectedRentalIds.value.length) {
+      selectedRentalIds.value = filteredIds
+    }
+
+    if (selectedRentalIds.value.length > 0) {
+      rentalDefaultSelectionApplied = true
+      return
+    }
+
+    if (!rentalDefaultSelectionApplied) {
+      selectedRentalIds.value = rows
+        .filter((row) => row.item.recommended && row.availability.reservable)
+        .map((row) => row.item.id)
+      rentalDefaultSelectionApplied = true
+    }
   },
   { immediate: true },
 )
@@ -513,6 +740,18 @@ watch(
         </div>
       </div>
 
+      <DataStatusNotice
+        v-if="isReservationDataLoading || hasReservationDataError"
+        class="mb-5"
+        :title="hasReservationDataError ? 'Dostupnosť sa nepodarilo obnoviť' : 'Načítavam dostupnosť miest'"
+        :description="hasReservationDataError ? 'Zobrazujeme posledný dostupný stav rezervácií a lovných miest.' : 'Kontrolujeme aktuálne rezervácie, uzávierky a väzby miest na chaty.'"
+        :tone="hasReservationDataError ? 'warning' : 'info'"
+        :loading="isReservationDataLoading && !hasReservationDataError"
+        :action-label="hasReservationDataError ? 'Skúsiť znova' : ''"
+        :action-loading="isReservationDataLoading"
+        @action="retryReservationData"
+      />
+
       <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div class="space-y-6">
           <div class="border-border bg-surface rounded-card border p-5">
@@ -550,7 +789,7 @@ watch(
                   <AvailabilityBadge :availability="row.availability" />
                 </div>
                 <p class="text-foreground-muted mt-3 text-sm">
-                  {{ row.availability.reasons[0] ?? row.reservations[0]?.guest }}
+                  {{ publicAvailabilityReason(row) }}
                 </p>
               </button>
             </div>
@@ -585,16 +824,13 @@ watch(
                     <p class="font-semibold">{{ item.label }}</p>
                     <p class="text-foreground-muted mt-1 text-sm">{{ item.detail }}</p>
                   </div>
-                  <span
-                    class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                    :class="
-                      item.rentable
-                        ? 'bg-primary-50 text-primary-800'
-                        : 'bg-warning-100 text-warning-800'
-                    "
-                  >
-                    {{ item.rentable ? 'požičateľné' : 'vlastné' }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="item.rentable ? 'i-heroicons-arrow-path-rounded-square' : 'i-heroicons-shield-check'"
+                    :label="item.rentable ? 'požičateľné' : 'vlastné'"
+                    size="xs"
+                    :tone="item.rentable ? 'primary' : 'warning'"
+                  />
                 </div>
               </div>
             </div>
@@ -603,20 +839,104 @@ watch(
           <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Mesačná obsadenosť</h2>
+                <h2 class="text-lg font-bold">Dostupnosť po dňoch</h2>
                 <p class="text-foreground-muted text-sm">
-                  Orientačný prehľad termínov; presný stav konkrétneho miesta je uvedený vyššie.
+                  Najbližších 14 dní od zvoleného dátumu. Kliknutím na bunku vyberiete miesto aj deň.
                 </p>
               </div>
-              <UButton icon="i-heroicons-arrow-down-tray" variant="ghost">Export CSV</UButton>
-            </div>
-            <div class="mt-5 overflow-hidden rounded-md border border-border">
-              <img
-                src="/images/obsadenost-vzor.png"
-                alt="Vzor obsadenosti lovných miest"
-                class="w-full object-cover"
-                loading="lazy"
+              <UButton
+                icon="i-heroicons-arrow-down-tray"
+                variant="ghost"
+                :disabled="availabilityOverviewRows.length === 0"
+                @click="exportAvailabilityOverviewCsv"
               >
+                Stiahnuť prehľad
+              </UButton>
+            </div>
+
+            <div class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+              <div class="rounded-md border border-border bg-white px-3 py-2">
+                <p class="text-foreground-muted text-xs">Rozsah</p>
+                <p class="font-bold">{{ availabilityOverviewRangeLabel }}</p>
+              </div>
+              <div class="rounded-md border border-border bg-white px-3 py-2">
+                <p class="text-foreground-muted text-xs">Jazero</p>
+                <p class="font-bold">{{ getLakeName(selectedLake) }}</p>
+              </div>
+              <div class="rounded-md border border-border bg-white px-3 py-2">
+                <p class="text-foreground-muted text-xs">Voľné miesto-dni</p>
+                <p class="font-bold">{{ availabilityOverviewFreeCells }}</p>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="item in availabilityLegend"
+                :key="item.label"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+                :class="item.classes"
+              >
+                <UIcon :name="item.icon" class="h-4 w-4" />
+                {{ item.label }}
+              </span>
+            </div>
+
+            <div class="mt-5 overflow-x-auto rounded-md border border-border bg-white">
+              <table class="w-full min-w-[860px] border-collapse text-sm">
+                <thead>
+                  <tr class="bg-muted text-left">
+                    <th class="sticky left-0 z-10 w-44 bg-muted px-3 py-3 font-semibold">
+                      Miesto
+                    </th>
+                    <th
+                      v-for="day in availabilityOverviewDays"
+                      :key="day.iso"
+                      class="border-border border-l px-2 py-3 text-center font-semibold"
+                    >
+                      <span class="text-foreground-muted block text-xs">{{ day.dayName }}</span>
+                      <span>{{ day.dayNumber }}. {{ day.monthName }}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in availabilityOverviewRows"
+                    :key="row.peg.id"
+                    class="border-border border-t"
+                  >
+                    <th class="sticky left-0 z-10 bg-white px-3 py-3 text-left align-top">
+                      <button
+                        type="button"
+                        class="text-left font-semibold hover:text-primary-800"
+                        @click="selectedPegId = row.peg.id"
+                      >
+                        {{ row.peg.label }}
+                      </button>
+                      <p class="text-foreground-muted mt-1 text-xs font-normal">
+                        {{ row.peg.type === 'cabin' ? 'miesto s chatou' : 'lovné miesto' }}
+                      </p>
+                    </th>
+                    <td
+                      v-for="cell in row.days"
+                      :key="`${row.peg.id}-${cell.day.iso}`"
+                      class="border-border border-l p-1"
+                    >
+                      <button
+                        type="button"
+                        class="flex h-9 w-full items-center justify-center rounded-md border transition-colors"
+                        :class="availabilityCellClasses[cell.availability.status]"
+                        :title="`${row.peg.label}, ${cell.day.iso}: ${cell.availability.label}. ${cell.availability.reasons[0] ?? ''}`"
+                        @click="selectAvailabilityOverviewCell(row.peg.id, cell.day.iso)"
+                      >
+                        <UIcon :name="cell.availability.icon" class="h-4 w-4" />
+                        <span class="sr-only">
+                          {{ row.peg.label }} {{ cell.day.iso }} {{ cell.availability.label }}
+                        </span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -798,19 +1118,21 @@ watch(
                   <label
                     v-for="row in rentalAvailabilityRows"
                     :key="row.item.id"
-                    class="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted"
+                    class="flex items-start gap-3 rounded-md border p-3 transition-colors"
                     :class="
                       selectedRentalIds.includes(row.item.id)
                         ? 'border-primary-600 bg-primary-50'
-                        : row.availability.status === 'unavailable'
-                          ? 'border-error-500/25 bg-error-500/5'
-                          : 'border-border bg-white'
+                        : !row.availability.reservable
+                          ? 'cursor-not-allowed border-error-500/25 bg-error-500/5 opacity-80'
+                          : 'cursor-pointer border-border bg-white hover:bg-muted'
                     "
+                    :aria-disabled="!row.availability.reservable"
                   >
                     <input
                       v-model="selectedRentalIds"
                       type="checkbox"
                       :value="row.item.id"
+                      :disabled="!row.availability.reservable"
                       class="mt-1 h-4 w-4 rounded accent-primary-700"
                     >
                     <span class="min-w-0 flex-1">
@@ -874,12 +1196,38 @@ watch(
               </div>
 
               <div class="grid gap-3 sm:grid-cols-2">
+                <div
+                  v-if="reservationAccountHint"
+                  class="rounded-md border border-primary-200 bg-primary-50 p-3 text-sm text-primary-950 sm:col-span-2"
+                >
+                  <div class="flex items-start gap-2">
+                    <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                    <div>
+                      <p class="font-bold">Rezervácia sa uloží k vášmu účtu</p>
+                      <p class="mt-1 text-primary-800">{{ reservationAccountHint }}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <label class="block">
                   <span class="text-sm font-semibold">Meno</span>
                   <input
                     v-model="reservationContactName"
                     type="text"
+                    autocomplete="name"
                     class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="Meno a priezvisko"
+                    required
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">E-mail</span>
+                  <input
+                    v-model="reservationContactEmail"
+                    type="email"
+                    autocomplete="email"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="meno@example.com"
                   >
                 </label>
                 <label class="block">
@@ -887,7 +1235,10 @@ watch(
                   <input
                     v-model="reservationContactPhone"
                     type="tel"
+                    autocomplete="tel"
                     class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    placeholder="+421 ..."
+                    required
                   >
                 </label>
               </div>

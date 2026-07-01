@@ -88,7 +88,7 @@ export function updatePaymentMethodSettings(
   }
 
   return {
-    message: 'Platobné metódy boli uložené do lokálneho stavu.',
+    message: 'Platobné metódy boli uložené.',
     ok: true,
     paymentMethods,
     statusCode: 200,

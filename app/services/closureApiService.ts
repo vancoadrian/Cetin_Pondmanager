@@ -108,7 +108,7 @@ export function saveLakeClosure(
     ? state.lakeClosures.findIndex((closure) => closure.id === payload.id)
     : -1
   if (payload.id && existingIndex === -1) {
-    return validationFailure(['Uzávierka sa nenašla v lokálnom mock stave.'], 404)
+    return validationFailure(['Uzávierka sa nenašla.'], 404)
   }
 
   const existingIds = new Set(state.lakeClosures.map((closure) => closure.id))
@@ -133,8 +133,8 @@ export function saveLakeClosure(
     closure,
     lakeClosures,
     message: existingIndex >= 0
-      ? 'Uzávierka bola aktualizovaná v lokálnom stave.'
-      : 'Uzávierka bola uložená do lokálneho stavu a okamžite vstupuje do dostupnosti.',
+      ? 'Uzávierka bola aktualizovaná.'
+      : 'Uzávierka bola uložená a okamžite vstupuje do dostupnosti.',
     ok: true,
     statusCode: existingIndex >= 0 ? 200 : 201,
   }

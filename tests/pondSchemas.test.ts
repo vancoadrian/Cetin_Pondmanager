@@ -22,6 +22,7 @@ import {
 
 const validReservationRequest = {
   cabinProductId: 'small-cabin',
+  contactEmail: '  jan.rybar@example.com  ',
   contactName: '  Ján Rybár  ',
   contactPhone: '+421 900 111 222',
   dateFrom: '2026-06-10',
@@ -44,7 +45,20 @@ describe('reservationRequestSchema', () => {
     if (!result.success) throw new Error('Reservation request should be valid.')
 
     expect(result.data.contactName).toBe('Ján Rybár')
+    expect(result.data.contactEmail).toBe('jan.rybar@example.com')
     expect(result.data.contactPhone).toBe('+421 900 111 222')
+  })
+
+  it('allows reservation requests without email contact', () => {
+    const result = reservationRequestSchema.safeParse({
+      ...validReservationRequest,
+      contactEmail: '',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Reservation request without email should be valid.')
+
+    expect(result.data.contactEmail).toBeUndefined()
   })
 
   it('rejects date, availability, cabin and rental conflicts together', () => {

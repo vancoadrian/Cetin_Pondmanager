@@ -4,8 +4,14 @@ import {
   findMockAnglerAccountById,
   type MockAnglerAccount,
 } from '~/services/anglerAccountService'
+import { resolveAppSessionUser } from './appSession'
 
 export function resolveMockAnglerAccount(event: H3Event): MockAnglerAccount | undefined {
+  const user = resolveAppSessionUser(event)
+  if (user?.role === 'angler') {
+    return findMockAnglerAccountById(user.id)
+  }
+
   return findMockAnglerAccountById(getCookie(event, ANGLER_SESSION_COOKIE))
 }
 

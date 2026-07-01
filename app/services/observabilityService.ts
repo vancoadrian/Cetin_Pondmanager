@@ -229,7 +229,7 @@ export function createErrorPressureCheck(
       ? 'Za posledných 24 hodín nie sú uložené žiadne chyby.'
       : `Za posledných 24 hodín je uložených ${stats.total24h} chýb.`,
     id: 'error-pressure',
-    label: 'Error reporting',
+    label: 'Záznam chýb',
     metadata: {
       critical24h: stats.critical24h,
       total24h: stats.total24h,

@@ -109,6 +109,30 @@ describe('localCatchStore', () => {
     })
   })
 
+  it('backfills seed logbook owner links for older local trip logbooks', async () => {
+    const filePath = await createStorePath()
+    const state = await readLocalCatchState(filePath)
+    const legacyState = {
+      ...state,
+      tripLogbooks: state.tripLogbooks.map((logbook) => ({
+        ...logbook,
+        members: logbook.members.map(({ userId: _userId, ...member }) => member),
+        ownerUserId: undefined,
+      })),
+    }
+
+    await writeFile(filePath, `${JSON.stringify(legacyState, null, 2)}\n`, 'utf8')
+    const reread = await readLocalCatchState(filePath)
+    const cabinLogbook = reread.tripLogbooks.find((logbook) => logbook.id === 'logbook-cabin-3-may')
+
+    expect(cabinLogbook).toMatchObject({
+      ownerUserId: 'angler-marek',
+    })
+    expect(cabinLogbook?.members.find((member) => member.id === 'member-marek')).toMatchObject({
+      userId: 'angler-marek',
+    })
+  })
+
   it('replaces the catch workflow state after admin moderation', async () => {
     const filePath = await createStorePath()
     const state = await readLocalCatchState(filePath)

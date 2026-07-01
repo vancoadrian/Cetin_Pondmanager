@@ -86,6 +86,10 @@ const lakeFilter = ref<'all' | LakeSlug>('all')
 const statusFilter = ref<'all' | FishRegistryStatus>('all')
 const selectedFishId = ref(registryState.value.fish[0]?.id ?? '')
 const activePanel = ref<'assistance' | 'candidate' | 'edit' | 'measurement' | 'register' | 'import' | 'settings' | ''>('')
+const chipScanInput = ref('')
+const chipScanMessage = ref('')
+const chipScanStatus = ref<'error' | 'found' | 'idle' | 'new'>('idle')
+const lastScannedChipCode = ref('')
 const activeCandidateId = ref('')
 const openedQueryCandidateId = ref('')
 const candidateFishId = ref('')
@@ -188,6 +192,11 @@ const openAssistanceRequests = computed(() =>
 const selectedFish = computed(() =>
   registryState.value.fish.find((fish) => fish.id === selectedFishId.value)
   ?? filteredFish.value[0],
+)
+const lastScannedFish = computed(() =>
+  lastScannedChipCode.value
+    ? registryState.value.fish.find((fish) => normalizeChipScanValue(fish.chipCode) === lastScannedChipCode.value)
+    : undefined,
 )
 const editStatusChanged = computed(() => editForm.status !== editOriginalStatus.value)
 const measurementDisabled = computed(() =>
@@ -374,6 +383,33 @@ function assistanceWaitLabel(createdAt: string) {
   return `čaká ${minutes} min`
 }
 
+function formatWeightKg(value: number) {
+  return `${value.toLocaleString('sk-SK', { maximumFractionDigits: 1 })} kg`
+}
+
+function normalizeChipScanValue(value: string) {
+  return value.replace(/\s+/g, '').toUpperCase()
+}
+
+function phoneHref(value: string) {
+  return `tel:${value.replace(/\s+/g, '')}`
+}
+
+function assistanceStatusTone(request: LargeFishAssistanceRequest) {
+  if (request.status === 'on-route') return 'success'
+  return 'warning'
+}
+
+function assistanceNextStep(request: LargeFishAssistanceRequest) {
+  if (request.status === 'on-route') {
+    return request.etaMinutes
+      ? `Príchod potvrdený do ${request.etaMinutes} min. Po príchode načítajte čip alebo založte novú rybu.`
+      : 'Príchod je potvrdený. Po príchode načítajte čip alebo založte novú rybu.'
+  }
+
+  return 'Rybár ešte nemá odpoveď. Vyberte ETA a potvrďte príchod, alebo dajte pokyn pustiť rybu bez správcu.'
+}
+
 function statusTone(status: FishRegistryStatus) {
   if (status === 'active') return 'success'
   if (status === 'missing') return 'warning'
@@ -384,6 +420,13 @@ function statusTone(status: FishRegistryStatus) {
 function resetMessage() {
   mutationStatus.value = 'idle'
   mutationMessage.value = ''
+}
+
+function resetChipScan() {
+  chipScanInput.value = ''
+  chipScanMessage.value = ''
+  chipScanStatus.value = 'idle'
+  lastScannedChipCode.value = ''
 }
 
 function populateEditForm(fish: NonNullable<typeof selectedFish.value>) {
@@ -553,6 +596,100 @@ function closeActivePanel() {
   activePanel.value = ''
   resetCandidateContext()
   resetAssistanceContext()
+}
+
+function processChipScan() {
+  const chipCode = normalizeChipScanValue(chipScanInput.value)
+  chipScanInput.value = chipCode
+  lastScannedChipCode.value = chipCode
+
+  if (chipCode.length < 6) {
+    chipScanStatus.value = 'error'
+    chipScanMessage.value = 'Zadajte aspoň 6 znakov čísla čipu.'
+    return
+  }
+
+  const fishRecord = registryState.value.fish.find((fish) => normalizeChipScanValue(fish.chipCode) === chipCode)
+  if (fishRecord) {
+    selectedFishId.value = fishRecord.id
+    searchQuery.value = chipCode
+    lakeFilter.value = 'all'
+    statusFilter.value = 'all'
+    chipScanStatus.value = 'found'
+    chipScanMessage.value = `Čip patrí rybe ${fishRecord.name || fishRecord.species}.`
+    return
+  }
+
+  chipScanStatus.value = 'new'
+  chipScanMessage.value = `Čip ${chipCode} ešte nie je v registri.`
+}
+
+async function openScannedFishMeasurement() {
+  const fishRecord = lastScannedFish.value
+  if (!fishRecord || !canOperate.value || measurementDisabled.value) return
+
+  selectedFishId.value = fishRecord.id
+  if (activePanel.value === 'assistance' && activeAssistance.value) {
+    assistanceFishId.value = fishRecord.id
+    await prepareAssistanceObservation()
+    return
+  }
+  if (activePanel.value === 'candidate' && activeCandidate.value) {
+    candidateFishId.value = fishRecord.id
+    await prepareCandidateObservation()
+    return
+  }
+
+  resetMessage()
+  resetCandidateContext()
+  resetAssistanceContext()
+  candidateNeedsObservationPeg.value = false
+  observationForm.lake = fishRecord.lake
+  observationForm.observedAt = toDateTimeInput(new Date().toISOString())
+  activePanel.value = 'measurement'
+  await nextTick()
+  measurementFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function openScannedFishRegistration() {
+  if (!lastScannedChipCode.value || !canOperate.value) return
+
+  if (activePanel.value === 'assistance' && activeAssistance.value) {
+    await prepareAssistanceRegistration()
+    registrationForm.chipCode = lastScannedChipCode.value
+    return
+  }
+  if (activePanel.value === 'candidate' && activeCandidate.value) {
+    await prepareCandidateRegistration()
+    registrationForm.chipCode = lastScannedChipCode.value
+    return
+  }
+
+  resetMessage()
+  resetCandidateContext()
+  resetAssistanceContext()
+  registrationForm.anglerName = ''
+  registrationForm.bait = ''
+  registrationForm.catchId = ''
+  registrationForm.chipCode = lastScannedChipCode.value
+  registrationForm.lake = lakeFilter.value === 'all'
+    ? selectedFish.value?.lake ?? lakes[0]?.slug ?? 'velky-cetin'
+    : lakeFilter.value
+  registrationForm.name = ''
+  registrationForm.notes = ''
+  registrationForm.observationSource = 'manager'
+  registrationForm.species = 'Kapor'
+  registrationForm.status = 'active'
+  registrationForm.taggedAt = toDateTimeInput(new Date().toISOString())
+  registrationForm.taggedLengthCm = undefined
+  registrationForm.taggedWeightKg = undefined
+  registrationForm.taggerName = 'Správca revíru'
+  registrationForm.taggingContext = 'capture'
+  registrationForm.tournamentCatchId = ''
+  activePanel.value = 'register'
+  await nextTick()
+  registrationForm.taggedPegId = registrationPegs.value[0]?.id ?? ''
+  registrationFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 async function openFishEdit() {
@@ -846,7 +983,7 @@ async function submitImport() {
   }
   catch (error) {
     mutationStatus.value = 'error'
-    mutationMessage.value = getApiErrorMessage(error, 'CSV import zlyhal.')
+    mutationMessage.value = getApiErrorMessage(error, 'Import registra zlyhal.')
   }
 }
 
@@ -933,91 +1070,119 @@ async function refreshRegistryWorkspace() {
           <article
             v-for="request in openAssistanceRequests"
             :key="request.id"
-            class="rounded-md border bg-white p-4"
+            class="rounded-md border bg-white p-4 shadow-sm"
             :class="route.query.privolanie === request.id
               ? 'border-warning-600 ring-2 ring-warning-500/20'
               : 'border-warning-500/25'"
           >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p class="text-lg font-bold">{{ request.weightKg }} kg · {{ request.species }}</p>
-                <p class="mt-1 text-sm text-foreground-muted">
-                  {{ getLakeName(request.lake) }} · {{ request.pegLabel }} · {{ request.lengthCm }} cm
-                </p>
+            <div class="flex flex-col gap-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-2xl font-bold text-warning-950">
+                    {{ formatWeightKg(request.weightKg) }} · {{ request.species }}
+                  </p>
+                  <p class="mt-1 text-sm text-foreground-muted">
+                    {{ getLakeName(request.lake) }} · {{ request.pegLabel }} · {{ request.lengthCm }} cm
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2 sm:justify-end">
+                  <StatusBadge
+                    :label="largeFishAssistanceStatusLabels[request.status]"
+                    :tone="assistanceStatusTone(request)"
+                    size="xs"
+                  />
+                  <StatusBadge
+                    icon="i-heroicons-clock"
+                    :label="assistanceWaitLabel(request.createdAt)"
+                    tone="warning"
+                    size="xs"
+                  />
+                </div>
               </div>
-              <StatusBadge
-                :label="largeFishAssistanceStatusLabels[request.status]"
-                :tone="request.status === 'on-route' ? 'success' : 'warning'"
-                size="xs"
-              />
-            </div>
 
-            <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div>
-                <p class="text-xs text-foreground-muted">Rybár</p>
-                <p class="font-semibold">{{ request.anglerName }}</p>
-                <p class="mt-1 text-xs font-bold text-warning-800">{{ assistanceWaitLabel(request.createdAt) }}</p>
-              </div>
-              <div>
-                <p class="text-xs text-foreground-muted">Telefón</p>
-                <a :href="`tel:${request.phone}`" class="font-bold text-primary-800 underline">
-                  {{ request.phone }}
-                </a>
-              </div>
-            </div>
-
-            <p v-if="request.responseMessage" class="mt-3 rounded-md bg-success-500/10 p-3 text-sm text-success-900">
-              {{ request.responseMessage }}
-            </p>
-
-            <div v-if="canOperate" class="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-              <div v-if="request.status === 'waiting'" class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <select
-                  v-model.number="assistanceEtaMinutes[request.id]"
-                  :aria-label="`Odhad príchodu k ${request.pegLabel}`"
-                  class="h-10 rounded-md border border-border bg-white px-3 text-sm"
-                >
-                  <option :value="5">do 5 min</option>
-                  <option :value="10">do 10 min</option>
-                  <option :value="15">do 15 min</option>
-                  <option :value="20">do 20 min</option>
-                  <option :value="30">do 30 min</option>
-                </select>
+              <div class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div class="rounded-md bg-warning-500/10 px-3 py-3">
+                  <p class="text-xs font-semibold text-warning-800">Ďalší krok</p>
+                  <p class="mt-1 text-sm font-semibold text-warning-950">{{ assistanceNextStep(request) }}</p>
+                </div>
                 <UButton
-                  icon="i-heroicons-truck"
-                  color="success"
-                  :loading="assistanceSubmitId === request.id"
-                  @click="respondToAssistance(request.id, 'on-route')"
-                >
-                  Som na ceste
-                </UButton>
-                <UButton
-                  icon="i-heroicons-arrow-uturn-left"
+                  :to="phoneHref(request.phone)"
+                  icon="i-heroicons-phone"
                   color="warning"
                   variant="soft"
-                  :loading="assistanceSubmitId === request.id"
-                  @click="respondToAssistance(request.id, 'release-without-manager')"
                 >
-                  Pustite bezomňa
+                  {{ request.phone }}
                 </UButton>
               </div>
 
-              <div v-else-if="request.status === 'on-route'" class="flex flex-col gap-2 sm:flex-row">
-                <UButton
-                  icon="i-heroicons-identification"
-                  color="success"
-                  @click="openAssistanceProcessing(request)"
-                >
-                  Spracovať rybu
-                </UButton>
-                <UButton
-                  icon="i-heroicons-check-circle"
-                  variant="soft"
-                  :loading="assistanceSubmitId === request.id"
-                  @click="respondToAssistance(request.id, 'completed')"
-                >
-                  Uzavrieť bez merania
-                </UButton>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-md border border-border bg-muted px-3 py-3">
+                  <p class="text-xs text-foreground-muted">Rybár</p>
+                  <p class="mt-1 font-semibold">{{ request.anglerName }}</p>
+                </div>
+                <div class="rounded-md border border-border bg-muted px-3 py-3">
+                  <p class="text-xs text-foreground-muted">Čas úlovku</p>
+                  <p class="mt-1 font-semibold">{{ formatDateTime(request.caughtAt) }}</p>
+                </div>
+              </div>
+
+              <p v-if="request.responseMessage" class="rounded-md bg-success-500/10 p-3 text-sm text-success-900">
+                {{ request.responseMessage }}
+              </p>
+
+              <div v-if="canOperate" class="flex flex-col gap-2 border-t border-border pt-4">
+                <div v-if="request.status === 'waiting'" class="grid gap-2 sm:grid-cols-[auto_1fr_1fr] sm:items-center">
+                  <select
+                    v-model.number="assistanceEtaMinutes[request.id]"
+                    :aria-label="`Odhad príchodu k ${request.pegLabel}`"
+                    class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+                  >
+                    <option :value="5">do 5 min</option>
+                    <option :value="10">do 10 min</option>
+                    <option :value="15">do 15 min</option>
+                    <option :value="20">do 20 min</option>
+                    <option :value="30">do 30 min</option>
+                  </select>
+                  <UButton
+                    icon="i-heroicons-truck"
+                    color="success"
+                    block
+                    :loading="assistanceSubmitId === request.id"
+                    @click="respondToAssistance(request.id, 'on-route')"
+                  >
+                    Som na ceste
+                  </UButton>
+                  <UButton
+                    icon="i-heroicons-arrow-uturn-left"
+                    color="warning"
+                    variant="soft"
+                    block
+                    :loading="assistanceSubmitId === request.id"
+                    @click="respondToAssistance(request.id, 'release-without-manager')"
+                  >
+                    Pustite bezomňa
+                  </UButton>
+                </div>
+
+                <div v-else-if="request.status === 'on-route'" class="grid gap-2 sm:grid-cols-2">
+                  <UButton
+                    icon="i-heroicons-identification"
+                    color="success"
+                    block
+                    @click="openAssistanceProcessing(request)"
+                  >
+                    Čip a meranie
+                  </UButton>
+                  <UButton
+                    icon="i-heroicons-check-circle"
+                    variant="soft"
+                    block
+                    :loading="assistanceSubmitId === request.id"
+                    @click="respondToAssistance(request.id, 'completed')"
+                  >
+                    Uzavrieť bez merania
+                  </UButton>
+                </div>
               </div>
             </div>
           </article>
@@ -1029,47 +1194,101 @@ async function refreshRegistryWorkspace() {
         ref="assistancePanelElement"
         class="mb-6 rounded-card border border-success-500/30 bg-success-500/10 p-5"
       >
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 class="text-lg font-bold text-success-950">Spracovať rybu po príchode</h2>
+            <p class="text-sm font-bold text-success-800">Správca je pri rybe</p>
+            <h2 class="mt-1 text-2xl font-bold text-success-950">
+              {{ formatWeightKg(activeAssistance.weightKg) }} · {{ activeAssistance.species }}
+            </h2>
             <p class="mt-1 text-sm text-success-900">
-              {{ activeAssistance.weightKg }} kg · {{ activeAssistance.lengthCm }} cm ·
-              {{ activeAssistance.pegLabel }} · {{ activeAssistance.anglerName }}
+              {{ activeAssistance.lengthCm }} cm · {{ activeAssistance.pegLabel }} ·
+              {{ activeAssistance.anglerName }}
             </p>
           </div>
-          <UButton
-            icon="i-heroicons-x-mark"
-            variant="ghost"
-            aria-label="Zavrieť spracovanie privolania"
-            @click="closeActivePanel"
-          />
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              :to="phoneHref(activeAssistance.phone)"
+              icon="i-heroicons-phone"
+              color="success"
+              variant="soft"
+            >
+              Zavolať rybárovi
+            </UButton>
+            <UButton
+              icon="i-heroicons-x-mark"
+              variant="ghost"
+              aria-label="Zavrieť spracovanie privolania"
+              @click="closeActivePanel"
+            />
+          </div>
         </div>
 
-        <div class="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-          <label class="space-y-1 text-sm font-semibold">
-            <span>Čítačka našla existujúci čip</span>
-            <select v-model="assistanceFishId" class="w-full rounded-md border border-border bg-white px-3 py-2">
-              <option value="">Vyberte rybu podľa čipu alebo mena</option>
-              <option v-for="fish in registryState.fish" :key="fish.id" :value="fish.id">
-                {{ fish.chipCode }} · {{ fish.name || 'bez mena' }} · {{ fish.species }}
-              </option>
-            </select>
-          </label>
-          <UButton
-            icon="i-heroicons-plus-circle"
-            :disabled="!assistanceFishId"
-            @click="prepareAssistanceObservation"
-          >
-            Zapísať nové meranie
-          </UButton>
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+          <div class="rounded-md border border-success-500/25 bg-white p-4">
+            <div class="flex items-start gap-3">
+              <UIcon name="i-heroicons-identification" class="mt-0.5 h-5 w-5 shrink-0 text-success-700" />
+              <div class="min-w-0 flex-1">
+                <h3 class="font-bold text-success-950">Čip nájdený</h3>
+                <p class="mt-1 text-sm text-foreground-muted">
+                  Vyberte existujúcu rybu a uložte nové meranie do jej histórie.
+                </p>
+              </div>
+            </div>
+
+            <label class="mt-4 block space-y-1 text-sm font-semibold">
+              <span>Ryba podľa čipu alebo mena</span>
+              <select v-model="assistanceFishId" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <option value="">Vyberte rybu</option>
+                <option v-for="fish in registryState.fish" :key="fish.id" :value="fish.id">
+                  {{ fish.chipCode }} · {{ fish.name || 'bez mena' }} · {{ fish.species }}
+                </option>
+              </select>
+            </label>
+
+            <UButton
+              icon="i-heroicons-plus-circle"
+              color="success"
+              block
+              class="mt-4"
+              :disabled="!assistanceFishId"
+              @click="prepareAssistanceObservation"
+            >
+              Zapísať meranie čipu
+            </UButton>
+          </div>
+
+          <div class="rounded-md border border-warning-500/25 bg-white p-4">
+            <div class="flex items-start gap-3">
+              <UIcon name="i-heroicons-tag" class="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
+              <div class="min-w-0 flex-1">
+                <h3 class="font-bold text-warning-950">Čip nenájdený</h3>
+                <p class="mt-1 text-sm text-foreground-muted">
+                  Založte novú označenú rybu. Údaje z privolania sa predvyplnia automaticky.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-md bg-warning-500/10 px-3 py-3 text-sm text-warning-950">
+              Rybár môže navrhnúť meno ryby pri čipovaní.
+            </div>
+
+            <UButton icon="i-heroicons-tag" color="warning" block class="mt-4" @click="prepareAssistanceRegistration">
+              Začipovať novú rybu
+            </UButton>
+          </div>
         </div>
 
         <div class="mt-4 flex flex-col gap-3 border-t border-success-500/25 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p class="text-sm text-success-900">
-            Ak čítačka čip nenájde, založ novú rybu. Rybár jej môže navrhnúť meno.
+            Po uložení merania alebo nového čipu sa privolanie automaticky uzavrie.
           </p>
-          <UButton icon="i-heroicons-tag" color="warning" @click="prepareAssistanceRegistration">
-            Začipovať novú rybu
+          <UButton
+            icon="i-heroicons-check-circle"
+            variant="soft"
+            :loading="assistanceSubmitId === activeAssistance.id"
+            @click="respondToAssistance(activeAssistance.id, 'completed')"
+          >
+            Uzavrieť bez merania
           </UButton>
         </div>
       </section>
@@ -1259,6 +1478,95 @@ async function refreshRegistryWorkspace() {
         </div>
       </div>
 
+      <section class="mt-6 border-y border-primary-200 bg-primary-50 px-4 py-5 sm:px-5">
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(18rem,1.1fr)] lg:items-end">
+          <div>
+            <p class="text-sm font-bold text-primary-800">Čítačka čipu</p>
+            <h2 class="mt-1 text-lg font-bold">Načítať alebo zadať čip</h2>
+            <p class="mt-1 text-sm text-foreground-muted">
+              RFID čítačka alebo ručné zadanie pri vode.
+            </p>
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <label class="sr-only" for="chip-scan-input">Číslo čipu</label>
+            <input
+              id="chip-scan-input"
+              v-model="chipScanInput"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              class="h-11 rounded-md border border-primary-200 bg-white px-3 font-mono text-sm"
+              placeholder="985141000..."
+              @keyup.enter="processChipScan"
+            >
+            <UButton icon="i-heroicons-magnifying-glass" :disabled="!chipScanInput" @click="processChipScan">
+              Vyhľadať
+            </UButton>
+            <UButton
+              icon="i-heroicons-x-mark"
+              variant="ghost"
+              :disabled="!chipScanInput && !lastScannedChipCode"
+              @click="resetChipScan"
+            >
+              Vyčistiť
+            </UButton>
+          </div>
+        </div>
+
+        <div
+          v-if="chipScanMessage"
+          class="mt-4 rounded-md border px-3 py-2 text-sm font-semibold"
+          :class="chipScanStatus === 'error'
+            ? 'border-error-500/25 bg-error-500/10 text-error-800'
+            : chipScanStatus === 'found'
+              ? 'border-success-500/25 bg-success-500/10 text-success-800'
+              : 'border-warning-500/25 bg-warning-500/10 text-warning-900'"
+        >
+          {{ chipScanMessage }}
+        </div>
+
+        <div v-if="lastScannedChipCode && chipScanStatus !== 'error'" class="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div v-if="lastScannedFish" class="rounded-md border border-success-500/25 bg-white px-4 py-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase text-success-700">Nájdená ryba</p>
+                <p class="mt-1 font-bold">{{ lastScannedFish.name || 'Ryba bez mena' }}</p>
+                <p class="mt-1 text-sm text-foreground-muted">
+                  {{ lastScannedFish.species }} · {{ getLakeName(lastScannedFish.lake) }}
+                </p>
+              </div>
+              <StatusBadge :label="fishRegistryStatusLabels[lastScannedFish.status]" :tone="statusTone(lastScannedFish.status)" size="xs" />
+            </div>
+          </div>
+          <div v-else class="rounded-md border border-warning-500/25 bg-white px-4 py-3">
+            <p class="text-xs font-semibold uppercase text-warning-700">Nový čip</p>
+            <p class="mt-1 break-all font-mono font-bold">{{ lastScannedChipCode }}</p>
+            <p class="mt-1 text-sm text-foreground-muted">Číslo je pripravené na založenie ryby.</p>
+          </div>
+
+          <div v-if="canOperate" class="flex flex-col gap-2 sm:flex-row lg:justify-end">
+            <UButton
+              v-if="lastScannedFish"
+              icon="i-heroicons-plus-circle"
+              color="warning"
+              :disabled="lastScannedFish.status === 'dead' || lastScannedFish.status === 'transferred'"
+              @click="openScannedFishMeasurement"
+            >
+              Zapísať meranie
+            </UButton>
+            <UButton
+              v-else
+              icon="i-heroicons-tag"
+              color="warning"
+              @click="openScannedFishRegistration"
+            >
+              Založiť rybu
+            </UButton>
+          </div>
+        </div>
+      </section>
+
       <section
         v-if="candidateState.candidates.length"
         class="mt-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-5"
@@ -1358,7 +1666,7 @@ async function refreshRegistryWorkspace() {
             icon="i-heroicons-arrow-down-tray"
             variant="soft"
           >
-            CSV export
+            Stiahnuť register
           </UButton>
           <UButton
             v-if="canManage"
@@ -1366,7 +1674,7 @@ async function refreshRegistryWorkspace() {
             variant="soft"
             @click="openPanel('import')"
           >
-            Import
+            Hromadný import
           </UButton>
           <UButton
             v-if="canManage"
@@ -1694,17 +2002,17 @@ async function refreshRegistryWorkspace() {
       >
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="text-lg font-bold">Hromadný CSV import</h2>
+            <h2 class="text-lg font-bold">Hromadný import registra</h2>
             <p class="mt-1 text-sm text-foreground-muted">
-              Najistejšia šablóna je aktuálny CSV export. Rovnaký čip sa aktualizuje, rovnaké meranie sa preskočí.
+              Najistejšia šablóna je aktuálne stiahnutý register. Rovnaký čip sa aktualizuje, rovnaké meranie sa preskočí.
             </p>
           </div>
           <UButton icon="i-heroicons-x-mark" variant="ghost" aria-label="Zavrieť import" @click="activePanel = ''" />
         </div>
         <label class="mt-5 block rounded-md border border-dashed border-border bg-muted p-6 text-center">
           <UIcon name="i-heroicons-document-arrow-up" class="mx-auto h-8 w-8 text-primary-700" />
-          <span class="mt-2 block font-bold">{{ importFileName || 'Vybrať CSV súbor' }}</span>
-          <span class="mt-1 block text-sm text-foreground-muted">CSV do 5 MB</span>
+          <span class="mt-2 block font-bold">{{ importFileName || 'Vybrať tabuľku s údajmi' }}</span>
+          <span class="mt-1 block text-sm text-foreground-muted">Súbor do 5 MB</span>
           <input type="file" accept=".csv,text/csv" class="sr-only" @change="readImportFile">
         </label>
         <div class="mt-4 flex justify-end">
@@ -2039,6 +2347,7 @@ async function refreshRegistryWorkspace() {
 
             <AppState
               v-else
+              compact
               title="Bez histórie"
               description="Táto ryba zatiaľ nemá uložené žiadne meranie."
               icon="i-heroicons-clock"
@@ -2048,6 +2357,7 @@ async function refreshRegistryWorkspace() {
 
         <AppState
           v-else
+          compact
           title="Vyberte rybu"
           description="Detail, história a graf sa zobrazia po výbere ryby zo zoznamu."
           icon="i-heroicons-tag"

@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import type { StatusBadgeTone } from '~/utils/ui'
+
 const props = withDefaults(
   defineProps<{
     icon?: string
     label: string
     size?: 'sm' | 'xs'
     title?: string
-    tone?: string
+    tone?: StatusBadgeTone
   }>(),
   {
     icon: '',
@@ -38,7 +40,7 @@ const toneClasses = computed(() => {
 
 const sizeClasses = computed(() =>
   props.size === 'xs'
-    ? 'min-h-6 gap-1 px-2 py-0.5 text-[11px]'
+    ? 'min-h-6 gap-1.5 px-2 py-0.5 text-[11px]'
     : 'min-h-7 gap-1.5 px-2.5 py-1 text-xs',
 )
 
@@ -47,7 +49,7 @@ const iconClasses = computed(() => (props.size === 'xs' ? 'h-3 w-3' : 'h-3.5 w-3
 
 <template>
   <span
-    class="inline-flex max-w-full items-center whitespace-nowrap rounded-md border font-bold leading-none"
+    class="inline-flex max-w-full select-none items-center whitespace-nowrap rounded-md border font-bold leading-tight tracking-normal shadow-[inset_0_1px_0_rgb(255_255_255_/_0.45)]"
     :class="[toneClasses, sizeClasses]"
     :title="title || label"
   >

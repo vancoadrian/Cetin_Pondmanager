@@ -117,7 +117,7 @@ export function submitCatchCorrection(
   const input = inputResult.data
   const currentCatch = state.catches.find((catchItem) => catchItem.id === input.catchId)
   if (!currentCatch) {
-    return failure(['Úlovok sa nenašiel v lokálnom mock stave.'], 404)
+    return failure(['Úlovok sa nenašiel.'], 404)
   }
 
   const peg = service.pegs.find((item) => item.id === input.pegId && item.lake === input.lake)
@@ -149,7 +149,7 @@ export function submitCatchCorrection(
     : undefined
 
   if (input.logbookLinkMode === 'move' && !targetLogbook) {
-    return failure(['Cieľový zápisník sa v lokálnom store nenašiel.'], 404)
+    return failure(['Cieľový zápisník sa nenašiel.'], 404)
   }
 
   if (targetLogbook?.status === 'closed') {

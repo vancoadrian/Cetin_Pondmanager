@@ -34,11 +34,13 @@ Rezervácie sú rozdelené na:
 - `season_rules` pre opakované pravidlá typu zima alebo neres.
 - `place_issues` pre nahlásené nedostatky na mieste, chate, jazere alebo servisnom bode vrátane priority, stavu, kontaktu a interného riešenia.
 
+`reservations` ukladajú povinný telefón a voliteľný `contact_email`, aby správca mohol po rozhodnutí pripraviť e-mailový draft alebo zostať pri telefonickom/SMS potvrdení.
+
 Tento model zodpovedá aktuálnemu availability engine: dostupnosť sa nemá čítať iba z jednej tabuľky.
 
 ## Úlovky a výpravy
 
-- `catch_records` drží druh, váhu, mieru, nástrahu, čas, miesto, počasie pri zábere, viditeľnosť, stav schválenia a review poznámku správcu. Počasie sa zatiaľ generuje cez mock provider, neskôr ho má plniť weather API alebo meteostanica.
+- `catch_records` drží druh, váhu, mieru, nástrahu, čas, miesto, počasie pri zábere, viditeľnosť, stav schválenia a review poznámku správcu. Počasie vie prísť z mock providera, manuálneho snapshotu, lokálnej meteostanice alebo serverového Open-Meteo kompatibilného weather API adaptéra.
 - `catch_photos` drží názov súboru, MIME typ, veľkosť, storage cestu, verejnú URL a budúci AI stav.
 - `trip_logbooks`, `trip_logbook_members`, `trip_logbook_pegs` a `trip_logbook_entries` pokrývajú skupinové zapisovacie tabuľky výprav.
 - `tagged_fish` drží unikátne číslo čipu v rámci prevádzkovateľa, meno ryby, druh, stav a prvé označenie.

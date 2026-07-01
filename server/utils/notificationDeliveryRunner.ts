@@ -45,7 +45,18 @@ function createNotificationUrl(broadcast: NotificationBroadcast) {
     return tournamentId ? `/sutaze?turnaj=${encodeURIComponent(tournamentId)}` : '/sutaze'
   }
 
-  if (broadcast.targetTopics.includes('reservations')) return '/rezervacie'
+  if (broadcast.targetTopics.includes('reservations')) {
+    const requestId = broadcast.targetAudience?.requestId
+    const hasInternalAudience = Boolean(broadcast.targetAudience?.roles?.length)
+
+    if (hasInternalAudience) {
+      return requestId
+        ? `/admin/rezervacie?rezervacia=${encodeURIComponent(requestId)}`
+        : '/admin/rezervacie'
+    }
+
+    return '/rezervacie'
+  }
 
   return '/notifikacie'
 }

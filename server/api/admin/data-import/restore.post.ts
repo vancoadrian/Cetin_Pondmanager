@@ -31,10 +31,10 @@ export default defineEventHandler(async (event): Promise<LocalDataRestoreRespons
         stores: result.restoredStores.length,
       },
       entityId: result.preview.exportId ?? 'local-data-restore',
-      entityLabel: result.preview.exportId ?? 'Obnova lokálnych dát',
+      entityLabel: result.preview.exportId ?? 'Obnova aplikačných dát',
       entityType: 'local_data_restore',
       severity: 'critical',
-      summary: `Obnovený lokálny backup: ${result.restoredStores.length} store, safety backup ${result.safetyBackupPath}.`,
+      summary: `Obnovený runtime backup: ${result.restoredStores.length} store, safety backup ${result.safetyBackupPath}.`,
     })
 
     return result

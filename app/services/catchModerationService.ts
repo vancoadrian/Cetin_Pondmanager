@@ -69,7 +69,7 @@ export function submitCatchModerationDecision(
   const input = inputResult.data
   const currentCatch = state.catches.find((catchItem) => catchItem.id === input.catchId)
   if (!currentCatch) {
-    return failure(['Úlovok sa nenašiel v lokálnom mock stave.'], 404)
+    return failure(['Úlovok sa nenašiel.'], 404)
   }
 
   const status = statusForDecision(input.decisionMode)

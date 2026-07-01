@@ -9,6 +9,7 @@ import { createPondService } from '~/app/services/pondService'
 
 const validPayload = {
   cabinProductId: 'client-value-is-derived-again-on-server',
+  contactEmail: 'jan.api@example.com',
   contactName: '  Ján API  ',
   contactPhone: '+421 900 123 999',
   dateFrom: '2026-06-10',
@@ -31,6 +32,7 @@ describe('submitReservationRequest', () => {
     expect(result.reservation.status).toBe('pending')
     expect(result.reservation.source).toBe('web')
     expect(result.reservation.guest).toBe('Ján API')
+    expect(result.reservation.contactEmail).toBe('jan.api@example.com')
     expect(result.reservation.cabinProductId).toBe('large-cabin')
     expect(result.reservation.type).toBe('weekend')
     expect(result.rentalBookings).toHaveLength(2)
@@ -171,6 +173,12 @@ describe('submitReservationDecision', () => {
     expect(result.statusCode).toBe(200)
     expect(result.reservation.status).toBe('confirmed')
     expect(result.reservation.internalNote).toBe('Potvrdené cez API.')
+    expect(result.communicationDraft).toMatchObject({
+      channel: 'email',
+      emailTo: 'peter.b@example.com',
+      recipientPhone: '+421 908 444 321',
+    })
+    expect(result.communicationDraft?.smsBody).toContain('je potvrdená')
     expect(
       result.rentalBookings.find((booking) => booking.reservationId === 'r-1003')?.status,
     ).toBe('reserved')
@@ -187,6 +195,6 @@ describe('submitReservationDecision', () => {
     if (result.ok) throw new Error('Reservation decision should be invalid.')
 
     expect(result.statusCode).toBe(404)
-    expect(result.messages).toContain('Rezervácia sa nenašla v lokálnom mock stave.')
+    expect(result.messages).toContain('Rezervácia sa nenašla.')
   })
 })

@@ -31,6 +31,23 @@ export function createSeedReservationState(updatedAt = new Date(0).toISOString()
   }
 }
 
+const seedReservationById = new Map(reservations.map((reservation) => [reservation.id, reservation]))
+
+function normalizeLocalReservationState(state: LocalReservationState): LocalReservationState {
+  return {
+    ...state,
+    reservations: state.reservations.map((reservation) => {
+      const seedReservation = seedReservationById.get(reservation.id)
+      if (reservation.contactEmail || !seedReservation?.contactEmail) return reservation
+
+      return {
+        ...reservation,
+        contactEmail: seedReservation.contactEmail,
+      }
+    }),
+  }
+}
+
 function isReservationState(value: unknown): value is LocalReservationState {
   const candidate = value as Partial<LocalReservationState>
 
@@ -50,7 +67,12 @@ export async function readLocalReservationState(
     const parsed: unknown = JSON.parse(raw)
 
     if (isReservationState(parsed)) {
-      return parsed
+      const normalized = normalizeLocalReservationState(parsed)
+      if (JSON.stringify(normalized.reservations) !== JSON.stringify(parsed.reservations)) {
+        await writeLocalReservationState(normalized, filePath)
+      }
+
+      return normalized
     }
   }
   catch (error) {
@@ -72,7 +94,12 @@ export async function writeLocalReservationState(
 ): Promise<LocalReservationState> {
   const nextState: LocalReservationState = {
     rentalBookings: state.rentalBookings,
-    reservations: state.reservations,
+    reservations: normalizeLocalReservationState({
+      rentalBookings: state.rentalBookings,
+      reservations: state.reservations,
+      updatedAt: new Date(0).toISOString(),
+      version: 1,
+    }).reservations,
     updatedAt: new Date().toISOString(),
     version: 1,
   }

@@ -14,6 +14,7 @@ import {
 } from '~/services/notificationService'
 import type {
   AlertSeverity,
+  NotificationBroadcastStatus,
   NotificationAudienceRole,
   NotificationDeliveryProvider,
   NotificationDeliveryStatus,
@@ -78,7 +79,7 @@ const broadcastFilter = ref<NotificationTimelineFilter>('all')
 const testBroadcastForm = reactive({
   body: 'Toto je interný test doručenia notifikácie Rybolov Cetín.',
   targetTopics: ['weather', 'service', 'reservations', 'tournaments'] as PushSubscriptionTopic[],
-  title: 'Test Web Push doručenia',
+  title: 'Test doručenia notifikácie',
 })
 const testBroadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const testBroadcastSubmitMessage = ref('')
@@ -101,6 +102,8 @@ const mockSubscriptionForm = reactive({
 })
 const mockSubscriptionSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const mockSubscriptionSubmitMessage = ref('')
+const managerServiceSubscriptionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const managerServiceSubscriptionMessage = ref('')
 const subscriptionActionId = ref('')
 const subscriptionActionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const subscriptionActionMessage = ref('')
@@ -127,8 +130,20 @@ const internalAudienceRoles: NotificationAudienceRole[] = [
 ]
 const deliveryProviderLabels: Record<NotificationDeliveryProvider, string> = {
   disabled: 'vypnuté',
-  mock: 'mock',
-  'web-push': 'web push',
+  mock: 'skúšobné',
+  'web-push': 'push cez prehliadač',
+}
+const notificationBroadcastStatusLabels: Record<NotificationBroadcastStatus, string> = {
+  failed: 'zlyhalo',
+  prepared: 'pripravené',
+  sent: 'odoslané',
+  skipped: 'preskočené',
+}
+const notificationDeliveryStatusLabels: Record<NotificationDeliveryStatus, string> = {
+  failed: 'zlyhalo',
+  prepared: 'pripravené',
+  sent: 'odoslané',
+  skipped: 'preskočené',
 }
 const activeMockTournament = computed(() =>
   tournaments.find((tournament) => tournament.id === mockSubscriptionForm.tournamentId) ?? tournaments[0],
@@ -140,7 +155,22 @@ const selectedMarshal = computed(() =>
 const isMockSectorScopedRole = computed(() =>
   mockSubscriptionForm.audienceRole === 'marshal' || mockSubscriptionForm.audienceRole === 'tournament_team',
 )
-const mockSubscriptionEndpointPreview = computed(() => createMockSubscriptionEndpoint())
+const mockSubscriptionTargetPreview = computed(() => {
+  const roleLabel = notificationAudienceRoleLabels[mockSubscriptionForm.audienceRole]
+  const tournamentLabel = activeMockTournament.value?.name ?? 'všetky turnaje'
+  const sectorLabel = isMockSectorScopedRole.value
+    ? mockSubscriptionForm.sectorIds.length > 0
+      ? `sektory ${mockSubscriptionForm.sectorIds.map((sectorId) =>
+        mockTournamentSectors.value.find((sector) => sector.id === sectorId)?.label ?? sectorId,
+      ).join(', ')}`
+      : 'všetky sektory'
+    : 'bez sektorového obmedzenia'
+  const topicsLabel = mockSubscriptionForm.topics.length > 0
+    ? formatTopics(mockSubscriptionForm.topics)
+    : 'bez okruhu'
+
+  return `${roleLabel} · ${tournamentLabel} · ${sectorLabel} · ${topicsLabel}`
+})
 const missingDeliveryConfig = computed(() => deliveryDiagnostics.value.missingConfigKeys)
 const timelineFilters: { label: string, value: NotificationTimelineFilter }[] = [
   { label: 'Všetko', value: 'all' },
@@ -169,6 +199,26 @@ const publicBroadcasts = computed(() => broadcasts.value.filter((broadcast) => !
 const testBroadcasts = computed(() => broadcasts.value.filter((broadcast) => isTestBroadcast(broadcast)))
 const internalSubscriptions = computed(() => subscriptions.value.filter((subscription) => isInternalSubscription(subscription)))
 const publicSubscriptions = computed(() => subscriptions.value.filter((subscription) => !isInternalSubscription(subscription)))
+const serviceSubscriptions = computed(() =>
+  enabledSubscriptions.value.filter((subscription) => subscription.topics.includes('service')),
+)
+const largeFishServiceSubscriptions = computed(() =>
+  serviceSubscriptions.value.filter((subscription) =>
+    subscription.audienceRole === 'manager' || subscription.audienceRole === 'owner',
+  ),
+)
+const serviceBroadcasts = computed(() =>
+  broadcasts.value
+    .filter((broadcast) => broadcast.targetTopics.includes('service') && !isTestBroadcast(broadcast))
+    .sort((first, second) => second.createdAt.localeCompare(first.createdAt)),
+)
+const largeFishBroadcasts = computed(() =>
+  serviceBroadcasts.value.filter((broadcast) =>
+    Boolean(broadcast.targetAudience?.requestId)
+    || broadcast.title.toLocaleLowerCase('sk-SK').includes('veľká ryba')
+    || (broadcast.targetAudience?.reason ?? '').toLocaleLowerCase('sk-SK').includes('veľkej rybe'),
+  ),
+)
 const publicDeliveryLogs = computed(() =>
   deliveryLogs.value.filter((delivery) => {
     const broadcast = broadcastById.value.get(delivery.broadcastId)
@@ -203,6 +253,27 @@ const filteredSubscriptions = computed(() =>
     matchesSubscriptionTopicFilter(subscription, subscriptionTopicFilter.value),
   ),
 )
+const latestLargeFishBroadcast = computed(() => largeFishBroadcasts.value[0])
+const latestLargeFishDeliveryLogs = computed(() =>
+  latestLargeFishBroadcast.value
+    ? getBroadcastDeliveryLogs(latestLargeFishBroadcast.value.id)
+    : [],
+)
+const largeFishReadinessTone = computed(() => {
+  if (deliveryDiagnostics.value.provider === 'disabled') return 'neutral'
+  if (largeFishServiceSubscriptions.value.length === 0) return 'warning'
+  if (deliveryDiagnostics.value.webPushReady || deliveryDiagnostics.value.provider === 'mock') return 'success'
+
+  return 'warning'
+})
+const largeFishReadinessLabel = computed(() => {
+  if (deliveryDiagnostics.value.provider === 'disabled') return 'doručovanie vypnuté'
+  if (largeFishServiceSubscriptions.value.length === 0) return 'chýba správca alebo majiteľ'
+  if (deliveryDiagnostics.value.webPushReady) return 'pripravené na doručenie'
+  if (deliveryDiagnostics.value.provider === 'mock') return 'skúšobné doručovanie pripravené'
+
+  return 'potrebné doplniť kľúče'
+})
 
 function severityClass(severity: AlertSeverity) {
   if (severity === 'storm') return 'bg-error-500/10 text-error-700'
@@ -229,11 +300,40 @@ function deliveryDiagnosticsClass() {
 }
 
 function deliveryDiagnosticsLabel() {
-  if (deliveryDiagnostics.value.webPushReady) return 'web push pripravený'
+  if (deliveryDiagnostics.value.webPushReady) return 'doručovanie pripravené'
   if (deliveryDiagnostics.value.provider === 'disabled') return 'doručovanie vypnuté'
-  if (deliveryDiagnostics.value.provider === 'web-push') return 'chýba VAPID'
+  if (deliveryDiagnostics.value.provider === 'web-push') return 'chýbajú kľúče doručovania'
 
-  return 'testovací režim'
+  return 'skúšobný režim'
+}
+
+function broadcastStatusTone(status: NotificationStateResponse['broadcasts'][number]['status']) {
+  if (status === 'sent' || status === 'prepared') return 'success'
+  if (status === 'failed') return 'error'
+  return 'neutral'
+}
+
+function formatNotificationBroadcastStatus(status: NotificationBroadcastStatus) {
+  return notificationBroadcastStatusLabels[status]
+}
+
+function formatNotificationDeliveryStatus(status: NotificationDeliveryStatus) {
+  return notificationDeliveryStatusLabels[status]
+}
+
+function formatDeliveryUrgency(urgency: string) {
+  const labels: Record<string, string> = {
+    high: 'vysoká',
+    low: 'nízka',
+    normal: 'bežná',
+    'very-low': 'veľmi nízka',
+  }
+
+  return labels[urgency] ?? urgency
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function formatDurationSeconds(value: number) {
@@ -245,6 +345,53 @@ function formatDurationSeconds(value: number) {
 
 function formatTopics(topics: PushSubscriptionTopic[]) {
   return topics.map((topic) => pushSubscriptionTopicLabels[topic]).join(', ')
+}
+
+function formatStoredNotificationMessage(message: string) {
+  return message
+    .replace(/^Mock dispatcher pripravil notifikáciu pre (\d+) odberov\.$/u, 'Skúšobné doručovanie pripravilo notifikáciu pre $1 odberov.')
+    .replace(/^Mock dispatcher označil notifikáciu ako doručenú\.$/u, 'Skúšobné doručovanie označilo notifikáciu ako doručenú.')
+    .replace(/^Mock dispatcher zaevidoval (\d+) doručení\.$/u, 'Skúšobné doručovanie zaevidovalo $1 doručení.')
+    .replace(/^Mock endpoint čaká na reálny Web Push endpoint zariadenia\.$/u, 'Skúšobný odber čaká na reálne zariadenie.')
+    .replace(/^Mock doručenie\.$/u, 'Skúšobné doručenie.')
+}
+
+function formatPushEndpoint(endpoint: string) {
+  if (endpoint.startsWith('mock://')) return 'skúšobný interný odber'
+
+  try {
+    const url = new URL(endpoint)
+    if (url.protocol === 'https:') return `prehliadač: ${url.host}`
+  }
+  catch {
+    // Fall through to a neutral label for malformed or non-URL endpoint strings.
+  }
+
+  return 'interný identifikátor zariadenia'
+}
+
+function getBroadcastDeliveryLogs(broadcastId: string) {
+  return deliveryLogs.value
+    .filter((delivery) => delivery.broadcastId === broadcastId)
+    .sort((first, second) => second.attemptedAt.localeCompare(first.attemptedAt))
+}
+
+function formatDeliverySummary(broadcastId: string) {
+  const rows = getBroadcastDeliveryLogs(broadcastId)
+  if (rows.length === 0) return 'bez záznamu doručenia'
+
+  const sent = rows.filter((row) => row.status === 'sent').length
+  const prepared = rows.filter((row) => row.status === 'prepared').length
+  const failed = rows.filter((row) => row.status === 'failed').length
+  const skipped = rows.filter((row) => row.status === 'skipped').length
+  const parts = [
+    sent ? `${sent} odoslané` : '',
+    prepared ? `${prepared} pripravené` : '',
+    failed ? `${failed} zlyhalo` : '',
+    skipped ? `${skipped} preskočené` : '',
+  ].filter(Boolean)
+
+  return parts.join(' · ')
 }
 
 function isTestBroadcast(broadcast: NotificationStateResponse['broadcasts'][number]) {
@@ -337,9 +484,9 @@ function getSubscriptionTopicFilterCount(filter: NotificationSubscriptionTopicFi
 
 function broadcastEmptyMessage() {
   if (broadcastFilter.value === 'public') return 'Pre verejný filter zatiaľ nie je pripravený žiadny oznam.'
-  if (broadcastFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je pripravený žiadny interný broadcast.'
+  if (broadcastFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je pripravené žiadne interné rozoslanie.'
 
-  return 'Zatiaľ nie je pripravený žiadny broadcast.'
+  return 'Zatiaľ nie je pripravené žiadne rozoslanie.'
 }
 
 function deliveryEmptyMessage() {
@@ -350,7 +497,7 @@ function deliveryEmptyMessage() {
 }
 
 function subscriptionEmptyMessage() {
-  if (subscriptions.value.length === 0) return 'Zatiaľ nie je uložený žiadny push odber.'
+  if (subscriptions.value.length === 0) return 'Zatiaľ nie je uložený žiadny odber notifikácií.'
 
   return 'Pre zvolený filter zatiaľ nie je uložený žiadny odber.'
 }
@@ -544,6 +691,53 @@ async function submitMockSubscription() {
   }
 }
 
+function prepareManagerServiceSubscriptionForm() {
+  mockSubscriptionForm.audienceRole = 'manager'
+  mockSubscriptionForm.deviceLabel = 'Správca pri vode - mobil'
+  mockSubscriptionForm.marshalId = ''
+  mockSubscriptionForm.sectorIds = []
+  mockSubscriptionForm.topics = ['service']
+  mockSubscriptionForm.tournamentId = ''
+}
+
+async function createManagerServiceSubscription() {
+  if (!canOperateNotifications.value) {
+    managerServiceSubscriptionStatus.value = 'error'
+    managerServiceSubscriptionMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+
+  managerServiceSubscriptionStatus.value = 'submitting'
+  managerServiceSubscriptionMessage.value = ''
+  prepareManagerServiceSubscriptionForm()
+
+  try {
+    const result = await $fetch<PushSubscriptionMutationSuccess>('/api/admin/notifications/subscriptions', {
+      body: {
+        audienceRole: 'manager',
+        auth: 'mock-manager-service-auth',
+        deviceLabel: 'Správca pri vode - mobil',
+        endpoint: 'mock://rybolov-cetin/internal/manager/all-tournaments/all-marshals/all-sectors/service',
+        p256dh: 'mock-manager-service-p256dh',
+        permission: 'granted',
+        sectorIds: [],
+        topics: ['service'],
+        tournamentIds: [],
+        userAgent: 'Rybolov Cetín admin quick setup',
+      },
+      method: 'POST',
+    })
+
+    managerServiceSubscriptionStatus.value = 'success'
+    managerServiceSubscriptionMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    managerServiceSubscriptionStatus.value = 'error'
+    managerServiceSubscriptionMessage.value = getApiErrorMessage(error, 'Odber správcu sa nepodarilo uložiť.')
+  }
+}
+
 async function disableAdminSubscription(subscription: NotificationStateResponse['subscriptions'][number]) {
   if (!canOperateNotifications.value) {
     subscriptionActionId.value = subscription.id
@@ -635,7 +829,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Aktívne odbery</p>
           <p class="mt-2 text-3xl font-bold">{{ enabledSubscriptions.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">zariadenia s povolenými push notifikáciami</p>
+          <p class="text-foreground-muted mt-1 text-sm">zariadenia s povolenými notifikáciami</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Verejné oznamy</p>
@@ -643,14 +837,14 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <p class="text-foreground-muted mt-1 text-sm">zobrazené na stránke výstrah</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Broadcasty</p>
+          <p class="text-foreground-muted text-sm">Rozoslania</p>
           <p class="mt-2 text-3xl font-bold">{{ broadcasts.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">
             {{ publicBroadcasts.length }} verejné · {{ testBroadcasts.length }} testy
           </p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Doručenia</p>
+          <p class="text-foreground-muted text-sm">Záznamy doručenia</p>
           <p class="mt-2 text-3xl font-bold">{{ deliveryLogs.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">
             {{ publicDeliveryLogs.length }} verejné · {{ testDeliveryLogs.length }} testy
@@ -661,7 +855,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
       <div class="mt-5 rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 class="text-lg font-bold">Web Push provider</h2>
+            <h2 class="text-lg font-bold">Stav doručovania</h2>
             <p class="text-foreground-muted mt-1 text-sm">
               Stav doručovania podľa aktuálneho serverového nastavenia.
             </p>
@@ -673,29 +867,29 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
 
         <dl class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div class="rounded-md bg-muted px-3 py-3">
-            <dt class="text-foreground-muted text-xs font-semibold uppercase">Provider</dt>
+            <dt class="text-foreground-muted text-xs font-semibold uppercase">Režim</dt>
             <dd class="mt-1 text-sm font-bold">{{ deliveryProviderLabels[deliveryDiagnostics.provider] }}</dd>
           </div>
           <div class="rounded-md bg-muted px-3 py-3">
-            <dt class="text-foreground-muted text-xs font-semibold uppercase">VAPID</dt>
+            <dt class="text-foreground-muted text-xs font-semibold uppercase">Kľúče</dt>
             <dd class="mt-1 text-sm font-bold">{{ deliveryDiagnostics.hasVapidConfig ? 'kompletný' : 'nekompletný' }}</dd>
           </div>
           <div class="rounded-md bg-muted px-3 py-3">
-            <dt class="text-foreground-muted text-xs font-semibold uppercase">TTL</dt>
+            <dt class="text-foreground-muted text-xs font-semibold uppercase">Platnosť pokusu</dt>
             <dd class="mt-1 text-sm font-bold">{{ formatDurationSeconds(deliveryDiagnostics.ttlSeconds) }}</dd>
           </div>
           <div class="rounded-md bg-muted px-3 py-3">
             <dt class="text-foreground-muted text-xs font-semibold uppercase">Urgentnosť</dt>
-            <dd class="mt-1 text-sm font-bold">{{ deliveryDiagnostics.urgency }}</dd>
+            <dd class="mt-1 text-sm font-bold">{{ formatDeliveryUrgency(deliveryDiagnostics.urgency) }}</dd>
           </div>
         </dl>
 
         <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <p class="rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground-muted">
-            Subject: <span class="font-semibold text-foreground">{{ deliveryDiagnostics.subject || 'nenastavený' }}</span>
+            Kontakt odosielateľa: <span class="font-semibold text-foreground">{{ deliveryDiagnostics.subject || 'nenastavený' }}</span>
           </p>
           <p class="rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground-muted">
-            Timeout: <span class="font-semibold text-foreground">{{ formatDurationSeconds(deliveryDiagnostics.timeoutMs / 1000) }}</span>
+            Časový limit: <span class="font-semibold text-foreground">{{ formatDurationSeconds(deliveryDiagnostics.timeoutMs / 1000) }}</span>
           </p>
         </div>
 
@@ -703,9 +897,163 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           v-if="missingDeliveryConfig.length > 0"
           class="mt-4 rounded-md border border-warning-500/25 bg-warning-500/10 px-3 py-2 text-sm font-semibold text-warning-700"
         >
-          Chýba: {{ missingDeliveryConfig.join(', ') }}
+          Chýba konfigurácia: {{ missingDeliveryConfig.join(', ') }}
         </p>
       </div>
+
+      <section class="mt-5 rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Servisné notifikácie</h2>
+            <p class="text-foreground-muted mt-1 text-sm">
+              Privolanie správcu k veľkej rybe cieli na interné odbery témy prevádzka pre správcu a majiteľa.
+            </p>
+          </div>
+          <StatusBadge
+            icon="i-heroicons-bell-alert"
+            :label="largeFishReadinessLabel"
+            :tone="largeFishReadinessTone"
+          />
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="rounded-md bg-muted px-3 py-3">
+            <p class="text-xs font-semibold uppercase text-foreground-muted">Prevádzkové odbery</p>
+            <p class="mt-1 text-2xl font-bold">{{ serviceSubscriptions.length }}</p>
+            <p class="mt-1 text-xs text-foreground-muted">aktívne zariadenia pre okruh prevádzka</p>
+          </div>
+          <div class="rounded-md bg-muted px-3 py-3">
+            <p class="text-xs font-semibold uppercase text-foreground-muted">Správca / majiteľ</p>
+            <p class="mt-1 text-2xl font-bold">{{ largeFishServiceSubscriptions.length }}</p>
+            <p class="mt-1 text-xs text-foreground-muted">cieľ veľkej ryby</p>
+          </div>
+          <div class="rounded-md bg-muted px-3 py-3">
+            <p class="text-xs font-semibold uppercase text-foreground-muted">Servisné rozoslania</p>
+            <p class="mt-1 text-2xl font-bold">{{ serviceBroadcasts.length }}</p>
+            <p class="mt-1 text-xs text-foreground-muted">bez interných testov</p>
+          </div>
+          <div class="rounded-md bg-muted px-3 py-3">
+            <p class="text-xs font-semibold uppercase text-foreground-muted">Veľké ryby</p>
+            <p class="mt-1 text-2xl font-bold">{{ largeFishBroadcasts.length }}</p>
+            <p class="mt-1 text-xs text-foreground-muted">privolania a veľké úlovky</p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <div class="rounded-md border border-border bg-white p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-bold">Zariadenia pre veľkú rybu</h3>
+                <p class="mt-1 text-sm text-foreground-muted">
+                  Tieto odbery spĺňajú rolu a okruh pre privolanie správcu.
+                </p>
+              </div>
+              <StatusBadge
+                :label="`${largeFishServiceSubscriptions.length} aktívne`"
+                :tone="largeFishServiceSubscriptions.length > 0 ? 'success' : 'warning'"
+                size="xs"
+              />
+            </div>
+
+            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <UButton
+                icon="i-heroicons-device-phone-mobile"
+                variant="soft"
+                :disabled="!canOperateNotifications"
+                :loading="managerServiceSubscriptionStatus === 'submitting'"
+                @click="createManagerServiceSubscription"
+              >
+                {{ largeFishServiceSubscriptions.length > 0 ? 'Pridať ďalšie zariadenie správcu' : 'Pridať zariadenie správcu' }}
+              </UButton>
+              <p
+                v-if="managerServiceSubscriptionMessage"
+                class="text-sm font-semibold"
+                :class="managerServiceSubscriptionStatus === 'error' ? 'text-error-700' : 'text-success-700'"
+              >
+                {{ managerServiceSubscriptionMessage }}
+              </p>
+            </div>
+
+            <div v-if="largeFishServiceSubscriptions.length" class="mt-4 space-y-2">
+              <div
+                v-for="subscription in largeFishServiceSubscriptions.slice(0, 4)"
+                :key="subscription.id"
+                class="rounded-md bg-muted px-3 py-2"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-bold">{{ subscription.deviceLabel }}</p>
+                    <p class="mt-0.5 text-xs text-foreground-muted">
+                      {{ subscription.audienceRole ? notificationAudienceRoleLabels[subscription.audienceRole] : 'interný odber' }}
+                      · {{ formatTopics(subscription.topics) }}
+                    </p>
+                  </div>
+                  <StatusBadge label="povolené" tone="success" size="xs" />
+                </div>
+              </div>
+              <p v-if="largeFishServiceSubscriptions.length > 4" class="text-xs text-foreground-muted">
+                Ďalších {{ largeFishServiceSubscriptions.length - 4 }} zariadení je v zozname odberov nižšie.
+              </p>
+            </div>
+            <p v-else class="mt-4 rounded-md border border-dashed border-warning-500/30 bg-warning-500/10 p-3 text-sm text-warning-800">
+              Privolanie veľkej ryby by teraz nemalo komu poslať internú notifikáciu. Pridajte zariadenie správcu, aby mal rybár po odoslaní požiadavky reálnu odpoveď.
+            </p>
+          </div>
+
+          <div class="rounded-md border border-border bg-white p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-bold">Posledná veľká ryba</h3>
+                <p class="mt-1 text-sm text-foreground-muted">
+                  Rýchla kontrola, či doručenie skončilo ako odoslané, pripravené alebo preskočené.
+                </p>
+              </div>
+              <StatusBadge
+                v-if="latestLargeFishBroadcast"
+                :label="formatNotificationBroadcastStatus(latestLargeFishBroadcast.status)"
+                :tone="broadcastStatusTone(latestLargeFishBroadcast.status)"
+                size="xs"
+              />
+            </div>
+
+            <article v-if="latestLargeFishBroadcast" class="mt-4 rounded-md bg-muted p-3">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="font-bold">{{ latestLargeFishBroadcast.title }}</p>
+                  <p class="mt-1 text-sm text-foreground-muted">{{ formatStoredNotificationMessage(latestLargeFishBroadcast.message) }}</p>
+                  <p class="mt-2 text-xs text-foreground-muted">
+                    {{ formatDateTime(latestLargeFishBroadcast.createdAt) }} ·
+                    {{ latestLargeFishBroadcast.recipientCount }} odberov ·
+                    {{ formatDeliverySummary(latestLargeFishBroadcast.id) }}
+                  </p>
+                  <p v-if="latestLargeFishBroadcast.targetAudience" class="mt-1 text-xs text-foreground-muted">
+                    {{ formatNotificationAudience(latestLargeFishBroadcast.targetAudience) }}
+                  </p>
+                </div>
+              </div>
+
+              <div v-if="latestLargeFishDeliveryLogs.length" class="mt-3 space-y-2">
+                <div
+                  v-for="delivery in latestLargeFishDeliveryLogs.slice(0, 3)"
+                  :key="delivery.id"
+                  class="flex items-start justify-between gap-3 rounded-md bg-white px-3 py-2"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold">{{ delivery.deviceLabel }}</p>
+                    <p class="mt-0.5 text-xs text-foreground-muted">{{ formatStoredNotificationMessage(delivery.message) }}</p>
+                  </div>
+                  <span class="w-fit shrink-0 rounded-md px-2 py-0.5 text-xs font-bold" :class="deliveryStatusClass(delivery.status)">
+                    {{ formatNotificationDeliveryStatus(delivery.status) }}
+                  </span>
+                </div>
+              </div>
+            </article>
+            <p v-else class="mt-4 rounded-md border border-dashed border-border p-3 text-sm text-foreground-muted">
+              Zatiaľ nie je uložená žiadna správa k veľkej rybe.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <div class="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div class="space-y-6">
@@ -714,11 +1062,11 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               <div>
                 <h2 class="text-lg font-bold">Test doručenia</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Spustí interný broadcast bez pridania verejného oznamu do výstrah.
+                  Spustí interné rozoslanie bez pridania verejného oznamu do výstrah.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                bez public alertu
+                bez verejnej výstrahy
               </span>
             </div>
 
@@ -781,7 +1129,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               <div>
                 <h2 class="text-lg font-bold">Údržba testov</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Vyčistí staré interné testovacie broadcasty a ich delivery logy.
+                  Vyčistí staré interné testy a ich záznamy doručenia.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
@@ -842,7 +1190,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Nová notifikácia</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Vytvorí verejný oznam a pripraví push broadcast pre zvolené okruhy.
+              Vytvorí verejný oznam a pripraví odoslanie notifikácie pre zvolené okruhy.
             </p>
 
             <fieldset :disabled="!canOperateNotifications" class="contents">
@@ -909,7 +1257,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 :loading="broadcastSubmitStatus === 'submitting'"
                 @click="submitBroadcast"
               >
-                Pripraviť broadcast
+                Pripraviť odoslanie
               </UButton>
               <p
                 v-if="broadcastSubmitMessage"
@@ -1005,8 +1353,8 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     </label>
                   </div>
                 </div>
-                <p class="break-all rounded-md bg-muted px-3 py-2 text-xs text-foreground-muted">
-                  {{ mockSubscriptionEndpointPreview }}
+                <p class="rounded-md bg-muted px-3 py-2 text-xs text-foreground-muted">
+                  {{ mockSubscriptionTargetPreview }}
                 </p>
               </div>
             </fieldset>
@@ -1035,7 +1383,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Posledné broadcasty</h2>
+                <h2 class="text-lg font-bold">Posledné rozoslania</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
                   Verejné oznamy a interné testy sú oddelené pre čistejšiu prevádzku.
                 </p>
@@ -1066,7 +1414,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                         interný test
                       </span>
                     </div>
-                    <p class="text-foreground-muted mt-1 text-sm">{{ broadcast.message }}</p>
+                    <p class="text-foreground-muted mt-1 text-sm">{{ formatStoredNotificationMessage(broadcast.message) }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">
                       {{ formatTopics(broadcast.targetTopics) }} · {{ broadcast.recipientCount }} odberov
                     </p>
@@ -1075,7 +1423,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     </p>
                   </div>
                   <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="severityClass(broadcast.severity)">
-                    {{ broadcast.status }}
+                    {{ formatNotificationBroadcastStatus(broadcast.status) }}
                   </span>
                 </div>
               </article>
@@ -1088,9 +1436,9 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Doručenia</h2>
+                <h2 class="text-lg font-bold">Záznamy doručenia</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Logy po zariadeniach s rovnakým filtrom ako broadcasty.
+                  Záznamy po zariadeniach používajú rovnaký filter ako rozoslania.
                 </p>
               </div>
               <div class="flex flex-wrap gap-2">
@@ -1111,13 +1459,13 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-semibold">{{ delivery.deviceLabel }}</p>
-                    <p class="text-foreground-muted mt-1 text-sm">{{ delivery.message }}</p>
-                    <p class="text-foreground-muted mt-2 break-all text-xs">
-                      {{ deliveryProviderLabels[delivery.provider] }} · {{ delivery.endpoint }}
+                    <p class="text-foreground-muted mt-1 text-sm">{{ formatStoredNotificationMessage(delivery.message) }}</p>
+                    <p class="text-foreground-muted mt-2 text-xs">
+                      {{ deliveryProviderLabels[delivery.provider] }} · {{ formatPushEndpoint(delivery.endpoint) }}
                     </p>
                   </div>
                   <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="deliveryStatusClass(delivery.status)">
-                    {{ delivery.status }}
+                    {{ formatNotificationDeliveryStatus(delivery.status) }}
                   </span>
                 </div>
               </article>
@@ -1193,7 +1541,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-semibold">{{ subscription.deviceLabel }}</p>
-                    <p class="text-foreground-muted mt-1 break-all text-xs">{{ subscription.endpoint }}</p>
+                    <p class="text-foreground-muted mt-1 text-xs">{{ formatPushEndpoint(subscription.endpoint) }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">{{ formatTopics(subscription.topics) }}</p>
                     <p v-if="formatSubscriptionAudience(subscription)" class="text-foreground-muted mt-1 text-xs">
                       {{ formatSubscriptionAudience(subscription) }}

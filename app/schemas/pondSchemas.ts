@@ -108,9 +108,14 @@ const phoneSchema = z
   .trim()
   .min(7, 'Telefón musí mať aspoň 7 znakov.')
   .regex(/^\+?[0-9\s./-]+$/, 'Telefón môže obsahovať iba čísla, medzery a znak +.')
+const optionalEmailSchema = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.').optional(),
+)
 
 export const reservationRequestPayloadSchema = z.object({
   cabinProductId: z.string().optional(),
+  contactEmail: optionalEmailSchema,
   contactName: z.string().trim().min(2, 'Doplňte meno rezervujúceho.'),
   contactPhone: phoneSchema,
   dateFrom: isoDateSchema,

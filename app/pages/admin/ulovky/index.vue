@@ -26,6 +26,7 @@ import {
   catchReportAudienceLabels,
   catchReportCadenceLabels,
   catchReportDeliveryLabels,
+  catchReportDeliveryProviderLabels,
 } from '~/services/catchReportService'
 import {
   createDefaultFishRegistrySettings,
@@ -51,6 +52,10 @@ import {
 useHead({ title: 'Admin úlovky' })
 
 type CatchReportScheduleRunRow = CatchReportScheduleRunSuccess['rows'][number]
+type CatchReportScheduleRunSummary = Pick<
+  CatchReportScheduleRunSuccess,
+  'deliveryProvider' | 'dueCount' | 'failedCount' | 'preparedCount' | 'processedCount' | 'sentCount' | 'skippedCount'
+>
 
 const {
   catches: seedCatches,
@@ -174,6 +179,7 @@ const reportEmailDraftMessage = ref('')
 const schedulerRunStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const schedulerRunMessage = ref('')
 const schedulerRunRows = ref<CatchReportScheduleRunSuccess['rows']>([])
+const schedulerRunSummary = ref<CatchReportScheduleRunSummary>()
 
 const liveCatches = computed(() => catchState.value?.catches ?? seedCatches)
 const liveCatchPhotos = computed(() => catchState.value?.catchPhotos ?? seedCatchPhotos)
@@ -756,7 +762,7 @@ function formatReportRecipients(report: CatchSavedReport) {
 
 function formatReportPayload(report: CatchSavedReport) {
   const parts = []
-  if (report.includeRawCsv) parts.push('CSV úlovkov')
+  if (report.includeRawCsv) parts.push('zoznam úlovkov')
   if (report.includeTrendSignals) parts.push('trendové signály')
 
   return parts.join(' + ')
@@ -918,7 +924,7 @@ async function saveCurrentCatchReport() {
 
   if (!reportForm.includeRawCsv && !reportForm.includeTrendSignals) {
     reportSubmitStatus.value = 'error'
-    reportSubmitMessage.value = 'Report musí obsahovať aspoň CSV úlovkov alebo trendové signály.'
+    reportSubmitMessage.value = 'Report musí obsahovať aspoň zoznam úlovkov alebo trendové signály.'
     return
   }
 
@@ -1012,12 +1018,14 @@ async function runCatchReportScheduler() {
     schedulerRunStatus.value = 'error'
     schedulerRunMessage.value = catchReadOnlyMessage.value
     schedulerRunRows.value = []
+    schedulerRunSummary.value = undefined
     return
   }
 
   schedulerRunStatus.value = 'submitting'
   schedulerRunMessage.value = ''
   schedulerRunRows.value = []
+  schedulerRunSummary.value = undefined
 
   try {
     const result = await $fetch<CatchReportScheduleRunSuccess>('/api/admin/catch-reports/run-due', {
@@ -1025,6 +1033,15 @@ async function runCatchReportScheduler() {
     })
 
     schedulerRunRows.value = result.rows
+    schedulerRunSummary.value = {
+      deliveryProvider: result.deliveryProvider,
+      dueCount: result.dueCount,
+      failedCount: result.failedCount,
+      preparedCount: result.preparedCount,
+      processedCount: result.processedCount,
+      sentCount: result.sentCount,
+      skippedCount: result.skippedCount,
+    }
     schedulerRunStatus.value = result.rows.some((row) => row.action === 'failed') ? 'error' : 'success'
     schedulerRunMessage.value = result.message
     await refreshCatchReports()
@@ -1032,6 +1049,7 @@ async function runCatchReportScheduler() {
   catch (error) {
     schedulerRunStatus.value = 'error'
     schedulerRunMessage.value = getApiErrorMessage(error, 'Plánovač reportov sa nepodarilo spustiť.')
+    schedulerRunSummary.value = undefined
   }
 }
 
@@ -1162,7 +1180,7 @@ async function saveCorrection() {
               :disabled="analyticsFilteredCatches.length === 0"
               @click="exportAnalyticsCsv"
             >
-              Export CSV
+              Stiahnuť report
             </UButton>
             <UButton
               icon="i-heroicons-chart-bar-square"
@@ -1170,7 +1188,7 @@ async function saveCorrection() {
               :disabled="catchTrendSignalRows.length === 0"
               @click="exportTrendSignalsCsv"
             >
-              Export signálov
+              Stiahnuť signály
             </UButton>
             <UButton
               v-if="analyticsFilterActive"
@@ -1323,7 +1341,7 @@ async function saveCorrection() {
               <div class="mt-3 flex flex-wrap gap-4 text-sm">
                 <label class="flex items-center gap-2">
                   <input v-model="reportForm.includeRawCsv" type="checkbox" class="h-4 w-4 accent-primary-700">
-                  CSV úlovkov
+                  Zoznam úlovkov
                 </label>
                 <label class="flex items-center gap-2">
                   <input v-model="reportForm.includeTrendSignals" type="checkbox" class="h-4 w-4 accent-primary-700">
@@ -1396,6 +1414,26 @@ async function saveCorrection() {
                 </div>
                 <span class="text-foreground-muted text-xs">
                   {{ scheduledCatchReports.length }} plánovaných
+                </span>
+              </div>
+              <div v-if="schedulerRunSummary" class="mt-3 flex flex-wrap gap-2">
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Provider: {{ catchReportDeliveryProviderLabels[schedulerRunSummary.deliveryProvider] }}
+                </span>
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Splatné: {{ schedulerRunSummary.dueCount }}
+                </span>
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Odoslané: {{ schedulerRunSummary.sentCount }}
+                </span>
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Pripravené: {{ schedulerRunSummary.preparedCount }}
+                </span>
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Preskočené: {{ schedulerRunSummary.skippedCount }}
+                </span>
+                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Chyby: {{ schedulerRunSummary.failedCount }}
                 </span>
               </div>
               <div v-if="schedulerRunRows.length > 0" class="mt-3 grid gap-2">
@@ -1950,6 +1988,7 @@ async function saveCorrection() {
             </button>
             <AppState
               v-if="filteredCatches.length === 0"
+              compact
               title="Bez úlovkov"
               description="Pre zvolený filter zatiaľ nie je žiadny úlovok."
             />
@@ -2355,6 +2394,7 @@ async function saveCorrection() {
 
           <AppState
             v-else
+            compact
             title="Vyberte úlovok"
             description="Detail schvaľovania sa zobrazí po výbere úlovku zo zoznamu."
           />

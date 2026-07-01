@@ -24,6 +24,7 @@ interface AvailabilityInput {
   closures: LakeClosure[]
   dateFrom?: string
   dateTo?: string
+  includePrivateReservationDetails?: boolean
   reservations: Reservation[]
 }
 
@@ -147,14 +148,22 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
   )
   const confirmedReservation = overlappingReservations.find((reservation) => reservation.status === 'confirmed')
   if (confirmedReservation) {
-    reasons.push(`Rezervácia: ${confirmedReservation.guest}`)
+    reasons.push(
+      input.includePrivateReservationDetails
+        ? `Rezervácia: ${confirmedReservation.guest}`
+        : 'Miesto má v danom termíne potvrdenú rezerváciu.',
+    )
     sourceIds.push(confirmedReservation.id)
     return buildResult('reserved', reasons, sourceIds)
   }
 
   const blockedReservation = overlappingReservations.find((reservation) => reservation.status === 'blocked')
   if (blockedReservation) {
-    reasons.push(`Blokácia: ${blockedReservation.guest}`)
+    reasons.push(
+      input.includePrivateReservationDetails
+        ? `Blokácia: ${blockedReservation.guest}`
+        : 'Miesto je v danom termíne blokované.',
+    )
     sourceIds.push(blockedReservation.id)
     return buildResult('blocked', reasons, sourceIds)
   }
@@ -168,7 +177,11 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
 
   const pendingReservation = overlappingReservations.find((reservation) => reservation.status === 'pending')
   if (pendingReservation) {
-    reasons.push(`Čakajúca žiadosť: ${pendingReservation.guest}`)
+    reasons.push(
+      input.includePrivateReservationDetails
+        ? `Čakajúca žiadosť: ${pendingReservation.guest}`
+        : 'Na miesto je v danom termíne čakajúca žiadosť.',
+    )
     sourceIds.push(pendingReservation.id)
     return buildResult('limited', reasons, sourceIds)
   }

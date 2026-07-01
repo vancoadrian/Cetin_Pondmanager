@@ -1768,6 +1768,7 @@
     "reservations": [
       {
         "cabin_product_id": null,
+        "contact_email": "marek.h@example.com",
         "contact_phone": "+421 900 123 456",
         "ends_on": "2026-05-18",
         "guest_name": "Marek H.",
@@ -1786,6 +1787,7 @@
       },
       {
         "cabin_product_id": "fa5d2afd-e7f4-5cc4-85cf-ce476e5f8d13",
+        "contact_email": "nitra-carp@example.com",
         "contact_phone": "+421 905 222 111",
         "ends_on": "2026-05-24",
         "guest_name": "Tím Nitra Carp",
@@ -1804,6 +1806,7 @@
       },
       {
         "cabin_product_id": null,
+        "contact_email": "peter.b@example.com",
         "contact_phone": "+421 908 444 321",
         "ends_on": "2026-05-17",
         "guest_name": "Peter B.",
@@ -2352,6 +2355,7 @@
         "mode": "group",
         "note": "Skupinová tabuľka pre partiu pri chate. Každý zápis sa dá neskôr spojiť s fotkou a metadátami pre AI.",
         "owner_name": "Marek H.",
+        "owner_user_id": null,
         "share_code": "CETIN-3MAY",
         "starts_on": "2026-05-16",
         "status": "active",
@@ -2365,6 +2369,7 @@
         "mode": "personal",
         "note": "Krátka osobná výprava s možnosťou neskoršieho zdieľania so správcom.",
         "owner_name": "Lenka R.",
+        "owner_user_id": null,
         "share_code": "KOCKA-1717",
         "starts_on": "2026-05-17",
         "status": "draft",

@@ -733,6 +733,13 @@ const exportModel = computed(() => ({
   shapes: changedShapes.value,
   shapePointLegend: filteredShapePointLegendRows.value,
 }))
+const mapExportSummaryRows = computed(() => [
+  { label: 'Lovné miesta', value: exportModel.value.pegs.length },
+  { label: 'Servisné body', value: exportModel.value.facilities.length },
+  { label: 'Plochy a sektory', value: exportModel.value.shapes.length },
+  { label: 'Vrstvy mapy', value: exportModel.value.layers.length },
+  { label: 'Body v legende', value: exportModel.value.shapePointLegend.length },
+])
 const draftShape = computed<MapShape | undefined>(() => {
   if (!isDrawingShape.value || draftShapePoints.value.length === 0) return undefined
 
@@ -3185,7 +3192,7 @@ async function discardMapDraft() {
                     Uložiť väzbu chaty
                   </UButton>
                   <span class="text-foreground-muted text-xs">
-                    {{ changedCabinProducts.length > 0 ? `${changedCabinProducts.length} zmena čaká na uloženie` : 'Väzby sú bez lokálnej zmeny' }}
+                    {{ changedCabinProducts.length > 0 ? `${changedCabinProducts.length} zmena čaká na uloženie` : 'Väzby sú bez zmien' }}
                   </span>
                 </div>
                 <p
@@ -3788,7 +3795,7 @@ async function discardMapDraft() {
                 :disabled="filteredShapePointLegendRows.length === 0"
                 @click="downloadShapePointLegendCsv"
               >
-                CSV export
+                Stiahnuť tabuľku
               </UButton>
             </div>
 
@@ -3842,14 +3849,24 @@ async function discardMapDraft() {
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Export modelu</h2>
+            <h2 class="text-lg font-bold">Prehľad pripravených dát</h2>
             <p class="text-foreground-muted mt-2 text-sm">
-              Lokálna úprava sa ukladá do JSON store. Produkčne sa rovnaký kontrakt nahradí
-              tabuľkami `map_points`, `map_facilities`, `map_shapes` a `map_layers`.
+              Pred uložením vidíš, koľko prvkov sa z pracovnej mapy premietne do návrhu.
+              Verejná mapa sa zmení až po publikovaní.
             </p>
-            <div class="mt-4 max-h-44 overflow-auto rounded-md bg-muted p-3 text-xs">
-              <pre>{{ JSON.stringify(exportModel, null, 2) }}</pre>
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+              <div
+                v-for="row in mapExportSummaryRows"
+                :key="row.label"
+                class="rounded-md border border-border bg-muted px-3 py-2"
+              >
+                <p class="text-foreground-muted text-xs font-semibold uppercase tracking-wide">{{ row.label }}</p>
+                <p class="mt-1 text-xl font-bold text-primary-950">{{ row.value }}</p>
+              </div>
             </div>
+            <p class="text-foreground-muted mt-4 text-sm">
+              V návrhu je pripravených {{ changedItemsCount }} upravených položiek.
+            </p>
           </div>
         </aside>
       </div>

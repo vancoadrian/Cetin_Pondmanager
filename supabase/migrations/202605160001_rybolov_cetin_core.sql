@@ -304,6 +304,7 @@ create table public.reservations (
   lake_id uuid not null references public.lakes(id) on delete restrict,
   peg_id uuid not null references public.pegs(id) on delete restrict,
   guest_name text not null,
+  contact_email text,
   contact_phone text not null,
   starts_on date not null,
   ends_on date not null,

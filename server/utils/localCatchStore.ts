@@ -33,9 +33,21 @@ function cloneCatchPhotos(items: CatchPhoto[] = []) {
 }
 
 function cloneTripLogbooks(items: TripLogbook[]) {
+  const seedLogbookById = new Map(tripLogbooks.map((item) => [item.id, item]))
+
   return items.map((item) => ({
     ...item,
-    members: item.members.map((member) => ({ ...member })),
+    members: item.members.map((member) => {
+      const seedMember = seedLogbookById.get(item.id)?.members.find((seed) =>
+        seed.id === member.id || (seed.name === member.name && seed.role === member.role),
+      )
+
+      return {
+        ...member,
+        userId: member.userId ?? seedMember?.userId,
+      }
+    }),
+    ownerUserId: item.ownerUserId ?? seedLogbookById.get(item.id)?.ownerUserId,
     pegIds: [...item.pegIds],
   }))
 }

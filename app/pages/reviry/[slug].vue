@@ -1,6 +1,11 @@
 <script setup lang="ts">
+import type { MapStateResponse } from '~/services/mapApiService'
+import type { ReservationStateResponse } from '~/services/reservationApiService'
+import { getPegAvailability, type AvailabilityStatus } from '~/utils/availability'
+import { buildCalendarDays } from '~/utils/calendar'
+
 const route = useRoute()
-const { lakes, pegs } = usePondData()
+const { lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, rentalBookings } = usePondData()
 const slug = String(route.params.slug)
 const lake = lakes.find((item) => item.slug === slug)
 
@@ -13,8 +18,54 @@ if (!lake) {
 
 useHead({ title: lake.name })
 
-const lakePegs = computed(() => pegs.filter((peg) => peg.lake === lake.slug))
+const fallbackMapState = (): MapStateResponse => ({
+  ok: true,
+  mapFacilities,
+  mapLayers,
+  mapShapes,
+  pegs,
+  updatedAt: 'seed',
+})
+const fallbackReservationState = (): ReservationStateResponse => ({
+  ok: true,
+  rentalBookings,
+  reservations,
+  updatedAt: 'seed',
+})
+const {
+  data: mapState,
+  error: mapStateError,
+  refresh: refreshMapState,
+  status: mapStateStatus,
+} = await useAsyncData<MapStateResponse>(
+  `public-revir-map-state-${lake.slug}`,
+  () => $fetch<MapStateResponse>('/api/map'),
+  {
+    default: fallbackMapState,
+  },
+)
+const {
+  data: reservationState,
+  error: reservationStateError,
+  refresh: refreshReservationState,
+  status: reservationStateStatus,
+} = await useAsyncData<ReservationStateResponse>(
+  `public-revir-reservation-state-${lake.slug}`,
+  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  {
+    default: fallbackReservationState,
+  },
+)
+const { liveClosures } = await useClosureState({ key: `public-revir-closure-state-${lake.slug}` })
+const availabilityStartIso = new Date().toISOString().slice(0, 10)
+const livePegs = computed(() => mapState.value?.pegs ?? pegs)
+const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
+const lakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === lake.slug))
 const cabinCount = computed(() => lakePegs.value.filter((peg) => peg.type === 'cabin').length)
+const isAvailabilityLoading = computed(() =>
+  mapStateStatus.value === 'pending' || reservationStateStatus.value === 'pending',
+)
+const hasAvailabilityError = computed(() => Boolean(mapStateError.value || reservationStateError.value))
 const mapTarget = computed(() => ({
   path: '/mapa',
   query: { jazero: lake.slug },
@@ -23,6 +74,55 @@ const reservationTarget = computed(() => ({
   path: '/rezervacie',
   query: { jazero: lake.slug },
 }))
+
+const availabilityDays = computed(() => buildCalendarDays(availabilityStartIso, 7))
+const availabilityStatusClasses: Record<AvailabilityStatus | 'unavailable', string> = {
+  available: 'border-success-200 bg-success-500/10 text-success-700',
+  blocked: 'border-border bg-muted text-foreground-muted',
+  closed: 'border-error-200 bg-error-500/10 text-error-700',
+  limited: 'border-warning-200 bg-warning-500/10 text-warning-700',
+  requires_approval: 'border-primary-200 bg-primary-50 text-primary-800',
+  reserved: 'border-error-200 bg-error-500/10 text-error-700',
+  unavailable: 'border-border bg-muted text-foreground-muted',
+}
+const availabilityPreviewRows = computed(() =>
+  availabilityDays.value.map((day) => {
+    const pegRows = lakePegs.value.map((peg) => ({
+      availability: getPegAvailability(peg, {
+        closures: liveClosures.value,
+        dateFrom: day.iso,
+        dateTo: day.iso,
+        reservations: liveReservations.value,
+      }),
+      peg,
+    }))
+    const reservableRows = pegRows.filter((row) => row.availability.reservable)
+    const preferredRow = reservableRows.find((row) => row.peg.type === 'cabin') ?? reservableRows[0]
+
+    return {
+      day,
+      firstAvailability: preferredRow?.availability,
+      firstPeg: preferredRow?.peg,
+      reservableCount: reservableRows.length,
+      target: {
+        path: '/rezervacie',
+        query: {
+          do: day.iso,
+          jazero: lake.slug,
+          miesto: preferredRow?.peg.id,
+          od: day.iso,
+        },
+      },
+    }
+  }),
+)
+
+async function retryAvailability() {
+  await Promise.all([
+    refreshMapState(),
+    refreshReservationState(),
+  ])
+}
 </script>
 
 <template>
@@ -75,6 +175,56 @@ const reservationTarget = computed(() => ({
         <div class="border-y border-border py-4">
           <p class="text-sm text-foreground-muted">Miesta s chatou</p>
           <p class="mt-1 text-2xl font-bold">{{ cabinCount }}</p>
+        </div>
+      </div>
+
+      <div class="border-border bg-surface mt-10 rounded-card border p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="text-2xl font-bold">Najbližšia dostupnosť</h2>
+            <p class="text-foreground-muted mt-1 text-sm">
+              Stav vychádza z publikovaných lovných miest, rezervácií a uzávierok revíru.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="soft">
+              Mapa jazera
+            </UButton>
+            <UButton :to="reservationTarget" icon="i-heroicons-calendar-days">
+              Rezervácie
+            </UButton>
+          </div>
+        </div>
+
+        <DataStatusNotice
+          v-if="isAvailabilityLoading || hasAvailabilityError"
+          class="mt-4"
+          :title="hasAvailabilityError ? 'Dostupnosť sa nepodarilo obnoviť' : 'Načítavam dostupnosť revíru'"
+          :description="hasAvailabilityError ? 'Zobrazujeme posledný dostupný stav miest a rezervácií.' : 'Kontrolujeme aktuálne rezervácie, uzávierky a mapové miesta.'"
+          :tone="hasAvailabilityError ? 'warning' : 'info'"
+          :loading="isAvailabilityLoading && !hasAvailabilityError"
+          :action-label="hasAvailabilityError ? 'Skúsiť znova' : ''"
+          :action-loading="isAvailabilityLoading"
+          @action="retryAvailability"
+        />
+
+        <div class="mt-5 grid gap-3 md:grid-cols-7">
+          <NuxtLink
+            v-for="row in availabilityPreviewRows"
+            :key="row.day.iso"
+            :to="row.target"
+            class="rounded-md border p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
+            :class="availabilityStatusClasses[row.firstAvailability?.status ?? 'unavailable']"
+          >
+            <p class="text-xs font-bold uppercase">{{ row.day.dayName }}</p>
+            <p class="mt-1 text-lg font-black">{{ row.day.dayNumber }}. {{ row.day.monthName }}</p>
+            <p class="mt-3 text-sm font-bold">
+              {{ row.reservableCount > 0 ? `${row.reservableCount} miest` : 'Bez voľného miesta' }}
+            </p>
+            <p class="mt-1 min-h-8 text-xs opacity-80">
+              {{ row.firstPeg ? `Najbližšie: ${row.firstPeg.label}` : 'Skúste iný deň alebo zavolajte správcovi.' }}
+            </p>
+          </NuxtLink>
         </div>
       </div>
 

@@ -173,7 +173,7 @@ export function getTournamentAdminActionFetchErrorStatusCode(error: unknown) {
 export function getOfflineTournamentAdminActionQueueErrorMessage(error: unknown) {
   return getOfflineQueueErrorMessage(
     error,
-    'Odoslanie kontrolórskej súťažnej akcie z offline fronty sa nepodarilo.',
+    'Kontrolórsky súťažný úkon sa nepodarilo odoslať z tohto zariadenia.',
   )
 }
 

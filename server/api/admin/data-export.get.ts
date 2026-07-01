@@ -38,7 +38,7 @@ export default defineEventHandler(async (event): Promise<LocalDataExportPayload 
       entityLabel: createLocalDataExportFileName(payload),
       entityType: 'local_data_backup',
       severity: 'info',
-      summary: `Stiahnutý lokálny backup (${payload.totals.stores} store, ${payload.totals.records} záznamov).`,
+      summary: `Stiahnutý runtime backup (${payload.totals.stores} store, ${payload.totals.records} záznamov).`,
     })
     setHeader(event, 'content-disposition', `attachment; filename="${createLocalDataExportFileName(payload)}"`)
     setHeader(event, 'content-type', 'application/json;charset=utf-8')

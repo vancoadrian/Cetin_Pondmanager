@@ -182,7 +182,7 @@ function publicBroadcastFixture(overrides: Partial<NotificationBroadcast> = {}):
     createdAt: '2026-05-01T10:00:00.000Z',
     createdBy: 'Správca',
     id: 'broadcast-public',
-    message: 'Mock dispatcher zaevidoval 1 doručení.',
+    message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
     recipientCount: 1,
     severity: 'storm',
     status: 'sent',
@@ -200,7 +200,7 @@ function testBroadcastFixture(overrides: Partial<NotificationBroadcast> = {}): N
     createdAt: '2026-05-01T10:00:00.000Z',
     createdBy: 'Správca',
     id: 'broadcast-test-old',
-    message: 'Mock dispatcher zaevidoval 1 doručení.',
+    message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
     recipientCount: 1,
     severity: 'info',
     status: 'sent',
@@ -218,7 +218,7 @@ function deliveryLogFixture(overrides: Partial<NotificationDeliveryLog> = {}): N
     deviceLabel: 'Správcov mobil',
     endpoint: 'mock://rybolov-cetin/admin-weather',
     id: 'delivery-test-old',
-    message: 'Mock dispatcher označil notifikáciu ako doručenú.',
+    message: 'Skúšobné doručovanie označilo notifikáciu ako doručenú.',
     provider: 'mock',
     status: 'sent',
     subscriptionId: 'push-admin-weather',
@@ -372,7 +372,7 @@ describe('admin notification API routes', () => {
 
       expect(response.status).toBe(201)
       expect(body?.broadcast).toMatchObject({
-        message: 'Mock dispatcher zaevidoval 1 doručení.',
+        message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
         recipientCount: 1,
         severity: 'storm',
         status: 'sent',
@@ -430,7 +430,7 @@ describe('admin notification API routes', () => {
       expect(response.status).toBe(201)
       expect(body?.broadcast).toMatchObject({
         alertId: expect.stringContaining('test-'),
-        message: 'Mock dispatcher zaevidoval 1 doručení.',
+        message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
         recipientCount: 1,
         status: 'sent',
       })

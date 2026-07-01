@@ -142,12 +142,17 @@ export interface CatchReportScheduleRunRow {
 
 export interface CatchReportScheduleRunSuccess {
   deliveryLogs: CatchReportDeliveryLog[]
+  deliveryProvider: CatchReportDeliveryProvider
   dueCount: number
+  failedCount: number
   message: string
   ok: true
+  preparedCount: number
   processedCount: number
   rows: CatchReportScheduleRunRow[]
   savedReports: CatchSavedReport[]
+  sentCount: number
+  skippedCount: number
   statusCode: 200
 }
 
@@ -179,7 +184,7 @@ export const catchReportDeliveryLabels: Record<CatchSavedReportDelivery, string>
 
 export const catchReportDeliveryProviderLabels: Record<CatchReportDeliveryProvider, string> = {
   disabled: 'vypnuté',
-  mock: 'mock draft',
+  mock: 'draft v aplikácii',
   resend: 'Resend pripravený',
 }
 
@@ -608,7 +613,7 @@ export function saveCatchSavedReport(
     : undefined
 
   if (input.id && !existingReport) {
-    return failure(['Uložený report sa v lokálnom store nenašiel.'], 404)
+    return failure(['Uložený report sa nenašiel.'], 404)
   }
 
   const report: CatchSavedReport = {
@@ -651,7 +656,7 @@ export function generateCatchSavedReport(
 ): CatchReportGenerationResult {
   const existingReport = state.savedReports.find((report) => report.id === reportId)
   if (!existingReport) {
-    return failure(['Uložený report sa v lokálnom store nenašiel.'], 404)
+    return failure(['Uložený report sa nenašiel.'], 404)
   }
 
   const report: CatchSavedReport = {
@@ -733,8 +738,8 @@ export function prepareCatchReportEmailDraft(
     message: providerConfig.provider === 'disabled'
       ? 'Doručovanie reportov je vypnuté, e-mailový draft ostal iba v aplikácii.'
       : providerConfig.provider === 'resend'
-        ? 'Resend provider je pripravený, v prototype sa e-mail ešte neodosiela.'
-        : 'E-mailový draft je pripravený v lokálnom logu.',
+        ? 'E-mailový draft reportu je pripravený pre doručenie cez Resend.'
+        : 'E-mailový draft je pripravený v aplikácii.',
     provider: providerConfig.provider,
     recipients: emailDraft.recipients,
     reportId,
@@ -777,7 +782,7 @@ export async function deliverCatchReportEmail(
         externalId: undefined,
         message: providerConfig.provider === 'disabled'
           ? 'Doručovanie reportov je vypnuté, e-mailový draft ostal iba v aplikácii.'
-          : 'E-mailový draft je pripravený v lokálnom logu.',
+          : 'E-mailový draft je pripravený v aplikácii.',
         status: providerConfig.provider === 'disabled' ? 'skipped' as const : 'prepared' as const,
       }
   const deliveryLog: CatchReportDeliveryLog = {
@@ -906,6 +911,9 @@ export async function runDueCatchReports(
   const dueCount = rows.filter((row) => row.due).length
   const processedCount = dueCount
   const failedCount = rows.filter((row) => row.due && row.action === 'failed').length
+  const preparedCount = rows.filter((row) => row.due && row.action === 'prepared').length
+  const sentCount = rows.filter((row) => row.due && row.action === 'sent').length
+  const skippedCount = rows.filter((row) => row.due && row.action === 'skipped').length
   const message = dueCount === 0
     ? 'Plánovač nenašiel žiadny splatný týždenný alebo mesačný report.'
     : failedCount > 0
@@ -914,12 +922,17 @@ export async function runDueCatchReports(
 
   return {
     deliveryLogs: currentState.deliveryLogs,
+    deliveryProvider: providerConfig.provider,
     dueCount,
+    failedCount,
     message,
     ok: true,
+    preparedCount,
     processedCount,
     rows,
     savedReports: currentState.savedReports,
+    sentCount,
+    skippedCount,
     statusCode: 200,
   }
 }

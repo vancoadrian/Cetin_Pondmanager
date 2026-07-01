@@ -330,7 +330,7 @@ export function updateSponsorSettings(
     logoUploads,
     message: createdSponsorIds.length > 0
       ? `Sponzori boli uložení, pribudlo ${createdSponsorIds.length} partnerov.`
-      : 'Sponzori a ich umiestnenia boli uložené do lokálneho stavu.',
+      : 'Sponzori a ich umiestnenia boli uložené.',
     ok: true,
     sponsors,
     statusCode: 200,

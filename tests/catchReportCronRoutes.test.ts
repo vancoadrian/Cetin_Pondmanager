@@ -232,8 +232,13 @@ describe('catch report cron API route', () => {
       })
 
       expect(response.status).toBe(200)
+      expect(body?.deliveryProvider).toBe('mock')
       expect(body?.dueCount).toBe(1)
+      expect(body?.failedCount).toBe(0)
+      expect(body?.preparedCount).toBe(1)
       expect(body?.processedCount).toBe(1)
+      expect(body?.sentCount).toBe(0)
+      expect(body?.skippedCount).toBe(0)
       expect(body?.rows[0]).toMatchObject({
         action: 'prepared',
         deliveryStatus: 'prepared',
@@ -256,11 +261,14 @@ describe('catch report cron API route', () => {
         actorId: 'system',
         area: 'catches',
         details: {
+          deliveryProvider: 'mock',
           dueCount: 1,
           failedCount: 0,
+          preparedCount: 1,
           processedCount: 1,
           reportCount: 1,
           sentCount: 0,
+          skippedCount: 0,
           source: 'cron',
         },
         entityId: 'catch-report-scheduler',
@@ -292,6 +300,11 @@ describe('catch report cron API route', () => {
       })
 
       expect(response.status).toBe(200)
+      expect(body?.deliveryProvider).toBe('mock')
+      expect(body?.failedCount).toBe(0)
+      expect(body?.preparedCount).toBe(0)
+      expect(body?.sentCount).toBe(0)
+      expect(body?.skippedCount).toBe(0)
       expect(body?.rows[0]).toMatchObject({
         action: 'generated',
         due: true,

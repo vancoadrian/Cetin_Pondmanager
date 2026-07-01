@@ -68,7 +68,7 @@ export function getPlaceIssueFetchErrorStatusCode(error: unknown) {
 }
 
 export function getOfflinePlaceIssueQueueErrorMessage(error: unknown) {
-  return getOfflineQueueErrorMessage(error, 'Odoslanie hlásenia nedostatku z offline fronty sa nepodarilo.')
+  return getOfflineQueueErrorMessage(error, 'Hlásenie nedostatku sa nepodarilo odoslať z tohto zariadenia.')
 }
 
 export function shouldQueuePlaceIssueSubmission(error: unknown, online = true) {

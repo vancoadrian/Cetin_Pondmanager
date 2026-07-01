@@ -282,7 +282,7 @@ export function submitCatchRecord(
     : undefined
 
   if (logbookId && !logbook) {
-    return failure(['Zápisník sa v lokálnom store nenašiel.'], 404)
+    return failure(['Zápisník sa nenašiel. Skontrolujte kód alebo vytvorte nový zápisník.'], 404)
   }
 
   if (logbook && logbook.status === 'closed') {
@@ -303,8 +303,8 @@ export function submitCatchRecord(
     ...catchInput,
     id: createCatchId(input, state, now),
     notes: photo
-      ? 'Záznam uložený cez verejný lokálny formulár. Fotka čaká na schválenie a budúce AI spracovanie.'
-      : 'Záznam uložený cez verejný lokálny formulár. Fotku bude možné doplniť po napojení storage.',
+      ? 'Úlovok aj fotka čakajú na kontrolu správcom pred zverejnením.'
+      : 'Úlovok čaká na kontrolu správcom pred zverejnením.',
     photoLabel: photo?.fileName ?? 'bez fotky',
     status: 'pending',
     weather,
@@ -312,7 +312,7 @@ export function submitCatchRecord(
   const photoUpload = photo as CatchPhotoUpload | undefined
   const catchPhoto: CatchPhoto | undefined = photoUpload
     ? {
-        aiNotes: 'Fotka je uložená lokálne a pripravená na budúce porovnanie rýb.',
+        aiNotes: 'Fotka je pripravená na automatizované porovnanie rýb po zapnutí identifikačného modulu.',
         aiStatus: 'queued',
         catchId: catchRecord.id,
         fileName: photoUpload.fileName,
@@ -432,7 +432,7 @@ export function submitTripLogbook(
     from: fromDate.toISOString(),
     members,
     mode: input.mode,
-    note: 'Lokálne vytvorený zápisník výpravy. Dáta sa neskôr dajú migrovať do účtov a pozvánok.',
+    note: 'Zápisník výpravy vytvorený cez verejný formulár.',
     owner: memberNames[0]!,
     ownerUserId: ownerIdentity?.id,
     pegIds: input.pegIds,
@@ -445,7 +445,7 @@ export function submitTripLogbook(
     logbook,
     message: ownerIdentity
       ? `Zápisník ${logbook.shareCode} je uložený v účte ${ownerIdentity.name}.`
-      : `Zápisník ${logbook.shareCode} je uložený lokálne.`,
+      : `Zápisník ${logbook.shareCode} je vytvorený a pripravený na zapisovanie.`,
     ok: true,
     statusCode: 201,
   }

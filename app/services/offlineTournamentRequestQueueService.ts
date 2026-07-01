@@ -69,7 +69,7 @@ export function getTournamentRequestFetchErrorStatusCode(error: unknown) {
 export function getOfflineTournamentRequestQueueErrorMessage(error: unknown) {
   return getOfflineQueueErrorMessage(
     error,
-    'Odoslanie súťažného hlásenia z offline fronty sa nepodarilo.',
+    'Súťažné hlásenie sa nepodarilo odoslať z tohto zariadenia.',
   )
 }
 

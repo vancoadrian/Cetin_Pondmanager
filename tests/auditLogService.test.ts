@@ -50,10 +50,10 @@ describe('auditLogService', () => {
   })
 
   it('labels local backup audit actions', () => {
-    expect(auditActionLabels['system.data_backup.downloaded']).toBe('Safety backup stiahnutý')
-    expect(auditActionLabels['system.data_backup.loaded']).toBe('Safety backup načítaný')
-    expect(auditActionLabels['system.data_export.downloaded']).toBe('Backup stiahnutý')
-    expect(auditActionLabels['system.data_import.previewed']).toBe('Backup skontrolovaný')
-    expect(auditActionLabels['system.data_import.restored']).toBe('Backup obnovený')
+    expect(auditActionLabels['system.data_backup.downloaded']).toBe('Ochranná záloha stiahnutá')
+    expect(auditActionLabels['system.data_backup.loaded']).toBe('Ochranná záloha načítaná')
+    expect(auditActionLabels['system.data_export.downloaded']).toBe('Záloha stiahnutá')
+    expect(auditActionLabels['system.data_import.previewed']).toBe('Záloha skontrolovaná')
+    expect(auditActionLabels['system.data_import.restored']).toBe('Záloha obnovená')
   })
 })

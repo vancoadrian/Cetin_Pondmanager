@@ -1,19 +1,35 @@
 <script setup lang="ts">
-import type { LakeSlug, PaymentMethod, RentalBooking, Reservation } from '~/data/pond'
+import type {
+  LakeSlug,
+  NotificationBroadcastStatus,
+  NotificationDeliveryStatus,
+  PaymentMethod,
+  RentalBooking,
+  Reservation,
+} from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import type { PaymentMethodMutationSuccess } from '~/services/paymentMethodService'
 import type {
+  ReservationNotificationSummary,
+  ReservationNotificationSummaryResponse,
   ReservationDecisionSuccess,
   ReservationSubmissionSuccess,
   ReservationStateResponse,
 } from '~/services/reservationApiService'
-import type { ReservationDecisionMode } from '~/services/reservationWorkflowService'
+import {
+  reservationCommunicationDeliveryProviderLabels,
+  reservationCommunicationDeliveryStatusLabels,
+  type ReservationDecisionMode,
+} from '~/services/reservationWorkflowService'
 import { getPegAvailability, rangesOverlap } from '~/utils/availability'
 import { addDays, addMonths, buildCalendarDays, buildMonthCalendarDays, getMonthStart } from '~/utils/calendar'
 import { getRentalAvailability } from '~/utils/rentals'
 
 useHead({ title: 'Admin rezervácie' })
 
+const route = useRoute()
+const router = useRouter()
+const requestFetch = useRequestFetch()
 const {
   cabinProducts: seedCabinProducts,
   getLakeName,
@@ -38,6 +54,18 @@ const { data: reservationState, refresh: refreshReservationState } = await useAs
   () => $fetch<ReservationStateResponse>('/api/reservations'),
   {
     default: fallbackReservationState,
+  },
+)
+const fallbackReservationNotificationState = (): ReservationNotificationSummaryResponse => ({
+  notifications: [],
+  ok: true,
+  updatedAt: 'seed',
+})
+const { data: reservationNotificationState } = await useAsyncData<ReservationNotificationSummaryResponse>(
+  'admin-reservation-notification-state',
+  () => requestFetch<ReservationNotificationSummaryResponse>('/api/admin/reservations/notifications'),
+  {
+    default: fallbackReservationNotificationState,
   },
 )
 const fallbackMapState = (): MapStateResponse => ({
@@ -87,8 +115,14 @@ const {
   reservationState.value?.reservations ?? reservations,
   reservationState.value?.rentalBookings ?? rentalBookings,
 )
+const routeReservationId = computed(() =>
+  typeof route.query.rezervacia === 'string'
+    ? route.query.rezervacia
+    : typeof route.query.reservationId === 'string' ? route.query.reservationId : '',
+)
 const selectedReservationId = ref(
-  adminReservations.value.find((reservation) => reservation.status === 'pending')?.id ??
+  adminReservations.value.find((reservation) => reservation.id === routeReservationId.value)?.id ??
+    adminReservations.value.find((reservation) => reservation.status === 'pending')?.id ??
     adminReservations.value[0]?.id ??
     '',
 )
@@ -98,6 +132,8 @@ const calendarMode = ref<'week' | 'month'>('week')
 const calendarStart = ref('2026-05-16')
 const decisionSubmitStatus = ref<'idle' | 'submitting' | 'error'>('idle')
 const decisionSubmitMessage = ref('')
+const decisionCommunicationDraft = ref<ReservationDecisionSuccess['communicationDraft']>()
+const decisionCommunicationDelivery = ref<ReservationDecisionSuccess['communicationDelivery']>()
 const adminReservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const adminReservationSubmitMessage = ref('')
 const paymentMethodSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
@@ -117,6 +153,7 @@ function getLivePegLabel(pegId: string) {
 }
 
 const createDefaultAdminReservationDraft = () => ({
+  contactEmail: '',
   contactName: '',
   contactPhone: '',
   dateFrom: '2026-06-10',
@@ -148,13 +185,41 @@ const filteredReservations = computed(() =>
 const selectedReservation = computed(() =>
   adminReservations.value.find((reservation) => reservation.id === selectedReservationId.value),
 )
+const reservationNotificationById = computed(() => {
+  const notificationsById = new Map<string, ReservationNotificationSummary>()
+
+  for (const notification of reservationNotificationState.value?.notifications ?? []) {
+    const current = notificationsById.get(notification.reservationId)
+    if (!current || notification.createdAt.localeCompare(current.createdAt) > 0) {
+      notificationsById.set(notification.reservationId, notification)
+    }
+  }
+
+  return notificationsById
+})
+const selectedReservationNotification = computed(() =>
+  selectedReservation.value ? reservationNotificationById.value.get(selectedReservation.value.id) : undefined,
+)
 
 watch(
   filteredReservations,
   (rows) => {
     if (!rows.some((reservation) => reservation.id === selectedReservationId.value)) {
-      selectedReservationId.value = rows[0]?.id ?? ''
+      if (rows[0]) {
+        selectReservation(rows[0], { syncRoute: Boolean(routeReservationId.value) })
+      }
+      else {
+        selectedReservationId.value = ''
+      }
     }
+  },
+  { immediate: true },
+)
+
+watch(
+  routeReservationId,
+  (reservationId) => {
+    if (reservationId) selectReservationById(reservationId, { syncLake: true, syncRoute: false })
   },
   { immediate: true },
 )
@@ -166,6 +231,8 @@ watch(
     decisionMode.value = getDefaultDecisionMode(reservation)
     decisionSubmitStatus.value = 'idle'
     decisionSubmitMessage.value = ''
+    decisionCommunicationDraft.value = undefined
+    decisionCommunicationDelivery.value = undefined
     clearWorkflowMessage()
   },
   { immediate: true },
@@ -203,6 +270,7 @@ const adminReservationAvailability = computed(() => {
     closures: liveClosures.value,
     dateFrom: adminReservationDraft.dateFrom,
     dateTo: adminReservationDraft.dateTo,
+    includePrivateReservationDetails: true,
     reservations: adminReservations.value,
   })
 })
@@ -285,7 +353,11 @@ const pegAvailabilityRows = computed(() =>
   livePegs.value
     .filter((peg) => selectedLake.value === 'all' || peg.lake === selectedLake.value)
     .map((peg) => ({
-      availability: getPegAvailability(peg, { closures: liveClosures.value, reservations: adminReservations.value }),
+      availability: getPegAvailability(peg, {
+        closures: liveClosures.value,
+        includePrivateReservationDetails: true,
+        reservations: adminReservations.value,
+      }),
       peg,
     })),
 )
@@ -321,6 +393,7 @@ const calendarRows = computed(() =>
         closures: liveClosures.value,
         dateFrom: day.iso,
         dateTo: day.iso,
+        includePrivateReservationDetails: true,
         reservations: adminReservations.value,
       })
       const reservation = adminReservations.value.find(
@@ -389,6 +462,7 @@ const selectedAvailability = computed(() => {
     closures: liveClosures.value,
     dateFrom: reservation.from,
     dateTo: reservation.to,
+    includePrivateReservationDetails: true,
     reservations: adminReservations.value.filter((item) => item.id !== reservation.id),
   })
 })
@@ -441,6 +515,29 @@ const decisionSummary = computed(() => {
   return 'Rezerváciu označte na zamietnutie s krátkym dôvodom v internej poznámke.'
 })
 
+function buildSmsHref(draft: NonNullable<ReservationDecisionSuccess['communicationDraft']>) {
+  return `sms:${encodeURIComponent(draft.recipientPhone)}?body=${encodeURIComponent(draft.smsBody)}`
+}
+
+function buildMailtoHref(draft: NonNullable<ReservationDecisionSuccess['communicationDraft']>) {
+  if (!draft.emailTo) return ''
+
+  return `mailto:${encodeURIComponent(draft.emailTo)}?subject=${encodeURIComponent(draft.emailSubject)}&body=${encodeURIComponent(draft.emailBody ?? '')}`
+}
+
+function communicationDeliveryClass(status: NonNullable<ReservationDecisionSuccess['communicationDelivery']>['status']) {
+  switch (status) {
+    case 'sent':
+      return 'bg-success-500/10 text-success-700'
+    case 'failed':
+      return 'bg-error-500/10 text-error-700'
+    case 'skipped':
+      return 'bg-warning-500/10 text-warning-800'
+    case 'prepared':
+      return 'bg-primary-50 text-primary-800'
+  }
+}
+
 const statusClass = (status: Reservation['status']) => {
   switch (status) {
     case 'confirmed':
@@ -471,6 +568,43 @@ const sourceLabel = (source: Reservation['source']) => {
       return 'admin'
   }
 }
+const notificationBroadcastStatusLabels: Record<NotificationBroadcastStatus, string> = {
+  failed: 'chyba',
+  prepared: 'pripravené',
+  sent: 'odoslané',
+  skipped: 'bez príjemcu',
+}
+const notificationDeliveryStatusLabels: Record<NotificationDeliveryStatus, string> = {
+  failed: 'chyba',
+  prepared: 'pripravené',
+  sent: 'odoslané',
+  skipped: 'preskočené',
+}
+const notificationDeliveryStatuses: NotificationDeliveryStatus[] = ['sent', 'prepared', 'failed', 'skipped']
+const notificationStatusClass = (status: NotificationBroadcastStatus | NotificationDeliveryStatus) => {
+  switch (status) {
+    case 'sent':
+      return 'bg-success-500/10 text-success-700'
+    case 'failed':
+      return 'bg-error-500/10 text-error-700'
+    case 'skipped':
+      return 'bg-muted text-foreground-muted'
+    case 'prepared':
+      return 'bg-warning-500/10 text-warning-800'
+  }
+}
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
+}
+function getReservationNotificationDeliveryBadges(summary: ReservationNotificationSummary) {
+  return notificationDeliveryStatuses
+    .map((status) => ({
+      count: summary.deliveryCounts[status],
+      label: notificationDeliveryStatusLabels[status],
+      status,
+    }))
+    .filter((item) => item.count > 0)
+}
 const rentalBookingStatusLabel = (status?: RentalBooking['status']) => {
   switch (status) {
     case 'reserved':
@@ -487,6 +621,44 @@ const rentalBookingStatusLabel = (status?: RentalBooking['status']) => {
       return 'bez záznamu'
   }
 }
+function replaceReservationQuery(reservationId: string) {
+  const nextQuery = { ...route.query }
+  delete nextQuery.reservationId
+
+  if (reservationId) {
+    nextQuery.rezervacia = reservationId
+  }
+  else {
+    delete nextQuery.rezervacia
+  }
+
+  void router.replace({ query: nextQuery })
+}
+function selectReservation(
+  reservation: Reservation,
+  options: { syncLake?: boolean, syncRoute?: boolean } = {},
+) {
+  if (options.syncLake) {
+    selectedLake.value = reservation.lake
+  }
+
+  selectedReservationId.value = reservation.id
+
+  if (options.syncRoute ?? true) {
+    replaceReservationQuery(reservation.id)
+  }
+}
+function selectReservationById(
+  reservationId: string,
+  options: { syncLake?: boolean, syncRoute?: boolean } = {},
+) {
+  const reservation = adminReservations.value.find((item) => item.id === reservationId)
+  if (!reservation) return false
+
+  selectReservation(reservation, options)
+
+  return true
+}
 const setCalendarMode = (mode: 'week' | 'month') => {
   calendarMode.value = mode
   if (mode === 'month') {
@@ -500,8 +672,7 @@ const moveCalendar = (direction: number) => {
 }
 const selectCalendarCell = (reservation?: Reservation) => {
   if (reservation) {
-    selectedLake.value = reservation.lake
-    selectedReservationId.value = reservation.id
+    selectReservation(reservation, { syncLake: true })
   }
 }
 const calendarCellClass = (status: string, selected?: boolean) => {
@@ -534,6 +705,8 @@ const saveDecision = () => {
 
   decisionSubmitStatus.value = 'submitting'
   decisionSubmitMessage.value = ''
+  decisionCommunicationDraft.value = undefined
+  decisionCommunicationDelivery.value = undefined
 
   $fetch<ReservationDecisionSuccess>(`/api/admin/reservations/${reservation.id}/decision`, {
     body: {
@@ -545,6 +718,8 @@ const saveDecision = () => {
     .then(async (result) => {
       replaceReservationWorkflowState(result.reservations, result.rentalBookings)
       workflowMessage.value = result.message
+      decisionCommunicationDraft.value = result.communicationDraft
+      decisionCommunicationDelivery.value = result.communicationDelivery
       decisionSubmitStatus.value = 'idle'
       await refreshReservationState()
     })
@@ -564,6 +739,8 @@ const saveDecision = () => {
         fetchError.data?.message ??
         fetchError.data?.statusMessage ??
         'Rozhodnutie sa nepodarilo uložiť.'
+      decisionCommunicationDraft.value = undefined
+      decisionCommunicationDelivery.value = undefined
     })
 }
 
@@ -590,9 +767,9 @@ async function submitAdminReservation() {
     })
 
     await refreshReservationState()
-    selectedLake.value = result.reservation.lake
-    selectedReservationId.value = result.reservation.id
+    selectReservation(result.reservation, { syncLake: true })
     adminReservationDraft.contactName = ''
+    adminReservationDraft.contactEmail = ''
     adminReservationDraft.contactPhone = ''
     adminReservationDraft.internalNote = ''
     adminReservationSubmitStatus.value = 'success'
@@ -798,6 +975,16 @@ async function savePaymentMethodSettings() {
               >
             </label>
             <label class="block">
+              <span class="text-sm font-semibold">E-mail</span>
+              <input
+                v-model="adminReservationDraft.contactEmail"
+                type="email"
+                autocomplete="email"
+                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                placeholder="meno@example.com"
+              >
+            </label>
+            <label class="block">
               <span class="text-sm font-semibold">Zdroj</span>
               <select v-model="adminReservationDraft.source" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
                 <option value="phone">Telefonát</option>
@@ -965,7 +1152,7 @@ async function savePaymentMethodSettings() {
               {{ calendarMode === 'month' ? 'Mesačný kalendár obsadenosti' : 'Týždenný kalendár obsadenosti' }}
             </h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              {{ getLakeName(calendarLake) }} · {{ calendarRangeLabel }} · bunky používajú rovnaký availability engine ako mapa.
+              {{ getLakeName(calendarLake) }} · {{ calendarRangeLabel }} · bunky používajú rovnaké pravidlá dostupnosti ako mapa.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -1138,7 +1325,7 @@ async function savePaymentMethodSettings() {
               type="button"
               class="w-full rounded-md border p-4 text-left transition-colors hover:bg-muted"
               :class="selectedReservationId === reservation.id ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
-              @click="selectedReservationId = reservation.id"
+              @click="selectReservation(reservation)"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -1186,6 +1373,7 @@ async function savePaymentMethodSettings() {
                 <h2 class="text-lg font-bold">Detail rezervácie</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
                   {{ selectedReservation.guest }} · {{ selectedReservation.contactPhone }}
+                  <span v-if="selectedReservation.contactEmail"> · {{ selectedReservation.contactEmail }}</span>
                 </p>
               </div>
               <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusClass(selectedReservation.status)">
@@ -1231,6 +1419,56 @@ async function savePaymentMethodSettings() {
               </div>
             </div>
 
+            <div
+              v-if="selectedReservationNotification"
+              class="mt-5 rounded-md border border-primary-200 bg-primary-50 p-4 text-primary-900"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-sm font-bold">Interná notifikácia</p>
+                  <p class="mt-1 text-sm">
+                    {{ selectedReservationNotification.title }}
+                  </p>
+                  <p class="mt-1 text-xs text-primary-800">
+                    {{ formatDateTime(selectedReservationNotification.createdAt) }} ·
+                    {{ selectedReservationNotification.recipientCount }} zariadení ·
+                    {{ selectedReservationNotification.message }}
+                  </p>
+                </div>
+                <span
+                  class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
+                  :class="notificationStatusClass(selectedReservationNotification.status)"
+                >
+                  {{ notificationBroadcastStatusLabels[selectedReservationNotification.status] }}
+                </span>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span
+                  v-for="badge in getReservationNotificationDeliveryBadges(selectedReservationNotification)"
+                  :key="badge.status"
+                  class="rounded-md px-2.5 py-1 text-xs font-bold"
+                  :class="notificationStatusClass(badge.status)"
+                >
+                  {{ badge.count }}× {{ badge.label }}
+                </span>
+                <span
+                  v-if="getReservationNotificationDeliveryBadges(selectedReservationNotification).length === 0"
+                  class="rounded-md bg-white/70 px-2.5 py-1 text-xs font-bold text-primary-800"
+                >
+                  Bez pokusu doručenia
+                </span>
+              </div>
+            </div>
+            <div
+              v-else-if="selectedReservation.source === 'web'"
+              class="mt-5 rounded-md border border-warning-500/25 bg-warning-500/10 p-4 text-warning-900"
+            >
+              <p class="text-sm font-bold">Interná notifikácia</p>
+              <p class="mt-1 text-sm">
+                K tejto webovej žiadosti zatiaľ nie je uložený záznam push upozornenia.
+              </p>
+            </div>
+
             <div v-if="selectedClosureConflicts.length" class="mt-5 rounded-md border border-warning-500/25 bg-warning-500/10 p-4">
               <p class="text-sm font-bold text-warning-800">Konflikty a uzávierky</p>
               <div class="mt-3 space-y-2">
@@ -1264,6 +1502,7 @@ async function savePaymentMethodSettings() {
                 </div>
                 <AppState
                   v-if="selectedRentalRows.length === 0"
+                  compact
                   title="Bez výbavy"
                   description="K tejto rezervácii nie je priradená žiadna položka požičovne."
                 />
@@ -1338,7 +1577,9 @@ async function savePaymentMethodSettings() {
                 >
                   Uložiť rozhodnutie
                 </UButton>
-                <UButton icon="i-heroicons-phone" color="neutral" variant="soft">Zavolať hosťovi</UButton>
+                <UButton :to="`tel:${selectedReservation.contactPhone}`" icon="i-heroicons-phone" color="neutral" variant="soft">
+                  Zavolať hosťovi
+                </UButton>
               </div>
               <p
                 v-if="decisionSubmitMessage"
@@ -1349,6 +1590,65 @@ async function savePaymentMethodSettings() {
               <p v-if="workflowMessage" class="mt-3 rounded-md bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800">
                 {{ workflowMessage }}
               </p>
+              <div
+                v-if="decisionCommunicationDraft"
+                class="mt-4 rounded-md border border-border bg-white p-4"
+              >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p class="text-sm font-bold">Správa pre hosťa</p>
+                    <p class="text-foreground-muted mt-1 text-xs">
+                      {{ decisionCommunicationDelivery?.message ?? (decisionCommunicationDraft.channel === 'email' ? 'E-mailový draft je pripravený.' : 'E-mail chýba, použi SMS alebo telefonát.') }}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <span
+                      v-if="decisionCommunicationDelivery"
+                      class="inline-flex min-h-8 items-center rounded-md px-2.5 py-1 text-xs font-bold"
+                      :class="communicationDeliveryClass(decisionCommunicationDelivery.status)"
+                    >
+                      {{ reservationCommunicationDeliveryStatusLabels[decisionCommunicationDelivery.status] }}
+                    </span>
+                    <span
+                      v-if="decisionCommunicationDelivery"
+                      class="inline-flex min-h-8 items-center rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted"
+                    >
+                      {{ reservationCommunicationDeliveryProviderLabels[decisionCommunicationDelivery.provider] }}
+                    </span>
+                    <UButton
+                      :to="buildSmsHref(decisionCommunicationDraft)"
+                      icon="i-heroicons-chat-bubble-left-right"
+                      size="xs"
+                      variant="soft"
+                    >
+                      SMS
+                    </UButton>
+                    <UButton
+                      v-if="decisionCommunicationDraft.emailTo"
+                      :to="buildMailtoHref(decisionCommunicationDraft)"
+                      icon="i-heroicons-envelope"
+                      size="xs"
+                      variant="soft"
+                    >
+                      E-mail
+                    </UButton>
+                  </div>
+                </div>
+                <div class="mt-3 grid gap-3">
+                  <div class="rounded-md bg-muted p-3">
+                    <p class="text-foreground-muted text-xs font-semibold uppercase">SMS text</p>
+                    <p class="mt-1 text-sm">{{ decisionCommunicationDraft.smsBody }}</p>
+                  </div>
+                  <div v-if="decisionCommunicationDraft.emailBody" class="rounded-md bg-muted p-3">
+                    <p class="text-foreground-muted text-xs font-semibold uppercase">{{ decisionCommunicationDraft.emailSubject }}</p>
+                    <p class="mt-1 whitespace-pre-line text-sm">{{ decisionCommunicationDraft.emailBody }}</p>
+                  </div>
+                  <div class="rounded-md bg-muted p-3">
+                    <p class="text-foreground-muted text-xs font-semibold uppercase">Telefonát</p>
+                    <p class="mt-1 text-sm">{{ decisionCommunicationDraft.callScript }}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1371,8 +1671,9 @@ async function savePaymentMethodSettings() {
               </div>
               <AppState
                 v-if="conflictingClosures.length === 0"
+                compact
                 title="Bez konfliktov"
-                description="Availability engine zatiaľ nehlási žiadnu uzávierku blokujúcu rezervácie."
+                description="Dostupnosť zatiaľ nehlási žiadnu uzávierku blokujúcu rezervácie."
               />
             </div>
           </div>

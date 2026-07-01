@@ -71,7 +71,7 @@ export function getFetchErrorStatusCode(error: unknown) {
 }
 
 export function getOfflineCatchQueueErrorMessage(error: unknown) {
-  return getOfflineQueueErrorMessage(error, 'Odoslanie z offline fronty sa nepodarilo.')
+  return getOfflineQueueErrorMessage(error, 'Úlovok sa nepodarilo odoslať z tohto zariadenia.')
 }
 
 export function shouldQueueCatchSubmission(error: unknown, online = true) {

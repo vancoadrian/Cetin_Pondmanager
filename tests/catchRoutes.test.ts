@@ -34,6 +34,7 @@ import {
 
 const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
 const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+const MAREK_APP_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
 const MAREK_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-marek'
 const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
 
@@ -522,7 +523,7 @@ describe('catch API routes', () => {
           pegIds: ['vc-03'],
           title: 'Výprava v účte',
         }),
-        cookie: MAREK_ANGLER_COOKIE,
+        cookie: MAREK_APP_COOKIE,
         method: 'POST',
       })
       expect(created.response.status).toBe(201)
@@ -538,7 +539,7 @@ describe('catch API routes', () => {
       const marekHistory = await requestJson<AnglerLogbooksResponse>(
         server,
         '/api/account/logbooks',
-        { cookie: MAREK_ANGLER_COOKIE },
+        { cookie: MAREK_APP_COOKIE },
       )
       expect(marekHistory.response.status).toBe(200)
       expect(marekHistory.body.account.email).toBe('marek.horvath@example.test')
@@ -549,6 +550,16 @@ describe('catch API routes', () => {
       expect(
         marekHistory.body.tripLogbooks.find((logbook) => logbook.id === created.body.logbook.id)?.ownerUserId,
       ).toBe('angler-marek')
+
+      const legacyMarekHistory = await requestJson<AnglerLogbooksResponse>(
+        server,
+        '/api/account/logbooks',
+        { cookie: MAREK_ANGLER_COOKIE },
+      )
+      expect(legacyMarekHistory.response.status).toBe(200)
+      expect(legacyMarekHistory.body.tripLogbooks).toContainEqual(expect.objectContaining({
+        id: created.body.logbook.id,
+      }))
 
       const lenkaHistory = await requestJson<AnglerLogbooksResponse>(
         server,

@@ -77,5 +77,6 @@ describe('offlinePlaceIssueQueueService', () => {
         },
       },
     })).toBe('Vyberte konkrétne miesto alebo servisný bod.')
+    expect(getOfflinePlaceIssueQueueErrorMessage({})).toBe('Hlásenie nedostatku sa nepodarilo odoslať z tohto zariadenia.')
   })
 })

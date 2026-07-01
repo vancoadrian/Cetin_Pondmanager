@@ -244,7 +244,7 @@ export function updateTournamentSectors(
   const input = inputResult.data
   const tournament = state.tournaments.find((item) => item.id === input.tournamentId)
   if (!tournament) {
-    return failure(['Súťaž sa v lokálnom stave nenašla.'], 404)
+    return failure(['Súťaž sa nenašla.'], 404)
   }
 
   const duplicateSectorIds = duplicatedValues(input.sectors.map((sector) => sector.id))
@@ -333,7 +333,7 @@ export function updateTournamentOperationsMode(
   const input = inputResult.data
   const tournament = state.tournaments.find((item) => item.id === input.tournamentId)
   if (!tournament) {
-    return failure(['Súťaž sa v lokálnom stave nenašla.'], 404)
+    return failure(['Súťaž sa nenašla.'], 404)
   }
 
   const nextState = cloneTournamentState(state)
@@ -362,7 +362,7 @@ export function submitTournamentTeamRegistration(
   const input = inputResult.data
   const tournament = state.tournaments.find((item) => item.id === input.tournamentId)
   if (!tournament) {
-    return failure(['Súťaž sa v lokálnom stave nenašla.'], 404)
+    return failure(['Súťaž sa nenašla.'], 404)
   }
 
   if (!getTournamentOperationalCapabilities(tournament).allowsTeamRegistration) {
@@ -421,12 +421,12 @@ export function submitTournamentTeamRegistrationDecision(
   const input = inputResult.data
   const registration = state.tournamentTeamRegistrations.find((item) => item.id === input.registrationId)
   if (!registration) {
-    return failure(['Prihláška tímu sa v lokálnom stave nenašla.'], 404)
+    return failure(['Prihláška tímu sa nenašla.'], 404)
   }
 
   const tournament = state.tournaments.find((item) => item.id === registration.tournamentId)
   if (!tournament) {
-    return failure(['Súťaž prihlášky sa v lokálnom stave nenašla.'], 404)
+    return failure(['Súťaž prihlášky sa nenašla.'], 404)
   }
 
   const assignedSector = input.assignedSectorId
@@ -529,7 +529,7 @@ export function submitTournamentRequest(
   const input = inputResult.data
   const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
   if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
+    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
   }
 
   if (!getTournamentOperationalCapabilities(tournament).allowsTeamRequests) {
@@ -554,7 +554,7 @@ export function submitTournamentRequest(
   }
 
   return {
-    message: 'Hlásenie je uložené lokálne a čaká v súťažnom dispečingu.',
+    message: 'Hlásenie je uložené a čaká v súťažnom dispečingu.',
     ok: true,
     request,
     statusCode: 201,
@@ -582,7 +582,7 @@ export function submitTournamentRequestAction(
 
   const currentRequest = state.tournamentRequests.find((request) => request.id === requestId)
   if (!currentRequest) {
-    return failure(['Hlásenie sa v lokálnom súťažnom stave nenašlo.'], 404)
+    return failure(['Hlásenie sa nenašlo.'], 404)
   }
   const currentTournament = state.tournaments.find((tournament) => tournament.id === currentRequest.tournamentId)
   if (!currentTournament || !getTournamentOperationalCapabilities(currentTournament).allowsMarshalWorkflow) {
@@ -637,7 +637,7 @@ export function submitTournamentRequestAction(
 
   return {
     ...nextState,
-    message: 'Hlásenie je uzavreté v lokálnom dispečingu.',
+    message: 'Hlásenie je uzavreté v dispečingu.',
     ok: true,
     request: nextRequest,
     statusCode: 200,
@@ -668,7 +668,7 @@ export function submitTournamentCatchVerification(
 
   const currentCatch = state.tournamentCatches.find((catchItem) => catchItem.id === catchId)
   if (!currentCatch) {
-    return failure(['Súťažný úlovok sa v lokálnom stave nenašiel.'], 404)
+    return failure(['Súťažný úlovok sa nenašiel.'], 404)
   }
   const tournament = state.tournaments.find((item) => item.id === currentCatch.tournamentId)
   if (!tournament || !getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
@@ -695,7 +695,7 @@ export function submitTournamentCatchVerification(
   nextCatch.verifiedByMarshalId = resolvedMarshalId
   nextCatch.verificationClientMutationId = clientMutationId
   nextCatch.notes = status === 'verified'
-    ? 'Váženie overené kontrolórom v lokálnom dispečingu.'
+    ? 'Váženie overené kontrolórom v dispečingu.'
     : 'Váženie označené ako sporné, čaká na posúdenie organizátorom.'
 
   nextState.tournamentMarshals = nextState.tournamentMarshals.map((marshal) =>
@@ -742,7 +742,7 @@ export function submitTournamentPenalty(
 
   const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
   if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
+    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
   }
 
   if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
@@ -800,7 +800,7 @@ export function submitTournamentPenalty(
 
   return {
     ...nextState,
-    message: 'Trest je uložený lokálne a automaticky zapísaný aj ako kontrola pravidiel.',
+    message: 'Trest je uložený a automaticky zapísaný aj ako kontrola pravidiel.',
     ok: true,
     penalty,
     statusCode: 201,
@@ -834,7 +834,7 @@ export function submitTournamentRuleCheck(
 
   const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
   if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa v lokálnom stave nenašli.'], 404)
+    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
   }
 
   if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
@@ -871,7 +871,7 @@ export function submitTournamentRuleCheck(
   return {
     ...nextState,
     check,
-    message: 'Kontrola pravidiel je uložená lokálne.',
+    message: 'Kontrola pravidiel je uložená.',
     ok: true,
     statusCode: 201,
   }

@@ -1,6 +1,11 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
+import type { LakeSlug } from '~/data/pond'
 import { createMockPondRepository, createPondSnapshot } from '~/repositories/pondRepository'
 import { submitCatchRecord } from '~/services/catchApiService'
+import {
+  createAsyncCatchWeatherResolver,
+  type CatchWeatherLookupInput,
+} from '~/services/catchWeatherService'
 import { createPondService } from '~/services/pondService'
 import { resolveAuditActor } from '../utils/auditActor'
 import { tryAppendLargeCatchNotificationBroadcast } from '../utils/largeCatchNotificationDispatcher'
@@ -10,6 +15,27 @@ import { writeLocalCatchPhotoFile } from '../utils/localCatchPhotoStore'
 import { readLocalFishRegistryState } from '../utils/localFishRegistryStore'
 import { readLocalLargeFishAssistanceState } from '../utils/localLargeFishAssistanceStore'
 import { readLocalMapState } from '../utils/localMapStore'
+
+function getWeatherLookupInput(rawBody: unknown): CatchWeatherLookupInput | undefined {
+  const body = rawBody as Partial<{
+    caughtAt: unknown
+    lake: unknown
+    pegId: unknown
+  }>
+  if (
+    typeof body.caughtAt === 'string' &&
+    (body.lake === 'velky-cetin' || body.lake === 'strkovisko-kocka') &&
+    typeof body.pegId === 'string'
+  ) {
+    return {
+      caughtAt: body.caughtAt,
+      lake: body.lake as LakeSlug,
+      pegId: body.pegId,
+    }
+  }
+
+  return undefined
+}
 
 export default defineEventHandler(async (event) => {
   const [catchState, fishRegistryState, assistanceState, mapState] = await Promise.all([
@@ -25,7 +51,11 @@ export default defineEventHandler(async (event) => {
       }),
     ),
   )
-  const result = submitCatchRecord(await readBody(event), catchState, service)
+  const body = await readBody(event)
+  const weatherLookupInput = getWeatherLookupInput(body)
+  const asyncWeatherResolver = createAsyncCatchWeatherResolver()
+  const weather = weatherLookupInput ? await asyncWeatherResolver(weatherLookupInput) : undefined
+  const result = submitCatchRecord(body, catchState, service, undefined, () => weather)
 
   if (!result.ok) {
     throw createError({

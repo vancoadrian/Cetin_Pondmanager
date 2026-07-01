@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LakeSlug, TripLogbook, TripLogbookEntry } from '~/data/pond'
+import type { StatusBadgeTone } from '~/utils/ui'
 import type {
   CatchStateResponse,
   CatchSubmissionSuccess,
@@ -58,6 +59,12 @@ const {
 } = usePondData()
 
 type LogbookMode = keyof typeof tripLogbookModeLabels
+interface LargeFishFlowStep {
+  description: string
+  icon: string
+  label: string
+  tone: StatusBadgeTone
+}
 
 function currentDateTimeInput() {
   const now = new Date()
@@ -80,14 +87,24 @@ const fallbackLargeCatchRules = (): FishLargeCatchRulesResponse => ({
   rules: createDefaultFishRegistrySettings().largeCatchRules,
   updatedAt: 'seed',
 })
-const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
+const {
+  data: catchState,
+  error: catchStateError,
+  refresh: refreshCatchState,
+  status: catchStateStatus,
+} = await useAsyncData<CatchStateResponse>(
   'public-catch-state',
   () => $fetch<CatchStateResponse>('/api/catches'),
   {
     default: fallbackCatchState,
   },
 )
-const { data: largeCatchRulesState } = await useAsyncData<FishLargeCatchRulesResponse>(
+const {
+  data: largeCatchRulesState,
+  error: largeCatchRulesError,
+  refresh: refreshLargeCatchRulesState,
+  status: largeCatchRulesStatus,
+} = await useAsyncData<FishLargeCatchRulesResponse>(
   'public-large-catch-rules',
   () => $fetch<FishLargeCatchRulesResponse>('/api/fish-registry/rules'),
   {
@@ -154,6 +171,10 @@ const logbookModeOptions = Object.entries(tripLogbookModeLabels).map(([value, la
 }))
 const liveCatches = computed(() => catchState.value?.catches ?? seedCatches)
 const liveCatchPhotos = computed(() => catchState.value?.catchPhotos ?? seedCatchPhotos)
+const isCatchDataLoading = computed(() =>
+  catchStateStatus.value === 'pending' || largeCatchRulesStatus.value === 'pending',
+)
+const hasCatchDataError = computed(() => Boolean(catchStateError.value || largeCatchRulesError.value))
 const catchPhotoByCatchId = computed(() =>
   new Map(liveCatchPhotos.value.map((photo) => [photo.catchId, photo])),
 )
@@ -220,6 +241,51 @@ const showAssistancePhoneFallback = computed(() =>
   && assistanceWaitMinutes.value >= LARGE_FISH_ASSISTANCE_PHONE_FALLBACK_MINUTES
   && Boolean(activeAssistance.value.managerPhone),
 )
+const largeFishFlowSteps = computed<LargeFishFlowStep[]>(() => {
+  if (!catchRequiresManager.value || !activeLargeCatchRule.value) return []
+
+  const status = activeAssistance.value?.status
+  const hasClosedInstruction = status && ['completed', 'release-without-manager'].includes(status)
+
+  return [
+    {
+      description: status
+        ? 'Požiadavka je odoslaná správcovi a stav sa tu obnovuje automaticky.'
+        : managerAvailability.value?.available
+          ? 'Doplňte telefón a odošlite privolanie pred zbytočným držaním ryby.'
+          : activeLargeCatchRule.value.outsideAvailabilityInstruction,
+      icon: status ? 'i-heroicons-check-circle' : 'i-heroicons-bell-alert',
+      label: 'Privolať správcu',
+      tone: status ? 'success' : managerAvailability.value?.available ? 'warning' : 'neutral',
+    },
+    {
+      description: status === 'on-route'
+        ? `Správca je na ceste${activeAssistance.value?.etaMinutes ? `, odhad do ${activeAssistance.value.etaMinutes} min` : ''}.`
+        : status === 'release-without-manager'
+          ? 'Správca dal pokyn rybu zdokumentovať a šetrne pustiť bez jeho príchodu.'
+          : status === 'completed'
+            ? 'Kontrola správcom je vybavená, údaje možno uložiť do denníka.'
+            : status === 'waiting'
+              ? `Čakáte ${assistanceWaitMinutes.value} min. Nechajte túto obrazovku otvorenú.`
+              : 'Správca odpovie v aplikácii: ide, príde neskôr alebo dá pokyn pustiť bez neho.',
+      icon: assistanceStatusIcon(status ?? 'waiting'),
+      label: 'Počkať na odpoveď',
+      tone: status === 'on-route' || status === 'completed'
+        ? 'success'
+        : status === 'release-without-manager'
+          ? 'warning'
+          : 'info',
+    },
+    {
+      description: hasClosedInstruction
+        ? 'Uložte úlovok do zápisníka; verejne sa ukáže až po schválení.'
+        : 'Úlovok uložte po kontrole alebo po jasnom pokyne správcu.',
+      icon: 'i-heroicons-document-plus',
+      label: 'Zapísať úlovok',
+      tone: hasClosedInstruction ? 'success' : 'neutral',
+    },
+  ]
+})
 const compatibleLogbooks = computed(() =>
   liveTripLogbooks.value.filter((logbook) =>
     logbook.status !== 'closed' &&
@@ -227,6 +293,13 @@ const compatibleLogbooks = computed(() =>
     logbook.pegIds.includes(catchForm.pegId),
   ),
 )
+
+async function retryCatchData() {
+  await Promise.all([
+    refreshCatchState(),
+    refreshLargeCatchRulesState(),
+  ])
+}
 const logbookMemberNames = computed(() =>
   logbookForm.membersText.split('\n').map((name) => name.trim()).filter(Boolean),
 )
@@ -304,20 +377,36 @@ const logbookMemberRows = computed(() =>
 const photoStatusMeta = {
   missing: {
     label: 'bez fotky',
-    class: 'bg-warning-500/10 text-warning-700',
     icon: 'i-heroicons-photo',
+    tone: 'warning',
   },
   uploaded: {
     label: 'foto nahraté',
-    class: 'bg-primary-50 text-primary-800',
     icon: 'i-heroicons-arrow-up-tray',
+    tone: 'primary',
   },
   'ai-ready': {
     label: 'fotka uložená',
-    class: 'bg-success-500/10 text-success-700',
     icon: 'i-heroicons-sparkles',
+    tone: 'success',
   },
-} as const
+} as const satisfies Record<TripLogbookEntry['photoStatus'], {
+  icon: string
+  label: string
+  tone: StatusBadgeTone
+}>
+
+function logbookStatusTone(status: TripLogbook['status']): StatusBadgeTone {
+  if (status === 'active') return 'success'
+  if (status === 'closed') return 'neutral'
+  return 'warning'
+}
+
+function logbookStatusIcon(status: TripLogbook['status']) {
+  if (status === 'active') return 'i-heroicons-signal'
+  if (status === 'closed') return 'i-heroicons-lock-closed'
+  return 'i-heroicons-pencil-square'
+}
 
 function formatCatchTime(value: string) {
   return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
@@ -883,6 +972,18 @@ watch(catchValidation, () => {
         </UButton>
       </div>
 
+      <DataStatusNotice
+        v-if="isCatchDataLoading || hasCatchDataError"
+        class="mb-6"
+        :title="hasCatchDataError ? 'Úlovky sa nepodarilo obnoviť' : 'Načítavam úlovky a pravidlá veľkých rýb'"
+        :description="hasCatchDataError ? 'Zobrazujeme posledný dostupný stav denníka a pravidiel pre privolanie správcu.' : 'Kontrolujeme schválené úlovky, zápisníky a aktuálne limity pre privolanie správcu.'"
+        :tone="hasCatchDataError ? 'warning' : 'info'"
+        :loading="isCatchDataLoading && !hasCatchDataError"
+        :action-label="hasCatchDataError ? 'Skúsiť znova' : ''"
+        :action-loading="isCatchDataLoading"
+        @action="retryCatchData"
+      />
+
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Verejné úlovky</p>
@@ -917,14 +1018,19 @@ watch(catchValidation, () => {
                 </p>
               </div>
               <div class="flex flex-wrap gap-2">
-                <span class="inline-flex items-center gap-1.5 rounded-md bg-success-500/10 px-2.5 py-1 text-xs font-bold text-success-700">
-                  <UIcon name="i-heroicons-signal" class="h-3.5 w-3.5" />
-                  {{ tripLogbookStatusLabels[activeLogbook.status] }}
-                </span>
-                <span class="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                  <UIcon name="i-heroicons-key" class="h-3.5 w-3.5" />
-                  {{ activeLogbook.shareCode }}
-                </span>
+                <StatusBadge
+                  :icon="logbookStatusIcon(activeLogbook.status)"
+                  :label="tripLogbookStatusLabels[activeLogbook.status]"
+                  :tone="logbookStatusTone(activeLogbook.status)"
+                  size="xs"
+                />
+                <StatusBadge
+                  icon="i-heroicons-key"
+                  :label="activeLogbook.shareCode"
+                  tone="neutral"
+                  size="xs"
+                  title="Kód zápisníka"
+                />
               </div>
             </div>
 
@@ -993,13 +1099,12 @@ watch(catchValidation, () => {
                         <td class="py-3 pr-4">{{ getPegLabel(entry.pegId) }}</td>
                         <td class="py-3 pr-4">{{ entry.bait }}</td>
                         <td class="py-3 pr-4">
-                          <span
-                            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold"
-                            :class="photoStatusMeta[entry.photoStatus].class"
-                          >
-                            <UIcon :name="photoStatusMeta[entry.photoStatus].icon" class="h-3.5 w-3.5" />
-                            {{ photoStatusMeta[entry.photoStatus].label }}
-                          </span>
+                          <StatusBadge
+                            :icon="photoStatusMeta[entry.photoStatus].icon"
+                            :label="photoStatusMeta[entry.photoStatus].label"
+                            :tone="photoStatusMeta[entry.photoStatus].tone"
+                            size="xs"
+                          />
                         </td>
                       </tr>
                     </tbody>
@@ -1046,11 +1151,13 @@ watch(catchValidation, () => {
                     {{ catchItem.species }} {{ catchItem.weightKg }} kg
                   </h2>
                 </div>
-                <span
-                  class="bg-success-500/10 text-success-500 rounded-full px-3 py-1 text-xs font-semibold"
-                >
-                  {{ catchItem.released ? 'pustená späť' : 'ponechaná podľa pravidiel' }}
-                </span>
+                <StatusBadge
+                  class="shrink-0"
+                  :icon="catchItem.released ? 'i-heroicons-arrow-uturn-left' : 'i-heroicons-clipboard-document-check'"
+                  :label="catchItem.released ? 'pustená späť' : 'ponechaná podľa pravidiel'"
+                  :tone="catchItem.released ? 'success' : 'neutral'"
+                  size="xs"
+                />
               </div>
 
               <dl class="mt-5 grid gap-3 text-sm sm:grid-cols-4">
@@ -1402,6 +1509,23 @@ watch(catchValidation, () => {
                       Služba správcu: {{ formatFishManagerAvailability(activeLargeCatchRule) }}
                     </p>
 
+                    <div class="mt-4 grid gap-2">
+                      <div
+                        v-for="step in largeFishFlowSteps"
+                        :key="step.label"
+                        class="flex items-start gap-3 rounded-md border bg-white/70 px-3 py-3 text-foreground"
+                      >
+                        <StatusBadge
+                          :icon="step.icon"
+                          :label="step.label"
+                          :tone="step.tone"
+                          size="xs"
+                          class="shrink-0"
+                        />
+                        <p class="text-sm text-foreground-muted">{{ step.description }}</p>
+                      </div>
+                    </div>
+
                     <div
                       v-if="activeAssistance"
                       class="mt-4 rounded-md border p-4"
@@ -1430,7 +1554,7 @@ watch(catchValidation, () => {
                             Zavolať správcovi
                           </a>
                           <p v-if="showAssistancePhoneFallback" class="mt-2 text-xs">
-                            Push mohol zostať bez odozvy. Rybu zbytočne nezadržiavajte.
+                            Upozornenie mohlo zostať bez odozvy. Rybu zbytočne nezadržiavajte.
                           </p>
                           <button
                             v-if="['waiting', 'on-route'].includes(activeAssistance.status)"
@@ -1475,7 +1599,7 @@ watch(catchValidation, () => {
                         Privolať správcu
                       </UButton>
                       <p class="text-xs">
-                        Správca dostane interné upozornenie. Jeho odpoveď sa zobrazí tu automaticky.
+                        Správca dostane upozornenie. Jeho odpoveď sa zobrazí tu automaticky.
                       </p>
                     </div>
 

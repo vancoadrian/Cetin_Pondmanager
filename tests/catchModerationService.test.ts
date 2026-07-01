@@ -81,7 +81,7 @@ describe('catchModerationService', () => {
     )
 
     expect(result).toEqual({
-      messages: ['Úlovok sa nenašiel v lokálnom mock stave.'],
+      messages: ['Úlovok sa nenašiel.'],
       ok: false,
       statusCode: 404,
     })

@@ -75,5 +75,6 @@ describe('offlineCatchQueueService', () => {
         },
       },
     })).toBe('Vybrané lovné miesto neexistuje.')
+    expect(getOfflineCatchQueueErrorMessage({})).toBe('Úlovok sa nepodarilo odoslať z tohto zariadenia.')
   })
 })

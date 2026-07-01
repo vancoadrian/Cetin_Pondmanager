@@ -67,7 +67,7 @@ export function getReservationFetchErrorStatusCode(error: unknown) {
 }
 
 export function getOfflineReservationQueueErrorMessage(error: unknown) {
-  return getOfflineQueueErrorMessage(error, 'Odoslanie rezervácie z offline fronty sa nepodarilo.')
+  return getOfflineQueueErrorMessage(error, 'Rezerváciu sa nepodarilo odoslať z tohto zariadenia.')
 }
 
 export function shouldQueueReservationSubmission(error: unknown, online = true) {

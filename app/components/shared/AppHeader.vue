@@ -5,13 +5,17 @@ interface NavItem {
   icon: string
 }
 
-const nav: NavItem[] = [
+const primaryNav: NavItem[] = [
   { label: 'Revíry', to: '/reviry', icon: 'i-heroicons-map' },
   { label: 'Mapa', to: '/mapa', icon: 'i-heroicons-map-pin' },
   { label: 'Rezervácie', to: '/rezervacie', icon: 'i-heroicons-calendar-days' },
   { label: 'Úlovky', to: '/ulovky', icon: 'i-heroicons-camera' },
   { label: 'Súťaže', to: '/sutaze', icon: 'i-heroicons-trophy' },
-  { label: 'Informácie', to: '/info', icon: 'i-heroicons-information-circle' },
+  { label: 'Pravidlá', to: '/info', icon: 'i-heroicons-information-circle' },
+]
+
+const secondaryNav: NavItem[] = [
+  { label: 'Sponzori', to: '/sponzori', icon: 'i-heroicons-building-storefront' },
 ]
 
 const route = useRoute()
@@ -48,9 +52,11 @@ const accountAction = computed(() => {
 
 const offlineQueueLabel = computed(() =>
   offlineQueueTotal.value === 1
-    ? '1 offline položka čaká na odoslanie'
-    : `${offlineQueueTotal.value} offline položiek čaká na odoslanie`,
+    ? '1 položka čaká na odoslanie'
+    : `${offlineQueueTotal.value} položiek čaká na odoslanie`,
 )
+const allMobileNav = computed(() => [...primaryNav, ...secondaryNav])
+const isSecondaryActive = computed(() => secondaryNav.some((item) => isActive(item.to)))
 
 watch(
   () => route.fullPath,
@@ -86,7 +92,7 @@ async function signOut() {
 
       <nav class="hidden items-center gap-1 xl:flex">
         <NuxtLink
-          v-for="item in nav"
+          v-for="item in primaryNav"
           :key="item.to"
           :to="item.to"
           class="rounded-md px-3 py-2 text-sm font-medium transition-colors"
@@ -98,6 +104,20 @@ async function signOut() {
         >
           {{ item.label }}
         </NuxtLink>
+        <UDropdownMenu
+          :items="secondaryNav"
+          :content="{ align: 'end', sideOffset: 8 }"
+        >
+          <UButton
+            color="neutral"
+            variant="ghost"
+            trailing-icon="i-heroicons-chevron-down"
+            class="text-white hover:bg-white/10"
+            :class="isSecondaryActive ? 'bg-accent-400 text-primary-950 hover:bg-accent-300' : 'text-white/80'"
+          >
+            Viac
+          </UButton>
+        </UDropdownMenu>
       </nav>
 
       <div class="flex items-center gap-2">
@@ -108,6 +128,14 @@ async function signOut() {
           variant="ghost"
           class="hidden text-white hover:bg-white/10 sm:inline-flex"
           aria-label="Výstrahy a oznamy"
+        />
+        <UButton
+          to="/kontakt"
+          icon="i-heroicons-phone"
+          color="neutral"
+          variant="ghost"
+          class="hidden text-white hover:bg-white/10 sm:inline-flex"
+          aria-label="Kontakt na správcu"
         />
         <NuxtLink
           v-if="offlineQueueTotal > 0"
@@ -167,7 +195,7 @@ async function signOut() {
         >
           <span class="flex items-center gap-3 font-bold">
             <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5" />
-            Offline fronta
+            Čaká na odoslanie
           </span>
           <span class="rounded-full bg-error-600 px-2 py-0.5 text-xs font-black text-white">
             {{ offlineQueueTotal }}
@@ -184,7 +212,7 @@ async function signOut() {
             Domov
           </NuxtLink>
           <NuxtLink
-            v-for="item in nav"
+            v-for="item in allMobileNav"
             :key="item.to"
             :to="item.to"
             class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"

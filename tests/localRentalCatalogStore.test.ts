@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -57,6 +57,43 @@ describe('localRentalCatalogStore', () => {
     expect(reread.reservationExtras.find((extra) => extra.id === 'wood-crate')).toMatchObject({
       active: false,
       priceLabel: '8 € / bednička',
+    })
+  })
+
+  it('migrates legacy imported web copy without overwriting other catalog settings', async () => {
+    const filePath = await createStorePath()
+    const seed = await readLocalRentalCatalogState(filePath)
+    const legacyState = {
+      ...seed,
+      reservationExtras: seed.reservationExtras.map((extra) => {
+        if (extra.id === 'third-rod') {
+          return {
+            ...extra,
+            active: false,
+            description: 'Web uvádza možnosť dokúpenia po dohode so správcom.',
+          }
+        }
+        if (extra.id === 'gazebo-kocka') {
+          return {
+            ...extra,
+            priceLabel: 'cena dohodou pri oslave',
+            description: 'Web uvádza možnosť prenajatia altánku na firemné akcie, oslavy a večierky.',
+          }
+        }
+        return extra
+      }),
+    }
+    await writeFile(filePath, `${JSON.stringify(legacyState, null, 2)}\n`, 'utf8')
+
+    const reread = await readLocalRentalCatalogState(filePath)
+
+    expect(reread.reservationExtras.find((extra) => extra.id === 'third-rod')).toMatchObject({
+      active: false,
+      description: 'Doplnková služba dostupná po dohode so správcom.',
+    })
+    expect(reread.reservationExtras.find((extra) => extra.id === 'gazebo-kocka')).toMatchObject({
+      description: 'Altánok je dostupný po dohode so správcom na firemné akcie, oslavy a večierky.',
+      priceLabel: 'cena dohodou pri oslave',
     })
   })
 })

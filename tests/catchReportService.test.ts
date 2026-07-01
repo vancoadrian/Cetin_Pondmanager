@@ -178,7 +178,7 @@ describe('catchReportService', () => {
     if (result.ok) throw new Error('Missing report should not generate.')
 
     expect(result.statusCode).toBe(404)
-    expect(result.messages).toContain('Uložený report sa v lokálnom store nenašiel.')
+    expect(result.messages).toContain('Uložený report sa nenašiel.')
   })
 
   it('creates an email draft with CSV attachments from a generated report', () => {
@@ -470,8 +470,13 @@ describe('catchReportService', () => {
     }, now)
 
     expect(result.ok).toBe(true)
+    expect(result.deliveryProvider).toBe('mock')
     expect(result.dueCount).toBe(1)
+    expect(result.failedCount).toBe(0)
+    expect(result.preparedCount).toBe(1)
     expect(result.processedCount).toBe(1)
+    expect(result.sentCount).toBe(0)
+    expect(result.skippedCount).toBe(0)
     expect(result.rows[0]).toMatchObject({
       action: 'prepared',
       deliveryStatus: 'prepared',
@@ -482,6 +487,81 @@ describe('catchReportService', () => {
     expect(result.deliveryLogs).toHaveLength(1)
     expect(result.deliveryLogs[0]?.status).toBe('prepared')
     expect(result.savedReports[0]?.lastGeneratedAt).toBe(now)
+  })
+
+  it('runs due weekly email reports through the Resend delivery provider', async () => {
+    const state: CatchReportState = {
+      deliveryLogs: [],
+      savedReports: [{
+        audience: 'owner',
+        cadence: 'weekly',
+        createdAt: '2026-05-01T08:00:00.000Z',
+        delivery: 'email-ready',
+        description: 'Report pre majiteľa.',
+        enabled: true,
+        filter: {
+          lake: 'all',
+          seasonWindowId: 'custom',
+        },
+        id: 'catch-report-scheduler-resend',
+        includeRawCsv: true,
+        includeTrendSignals: true,
+        lastGeneratedAt: '2026-05-12T08:00:00.000Z',
+        recipients: ['majitel@example.test'],
+        title: 'Scheduler Resend report',
+        updatedAt: '2026-05-12T08:00:00.000Z',
+      }],
+    }
+    const requests: Array<{ headers: Headers, payload: Record<string, unknown>, url: string }> = []
+    const fakeFetch: typeof fetch = async (input, init) => {
+      requests.push({
+        headers: new Headers(init?.headers),
+        payload: JSON.parse(String(init?.body)) as Record<string, unknown>,
+        url: String(input),
+      })
+
+      return new Response(JSON.stringify({ id: 'email-scheduler-resend-test' }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+    const result = await runDueCatchReports(state, catches, {
+      fetcher: fakeFetch,
+    }, {
+      apiKey: 're_test',
+      endpoint: 'https://api.resend.test/emails',
+      from: 'Rybolov <reports@example.test>',
+      provider: 'resend',
+    }, now)
+
+    expect(result.ok).toBe(true)
+    expect(result.deliveryProvider).toBe('resend')
+    expect(result.dueCount).toBe(1)
+    expect(result.failedCount).toBe(0)
+    expect(result.preparedCount).toBe(0)
+    expect(result.processedCount).toBe(1)
+    expect(result.sentCount).toBe(1)
+    expect(result.skippedCount).toBe(0)
+    expect(result.rows[0]).toMatchObject({
+      action: 'sent',
+      deliveryStatus: 'sent',
+      due: true,
+      nextEligibleAt: '2026-05-26T08:00:00.000Z',
+      reportId: 'catch-report-scheduler-resend',
+    })
+    expect(result.deliveryLogs[0]).toMatchObject({
+      externalId: 'email-scheduler-resend-test',
+      provider: 'resend',
+      status: 'sent',
+    })
+    expect(result.savedReports[0]?.lastGeneratedAt).toBe(now)
+    expect(requests[0]?.url).toBe('https://api.resend.test/emails')
+    expect(requests[0]?.headers.get('Authorization')).toBe('Bearer re_test')
+    expect(requests[0]?.payload).toMatchObject({
+      from: 'Rybolov <reports@example.test>',
+      subject: 'Rybolov Cetín: Scheduler Resend report',
+      to: ['majitel@example.test'],
+    })
   })
 
   it('skips scheduled reports that are not due yet', async () => {
@@ -514,7 +594,12 @@ describe('catchReportService', () => {
     }, now)
 
     expect(result.dueCount).toBe(0)
+    expect(result.deliveryProvider).toBe('mock')
+    expect(result.failedCount).toBe(0)
+    expect(result.preparedCount).toBe(0)
     expect(result.processedCount).toBe(0)
+    expect(result.sentCount).toBe(0)
+    expect(result.skippedCount).toBe(0)
     expect(result.rows[0]).toMatchObject({
       action: 'skipped',
       due: false,
@@ -553,6 +638,12 @@ describe('catchReportService', () => {
     }, now)
 
     expect(result.dueCount).toBe(1)
+    expect(result.deliveryProvider).toBe('mock')
+    expect(result.failedCount).toBe(0)
+    expect(result.preparedCount).toBe(0)
+    expect(result.processedCount).toBe(1)
+    expect(result.sentCount).toBe(0)
+    expect(result.skippedCount).toBe(0)
     expect(result.rows[0]).toMatchObject({
       action: 'generated',
       due: true,

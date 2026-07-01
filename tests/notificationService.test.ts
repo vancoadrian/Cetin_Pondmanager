@@ -312,7 +312,7 @@ describe('notificationService', () => {
           deviceLabel: 'Starý test mobil',
           endpoint: 'mock://rybolov-cetin/old-test',
           id: 'delivery-old-test',
-          message: 'Mock doručenie.',
+          message: 'Skúšobné doručenie.',
           provider: 'mock',
           status: 'sent',
           subscriptionId: 'push-old-test',
@@ -323,7 +323,7 @@ describe('notificationService', () => {
           deviceLabel: 'Novší test mobil',
           endpoint: 'mock://rybolov-cetin/recent-test',
           id: 'delivery-recent-test',
-          message: 'Mock doručenie.',
+          message: 'Skúšobné doručenie.',
           provider: 'mock',
           status: 'sent',
           subscriptionId: 'push-recent-test',
@@ -334,7 +334,7 @@ describe('notificationService', () => {
           deviceLabel: 'Verejný mobil',
           endpoint: 'mock://rybolov-cetin/public',
           id: 'delivery-public',
-          message: 'Mock doručenie.',
+          message: 'Skúšobné doručenie.',
           provider: 'mock',
           status: 'sent',
           subscriptionId: 'push-public',
@@ -496,7 +496,7 @@ describe('notificationService', () => {
     })
 
     expect(delivery.broadcast).toMatchObject({
-      message: 'Mock dispatcher zaevidoval 1 doručení.',
+      message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
       recipientCount: 1,
       status: 'sent',
     })

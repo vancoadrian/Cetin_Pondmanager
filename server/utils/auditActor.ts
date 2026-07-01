@@ -1,10 +1,23 @@
-import { getCookie, type H3Event } from 'h3'
+import type { H3Event } from 'h3'
 import type { AuditActorRole } from '~/data/pond'
 import type { AuditEventInput } from '~/services/auditLogService'
+import type { MockRole } from '~/composables/useMockAuth'
+import { resolveAppSessionUser } from './appSession'
 
 type AuditActor = Pick<AuditEventInput, 'actorId' | 'actorLabel' | 'actorRole'>
 
-const mockActors: Record<string, AuditActor> = {
+const auditRoleByMockRole: Partial<Record<MockRole, AuditActorRole>> = {
+  accountant: 'accountant',
+  angler: 'angler',
+  manager: 'manager',
+  marshal: 'marshal',
+  organizer: 'tournament_organizer',
+  owner: 'owner',
+  team: 'tournament_team',
+  worker: 'worker',
+}
+
+const fallbackActors: Record<string, AuditActor> = {
   manager: {
     actorId: 'manager',
     actorLabel: 'Správca pri vode',
@@ -50,9 +63,17 @@ export function resolveAuditActor(
     actorRole: 'angler',
   },
 ): AuditActor {
-  const session = getCookie(event, 'rybolov_cetin_mock_session')
+  const user = resolveAppSessionUser(event)
+  const actorRole = user ? auditRoleByMockRole[user.role] : undefined
+  if (user && actorRole) {
+    return {
+      actorId: user.id,
+      actorLabel: user.name,
+      actorRole,
+    }
+  }
 
-  return session ? mockActors[session] ?? fallback : fallback
+  return user ? fallbackActors[user.role] ?? fallback : fallback
 }
 
 export function createSystemAuditActor(actorLabel = 'Systém', actorRole: AuditActorRole = 'system'): AuditActor {

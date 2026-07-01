@@ -7,7 +7,7 @@ import {
   type AuditLogResponse,
 } from '~/services/auditLogService'
 
-useHead({ title: 'Admin audit log' })
+useHead({ title: 'Admin audit' })
 
 const fallbackAuditState = (): AuditLogResponse => ({
   events: [],
@@ -103,12 +103,141 @@ const areaIcon = (area: AuditArea) => {
   }
 }
 
+const auditDetailValueLabels: Record<string, string> = {
+  disabled: 'vypnuté',
+  full: 'plná záloha',
+  inline: 'dáta s vloženými súbormi',
+  invalid: 'neplatné',
+  manifest: 'dáta so zoznamom súborov',
+  mock: 'skúšobné',
+  prepared: 'pripravené',
+  resend: 'Resend',
+  sent: 'odoslané',
+  skipped: 'preskočené',
+  summary: 'prehľad',
+  warning: 'na kontrolu',
+  'web-push': 'push cez prehliadač',
+}
+
+const auditDetailKeyLabels: Record<string, string> = {
+  actorRole: 'rola používateľa',
+  allowWarnings: 'povolené upozornenia',
+  'asset files': 'súbory',
+  assetPolicy: 'typ súborov',
+  audienceRole: 'rola príjemcu',
+  catchId: 'úlovok',
+  confirmPhrase: 'potvrdzovacia fráza',
+  endpoint: 'zariadenie',
+  fishId: 'ryba',
+  from: 'od',
+  'has contact email': 'má e-mail',
+  issues: 'upozornenia',
+  keepRecent: 'ponechať posledné',
+  lakeId: 'revír',
+  mode: 'režim',
+  note: 'poznámka',
+  'notification channel': 'kanál notifikácie',
+  'notification delivery provider': 'doručovanie notifikácie',
+  'notification delivery status': 'stav doručenia',
+  'peg id': 'miesto',
+  provider: 'doručovanie',
+  records: 'záznamy',
+  removedCount: 'zmazané',
+  removedSizeBytes: 'uvoľnená veľkosť',
+  requestId: 'požiadavka',
+  reservationId: 'rezervácia',
+  restoreAssets: 'obnoviť súbory',
+  safetyBackupPath: 'ochranná záloha',
+  sectorId: 'sektor',
+  sectorIds: 'sektory',
+  status: 'stav',
+  stores: 'úložiská',
+  subject: 'kontakt odosielateľa',
+  targetTopics: 'okruhy',
+  to: 'do',
+  tournamentId: 'súťaž',
+}
+
+const auditEntityTypeLabels: Record<string, string> = {
+  alert: 'výstraha',
+  catch: 'úlovok',
+  closure: 'uzávierka',
+  'data-backup': 'záloha dát',
+  fish: 'ryba',
+  lake: 'revír',
+  'local data backup': 'záloha dát',
+  logbook: 'zápisník',
+  map: 'mapa',
+  notification: 'notifikácia',
+  'notification-broadcast': 'rozoslanie notifikácie',
+  'notification-subscription': 'odber notifikácií',
+  place: 'miesto',
+  reservation: 'rezervácia',
+  sponsor: 'sponzor',
+  system: 'systém',
+  tournament: 'súťaž',
+}
+
+const formatAuditDetailValue = (value: unknown): string => {
+  if (Array.isArray(value)) return value.map(formatAuditDetailValue).join(', ')
+  if (typeof value === 'boolean') return value ? 'áno' : 'nie'
+  const stringValue = String(value)
+
+  return auditDetailValueLabels[stringValue] ?? stringValue
+}
+
+const formatAuditDetailKey = (key: string) => {
+  if (auditDetailKeyLabels[key]) return auditDetailKeyLabels[key]
+
+  const normalizedKey = key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .toLocaleLowerCase('sk-SK')
+
+  return auditDetailKeyLabels[normalizedKey] ?? normalizedKey
+}
+
+const formatEntityType = (entityType: string) => {
+  if (auditEntityTypeLabels[entityType]) return auditEntityTypeLabels[entityType]
+
+  const normalizedEntityType = entityType
+    .replace(/[-_]/g, ' ')
+    .toLocaleLowerCase('sk-SK')
+
+  return auditEntityTypeLabels[normalizedEntityType] ?? normalizedEntityType
+}
+
+const formatAuditSummary = (summary: string) =>
+  summary
+    .replace(/Safety backup/gu, 'Ochranná záloha')
+    .replace(/safety backup/gu, 'ochranná záloha')
+    .replace(/Backup/gu, 'Záloha')
+    .replace(/backup/gu, 'záloha')
+    .replace(/\((\d+) store, (\d+) záznamov\)/gu, '($1 úložísk, $2 záznamov)')
+    .replace(/Stiahnutý lokálny záloha/gu, 'Stiahnutá lokálna záloha')
+    .replace(/Skontrolovaný záloha/gu, 'Skontrolovaná záloha')
+    .replace(/stavom invalid/gu, 'stavom neplatné')
+    .replace(/stavom warning/gu, 'stavom na kontrolu')
+
+const formatAuditEntityLabel = (event: AuditEvent) => {
+  const label = event.entityLabel
+
+  if (event.area === 'system' && (label.includes('backup') || label.endsWith('.json'))) {
+    return 'Záloha dát'
+  }
+
+  return label
+    .replace(/Safety backup/gu, 'Ochranná záloha')
+    .replace(/backup/gu, 'záloha')
+    .replace(/\.json$/u, '')
+}
+
 const detailEntries = (event: AuditEvent) =>
   Object.entries(event.details)
     .filter(([, value]) => value !== null && value !== '')
     .map(([key, value]) => ({
-      key,
-      value: Array.isArray(value) ? value.join(', ') : String(value),
+      key: formatAuditDetailKey(key),
+      value: formatAuditDetailValue(value),
     }))
 </script>
 
@@ -116,7 +245,7 @@ const detailEntries = (event: AuditEvent) =>
   <div>
     <PageHeader
       eyebrow="Admin"
-      title="Audit log"
+      title="Audit udalostí"
       description="Chronologický záznam interných rozhodnutí, úprav a citlivých prevádzkových zmien."
     />
 
@@ -197,7 +326,7 @@ const detailEntries = (event: AuditEvent) =>
                     {{ auditSeverityLabels[event.severity] }}
                   </span>
                 </div>
-                <p class="mt-2 text-sm text-foreground-muted">{{ event.summary }}</p>
+                <p class="mt-2 text-sm text-foreground-muted">{{ formatAuditSummary(event.summary) }}</p>
                 <p class="mt-2 text-xs font-semibold text-foreground-muted">
                   {{ event.actorLabel }} · {{ formatDate(event.createdAt) }}
                 </p>
@@ -205,8 +334,8 @@ const detailEntries = (event: AuditEvent) =>
             </div>
 
             <div class="lg:text-right">
-              <p class="font-semibold">{{ event.entityLabel }}</p>
-              <p class="text-foreground-muted text-sm">{{ event.entityType }} · {{ event.entityId }}</p>
+              <p class="font-semibold">{{ formatAuditEntityLabel(event) }}</p>
+              <p class="text-foreground-muted text-sm">{{ formatEntityType(event.entityType) }} · {{ event.entityId }}</p>
             </div>
           </div>
 

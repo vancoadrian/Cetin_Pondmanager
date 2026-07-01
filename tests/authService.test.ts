@@ -10,7 +10,9 @@ import {
 describe('application authentication contract', () => {
   it('authenticates by normalized email and password', () => {
     expect(authenticateMockUser('  MAREK.HORVATH@EXAMPLE.TEST ', 'Cetin2026!')?.role).toBe('angler')
+    expect(authenticateMockUser('marek.h@example.com', 'Cetin2026!')?.id).toBe('angler-marek')
     expect(authenticateMockUser('marek.horvath@example.test', 'wrong')).toBeUndefined()
+    expect(authenticateMockUser('marek.h@example.com', 'wrong')).toBeUndefined()
   })
 
   it('routes every role to its own workspace', () => {

@@ -37,6 +37,29 @@ function isNotificationState(value: unknown): value is LocalNotificationState {
   )
 }
 
+function normalizeLegacyNotificationMessage(message: string) {
+  return message
+    .replace(/^Mock dispatcher pripravil notifikáciu pre (\d+) odberov\.$/u, 'Skúšobné doručovanie pripravilo notifikáciu pre $1 odberov.')
+    .replace(/^Mock dispatcher označil notifikáciu ako doručenú\.$/u, 'Skúšobné doručovanie označilo notifikáciu ako doručenú.')
+    .replace(/^Mock dispatcher zaevidoval (\d+) doručení\.$/u, 'Skúšobné doručovanie zaevidovalo $1 doručení.')
+    .replace(/^Mock endpoint čaká na reálny Web Push endpoint zariadenia\.$/u, 'Skúšobný odber čaká na reálny Web Push endpoint zariadenia.')
+    .replace(/^Mock doručenie\.$/u, 'Skúšobné doručenie.')
+}
+
+function migrateLegacyNotificationCopy(state: NotificationState): NotificationState {
+  return {
+    ...state,
+    broadcasts: state.broadcasts.map((broadcast) => ({
+      ...broadcast,
+      message: normalizeLegacyNotificationMessage(broadcast.message),
+    })),
+    deliveryLogs: state.deliveryLogs.map((delivery) => ({
+      ...delivery,
+      message: normalizeLegacyNotificationMessage(delivery.message),
+    })),
+  }
+}
+
 export async function readLocalNotificationState(
   filePath = resolveLocalNotificationStorePath(),
 ): Promise<LocalNotificationState> {
@@ -45,13 +68,15 @@ export async function readLocalNotificationState(
     const parsed: unknown = JSON.parse(raw)
 
     if (isNotificationState(parsed)) {
+      const migratedState = migrateLegacyNotificationCopy({
+        alerts: parsed.alerts,
+        broadcasts: parsed.broadcasts ?? [],
+        deliveryLogs: parsed.deliveryLogs ?? [],
+        subscriptions: parsed.subscriptions ?? [],
+      })
+
       return {
-        ...cloneNotificationState({
-          alerts: parsed.alerts,
-          broadcasts: parsed.broadcasts ?? [],
-          deliveryLogs: parsed.deliveryLogs ?? [],
-          subscriptions: parsed.subscriptions ?? [],
-        }),
+        ...cloneNotificationState(migratedState),
         updatedAt: parsed.updatedAt,
         version: 1,
       }

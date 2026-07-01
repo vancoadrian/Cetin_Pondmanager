@@ -57,6 +57,28 @@ const selectedAvailability = computed(() =>
       })
     : undefined,
 )
+const selectedAvailabilityReason = computed(() =>
+  selectedAvailability.value?.reasons[0]
+  ?? selectedAvailability.value?.description
+  ?? '',
+)
+const mapLegendItems = [
+  {
+    icon: 'i-heroicons-check-circle',
+    label: 'dostupné',
+    tone: 'success',
+  },
+  {
+    icon: 'i-heroicons-clipboard-document-check',
+    label: 'na schválenie',
+    tone: 'primary',
+  },
+  {
+    icon: 'i-heroicons-lock-closed',
+    label: 'nedostupné',
+    tone: 'error',
+  },
+] as const
 
 function markerStyle(point: Peg) {
   const availability = getPegAvailability(point, {
@@ -90,21 +112,20 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
 
 <template>
   <div class="border-border bg-surface overflow-hidden rounded-card border">
-    <div class="border-border flex items-center justify-between border-b px-4 py-3">
+    <div class="border-border flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-foreground text-sm font-semibold">{{ title }}</p>
         <p class="text-foreground-muted text-xs">Kliknutím vyberiete miesto.</p>
       </div>
-      <div class="hidden flex-wrap gap-2 text-xs sm:flex">
-        <span class="inline-flex items-center gap-1">
-          <span class="h-2.5 w-2.5 rounded-full bg-success-500" /> dostupné
-        </span>
-        <span class="inline-flex items-center gap-1">
-          <span class="h-2.5 w-2.5 rounded-full bg-primary-700" /> na schválenie
-        </span>
-        <span class="inline-flex items-center gap-1">
-          <span class="h-2.5 w-2.5 rounded-full bg-error-500" /> nedostupné
-        </span>
+      <div class="flex flex-wrap gap-2 sm:justify-end">
+        <StatusBadge
+          v-for="item in mapLegendItems"
+          :key="item.label"
+          :icon="item.icon"
+          :label="item.label"
+          :tone="item.tone"
+          size="xs"
+        />
       </div>
     </div>
 
@@ -235,8 +256,8 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
               <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
             </div>
             <p class="text-foreground-muted mt-2 text-sm">{{ selectedPeg.notes }}</p>
-            <p v-if="selectedAvailability" class="text-primary-800 mt-2 text-xs font-semibold">
-              {{ selectedAvailability.reasons[0] }}
+            <p v-if="selectedAvailabilityReason" class="text-primary-800 mt-2 text-xs font-semibold">
+              {{ selectedAvailabilityReason }}
             </p>
             <p v-if="selectedPeg.requiresCabinReservation" class="text-primary-800 mt-2 text-xs font-semibold">
               Rezervácia miesta je viazaná na chatu.

@@ -67,9 +67,10 @@ describe('offlineTournamentRequestQueueService', () => {
     expect(getOfflineTournamentRequestQueueErrorMessage({
       data: {
         data: {
-          messages: ['Súťaž alebo sektor sa v lokálnom stave nenašli.'],
+          messages: ['Súťaž alebo sektor sa nenašli.'],
         },
       },
-    })).toBe('Súťaž alebo sektor sa v lokálnom stave nenašli.')
+    })).toBe('Súťaž alebo sektor sa nenašli.')
+    expect(getOfflineTournamentRequestQueueErrorMessage({})).toBe('Súťažné hlásenie sa nepodarilo odoslať z tohto zariadenia.')
   })
 })

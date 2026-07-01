@@ -173,6 +173,7 @@ const chart = computed(() => {
 
     <AppState
       v-else
+      compact
       title="Bez meraní"
       description="Graf sa zobrazí po prvom zázname váhy a dĺžky."
       icon="i-heroicons-chart-bar"

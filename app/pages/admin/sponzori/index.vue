@@ -631,7 +631,7 @@ function clearSponsorLogoVariantSource(sponsor: SponsorDraft) {
   sponsor.logoVariantSourceUpload = undefined
   sponsor.logoVariantSourceWidth = undefined
   sponsor.removeLogoVariantSource = true
-  markSponsorDraftSuccess('Zdroj pre varianty bude po uložení odstránený. Hlavné logo ostane fallback.')
+  markSponsorDraftSuccess('Zdroj pre varianty bude po uložení odstránený. Ako náhrada ostane hlavné logo.')
 }
 
 async function generateSponsorLogoVariants(sponsor: SponsorDraft) {
@@ -1207,7 +1207,7 @@ async function saveSponsorSettings() {
                   <div>
                     <h3 class="text-sm font-bold">Varianty loga</h3>
                     <p class="text-foreground-muted text-xs">
-                      Hlavné logo ostáva fallback. Variant sa použije len pre dané umiestnenie.
+                      Hlavné logo ostáva náhradou. Variant sa použije len pre dané umiestnenie.
                     </p>
                   </div>
                 </div>

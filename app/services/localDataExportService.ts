@@ -185,9 +185,9 @@ export const LOCAL_DATA_BACKUP_CLEANUP_MIN_KEEP_RECENT = 2
 export const LOCAL_DATA_RESTORE_CONFIRMATION = 'OBNOVIT DATA'
 
 export const localDataExportAssetPolicyLabels: Record<LocalDataExportAssetPolicy, string> = {
-  inline: 'JSON + vložené súbory',
-  manifest: 'JSON + zoznam súborov',
-  none: 'iba JSON dáta',
+  inline: 'dáta s vloženými súbormi',
+  manifest: 'dáta so zoznamom súborov',
+  none: 'iba dáta',
 }
 
 export const localDataImportPreviewStatusLabels: Record<LocalDataImportPreviewStatus, string> = {

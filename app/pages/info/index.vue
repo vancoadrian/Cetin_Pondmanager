@@ -1,16 +1,19 @@
 <script setup lang="ts">
+import type { CabinProduct, ReservationExtra } from '~/data/pond'
+
 useHead({ title: 'Pravidlá a výbava' })
 
 const {
   cabinProducts: seedCabinProducts,
   contactInfo,
+  pegs,
   infoSections,
   permitProducts,
   requiredEquipment,
 } = usePondData()
 
 const { liveCabinProducts } = await useCabinCatalogState({ key: 'info-cabin-catalog-state' })
-const { livePaymentMethods: sortedPaymentMethods } = await usePaymentMethodState({ key: 'info-payment-method-state' })
+const { enabledPaymentMethods } = await usePaymentMethodState({ key: 'info-payment-method-state' })
 const {
   activeRentalItems,
   activeReservationExtras,
@@ -19,12 +22,49 @@ const {
 const displayedCabinProducts = computed(() =>
   liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts,
 )
+
+function paymentMethodIcon(kind: string) {
+  if (kind === 'cash') return 'i-heroicons-banknotes'
+  if (kind === 'bank-transfer') return 'i-heroicons-building-library'
+  if (kind === 'card-gateway') return 'i-heroicons-credit-card'
+
+  return 'i-heroicons-receipt-percent'
+}
+
+const reservationWithRental = (rentalId: string) => ({
+  path: '/rezervacie',
+  query: {
+    vybava: rentalId,
+  },
+})
+
+const reservationWithExtra = (extra: ReservationExtra) => ({
+  path: '/rezervacie',
+  query: {
+    doplnok: extra.id,
+    jazero: extra.lake,
+    typ: extra.appliesTo === 'cabin' ? 'chata' : undefined,
+  },
+})
+
+const reservationWithCabin = (cabin: CabinProduct) => {
+  const cabinPeg = pegs.find((peg) => cabin.pegIds.includes(peg.id))
+
+  return {
+    path: '/rezervacie',
+    query: {
+      chata: cabin.id,
+      jazero: cabinPeg?.lake,
+      typ: 'chata',
+    },
+  }
+}
 </script>
 
 <template>
   <div>
     <PageHeader
-      eyebrow="Informácie"
+      eyebrow="Pravidlá"
       title="Pravidlá, cenník a výbava"
       description="Všetko, čo potrebujete vedieť pred príchodom: povolenky, pravidlá, povinná výbava, chaty a doplnkové služby."
     />
@@ -70,18 +110,15 @@ const displayedCabinProducts = computed(() =>
           <div class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Platba rezervácie</h2>
             <div class="mt-4 space-y-3">
-              <div v-for="method in sortedPaymentMethods" :key="method.id" class="rounded-md bg-muted p-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
+              <div v-for="method in enabledPaymentMethods" :key="method.id" class="rounded-md bg-muted p-4">
+                <div class="flex items-start gap-3">
+                  <span class="bg-primary-50 text-primary-700 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
+                    <UIcon :name="paymentMethodIcon(method.kind)" class="h-5 w-5" />
+                  </span>
+                  <div class="min-w-0">
                     <p class="font-semibold">{{ method.label }}</p>
                     <p class="text-foreground-muted mt-1 text-sm">{{ method.instructions }}</p>
                   </div>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="method.enabled ? 'bg-success-500/10 text-success-700' : 'bg-warning-100 text-warning-800'"
-                  >
-                    {{ method.enabled ? 'dostupné' : 'nedostupné' }}
-                  </span>
                 </div>
               </div>
             </div>
@@ -99,15 +136,6 @@ const displayedCabinProducts = computed(() =>
               >
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <h3 class="font-bold">{{ section.title }}</h3>
-                  <a
-                    v-if="section.sourceUrl"
-                    :href="section.sourceUrl"
-                    target="_blank"
-                    rel="noreferrer"
-                    class="text-primary-700 text-sm font-semibold hover:text-primary-900"
-                  >
-                    Zdroj
-                  </a>
                 </div>
                 <ul class="mt-3 space-y-2 text-sm text-foreground-muted">
                   <li v-for="item in section.items" :key="item" class="flex gap-2">
@@ -132,16 +160,13 @@ const displayedCabinProducts = computed(() =>
                     <p class="font-semibold">{{ item.label }}</p>
                     <p class="text-foreground-muted mt-1 text-sm">{{ item.detail }}</p>
                   </div>
-                  <span
-                    class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                    :class="
-                      item.rentable
-                        ? 'bg-primary-50 text-primary-800'
-                        : 'bg-warning-100 text-warning-800'
-                    "
-                  >
-                    {{ item.rentable ? 'požičateľné' : 'vlastné' }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="item.rentable ? 'i-heroicons-arrow-path-rounded-square' : 'i-heroicons-shield-check'"
+                    :label="item.rentable ? 'požičateľné' : 'vlastné'"
+                    size="xs"
+                    :tone="item.rentable ? 'primary' : 'warning'"
+                  />
                 </div>
               </div>
             </div>
@@ -168,6 +193,15 @@ const displayedCabinProducts = computed(() =>
                 <ul class="mt-3 space-y-1 text-sm text-foreground-muted">
                   <li v-for="equipment in cabin.equipment" :key="equipment">• {{ equipment }}</li>
                 </ul>
+                <UButton
+                  :to="reservationWithCabin(cabin)"
+                  icon="i-heroicons-calendar-days"
+                  size="sm"
+                  variant="soft"
+                  class="mt-4"
+                >
+                  Rezervovať s chatou
+                </UButton>
               </article>
             </div>
           </div>
@@ -179,10 +213,24 @@ const displayedCabinProducts = computed(() =>
                 <div v-for="item in activeRentalItems" :key="item.id" class="rounded-md bg-muted p-4">
                   <div class="flex items-start justify-between gap-3">
                     <p class="font-semibold">{{ item.label }}</p>
-                    <span class="text-foreground-muted text-xs">{{ item.stock }} ks</span>
+                    <StatusBadge
+                      icon="i-heroicons-archive-box"
+                      :label="`${item.stock} ks`"
+                      size="xs"
+                      tone="neutral"
+                    />
                   </div>
                   <p class="text-foreground-muted mt-1 text-sm">{{ item.description }}</p>
                   <p class="text-primary-800 mt-2 text-xs font-semibold">{{ item.priceLabel }}</p>
+                  <UButton
+                    :to="reservationWithRental(item.id)"
+                    icon="i-heroicons-plus-circle"
+                    size="sm"
+                    variant="soft"
+                    class="mt-3"
+                  >
+                    Pridať k rezervácii
+                  </UButton>
                 </div>
               </div>
             </div>
@@ -193,19 +241,25 @@ const displayedCabinProducts = computed(() =>
                 <div v-for="extra in activeReservationExtras" :key="extra.id" class="rounded-md bg-muted p-4">
                   <div class="flex items-start justify-between gap-3">
                     <p class="font-semibold">{{ extra.label }}</p>
-                    <span
-                      class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                      :class="
-                        extra.source === 'web'
-                          ? 'bg-success-500/10 text-success-700'
-                          : 'bg-warning-100 text-warning-800'
-                      "
-                    >
-                      {{ extra.source === 'web' ? 'služba revíru' : 'doplnok' }}
-                    </span>
+                    <StatusBadge
+                      class="shrink-0"
+                      :icon="extra.source === 'web' ? 'i-heroicons-check-badge' : 'i-heroicons-plus-circle'"
+                      :label="extra.source === 'web' ? 'služba revíru' : 'doplnok'"
+                      size="xs"
+                      :tone="extra.source === 'web' ? 'success' : 'warning'"
+                    />
                   </div>
                   <p class="text-foreground-muted mt-1 text-sm">{{ extra.description }}</p>
                   <p class="text-primary-800 mt-2 text-xs font-semibold">{{ extra.priceLabel }}</p>
+                  <UButton
+                    :to="reservationWithExtra(extra)"
+                    icon="i-heroicons-plus-circle"
+                    size="sm"
+                    variant="soft"
+                    class="mt-3"
+                  >
+                    Pridať k rezervácii
+                  </UButton>
                 </div>
               </div>
             </div>

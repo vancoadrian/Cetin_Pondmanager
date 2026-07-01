@@ -123,6 +123,26 @@ describe('getPegAvailability', () => {
     ).toBe('limited')
   })
 
+  it('does not expose reservation guest names unless private details are requested', () => {
+    const publicResult = getPegAvailability(basePeg(), {
+      closures: [],
+      dateFrom: '2026-06-11',
+      dateTo: '2026-06-11',
+      reservations: [baseReservation({ guest: 'Citlivé meno' })],
+    })
+    const privateResult = getPegAvailability(basePeg(), {
+      closures: [],
+      dateFrom: '2026-06-11',
+      dateTo: '2026-06-11',
+      includePrivateReservationDetails: true,
+      reservations: [baseReservation({ guest: 'Citlivé meno' })],
+    })
+
+    expect(publicResult.reasons.join(' ')).not.toContain('Citlivé meno')
+    expect(publicResult.reasons).toContain('Miesto má v danom termíne potvrdenú rezerváciu.')
+    expect(privateResult.reasons).toContain('Rezervácia: Citlivé meno')
+  })
+
   it('treats manually reserved peg status as non-reservable', () => {
     const result = getPegAvailability(basePeg({ status: 'reserved' }), {
       closures: [],

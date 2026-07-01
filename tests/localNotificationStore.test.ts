@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -103,5 +103,45 @@ describe('localNotificationStore', () => {
       topics: ['service'],
       tournamentIds: ['eccj-2026'],
     })
+  })
+
+  it('hides legacy mock wording in stored delivery messages', async () => {
+    const filePath = await createTempStorePath()
+    await writeFile(filePath, JSON.stringify({
+      alerts: [],
+      broadcasts: [{
+        alertId: 'alert-test',
+        body: 'Testovací oznam.',
+        createdAt: '2026-05-20T12:00:00.000Z',
+        createdBy: 'Správca',
+        id: 'broadcast-test',
+        message: 'Mock dispatcher pripravil notifikáciu pre 1 odberov.',
+        recipientCount: 1,
+        severity: 'info',
+        status: 'prepared',
+        targetTopics: ['service'],
+        title: 'Info',
+        validUntil: 'dnes 20:00',
+      }],
+      deliveryLogs: [{
+        attemptedAt: '2026-05-20T12:01:00.000Z',
+        broadcastId: 'broadcast-test',
+        deviceLabel: 'Test zariadenie',
+        endpoint: 'mock://rybolov-cetin/test',
+        id: 'delivery-test',
+        message: 'Mock dispatcher označil notifikáciu ako doručenú.',
+        provider: 'mock',
+        status: 'sent',
+        subscriptionId: 'push-test',
+      }],
+      subscriptions: [],
+      updatedAt: '2026-05-20T12:00:00.000Z',
+      version: 1,
+    }), 'utf8')
+
+    const reread = await readLocalNotificationState(filePath)
+    expect(reread.broadcasts[0]?.message).toContain('Skúšobné doručovanie')
+    expect(reread.deliveryLogs[0]?.message).toContain('Skúšobné doručovanie')
+    expect(`${reread.broadcasts[0]?.message} ${reread.deliveryLogs[0]?.message}`).not.toContain('Mock')
   })
 })

@@ -123,7 +123,7 @@ describe('notificationDeliveryRunner', () => {
     expect(sendCount).toBe(0)
     expect(result.broadcast.status).toBe('prepared')
     expect(result.deliveryLogs[0]).toMatchObject({
-      message: 'Mock endpoint čaká na reálny Web Push endpoint zariadenia.',
+      message: 'Skúšobný odber čaká na reálny Web Push endpoint zariadenia.',
       status: 'prepared',
     })
   })
@@ -180,6 +180,59 @@ describe('notificationDeliveryRunner', () => {
 
     expect(payloads).toContainEqual(expect.objectContaining({
       url: '/admin/ulovky?catchId=catch-20260621-vc-03-marek-h',
+    }))
+  })
+
+  it('opens internal reservation notifications directly in admin reservations', async () => {
+    const subscription = savePushSubscription({
+      auth: 'auth-secret',
+      audienceRole: 'manager',
+      endpoint: 'https://push.example.test/reservation-manager',
+      p256dh: 'p256dh-key',
+      permission: 'granted',
+      topics: ['reservations'],
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }, now)
+    if (!subscription.ok) throw new Error('Subscription should be valid.')
+    const state: NotificationState = {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: subscription.subscriptions,
+    }
+    const broadcast = createNotificationBroadcast({
+      body: 'Veľký Cetín · Chata 3 · 2026-06-10 až 2026-06-12 · +421 900 123 999.',
+      severity: 'info',
+      targetAudience: {
+        requestId: 'req-20260610-vc-03-3999',
+        roles: ['owner', 'manager', 'worker'],
+      },
+      targetTopics: ['reservations'],
+      title: 'Nová rezervácia: Ján Route',
+      validUntil: 'do spracovania rezervácie',
+    }, state, 'Rezervačný formulár', now)
+    if (!broadcast.ok) throw new Error('Broadcast should be valid.')
+    const payloads: unknown[] = []
+
+    await runServerNotificationDelivery(broadcast.broadcast, state, {
+      hasVapidConfig: true,
+      now,
+      provider: 'web-push',
+      sendWebPush: async (_pushSubscription, payload) => {
+        payloads.push(JSON.parse(payload))
+        return { statusCode: 201 }
+      },
+      subject: 'mailto:spravca@example.test',
+      vapidPrivateKey: 'private-key',
+      vapidPublicKey: 'public-key',
+    })
+
+    expect(payloads).toContainEqual(expect.objectContaining({
+      url: '/admin/rezervacie?rezervacia=req-20260610-vc-03-3999',
     }))
   })
 })

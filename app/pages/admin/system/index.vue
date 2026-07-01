@@ -319,7 +319,7 @@ const localDataOpsSteps = computed<LocalDataOpsStep[]>(() => {
     {
       detail: latestExport
         ? `Posledný export ${formatDate(latestExport.createdAt)}`
-        : 'Manifest alebo plná JSON záloha',
+        : 'rýchla alebo plná záloha',
       icon: 'i-heroicons-arrow-down-tray',
       id: 'export',
       label: 'Export',
@@ -328,10 +328,10 @@ const localDataOpsSteps = computed<LocalDataOpsStep[]>(() => {
     },
     {
       detail: importPreview.value
-        ? `${importPreviewFileName.value || 'backup'} · ${localDataImportPreviewStatusLabels[importPreview.value.status]}`
+        ? `${importPreviewFileName.value || 'záloha'} · ${localDataImportPreviewStatusLabels[importPreview.value.status]}`
         : latestPreview
           ? `Posledná kontrola ${formatDate(latestPreview.createdAt)}`
-          : 'bez skontrolovaného backupu',
+          : 'bez skontrolovanej zálohy',
       icon: 'i-heroicons-document-magnifying-glass',
       id: 'preview',
       label: 'Kontrola',
@@ -342,8 +342,8 @@ const localDataOpsSteps = computed<LocalDataOpsStep[]>(() => {
       detail: latestRestore
         ? `Posledná obnova ${formatDate(latestRestore.createdAt)}`
         : canRestoreImportPreview.value
-          ? 'platný full backup pripravený'
-          : 'čaká na platný full backup',
+          ? 'platná plná záloha pripravená'
+          : 'čaká na platnú plnú zálohu',
       icon: 'i-heroicons-arrow-path-rounded-square',
       id: 'restore',
       label: 'Obnova',
@@ -354,10 +354,10 @@ const localDataOpsSteps = computed<LocalDataOpsStep[]>(() => {
       detail: removableCleanupCount > 0
         ? `${removableCleanupCount} starších súborov na retenciu`
         : safetyBackupCount > 0
-          ? `${safetyBackupCount} safety backupov · najnovší ${formatDate(newestSafetyBackup?.createdAt)}`
+          ? `${safetyBackupCount} ochranných záloh · najnovšia ${formatDate(newestSafetyBackup?.createdAt)}`
           : latestCleanup
             ? `Retencia ${formatDate(latestCleanup.createdAt)}`
-            : 'bez safety backupu',
+            : 'bez ochrannej zálohy',
       icon: 'i-heroicons-archive-box',
       id: 'archive',
       label: 'Archív',
@@ -471,12 +471,106 @@ function auditEventLabel(event: AuditEvent) {
   return auditActionLabels[event.action] ?? event.action
 }
 
+const diagnosticValueLabels: Record<string, string> = {
+  disabled: 'vypnuté',
+  full: 'plná záloha',
+  inline: 'dáta s vloženými súbormi',
+  invalid: 'neplatné',
+  manifest: 'dáta so zoznamom súborov',
+  mock: 'skúšobné',
+  prepared: 'pripravené',
+  resend: 'Resend',
+  sent: 'odoslané',
+  skipped: 'preskočené',
+  summary: 'prehľad',
+  warning: 'na kontrolu',
+  'web-push': 'push cez prehliadač',
+}
+
+const diagnosticKeyLabels: Record<string, string> = {
+  attentionCount: 'na pozornosť',
+  'asset files': 'súbory',
+  configuredCount: 'nastavené',
+  critical24h: 'kritické 24h',
+  directory: 'priečinok',
+  environment: 'prostredie',
+  missingConfigKeys: 'chýba konfigurácia',
+  missingRequiredCount: 'povinné chýba',
+  mode: 'režim',
+  nodeVersion: 'Node.js',
+  'notification delivery provider': 'doručovanie notifikácie',
+  'notification delivery status': 'stav doručenia',
+  provider: 'doručovanie',
+  recentErrors: 'chyby',
+  requiredCount: 'povinné',
+  status: 'stav',
+  store: 'úložisko',
+  stores: 'úložiská',
+  total24h: 'chyby 24h',
+  version: 'verzia',
+  warning24h: 'upozornenia 24h',
+  webPushReady: 'push pripravený',
+}
+
+function formatDiagnosticValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map(formatDiagnosticValue).join(', ')
+  if (typeof value === 'boolean') return value ? 'áno' : 'nie'
+  const stringValue = String(value)
+
+  return diagnosticValueLabels[stringValue] ?? stringValue
+}
+
+function formatDiagnosticKey(key: string) {
+  if (diagnosticKeyLabels[key]) return diagnosticKeyLabels[key]
+
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .toLocaleLowerCase('sk-SK')
+}
+
+function formatSystemEnvironment(value?: string) {
+  if (value === 'development' || value === 'staging' || value === 'production') {
+    return deploymentEnvironmentLabels[value]
+  }
+
+  if (value === 'unknown' || !value) return 'nezistené'
+
+  return value
+}
+
 function auditDetailValue(event: AuditEvent, key: string) {
   const value = event.details[key]
 
   if (value === undefined || value === null || value === '') return null
 
-  return Array.isArray(value) ? value.join(', ') : String(value)
+  return formatDiagnosticValue(value)
+}
+
+function formatAuditSummary(summary: string) {
+  return summary
+    .replace(/Safety backup/gu, 'Ochranná záloha')
+    .replace(/safety backup/gu, 'ochranná záloha')
+    .replace(/Backup/gu, 'Záloha')
+    .replace(/backup/gu, 'záloha')
+    .replace(/\((\d+) store, (\d+) záznamov\)/gu, '($1 úložísk, $2 záznamov)')
+    .replace(/Stiahnutý lokálny záloha/gu, 'Stiahnutá lokálna záloha')
+    .replace(/Skontrolovaný záloha/gu, 'Skontrolovaná záloha')
+    .replace(/stavom invalid/gu, 'stavom neplatné')
+    .replace(/stavom warning/gu, 'stavom na kontrolu')
+}
+
+function formatAuditEntityLabel(event: AuditEvent) {
+  const label = event.entityLabel
+
+  if (event.area === 'system' && (label.includes('backup') || label.endsWith('.json'))) {
+    return 'Záloha dát'
+  }
+
+  return label
+    .replace(/Safety backup/gu, 'Ochranná záloha')
+    .replace(/backup/gu, 'záloha')
+    .replace(/\.json$/u, '')
 }
 
 function shortChecksum(value?: string) {
@@ -501,8 +595,8 @@ function formatDate(value?: string) {
 
 function metadataEntries(check: SystemHealthCheck) {
   return Object.entries(check.metadata ?? {}).map(([key, value]) => ({
-    key,
-    value: String(value),
+    key: formatDiagnosticKey(key),
+    value: formatDiagnosticValue(value),
   }))
 }
 
@@ -574,7 +668,7 @@ async function downloadLocalDataExport(policy: LocalDataExportAssetPolicy) {
     ])
   }
   catch {
-    exportActionStatus.value = 'Export sa nepodarilo pripraviť. Skontroluj admin prihlásenie alebo server log.'
+    exportActionStatus.value = 'Export sa nepodarilo pripraviť. Skontroluj admin prihlásenie alebo záznam servera.'
   }
   finally {
     downloadingExportPolicy.value = null
@@ -596,15 +690,15 @@ async function downloadSafetyBackup(backup: LocalDataSafetyBackupSummary) {
     })
 
     if (!response.ok) {
-      throw new Error(`Safety backup sa nepodarilo stiahnuť so stavom ${response.status}.`)
+      throw new Error(`Ochrannú zálohu sa nepodarilo stiahnuť so stavom ${response.status}.`)
     }
 
     await downloadResponseBlob(response, backup.fileName)
-    exportActionStatus.value = `Safety backup ${backup.fileName} je pripravený na stiahnutie.`
+    exportActionStatus.value = `Ochranná záloha ${backup.fileName} je pripravená na stiahnutie.`
     await refreshBackupAuditLog()
   }
   catch {
-    exportActionStatus.value = 'Safety backup sa nepodarilo stiahnuť. Skontroluj admin prihlásenie alebo server log.'
+    exportActionStatus.value = 'Ochrannú zálohu sa nepodarilo stiahnuť. Skontroluj admin prihlásenie alebo záznam servera.'
   }
   finally {
     downloadingSafetyBackupId.value = null
@@ -614,7 +708,7 @@ async function downloadSafetyBackup(backup: LocalDataSafetyBackupSummary) {
 async function previewSafetyBackup(backup: LocalDataSafetyBackupSummary) {
   previewingSafetyBackupId.value = backup.id
   importPreview.value = null
-  importPreviewFileName.value = backup.fileName
+  importPreviewFileName.value = `Ochranná záloha ${formatDate(backup.createdAt)}`
   importPreviewPending.value = true
   importPreviewStatusMessage.value = ''
   restoreConfirmPhrase.value = ''
@@ -627,18 +721,18 @@ async function previewSafetyBackup(backup: LocalDataSafetyBackupSummary) {
       body: payload,
       method: 'POST',
     })
-    importPreviewStatusMessage.value = 'Safety backup bol načítaný do kontroly bez zmeny lokálnych dát.'
+    importPreviewStatusMessage.value = 'Ochranná záloha bola načítaná do kontroly bez zmeny aplikačných dát.'
     await refreshBackupAuditLog()
   }
   catch {
     importBackupPayload.value = null
-    importPreviewStatusMessage.value = 'Safety backup sa nepodarilo načítať do kontroly.'
+    importPreviewStatusMessage.value = 'Ochrannú zálohu sa nepodarilo načítať do kontroly.'
     importPreview.value = {
       assets: [],
       issues: [
         {
           code: 'client_safety_backup_load_failed',
-          message: 'Safety backup sa nepodarilo načítať z admin archívu.',
+          message: 'Ochrannú zálohu sa nepodarilo načítať z admin archívu.',
           severity: 'error',
         },
       ],
@@ -688,11 +782,11 @@ async function previewSafetyBackupCleanup() {
     safetyBackupCleanupPreview.value = result.cleanup
     safetyBackupCleanupConfirmPhrase.value = ''
     safetyBackupCleanupStatusMessage.value = result.cleanup.removableBackups.length
-      ? `Na vyčistenie je pripravených ${result.cleanup.removableBackups.length} starších safety backupov.`
+      ? `Na vyčistenie je pripravených ${result.cleanup.removableBackups.length} starších ochranných záloh.`
       : 'Archív je v poriadku, podľa nastavenej retencie netreba nič mazať.'
   }
   catch {
-    safetyBackupCleanupStatusMessage.value = 'Retenciu safety backupov sa nepodarilo skontrolovať.'
+    safetyBackupCleanupStatusMessage.value = 'Čistenie ochranných záloh sa nepodarilo skontrolovať.'
   }
   finally {
     safetyBackupCleanupPending.value = false
@@ -719,14 +813,14 @@ async function runSafetyBackupCleanup() {
 
     safetyBackupCleanupPreview.value = result.cleanup
     safetyBackupCleanupConfirmPhrase.value = ''
-    safetyBackupCleanupStatusMessage.value = `Vyčistené: ${removedCount} safety backupov, ponechané posledné ${result.cleanup.keepRecent}.`
+    safetyBackupCleanupStatusMessage.value = `Vyčistené: ${removedCount} ochranných záloh, ponechané posledné ${result.cleanup.keepRecent}.`
     await Promise.all([
       refreshBackupAuditLog(),
       refreshSafetyBackupArchive(),
     ])
   }
   catch {
-    safetyBackupCleanupStatusMessage.value = 'Čistenie safety backupov bolo odmietnuté alebo zlyhalo.'
+    safetyBackupCleanupStatusMessage.value = 'Čistenie ochranných záloh bolo odmietnuté alebo zlyhalo.'
   }
   finally {
     safetyBackupCleanupPending.value = false
@@ -750,11 +844,11 @@ async function previewImportBackupFile(file?: File) {
   if (!file) return
 
   importPreviewPending.value = true
-    importPreview.value = null
-    importPreviewFileName.value = file.name
-    importPreviewStatusMessage.value = ''
-    restoreConfirmPhrase.value = ''
-    restoreStatusMessage.value = ''
+  importPreview.value = null
+  importPreviewFileName.value = file.name
+  importPreviewStatusMessage.value = ''
+  restoreConfirmPhrase.value = ''
+  restoreStatusMessage.value = ''
 
   try {
     const raw = await readTextFile(file)
@@ -764,18 +858,18 @@ async function previewImportBackupFile(file?: File) {
       body: parsed,
       method: 'POST',
     })
-    importPreviewStatusMessage.value = 'Backup bol skontrolovaný bez zmeny lokálnych dát.'
+    importPreviewStatusMessage.value = 'Záloha bola skontrolovaná bez zmeny aplikačných dát.'
     await refreshBackupAuditLog()
   }
   catch {
-    importPreviewStatusMessage.value = 'Súbor sa nepodarilo načítať ako JSON backup.'
+    importPreviewStatusMessage.value = 'Súbor sa nepodarilo načítať ako zálohu.'
     importBackupPayload.value = null
     importPreview.value = {
       assets: [],
       issues: [
         {
           code: 'client_invalid_json',
-          message: 'Vybraný súbor nie je platný JSON alebo ho browser nevie prečítať.',
+          message: 'Vybraný súbor nie je platná záloha alebo ho prehliadač nevie prečítať.',
           severity: 'error',
         },
       ],
@@ -819,7 +913,7 @@ async function restoreImportedBackup() {
       method: 'POST',
     })
 
-    restoreStatusMessage.value = `Obnova prebehla. Store: ${result.restoredStores.length}, asset skupiny: ${result.restoredAssets.length}. Safety backup: ${result.safetyBackupPath}`
+    restoreStatusMessage.value = `Obnova prebehla. Dátové úložiská: ${result.restoredStores.length}, súbory: ${result.restoredAssets.length}. Ochranná záloha: ${result.safetyBackupPath}`
     restoreConfirmPhrase.value = ''
     await Promise.all([
       refreshBackupAuditLog(),
@@ -829,7 +923,7 @@ async function restoreImportedBackup() {
     ])
   }
   catch {
-    restoreStatusMessage.value = 'Obnova bola odmietnutá. Skontroluj potvrdzovaciu frázu, upozornenia alebo server log.'
+    restoreStatusMessage.value = 'Obnova bola odmietnutá. Skontroluj potvrdzovaciu frázu, upozornenia alebo záznam servera.'
   }
   finally {
     restorePending.value = false
@@ -842,7 +936,7 @@ async function restoreImportedBackup() {
     <PageHeader
       eyebrow="Admin"
       title="Systém"
-      description="Health checky, lokálny error reporting a prvý monitoring pre produkčnú prípravu."
+      description="Kontroly stavu, záznam chýb, zálohy a pripravenosť prevádzky."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -859,7 +953,7 @@ async function restoreImportedBackup() {
             </span>
           </div>
           <p class="mt-2 text-sm text-white/75">
-            Posledná kontrola {{ formatDate(systemHealth?.checkedAt) }} · prostredie {{ systemHealth?.environment }}
+            Posledná kontrola {{ formatDate(systemHealth?.checkedAt) }} · prostredie {{ formatSystemEnvironment(systemHealth?.environment) }}
           </p>
         </div>
         <UButton icon="i-heroicons-arrow-path" color="neutral" variant="outline" class="border-white/30 bg-white/10 text-white hover:bg-white/15" @click="refreshSystem">
@@ -871,17 +965,17 @@ async function restoreImportedBackup() {
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Kontroly</p>
           <p class="mt-2 text-3xl font-bold">{{ checks.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">runtime, dáta, notifikácie</p>
+          <p class="text-foreground-muted mt-1 text-sm">server, dáta, notifikácie</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Na pozornosť</p>
           <p class="mt-2 text-3xl font-bold">{{ degradedChecks.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">degraded alebo down</p>
+          <p class="text-foreground-muted mt-1 text-sm">obmedzené alebo výpadok</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Chyby 24h</p>
           <p class="mt-2 text-3xl font-bold">{{ systemHealth?.recentErrors.total24h ?? 0 }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">client/server log</p>
+          <p class="text-foreground-muted mt-1 text-sm">záznamy aplikácie a servera</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Kritické 24h</p>
@@ -894,7 +988,7 @@ async function restoreImportedBackup() {
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-lg font-bold">Environment pripravenosť</h2>
+              <h2 class="text-lg font-bold">Pripravenosť prostredia</h2>
               <span
                 class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
                 :class="readinessSummaryClass(readinessDisplayStatus)"
@@ -903,7 +997,7 @@ async function restoreImportedBackup() {
               </span>
             </div>
             <p class="text-foreground-muted mt-1 text-sm">
-              Profil {{ readinessDisplayEnvironment ? deploymentEnvironmentLabels[readinessDisplayEnvironment] : 'nezistený' }} kontroluje env premenné pre URL, úložisko, push, reporty a počasie.
+              Profil {{ readinessDisplayEnvironment ? deploymentEnvironmentLabels[readinessDisplayEnvironment] : 'nezistený' }} kontroluje nastavenia pre URL, úložisko, notifikácie, reporty a počasie.
             </p>
           </div>
           <div class="grid grid-cols-3 gap-2 text-center sm:min-w-80">
@@ -963,7 +1057,7 @@ async function restoreImportedBackup() {
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Health checky</h2>
+                <h2 class="text-lg font-bold">Kontroly stavu</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
                   Kontroly dostupnosti aplikácie, úložiska a dôležitých služieb.
                 </p>
@@ -1017,7 +1111,7 @@ async function restoreImportedBackup() {
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                {{ localDataExportSummary?.totals.stores ?? 0 }} store
+                {{ localDataExportSummary?.totals.stores ?? 0 }} úložísk
               </span>
             </div>
             <p class="text-foreground-muted mt-2 text-sm">
@@ -1064,7 +1158,7 @@ async function restoreImportedBackup() {
               </div>
               <div class="rounded-md bg-muted px-3 py-2">
                 <p class="text-xl font-bold">{{ formatLocalDataExportBytes(localDataExportSummary?.totals.assetSizeBytes ?? 0) }}</p>
-                <p class="text-foreground-muted text-xs font-semibold">assetov</p>
+                <p class="text-foreground-muted text-xs font-semibold">súborov</p>
               </div>
             </div>
 
@@ -1084,7 +1178,7 @@ async function restoreImportedBackup() {
                 :loading="downloadingExportPolicy === 'inline'"
                 @click="downloadLocalDataExport('inline')"
               >
-                Plná JSON záloha
+                Plná záloha
               </UButton>
             </div>
 
@@ -1095,7 +1189,7 @@ async function restoreImportedBackup() {
             <div class="mt-5 border-t border-border pt-4">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 class="font-bold">Safety backupy</h3>
+                  <h3 class="font-bold">Ochranné zálohy</h3>
                   <p class="text-foreground-muted mt-1 text-sm">
                     Automatické zálohy aktuálneho stavu, ktoré vzniknú tesne pred ostrou obnovou dát.
                   </p>
@@ -1104,8 +1198,8 @@ async function restoreImportedBackup() {
                   {{ safetyBackups.length }} súborov
                 </span>
               </div>
-              <p class="mt-3 break-all rounded-md bg-muted p-3 text-xs font-semibold text-foreground-muted">
-                {{ safetyBackupArchive?.directory ?? '.data/rybolov-cetin/backups' }}
+              <p class="mt-3 rounded-md bg-muted p-3 text-xs font-semibold text-foreground-muted">
+                Interný archív ochranných záloh
               </p>
 
               <div v-if="safetyBackups.length" class="mt-4 space-y-3">
@@ -1116,7 +1210,7 @@ async function restoreImportedBackup() {
                 >
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
-                      <p class="break-all font-semibold">{{ backup.fileName }}</p>
+                      <p class="font-semibold">Ochranná záloha {{ formatDate(backup.createdAt) }}</p>
                       <p class="text-foreground-muted mt-1 text-xs">
                         {{ formatDate(backup.createdAt) }} · {{ formatLocalDataExportBytes(backup.sizeBytes) }}
                       </p>
@@ -1147,7 +1241,7 @@ async function restoreImportedBackup() {
 
                   <div class="mt-3 flex flex-wrap gap-2">
                     <span class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted">
-                      store: {{ backup.stores }}
+                      úložiská: {{ backup.stores }}
                     </span>
                     <span class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted">
                       záznamy: {{ backup.records }}
@@ -1156,7 +1250,7 @@ async function restoreImportedBackup() {
                       súbory: {{ backup.assetFiles }}
                     </span>
                     <span class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted">
-                      assety: {{ localDataExportAssetPolicyLabels[backup.assetPolicy] }}
+                      typ: {{ localDataExportAssetPolicyLabels[backup.assetPolicy] }}
                     </span>
                   </div>
                 </article>
@@ -1166,7 +1260,7 @@ async function restoreImportedBackup() {
                 v-else
                 class="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted"
               >
-                Safety backup sa vytvorí automaticky pri prvej ostrej obnove lokálnych dát.
+                Ochranná záloha sa vytvorí automaticky pri prvej ostrej obnove aplikačných dát.
               </p>
 
               <div class="mt-4 rounded-md border border-border bg-muted/50 p-4">
@@ -1174,7 +1268,7 @@ async function restoreImportedBackup() {
                   <div>
                     <h4 class="font-bold">Retencia archívu</h4>
                     <p class="text-foreground-muted mt-1 text-sm">
-                      Skontroluje staršie safety backupy a odstráni ich až po potvrdení frázy.
+                      Skontroluje staršie ochranné zálohy a odstráni ich až po potvrdení frázy.
                     </p>
                   </div>
                   <span class="w-fit rounded-md bg-white px-2.5 py-1 text-xs font-bold text-foreground-muted">
@@ -1228,8 +1322,8 @@ async function restoreImportedBackup() {
                       :key="backup.id"
                       class="flex flex-col gap-1 rounded-md bg-muted px-3 py-2 text-xs text-foreground-muted sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <span class="break-all font-semibold">{{ backup.fileName }}</span>
-                      <span>{{ formatDate(backup.createdAt) }} · {{ formatLocalDataExportBytes(backup.sizeBytes) }}</span>
+                      <span class="font-semibold">Ochranná záloha {{ formatDate(backup.createdAt) }}</span>
+                      <span>{{ formatLocalDataExportBytes(backup.sizeBytes) }}</span>
                     </div>
                     <p v-if="safetyBackupCleanupRemovableBackups.length > 4" class="text-xs font-semibold text-foreground-muted">
                       + ďalších {{ safetyBackupCleanupRemovableBackups.length - 4 }} súborov
@@ -1270,7 +1364,7 @@ async function restoreImportedBackup() {
                 <div>
                   <h3 class="font-bold">História záloh</h3>
                   <p class="text-foreground-muted mt-1 text-sm">
-                    Posledné exporty, kontroly importu a ostré obnovy lokálnych dát.
+                    Posledné exporty, kontroly importu a ostré obnovy aplikačných dát.
                   </p>
                 </div>
                 <UButton
@@ -1298,13 +1392,13 @@ async function restoreImportedBackup() {
                           {{ auditSeverityLabels[event.severity] }}
                         </span>
                       </div>
-                      <p class="text-foreground-muted mt-1 text-sm">{{ event.summary }}</p>
+                      <p class="text-foreground-muted mt-1 text-sm">{{ formatAuditSummary(event.summary) }}</p>
                       <p class="text-foreground-muted mt-1 text-xs">
                         {{ event.actorLabel }} · {{ formatDate(event.createdAt) }}
                       </p>
                     </div>
                     <span class="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs font-semibold text-foreground-muted">
-                      {{ event.entityLabel }}
+                      {{ formatAuditEntityLabel(event) }}
                     </span>
                   </div>
 
@@ -1319,13 +1413,13 @@ async function restoreImportedBackup() {
                       v-if="auditDetailValue(event, 'assetPolicy')"
                       class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted"
                     >
-                      assety: {{ auditDetailValue(event, 'assetPolicy') }}
+                      typ súborov: {{ auditDetailValue(event, 'assetPolicy') }}
                     </span>
                     <span
                       v-if="auditDetailValue(event, 'stores')"
                       class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted"
                     >
-                      store: {{ auditDetailValue(event, 'stores') }}
+                      úložiská: {{ auditDetailValue(event, 'stores') }}
                     </span>
                     <span
                       v-if="auditDetailValue(event, 'records')"
@@ -1343,7 +1437,7 @@ async function restoreImportedBackup() {
                       v-if="auditDetailValue(event, 'safetyBackupPath')"
                       class="max-w-full break-all rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted"
                     >
-                      safety: {{ auditDetailValue(event, 'safetyBackupPath') }}
+                      ochranná záloha: {{ auditDetailValue(event, 'safetyBackupPath') }}
                     </span>
                     <span
                       v-if="auditDetailValue(event, 'keepRecent')"
@@ -1371,16 +1465,16 @@ async function restoreImportedBackup() {
                 v-else
                 class="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted"
               >
-                Zatiaľ tu nie je žiadny export, kontrola backupu ani obnova.
+                Zatiaľ tu nie je žiadny export, kontrola zálohy ani obnova.
               </p>
             </div>
 
             <div class="mt-5 border-t border-border pt-4">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 class="font-bold">Kontrola backupu</h3>
+                  <h3 class="font-bold">Kontrola zálohy</h3>
                   <p class="text-foreground-muted mt-1 text-sm">
-                    Nahratý JSON sa iba skontroluje. Lokálne dáta sa týmto krokom nemenia.
+                    Nahratá záloha sa iba skontroluje. Lokálne dáta sa týmto krokom nemenia.
                   </p>
                 </div>
                 <UButton
@@ -1390,7 +1484,7 @@ async function restoreImportedBackup() {
                   :loading="importPreviewPending"
                   @click="openImportBackupPicker"
                 >
-                  Skontrolovať backup
+                  Skontrolovať zálohu
                 </UButton>
                 <input
                   ref="importBackupInput"
@@ -1405,7 +1499,7 @@ async function restoreImportedBackup() {
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                      <p class="font-bold">{{ importPreviewFileName || 'Backup' }}</p>
+                      <p class="font-bold">{{ importPreviewFileName || 'Záloha' }}</p>
                       <span
                         class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
                         :class="importPreviewStatusClass(importPreview.status)"
@@ -1427,7 +1521,7 @@ async function restoreImportedBackup() {
                         {{ importPreviewIntegrityStatusLabels[importPreview.integrity.status] }}
                       </span>
                       <span class="break-all rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted">
-                        sha256: {{ shortChecksum(importPreview.integrity.checksum) }}
+                        odtlačok: {{ shortChecksum(importPreview.integrity.checksum) }}
                       </span>
                     </div>
                   </div>
@@ -1438,7 +1532,7 @@ async function restoreImportedBackup() {
                     </div>
                     <div class="rounded-md bg-muted px-2 py-2">
                       <p class="text-lg font-bold">{{ importPreview.totals.stores }}</p>
-                      <p class="text-foreground-muted text-xs font-semibold">store</p>
+                      <p class="text-foreground-muted text-xs font-semibold">úložísk</p>
                     </div>
                     <div class="rounded-md bg-muted px-2 py-2">
                       <p class="text-lg font-bold">{{ importPreview.totals.assetFiles }}</p>
@@ -1467,7 +1561,7 @@ async function restoreImportedBackup() {
                     <div class="min-w-0">
                       <p class="font-semibold">{{ store.label }}</p>
                       <p class="text-foreground-muted text-xs">
-                        Aktuálne {{ store.currentRecordCount ?? 0 }} · backup {{ store.incomingRecordCount }}
+                        Aktuálne {{ store.currentRecordCount ?? 0 }} · v zálohe {{ store.incomingRecordCount }}
                       </p>
                     </div>
                     <span class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold" :class="importPreviewStoreStatusClass(store.status)">
@@ -1477,9 +1571,9 @@ async function restoreImportedBackup() {
                 </div>
 
                 <div v-if="canRestoreImportPreview" class="mt-4 rounded-md border border-warning-500/30 bg-warning-500/10 p-4">
-                  <h4 class="font-bold text-warning-800">Bezpečná obnova lokálnych dát</h4>
+                  <h4 class="font-bold text-warning-800">Bezpečná obnova aplikačných dát</h4>
                   <p class="mt-1 text-sm text-warning-800/80">
-                    Pred zápisom sa automaticky uloží safety backup aktuálneho stavu. Obnova prepíše známe JSON store z nahratého súboru.
+                    Pred zápisom sa automaticky uloží ochranná záloha aktuálneho stavu. Obnova prepíše známe dátové úložiská z nahratého súboru.
                   </p>
                   <p class="mt-3 text-xs font-semibold text-warning-800/80">
                     Pre potvrdenie prepíš: <span class="font-bold">{{ LOCAL_DATA_RESTORE_CONFIRMATION }}</span>
@@ -1497,7 +1591,7 @@ async function restoreImportedBackup() {
                       :loading="restorePending"
                       @click="restoreImportedBackup"
                     >
-                      Obnoviť lokálne dáta
+                      Obnoviť dáta
                     </UButton>
                   </div>
                   <p v-if="restoreStatusMessage" class="mt-3 break-words text-sm text-warning-900">

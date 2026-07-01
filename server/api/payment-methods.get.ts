@@ -7,7 +7,7 @@ export default defineEventHandler(async (): Promise<PaymentMethodStateResponse> 
 
   return {
     ok: true,
-    paymentMethods: state.paymentMethods,
+    paymentMethods: state.paymentMethods.filter((method) => method.enabled),
     updatedAt: state.updatedAt,
   }
 })

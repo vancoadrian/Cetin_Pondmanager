@@ -45,7 +45,7 @@ export default defineEventHandler(async (event): Promise<PushSubscriptionMutatio
     entityLabel: result.subscription.deviceLabel,
     entityType: 'push_subscription',
     severity: 'info',
-    summary: `Správca uložil mock odber ${result.subscription.deviceLabel}.`,
+    summary: `Správca uložil interný odber ${result.subscription.deviceLabel}.`,
   })
   setResponseStatus(event, result.statusCode)
 

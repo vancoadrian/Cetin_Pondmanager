@@ -220,12 +220,6 @@ const leaderboardFeedUrl = computed(() => `/api/tournaments/${activeTournament.v
 const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
 const tournamentTeamAccessUrl = (sectorId: string) =>
   createTournamentTeamAccessUrl(activeTournament.value.id, sectorId)
-const tournamentTeamCardsUrl = computed(() =>
-  `/admin/sutaze/karticky?turnaj=${encodeURIComponent(activeTournament.value.id)}`,
-)
-const tournamentMarshalCardsUrl = computed(() =>
-  `/admin/sutaze/kontrolori-karticky?turnaj=${encodeURIComponent(activeTournament.value.id)}`,
-)
 const tournamentMarshalAccessUrl = (marshalId: string) =>
   createTournamentMarshalAccessUrl(activeTournament.value.id, marshalId)
 const tournamentMapEditorUrl = computed(() =>
@@ -449,7 +443,7 @@ function downloadTeamAccessCsv() {
   URL.revokeObjectURL(link.href)
 
   teamAccessShareStatus.value = 'success'
-  teamAccessShareMessage.value = 'CSV s tímovými kódmi je pripravené na stiahnutie.'
+  teamAccessShareMessage.value = 'Súbor s tímovými kódmi je pripravený na stiahnutie.'
 }
 
 const getOfflineAdminActionLabel = (item: OfflineTournamentAdminActionQueueItem) => {
@@ -546,13 +540,13 @@ async function queueTournamentAdminAction(payload: OfflineTournamentAdminActionP
     actionStatus.value = 'success'
     actionMessage.value = message
     offlineAdminSyncStatus.value = 'success'
-    offlineAdminSyncMessage.value = `Vo fronte čaká ${offlineAdminActionQueue.value.length} kontrolórskych úkonov.`
+    offlineAdminSyncMessage.value = `V zariadení čaká ${offlineAdminActionQueue.value.length} kontrolórskych úkonov.`
   }
   catch (error) {
     actionStatus.value = 'error'
     actionMessage.value = error instanceof Error
       ? error.message
-      : 'Kontrolórsky úkon sa nepodarilo uložiť do offline fronty.'
+      : 'Kontrolórsky úkon sa nepodarilo uložiť v tomto zariadení.'
   }
 }
 
@@ -587,7 +581,7 @@ async function discardOfflineAdminAction(id: string) {
     await removeOfflineTournamentAdminAction(id)
     await refreshOfflineAdminActionQueue()
     offlineAdminSyncStatus.value = 'success'
-    offlineAdminSyncMessage.value = 'Kontrolórsky úkon bol odstránený z offline fronty.'
+    offlineAdminSyncMessage.value = 'Kontrolórsky úkon bol odstránený z čakajúcich odoslaní.'
   }
   catch (error) {
     offlineAdminSyncStatus.value = 'error'
@@ -611,7 +605,7 @@ async function syncOfflineAdminActionQueue(options: { silent?: boolean } = {}) {
   if (offlineAdminActionQueue.value.length === 0) {
     if (!options.silent) {
       offlineAdminSyncStatus.value = 'success'
-      offlineAdminSyncMessage.value = 'Offline fronta kontrolórskych úkonov je prázdna.'
+      offlineAdminSyncMessage.value = 'Žiadne kontrolórske úkony nečakajú na odoslanie.'
     }
     return
   }
@@ -796,8 +790,8 @@ const submitRequestAction = async (requestId: string, action: 'assign' | 'resolv
         },
       },
       action === 'assign'
-        ? 'Prevzatie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.'
-        : 'Uzavretie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.',
+        ? 'Prevzatie hlásenia čaká v zariadení a odošle sa po návrate pripojenia.'
+        : 'Uzavretie hlásenia čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -840,7 +834,7 @@ const verifyCatch = async (catchId: string) => {
   try {
     const result = await sendOrQueueTournamentAdminAction(
       payload,
-      'Váženie je uložené v offline fronte a odošle sa po návrate pripojenia.',
+      'Váženie čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -887,7 +881,7 @@ const submitPenalty = async () => {
   try {
     const result = await sendOrQueueTournamentAdminAction(
       payload,
-      'Trest je uložený v offline fronte a odošle sa po návrate pripojenia.',
+      'Trest čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -934,7 +928,7 @@ const submitRuleCheck = async () => {
   try {
     const result = await sendOrQueueTournamentAdminAction(
       payload,
-      'Kontrola pravidiel je uložená v offline fronte a odošle sa po návrate pripojenia.',
+      'Kontrola pravidiel čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -1049,7 +1043,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <h2 class="font-bold">
-                {{ isOnline ? 'Offline fronta kontrolóra' : 'Bez signálu pri vode' }}
+                {{ isOnline ? 'Čakajúce úkony kontrolóra' : 'Bez signálu pri vode' }}
               </h2>
               <p class="mt-1 text-sm">
                 {{ offlineAdminSyncMessage || 'Váženia, tresty a kontroly sektorov podržíme v zariadení a odošleme ich po návrate pripojenia.' }}
@@ -1190,7 +1184,7 @@ onBeforeUnmount(() => {
                 class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-3 text-sm font-bold text-primary-800 transition-colors hover:bg-primary-100"
               >
                 <UIcon name="i-heroicons-arrow-down-tray" class="h-4 w-4" />
-                Výsledkovka CSV
+                Stiahnuť výsledkovku
               </a>
               <a
                 :href="organizerExportUrl"
@@ -1199,7 +1193,7 @@ onBeforeUnmount(() => {
                 class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-900 px-3 text-sm font-bold text-white transition-colors hover:bg-primary-800"
               >
                 <UIcon name="i-heroicons-document-arrow-down" class="h-4 w-4" />
-                Export balík
+                Podklady pre organizátora
               </a>
               <a
                 :href="leaderboardFeedUrl"
@@ -1208,7 +1202,7 @@ onBeforeUnmount(() => {
                 class="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted px-3 text-sm font-bold text-foreground transition-colors hover:bg-border"
               >
                 <UIcon name="i-heroicons-rss" class="h-4 w-4" />
-                JSON feed
+                Zdroj výsledkov
               </a>
               <NuxtLink
                 :to="leaderboardKioskUrl"
@@ -1454,17 +1448,10 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-lg font-bold">Tímové odkazy a kódy</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Linky pre tímy bez účtu. Každý kód otvorí tímový panel s predvoleným sektorom.
+              Pošli tímu link alebo kód. Panel sa otvorí v mobile bez tlačenia podkladov.
             </p>
           </div>
           <div class="flex flex-wrap gap-2 lg:justify-end">
-            <UButton
-              :to="tournamentTeamCardsUrl"
-              icon="i-heroicons-qr-code"
-              variant="soft"
-            >
-              Kartičky
-            </UButton>
             <UButton
               icon="i-heroicons-clipboard-document-list"
               variant="soft"
@@ -1477,7 +1464,7 @@ onBeforeUnmount(() => {
               variant="soft"
               @click="downloadTeamAccessCsv"
             >
-              CSV
+              Stiahnuť zoznam
             </UButton>
           </div>
         </div>
@@ -1710,7 +1697,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <p v-else class="text-foreground-muted mt-4 text-sm">
-            Slot zatiaľ nemá aktívneho partnera.
+            Toto umiestnenie zatiaľ nemá aktívneho partnera.
           </p>
         </div>
       </div>
@@ -1799,17 +1786,9 @@ onBeforeUnmount(() => {
               <div>
                 <h2 class="text-lg font-bold">Kontrolóri</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Priame panely pre dozor a tlačové QR kartičky.
+                  Priame panely pre dozor, hlásenia tímov, váženia, tresty a kontroly.
                 </p>
               </div>
-              <UButton
-                :to="tournamentMarshalCardsUrl"
-                size="sm"
-                icon="i-heroicons-qr-code"
-                variant="soft"
-              >
-                Kartičky
-              </UButton>
             </div>
             <div class="mt-4 space-y-3">
               <div v-for="marshal in liveTournamentMarshals" :key="marshal.id" class="rounded-md bg-muted p-4">

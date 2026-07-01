@@ -74,8 +74,11 @@ const activePlaceIssues = computed(() =>
   ),
 )
 const activeFishAssistance = computed(() =>
-  assistanceState.value.requests.filter((request) => ['waiting', 'on-route'].includes(request.status)),
+  assistanceState.value.requests
+    .filter((request) => ['waiting', 'on-route'].includes(request.status))
+    .sort((first, second) => first.createdAt.localeCompare(second.createdAt)),
 )
+const firstActiveFishAssistance = computed(() => activeFishAssistance.value[0])
 const blockedPegs = computed(() =>
   pegs.filter((peg) => !getPegAvailability(peg, { closures: liveClosures.value, reservations }).reservable),
 )
@@ -87,6 +90,10 @@ async function signOut() {
 
 function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
   return getSponsorLogo(sponsor, sponsor.placementType ?? 'sponsors')
+}
+
+function formatAssistanceTime(value: string) {
+  return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
 }
 </script>
 
@@ -160,15 +167,45 @@ function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
           <div>
             <p class="text-sm font-bold text-warning-800">Vyžaduje okamžitú reakciu</p>
             <h2 class="mt-1 text-xl font-bold text-warning-950">
-              {{ activeFishAssistance.length }} otvorené privolanie správcu
+              {{ activeFishAssistance.length }}
+              {{ activeFishAssistance.length === 1 ? 'otvorené privolanie' : 'otvorené privolania' }} správcu
             </h2>
             <p class="mt-1 text-sm text-warning-900">
-              Rybár čaká pri veľkej rybe na potvrdenie príchodu alebo pokyn na pustenie.
+              {{ firstActiveFishAssistance?.anglerName }} čaká pri
+              {{ firstActiveFishAssistance?.weightKg }} kg rybe na mieste
+              {{ firstActiveFishAssistance?.pegLabel }}.
             </p>
           </div>
-          <UButton to="/admin/ryby" icon="i-heroicons-bell-alert" color="warning">
+          <UButton
+            :to="{ path: '/admin/ryby', query: { privolanie: firstActiveFishAssistance?.id } }"
+            icon="i-heroicons-bell-alert"
+            color="warning"
+          >
             Odpovedať
           </UButton>
+        </div>
+
+        <div class="mt-4 grid gap-3 lg:grid-cols-3">
+          <NuxtLink
+            v-for="request in activeFishAssistance.slice(0, 3)"
+            :key="request.id"
+            :to="{ path: '/admin/ryby', query: { privolanie: request.id } }"
+            class="rounded-md border border-warning-500/25 bg-white p-3 transition hover:border-warning-500 hover:bg-warning-50"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-bold text-warning-950">{{ request.weightKg }} kg · {{ request.species }}</p>
+                <p class="mt-1 text-sm text-warning-900">{{ request.pegLabel }} · {{ request.anglerName }}</p>
+              </div>
+              <UIcon
+                :name="request.status === 'on-route' ? 'i-heroicons-truck' : 'i-heroicons-clock'"
+                class="h-5 w-5 shrink-0 text-warning-700"
+              />
+            </div>
+            <p class="mt-2 text-xs font-semibold text-warning-800">
+              {{ formatAssistanceTime(request.createdAt) }} · {{ request.phone }}
+            </p>
+          </NuxtLink>
         </div>
       </section>
 

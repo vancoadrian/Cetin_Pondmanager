@@ -675,6 +675,7 @@ export function buildSupabaseSeedPayload(
     }),
     reservations: source.reservations.map((reservation) => ({
       cabin_product_id: reservation.cabinProductId ? cabinProductIds[reservation.cabinProductId] ?? null : null,
+      contact_email: reservation.contactEmail ?? null,
       contact_phone: reservation.contactPhone,
       ends_on: reservation.to,
       guest_name: reservation.guest,

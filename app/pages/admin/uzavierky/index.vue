@@ -121,7 +121,7 @@ async function submitClosure() {
   }
 
   closureSubmitStatus.value = 'submitting'
-  closureSubmitMessage.value = 'Ukladám uzávierku do lokálneho stavu dostupnosti.'
+  closureSubmitMessage.value = 'Ukladám uzávierku do dostupnosti revíru.'
 
   try {
     const result = await $fetch<ClosureMutationSuccess>('/api/admin/closures', {
@@ -367,8 +367,8 @@ async function submitClosure() {
           <div class="rounded-card border border-border bg-primary-900 p-5 text-white">
             <h2 class="text-lg font-bold">Pravidlo dostupnosti</h2>
             <p class="mt-3 text-sm text-white/75">
-              Availability engine musí tieto uzávierky vyhodnocovať pred každou rezerváciou.
-              Public uzávierka sa zobrazí rybárovi, interná iba správcovi, ale obe vedia blokovať termín.
+              Uzávierky sa vyhodnocujú pred každou rezerváciou.
+              Verejná uzávierka sa zobrazí rybárovi, interná iba správcovi, ale obe vedia blokovať termín.
             </p>
           </div>
         </aside>

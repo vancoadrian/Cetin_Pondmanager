@@ -10,9 +10,12 @@ export async function usePaymentMethodState(options: UsePaymentMethodStateOption
   const { paymentMethods } = usePondData()
   const requestFetch = useRequestFetch()
   const endpoint = options.admin ? '/api/admin/payment-methods' : '/api/payment-methods'
+  const fallbackPaymentMethods = computed(() =>
+    sortPaymentMethods(options.admin ? paymentMethods : paymentMethods.filter((method) => method.enabled)),
+  )
   const fallbackPaymentMethodState = (): PaymentMethodStateResponse => ({
     ok: true,
-    paymentMethods: sortPaymentMethods(paymentMethods),
+    paymentMethods: fallbackPaymentMethods.value,
     updatedAt: 'seed',
   })
   const asyncData = await useAsyncData<PaymentMethodStateResponse>(
@@ -23,7 +26,7 @@ export async function usePaymentMethodState(options: UsePaymentMethodStateOption
     },
   )
   const livePaymentMethods = computed(() =>
-    sortPaymentMethods(asyncData.data.value?.paymentMethods ?? paymentMethods),
+    sortPaymentMethods(asyncData.data.value?.paymentMethods ?? fallbackPaymentMethods.value),
   )
   const enabledPaymentMethods = computed(() => livePaymentMethods.value.filter((method) => method.enabled))
 

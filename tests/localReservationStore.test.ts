@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -76,6 +76,32 @@ describe('localReservationStore', () => {
     expect(appended.reservation.id).toBe('req-test-1')
     expect(state.reservations.some((item) => item.id === 'req-test-1')).toBe(true)
     expect(state.rentalBookings.some((item) => item.id === 'req-test-1-rental-1')).toBe(true)
+  })
+
+  it('backfills optional seed reservation emails when reading older local state', async () => {
+    const filePath = await createStorePath()
+    const legacyReservation = reservation({
+      contactEmail: undefined,
+      contactPhone: '+421 908 444 321',
+      guest: 'Peter B.',
+      id: 'r-1003',
+      lake: 'strkovisko-kocka',
+      pegId: 'sk-02',
+      source: 'web',
+    })
+
+    await writeFile(filePath, `${JSON.stringify({
+      rentalBookings: [],
+      reservations: [legacyReservation],
+      updatedAt: '2026-05-20T10:00:00.000Z',
+      version: 1,
+    }, null, 2)}\n`, 'utf8')
+
+    const state = await readLocalReservationState(filePath)
+    const raw = JSON.parse(await readFile(filePath, 'utf8')) as { reservations: Reservation[] }
+
+    expect(state.reservations[0]?.contactEmail).toBe('peter.b@example.com')
+    expect(raw.reservations[0]?.contactEmail).toBe('peter.b@example.com')
   })
 
   it('persists reservation decision state updates', async () => {

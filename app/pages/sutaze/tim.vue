@@ -366,14 +366,14 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
   if (offlineRequestQueue.value.length === 0) {
     if (!options.silent) {
       offlineSyncStatus.value = 'success'
-      offlineSyncMessage.value = 'Offline fronta hlásení je prázdna.'
+      offlineSyncMessage.value = 'Žiadne hlásenia nečakajú na odoslanie.'
     }
     return
   }
 
   offlineSyncInProgress = true
   offlineSyncStatus.value = 'syncing'
-  offlineSyncMessage.value = `Odosielam ${offlineRequestQueue.value.length} offline hlásení.`
+  offlineSyncMessage.value = `Odosielam ${offlineRequestQueue.value.length} čakajúcich hlásení.`
 
   let syncedCount = 0
 
@@ -403,7 +403,7 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
     offlineSyncStatus.value = offlineRequestQueue.value.length > 0 ? 'error' : 'success'
     offlineSyncMessage.value = offlineRequestQueue.value.length > 0
       ? `${syncedCount} hlásení odoslaných, ${offlineRequestQueue.value.length} čaká na ďalší pokus.`
-      : `${syncedCount} offline hlásení bolo odoslaných do dispečingu.`
+      : `${syncedCount} čakajúcich hlásení bolo odoslaných do dispečingu.`
   }
   finally {
     offlineSyncInProgress = false
@@ -419,7 +419,7 @@ async function submitRequest() {
 
   if (hasInvalidRequestedAccessCode.value) {
     requestSubmitStatus.value = 'error'
-    requestSubmitMessage.value = 'Najprv opravte tímový kód z kartičky.'
+    requestSubmitMessage.value = 'Najprv opravte tímový kód.'
     return
   }
 
@@ -534,7 +534,7 @@ async function submitTeamCode() {
   const normalizedCode = normalizeTournamentTeamAccessCode(teamCodeForm.code)
   if (!normalizedCode) {
     teamCodeStatus.value = 'error'
-    teamCodeMessage.value = 'Zadajte tímový kód z kartičky.'
+    teamCodeMessage.value = 'Zadajte tímový kód.'
     return
   }
 

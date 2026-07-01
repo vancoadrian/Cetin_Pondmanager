@@ -15,7 +15,12 @@ export async function useSponsorState(options: SponsorStateOptions = {}) {
     updatedAt: 'seed',
   })
 
-  const { data, refresh } = await useAsyncData<SponsorStateResponse>(
+  const {
+    data,
+    error,
+    refresh,
+    status,
+  } = await useAsyncData<SponsorStateResponse>(
     options.key ?? (options.admin ? 'admin-sponsor-state' : 'public-sponsor-state'),
     () => requestFetch<SponsorStateResponse>(options.admin ? '/api/admin/sponsors' : '/api/sponsors'),
     {
@@ -31,5 +36,7 @@ export async function useSponsorState(options: SponsorStateOptions = {}) {
     liveSponsors,
     refresh,
     sponsorState: data,
+    sponsorStateError: error,
+    sponsorStateStatus: status,
   }
 }

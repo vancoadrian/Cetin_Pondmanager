@@ -1,4 +1,4 @@
-import { ANGLER_SESSION_COOKIE } from '~/services/anglerAccountService'
+import { ANGLER_SESSION_COOKIE, findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
 
 export const AUTH_SESSION_COOKIE = 'rybolov_cetin_mock_session'
 
@@ -131,13 +131,22 @@ export function isSafeAppRedirect(value: unknown): value is string {
 
 export function authenticateMockUser(email: string, password: string) {
   const normalizedEmail = email.trim().toLocaleLowerCase('sk')
-  return mockUsers.find((item) =>
-    item.email.toLocaleLowerCase('sk') === normalizedEmail && item.password === password,
-  )
+  const directMatch = mockUsers.find((item) => item.email.toLocaleLowerCase('sk') === normalizedEmail)
+  const aliasAccount = directMatch ? undefined : findMockAnglerAccountByEmail(normalizedEmail)
+  const matchedUser = directMatch ?? (aliasAccount
+    ? mockUsers.find((item) => item.role === 'angler' && item.id === aliasAccount.id)
+    : undefined)
+
+  return matchedUser?.password === password ? matchedUser : undefined
 }
 
 export function findMockUserById(userId?: string | null) {
   return mockUsers.find((item) => item.id === userId)
+}
+
+export function findMockUserBySessionValue(value?: string | null) {
+  return findMockUserById(value)
+    ?? mockUsers.find((item) => item.role === value)
 }
 
 export function canUseTournamentTeamScope(

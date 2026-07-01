@@ -34,6 +34,7 @@ export interface Reservation {
   lake: LakeSlug
   pegId: string
   guest: string
+  contactEmail?: string
   contactPhone: string
   from: string
   to: string
@@ -673,7 +674,7 @@ export const contactInfo: ContactInfo = {
   phoneDisplay: '0911 298 702',
   phoneHref: '+421911298702',
   reservationNote:
-    'Rezervácie miest sú možné len po telefonáte so správcom. Web uvádza príjem rezervácií pondelok až piatok od 9:00 do 14:00.',
+    'Rezervácie miest prijíma správca telefonicky pondelok až piatok od 9:00 do 14:00. Prevádzkové otázky pri vode riešte cez víkend na rovnakom čísle.',
   phoneHours: ['Po-Pi 9:00-14:00 rezervácie', 'So-Ne 7:00-18:00 prevádzkový kontakt'],
   sourceUrl: 'https://strkoviskokocka.sk/strkovisko-velky-cetin/home/',
 }
@@ -920,7 +921,7 @@ export const reservationExtras: ReservationExtra[] = [
   {
     id: 'third-rod',
     label: 'Tretí prút',
-    description: 'Web uvádza možnosť dokúpenia po dohode so správcom.',
+    description: 'Doplnková služba dostupná po dohode so správcom.',
     appliesTo: 'all',
     priceLabel: 'po dohode so správcom',
     source: 'web',
@@ -929,7 +930,7 @@ export const reservationExtras: ReservationExtra[] = [
   {
     id: 'gazebo-kocka',
     label: 'Altánok / akcia na Kocke',
-    description: 'Web uvádza možnosť prenajatia altánku na firemné akcie, oslavy a večierky.',
+    description: 'Altánok je dostupný po dohode so správcom na firemné akcie, oslavy a večierky.',
     appliesTo: 'all',
     priceLabel: 'cena dohodou',
     lake: 'strkovisko-kocka',
@@ -954,7 +955,7 @@ export const infoSections: InfoSection[] = [
     items: [
       'Rezervácie miest sú možné len po telefonáte so správcom rybníka.',
       'Rezervácie sa prijímajú pondelok až piatok v čase od 9:00 do 14:00.',
-      'Web uvádza možnosť nočnej rybačky po dohode so správcom.',
+      'Nočná rybačka je možná po dohode so správcom.',
       'Na Kocke je možné prenajať altánok na firemné akcie, oslavy a večierky za cenu dohodou.',
     ],
     sourceUrl: 'https://strkoviskokocka.sk/strkovisko-kocka/home/',
@@ -1707,6 +1708,7 @@ export const reservations: Reservation[] = [
     lake: 'velky-cetin',
     pegId: 'vc-01',
     guest: 'Marek H.',
+    contactEmail: 'marek.h@example.com',
     contactPhone: '+421 900 123 456',
     from: '2026-05-16',
     to: '2026-05-18',
@@ -1725,6 +1727,7 @@ export const reservations: Reservation[] = [
     lake: 'velky-cetin',
     pegId: 'vc-06',
     guest: 'Tím Nitra Carp',
+    contactEmail: 'nitra-carp@example.com',
     contactPhone: '+421 905 222 111',
     from: '2026-05-17',
     to: '2026-05-24',
@@ -1744,6 +1747,7 @@ export const reservations: Reservation[] = [
     lake: 'strkovisko-kocka',
     pegId: 'sk-02',
     guest: 'Peter B.',
+    contactEmail: 'peter.b@example.com',
     contactPhone: '+421 908 444 321',
     from: '2026-05-16',
     to: '2026-05-17',

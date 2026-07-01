@@ -1,5 +1,9 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
 import { submitReservationDecision } from '~/services/reservationApiService'
+import {
+  deliverReservationCommunicationDraft,
+  type ReservationDecisionMode,
+} from '~/services/reservationWorkflowService'
 import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
@@ -31,6 +35,16 @@ export default defineEventHandler(async (event) => {
     rentalBookings: result.rentalBookings,
     reservations: result.reservations,
   })
+
+  const decisionMode = (body as { decisionMode: ReservationDecisionMode }).decisionMode
+  const communicationDelivery = await deliverReservationCommunicationDraft(
+    result.communicationDraft,
+    {
+      decisionMode,
+      reservationId: result.reservation.id,
+    },
+  )
+
   await appendLocalAuditEvent({
     ...resolveAuditActor(event, {
       actorId: 'admin',
@@ -41,6 +55,10 @@ export default defineEventHandler(async (event) => {
     area: 'reservations',
     details: {
       from: result.reservation.from,
+      hasContactEmail: Boolean(result.reservation.contactEmail),
+      notificationDeliveryProvider: communicationDelivery?.provider ?? null,
+      notificationDeliveryStatus: communicationDelivery?.status ?? null,
+      notificationChannel: result.communicationDraft?.channel ?? null,
       note: result.reservation.internalNote,
       pegId: result.reservation.pegId,
       status: result.reservation.status,
@@ -55,5 +73,8 @@ export default defineEventHandler(async (event) => {
   })
   setResponseStatus(event, result.statusCode)
 
-  return result
+  return {
+    ...result,
+    communicationDelivery,
+  }
 })

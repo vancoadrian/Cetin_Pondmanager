@@ -84,4 +84,22 @@ describe('local fish registry store', () => {
     })
     expect(reread.settings.largeCatchRules[0]?.outsideAvailabilityInstruction).toContain('Mimo služby')
   })
+
+  it('hides legacy mock wording in seeded fish notes', async () => {
+    const filePath = await createStorePath()
+    const state = await readLocalFishRegistryState(filePath)
+    await writeFile(filePath, JSON.stringify({
+      ...state,
+      fish: state.fish.map((fish, index) => ({
+        ...fish,
+        notes: index === 0
+          ? 'Mock ryba pre ukážku histórie rastu. Označená počas súťaže.'
+          : 'Mock ryba označená po úlovku nad internou hranicou 18 kg.',
+      })),
+    }), 'utf8')
+
+    const reread = await readLocalFishRegistryState(filePath)
+    expect(reread.fish.map((fish) => fish.notes).join(' ')).not.toContain('Mock')
+    expect(reread.fish[0]?.notes).toContain('Ukážková ryba')
+  })
 })

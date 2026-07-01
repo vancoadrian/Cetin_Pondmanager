@@ -1,4 +1,9 @@
-import type { RentalBooking, Reservation } from '~/data/pond'
+import type {
+  NotificationBroadcastStatus,
+  NotificationDeliveryStatus,
+  RentalBooking,
+  Reservation,
+} from '~/data/pond'
 import {
   adminReservationRequestPayloadSchema,
   getValidationMessages,
@@ -10,6 +15,7 @@ import { createPondService, pondService, type PondService } from '~/services/pon
 import {
   applyReservationDecision,
   cloneReservationWorkflowState,
+  type ReservationCommunicationDeliveryLog,
   type ReservationDecisionResult,
   type ReservationWorkflowState,
 } from '~/services/reservationWorkflowService'
@@ -31,6 +37,7 @@ export interface ReservationSubmissionSuccess {
 }
 
 export interface ReservationDecisionSuccess extends ReservationDecisionResult {
+  communicationDelivery?: ReservationCommunicationDeliveryLog
   ok: true
   reservation: Reservation
   statusCode: 200
@@ -40,6 +47,40 @@ export interface ReservationStateResponse {
   ok: true
   rentalBookings: RentalBooking[]
   reservations: Reservation[]
+  updatedAt: string
+}
+
+export interface ReservationNotificationSummary {
+  body: string
+  broadcastId: string
+  createdAt: string
+  createdBy: string
+  deliveryCounts: Record<NotificationDeliveryStatus, number>
+  latestDeliveryAt?: string
+  message: string
+  recipientCount: number
+  reservationId: string
+  status: NotificationBroadcastStatus
+  title: string
+}
+
+export interface ReservationNotificationSummaryResponse {
+  notifications: ReservationNotificationSummary[]
+  ok: true
+  updatedAt: string
+}
+
+export type AccountReservation = Omit<Reservation, 'internalNote'>
+
+export interface AnglerReservationsResponse {
+  account: {
+    email: string
+    id: string
+    name: string
+  }
+  ok: true
+  rentalBookings: RentalBooking[]
+  reservations: AccountReservation[]
   updatedAt: string
 }
 
@@ -184,6 +225,7 @@ function createReservationSubmission(
     lake: requestResult.data.lake,
     pegId: requestResult.data.pegId,
     guest: requestResult.data.contactName,
+    contactEmail: requestResult.data.contactEmail,
     contactPhone: requestResult.data.contactPhone,
     from: requestResult.data.dateFrom,
     to: requestResult.data.dateTo,
@@ -229,8 +271,8 @@ export function submitReservationRequest(
   }
 
   return createReservationSubmission(payloadResult.data, service, {
-    internalNote: 'Webová žiadosť prijatá cez lokálne API. Správca ju má potvrdiť telefonicky.',
-    message: 'Žiadosť je uložená lokálne a čaká na telefonické potvrdenie správcom.',
+    internalNote: 'Webová žiadosť prijatá z rezervačného formulára. Správca ju má potvrdiť telefonicky.',
+    message: 'Žiadosť je prijatá a čaká na telefonické potvrdenie správcom.',
     rentalBookingNote: 'Žiadosť z verejného formulára čaká na potvrdenie správcom.',
     rentalBookingStatus: 'requested',
     source: 'web',
@@ -254,7 +296,7 @@ export function submitAdminReservationRequest(
   return createReservationSubmission(payload, service, {
     internalNote: payload.internalNote || `Rezervácia vytvorená ${sourceLabel}.`,
     message: confirmed
-      ? 'Rezervácia bola vytvorená a rovno potvrdená v lokálnom stave.'
+      ? 'Rezervácia bola vytvorená a rovno potvrdená.'
       : 'Rezervácia bola vytvorená správcom a čaká na potvrdenie.',
     paymentMethodId: payload.paymentMethodId,
     rentalBookingNote: confirmed
@@ -277,7 +319,7 @@ export function submitReservationDecision(
 
   const reservationExists = state.reservations.some((reservation) => reservation.id === payloadResult.data.reservationId)
   if (!reservationExists) {
-    return validationFailure(['Rezervácia sa nenašla v lokálnom mock stave.'], 404)
+    return validationFailure(['Rezervácia sa nenašla.'], 404)
   }
 
   const result = applyReservationDecision(state, payloadResult.data)

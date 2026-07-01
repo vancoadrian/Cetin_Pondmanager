@@ -131,5 +131,6 @@ describe('offlineTournamentAdminActionQueueService', () => {
         },
       },
     })).toBe('Vybraný kontrolór nemá priradený tento sektor.')
+    expect(getOfflineTournamentAdminActionQueueErrorMessage({})).toBe('Kontrolórsky súťažný úkon sa nepodarilo odoslať z tohto zariadenia.')
   })
 })

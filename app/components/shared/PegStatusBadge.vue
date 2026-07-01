@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Peg } from '~/data/pond'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 const props = defineProps<{
   status: Peg['status']
@@ -7,7 +8,7 @@ const props = defineProps<{
 
 const { occupancyLegend } = usePondData()
 
-const badge = computed(() => {
+const badge = computed<{ icon: string, title: string, tone: StatusBadgeTone }>(() => {
   switch (props.status) {
     case 'free':
       return {

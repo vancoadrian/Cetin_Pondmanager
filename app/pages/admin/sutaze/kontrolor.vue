@@ -449,13 +449,13 @@ async function queueTournamentAdminAction(payload: OfflineTournamentAdminActionP
     actionStatus.value = 'success'
     actionMessage.value = message
     offlineAdminSyncStatus.value = 'success'
-    offlineAdminSyncMessage.value = `Vo fronte čaká ${visibleOfflineAdminActionQueue.value.length} tvojich kontrolórskych úkonov.`
+    offlineAdminSyncMessage.value = `V zariadení čaká ${visibleOfflineAdminActionQueue.value.length} tvojich kontrolórskych úkonov.`
   }
   catch (error) {
     actionStatus.value = 'error'
     actionMessage.value = error instanceof Error
       ? error.message
-      : 'Kontrolórsky úkon sa nepodarilo uložiť do offline fronty.'
+      : 'Kontrolórsky úkon sa nepodarilo uložiť v tomto zariadení.'
   }
 }
 
@@ -490,7 +490,7 @@ async function discardOfflineAdminAction(id: string) {
     await removeOfflineTournamentAdminAction(id)
     await refreshOfflineAdminActionQueue()
     offlineAdminSyncStatus.value = 'success'
-    offlineAdminSyncMessage.value = 'Kontrolórsky úkon bol odstránený z offline fronty.'
+    offlineAdminSyncMessage.value = 'Kontrolórsky úkon bol odstránený z čakajúcich odoslaní.'
   }
   catch (error) {
     offlineAdminSyncStatus.value = 'error'
@@ -514,7 +514,7 @@ async function syncOfflineAdminActionQueue(options: { silent?: boolean } = {}) {
   if (visibleOfflineAdminActionQueue.value.length === 0) {
     if (!options.silent) {
       offlineAdminSyncStatus.value = 'success'
-      offlineAdminSyncMessage.value = 'Tvoja offline fronta kontrolórskych úkonov je prázdna.'
+      offlineAdminSyncMessage.value = 'Nemáš žiadne čakajúce kontrolórske úkony.'
     }
     return
   }
@@ -579,8 +579,8 @@ const submitRequestAction = async (request: TournamentRequest, action: 'assign' 
         },
       },
       action === 'assign'
-        ? 'Prevzatie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.'
-        : 'Uzavretie hlásenia je uložené v offline fronte a odošle sa po návrate pripojenia.',
+        ? 'Prevzatie hlásenia čaká v zariadení a odošle sa po návrate pripojenia.'
+        : 'Uzavretie hlásenia čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -622,8 +622,8 @@ const submitCatchVerification = async (catchItem: TournamentCatch, status: 'veri
     const result = await sendOrQueueTournamentAdminAction(
       payload,
       status === 'verified'
-        ? 'Váženie je uložené v offline fronte a odošle sa po návrate pripojenia.'
-        : 'Sporné váženie je uložené v offline fronte a odošle sa po návrate pripojenia.',
+        ? 'Váženie čaká v zariadení a odošle sa po návrate pripojenia.'
+        : 'Sporné váženie čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -660,7 +660,7 @@ const submitPenalty = async () => {
         kind: 'penalty',
         payload: validation.data,
       },
-      'Trest je uložený v offline fronte a odošle sa po návrate pripojenia.',
+      'Trest čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -697,7 +697,7 @@ const submitRuleCheck = async () => {
         kind: 'rule-check',
         payload: validation.data,
       },
-      'Kontrola pravidiel je uložená v offline fronte a odošle sa po návrate pripojenia.',
+      'Kontrola pravidiel čaká v zariadení a odošle sa po návrate pripojenia.',
     )
     if (!result) return
 
@@ -893,7 +893,7 @@ onBeforeUnmount(() => {
                 class="h-5 w-5"
               />
               <h2 class="font-bold">
-                {{ isOnline ? 'Offline fronta kontrolóra' : 'Bez pripojenia pri vode' }}
+                {{ isOnline ? 'Čakajúce úkony kontrolóra' : 'Bez pripojenia pri vode' }}
               </h2>
             </div>
             <p class="mt-1 text-sm opacity-80">

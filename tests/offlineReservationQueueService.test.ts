@@ -10,6 +10,7 @@ import {
 
 const payload: OfflineReservationPayload = {
   cabinProductId: 'large-cabin',
+  contactEmail: 'marek@example.com',
   contactName: 'Marek H.',
   contactPhone: '+421 900 123 456',
   dateFrom: '2026-05-20',
@@ -76,5 +77,6 @@ describe('offlineReservationQueueService', () => {
         },
       },
     })).toBe('Vybrané lovné miesto neexistuje pre zvolené jazero.')
+    expect(getOfflineReservationQueueErrorMessage({})).toBe('Rezerváciu sa nepodarilo odoslať z tohto zariadenia.')
   })
 })

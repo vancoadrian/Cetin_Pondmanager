@@ -542,7 +542,7 @@ export function createNotificationBroadcast(
     createdBy,
     id: createBroadcastId(alert.id, state, now),
     message: recipientCount > 0
-      ? `Mock dispatcher pripravil notifikáciu pre ${recipientCount} odberov.`
+      ? `Skúšobné doručovanie pripravilo notifikáciu pre ${recipientCount} odberov.`
       : 'Notifikácia je uložená ako verejný oznam, zatiaľ nie je aktívny žiadny odber.',
     recipientCount,
     severity: alert.severity,
@@ -678,7 +678,7 @@ function createDeliveryLogMessage(
 
   if (provider === 'mock') {
     return {
-      message: 'Mock dispatcher označil notifikáciu ako doručenú.',
+      message: 'Skúšobné doručovanie označilo notifikáciu ako doručenú.',
       status: 'sent' as const,
     }
   }
@@ -692,7 +692,7 @@ function createDeliveryLogMessage(
 
   if (subscription.endpoint.startsWith('mock://')) {
     return {
-      message: 'Mock endpoint čaká na reálny Web Push endpoint zariadenia.',
+      message: 'Skúšobný odber čaká na reálny Web Push endpoint zariadenia.',
       status: 'prepared' as const,
     }
   }
@@ -726,7 +726,7 @@ export function summarizeNotificationDeliveryLogs(
     return {
       message: allWebPush
         ? `Web Push odoslaný pre ${sentCount} odberov.`
-        : `Mock dispatcher zaevidoval ${sentCount} doručení.`,
+        : `Skúšobné doručovanie zaevidovalo ${sentCount} doručení.`,
       status: 'sent' as const,
     }
   }

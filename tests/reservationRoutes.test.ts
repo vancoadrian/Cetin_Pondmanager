@@ -6,28 +6,41 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type {
+  AnglerReservationsResponse,
   ReservationDecisionSuccess,
+  ReservationNotificationSummaryResponse,
   ReservationStateResponse,
   ReservationSubmissionSuccess,
 } from '~/app/services/reservationApiService'
+import accountReservationsGetHandler from '~/server/api/account/reservations.get'
 import adminReservationPostHandler from '~/server/api/admin/reservations.post'
+import adminReservationNotificationsHandler from '~/server/api/admin/reservations/notifications.get'
 import adminReservationDecisionHandler from '~/server/api/admin/reservations/[id]/decision.post'
 import reservationsGetHandler from '~/server/api/reservations.get'
 import reservationPostHandler from '~/server/api/reservations.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { readLocalNotificationState, writeLocalNotificationState } from '~/server/utils/localNotificationStore'
 import { readLocalReservationState } from '~/server/utils/localReservationStore'
 
 const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
 const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+const MAREK_APP_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
+const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CABIN_CATALOG_STORE',
   'RYBOLOV_LOCAL_CLOSURE_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
+  'RYBOLOV_LOCAL_NOTIFICATION_STORE',
   'RYBOLOV_LOCAL_PAYMENT_METHOD_STORE',
   'RYBOLOV_LOCAL_RENTAL_CATALOG_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
+  'RYBOLOV_RESEND_API_ENDPOINT',
+  'RYBOLOV_RESEND_API_KEY',
+  'RYBOLOV_RESERVATION_DELIVERY_PROVIDER',
+  'RYBOLOV_RESERVATION_EMAIL_FROM',
+  'RYBOLOV_RESERVATION_EMAIL_REPLY_TO',
 ] as const
 
 const validPayload = {
@@ -72,9 +85,15 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_CABIN_CATALOG_STORE = join(dataDir, 'cabin-catalog.json')
   process.env.RYBOLOV_LOCAL_CLOSURE_STORE = join(dataDir, 'closure-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
+  process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notification-state.json')
   process.env.RYBOLOV_LOCAL_PAYMENT_METHOD_STORE = join(dataDir, 'payment-method-state.json')
   process.env.RYBOLOV_LOCAL_RENTAL_CATALOG_STORE = join(dataDir, 'rental-catalog.json')
   process.env.RYBOLOV_LOCAL_RESERVATION_STORE = join(dataDir, 'reservation-state.json')
+  process.env.RYBOLOV_RESEND_API_ENDPOINT = 'https://api.resend.test/emails'
+  process.env.RYBOLOV_RESEND_API_KEY = ''
+  process.env.RYBOLOV_RESERVATION_DELIVERY_PROVIDER = 'mock'
+  process.env.RYBOLOV_RESERVATION_EMAIL_FROM = 'Rybolov Cetín <rezervacie@example.test>'
+  process.env.RYBOLOV_RESERVATION_EMAIL_REPLY_TO = ''
 })
 
 afterEach(async () => {
@@ -101,6 +120,8 @@ function createReservationRouteServerApp() {
 
   router.get('/api/reservations', reservationsGetHandler)
   router.post('/api/reservations', reservationPostHandler)
+  router.get('/api/account/reservations', accountReservationsGetHandler)
+  router.get('/api/admin/reservations/notifications', adminReservationNotificationsHandler)
   router.post('/api/admin/reservations', adminReservationPostHandler)
   router.post('/api/admin/reservations/:id/decision', adminReservationDecisionHandler)
   app.use(router.handler)
@@ -186,6 +207,27 @@ describe('reservation API routes', () => {
     const server = await startRouteServer()
 
     try {
+      const now = '2026-06-10T08:00:00.000Z'
+      await writeLocalNotificationState({
+        alerts: [],
+        broadcasts: [],
+        deliveryLogs: [],
+        subscriptions: [
+          {
+            audienceRole: 'manager',
+            createdAt: now,
+            deviceLabel: 'Správca - mobil',
+            enabled: true,
+            endpoint: 'mock://reservation-route-manager',
+            id: 'push-reservation-route-manager',
+            lastSeenAt: now,
+            permission: 'granted',
+            topics: ['reservations'],
+            updatedAt: now,
+            userAgent: 'Vitest',
+          },
+        ],
+      })
       const { body, response } = await requestJson<ReservationSubmissionSuccess>(server, '/api/reservations', {
         body: JSON.stringify(validPayload),
         cookie: null,
@@ -212,6 +254,45 @@ describe('reservation API routes', () => {
       expect(event?.action).toBe('reservation.request.created')
       expect(event?.actorRole).toBe('angler')
       expect(event?.area).toBe('reservations')
+      expect(event?.details).toMatchObject({
+        notificationRecipientCount: 1,
+        notificationStatus: 'sent',
+      })
+
+      const notificationState = await readLocalNotificationState()
+      expect(notificationState.alerts).toEqual([])
+      expect(notificationState.broadcasts[0]).toMatchObject({
+        recipientCount: 1,
+        targetAudience: {
+          requestId: body.reservation.id,
+          roles: ['owner', 'manager', 'worker'],
+        },
+        targetTopics: ['reservations'],
+        title: 'Nová rezervácia: Ján Route',
+      })
+      expect(notificationState.deliveryLogs[0]).toMatchObject({
+        subscriptionId: 'push-reservation-route-manager',
+        status: 'sent',
+      })
+
+      const { body: notificationSummary, response: notificationResponse } = await requestJson<ReservationNotificationSummaryResponse>(
+        server,
+        '/api/admin/reservations/notifications',
+        {
+          cookie: ACCOUNTANT_COOKIE,
+        },
+      )
+
+      expect(notificationResponse.status).toBe(200)
+      expect(notificationSummary.notifications[0]).toMatchObject({
+        deliveryCounts: {
+          sent: 1,
+        },
+        recipientCount: 1,
+        reservationId: body.reservation.id,
+        status: 'sent',
+        title: 'Nová rezervácia: Ján Route',
+      })
     }
     finally {
       await server.close()
@@ -236,6 +317,67 @@ describe('reservation API routes', () => {
       expect(response.status).toBe(422)
       expect(body.statusMessage).toBe('Reservation request validation failed')
       expect(body.data.messages).toContain('Vybrané miesto nie je v zvolenom termíne rezervovateľné.')
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('returns logged-in angler reservations by contact email without internal notes', async () => {
+    const server = await startRouteServer()
+
+    try {
+      const created = await requestJson<ReservationSubmissionSuccess>(server, '/api/reservations', {
+        body: JSON.stringify({
+          ...validPayload,
+          contactEmail: 'marek.horvath@example.test',
+          contactName: 'Marek H.',
+        }),
+        cookie: null,
+        method: 'POST',
+      })
+      expect(created.response.status).toBe(201)
+
+      const marekHistory = await requestJson<AnglerReservationsResponse>(
+        server,
+        '/api/account/reservations',
+        { cookie: MAREK_APP_COOKIE },
+      )
+      expect(marekHistory.response.status).toBe(200)
+      expect(marekHistory.body.account.email).toBe('marek.horvath@example.test')
+      expect(marekHistory.body.reservations).toContainEqual(expect.objectContaining({
+        contactEmail: 'marek.horvath@example.test',
+        id: created.body.reservation.id,
+        status: 'pending',
+      }))
+      expect(marekHistory.body.reservations).toContainEqual(expect.objectContaining({
+        contactEmail: 'marek.h@example.com',
+        id: 'r-1001',
+        status: 'confirmed',
+      }))
+      expect(marekHistory.body.reservations.find((reservation) => reservation.id === created.body.reservation.id))
+        .not.toHaveProperty('internalNote')
+      expect(marekHistory.body.reservations.find((reservation) => reservation.id === 'r-1001'))
+        .not.toHaveProperty('internalNote')
+      expect(
+        marekHistory.body.rentalBookings.filter((booking) => booking.reservationId === created.body.reservation.id),
+      ).toHaveLength(2)
+
+      const lenkaHistory = await requestJson<AnglerReservationsResponse>(
+        server,
+        '/api/account/reservations',
+        { cookie: LENKA_ANGLER_COOKIE },
+      )
+      expect(lenkaHistory.response.status).toBe(200)
+      expect(lenkaHistory.body.reservations.some((reservation) => reservation.id === created.body.reservation.id)).toBe(false)
+
+      const anonymousHistory = await requestJson<{ statusMessage: string }>(
+        server,
+        '/api/account/reservations',
+        { cookie: null },
+      )
+      expect(anonymousHistory.response.status).toBe(401)
+      expect(anonymousHistory.body.statusMessage).toBe('Angler login required')
     }
     finally {
       await server.close()
@@ -321,6 +463,17 @@ describe('reservation API routes', () => {
       expect(body.ok).toBe(true)
       expect(body.reservation.status).toBe('confirmed')
       expect(body.reservation.internalNote).toBe('Potvrdené cez route test.')
+      expect(body.communicationDraft).toMatchObject({
+        channel: 'email',
+        emailTo: 'peter.b@example.com',
+        recipientPhone: '+421 908 444 321',
+      })
+      expect(body.communicationDelivery).toMatchObject({
+        message: 'Potvrdenie rezervácie je pripravené ako e-mailový draft.',
+        provider: 'mock',
+        recipient: 'peter.b@example.com',
+        status: 'prepared',
+      })
       expect(
         body.rentalBookings.find((booking) => booking.reservationId === 'r-1003')?.status,
       ).toBe('reserved')
@@ -332,6 +485,12 @@ describe('reservation API routes', () => {
       const event = auditState.events.find((item) => item.entityId === 'r-1003')
       expect(event?.action).toBe('reservation.decision.confirmed')
       expect(event?.actorId).toBe('manager')
+      expect(event?.details).toMatchObject({
+        hasContactEmail: true,
+        notificationChannel: 'email',
+        notificationDeliveryProvider: 'mock',
+        notificationDeliveryStatus: 'prepared',
+      })
     }
     finally {
       await server.close()
@@ -356,7 +515,7 @@ describe('reservation API routes', () => {
 
       expect(response.status).toBe(404)
       expect(body.statusMessage).toBe('Reservation decision validation failed')
-      expect(body.data.messages).toContain('Rezervácia sa nenašla v lokálnom mock stave.')
+      expect(body.data.messages).toContain('Rezervácia sa nenašla.')
     }
     finally {
       await server.close()

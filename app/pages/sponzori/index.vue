@@ -3,7 +3,15 @@ import type { Sponsor } from '~/data/pond'
 
 useHead({ title: 'Sponzori' })
 
-const { activeSponsors } = await useSponsorState({ key: 'public-sponsors-page-state' })
+const {
+  activeSponsors,
+  refresh: refreshSponsors,
+  sponsorStateError,
+  sponsorStateStatus,
+} = await useSponsorState({ key: 'public-sponsors-page-state' })
+
+const isSponsorsLoading = computed(() => sponsorStateStatus.value === 'pending')
+const hasSponsorsError = computed(() => Boolean(sponsorStateError.value))
 
 const tierLabels = {
   main: 'hlavný partner',
@@ -22,6 +30,10 @@ function campaignRange(sponsor: Sponsor) {
 function cardLogo(sponsor: Sponsor) {
   return getSponsorLogo(sponsor, sponsor.placementType ?? 'sponsors')
 }
+
+async function retrySponsors() {
+  await refreshSponsors()
+}
 </script>
 
 <template>
@@ -33,7 +45,29 @@ function cardLogo(sponsor: Sponsor) {
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div class="grid gap-4 md:grid-cols-3">
+      <AppState
+        v-if="isSponsorsLoading"
+        title="Načítavam partnerov"
+        description="Kontrolujeme aktuálne zverejnených partnerov revíru a súťaží."
+        type="loading"
+      />
+      <AppState
+        v-else-if="hasSponsorsError"
+        title="Partnerov sa nepodarilo obnoviť"
+        description="Zobrazujeme posledný dostupný stav. Skúste načítanie zopakovať."
+        type="error"
+      >
+        <UButton icon="i-heroicons-arrow-path" variant="soft" @click="retrySponsors">
+          Skúsiť znova
+        </UButton>
+      </AppState>
+      <AppState
+        v-else-if="activeSponsors.length === 0"
+        title="Zatiaľ bez zverejnených partnerov"
+        description="Partneri revíru a súťaží sa zobrazia po schválení správcom."
+        icon="i-heroicons-building-storefront"
+      />
+      <div v-else class="grid gap-4 md:grid-cols-3">
         <div
           v-for="sponsor in activeSponsors"
           :key="sponsor.id"

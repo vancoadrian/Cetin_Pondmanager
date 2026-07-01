@@ -1,13 +1,31 @@
 <script setup lang="ts">
+import type { PublicNotificationStateResponse } from '~/services/notificationService'
 import { getPegAvailability } from '~/utils/availability'
 import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 
 useHead({ title: 'Prehľad' })
 
-const { alerts, catches, getLakeName, getPegLabel, lakes, pegs, reservations } = usePondData()
+const { alerts: seedAlerts, catches, getPegLabel, lakes, pegs, reservations } = usePondData()
 const route = useRoute()
 const router = useRouter()
 const { liveClosures } = await useClosureState({ key: 'public-home-closure-state' })
+const fallbackNotificationState = (): PublicNotificationStateResponse => ({
+  alerts: seedAlerts,
+  ok: true,
+  subscriptionCount: 0,
+  updatedAt: 'seed',
+})
+const {
+  data: notificationState,
+  error: notificationStateError,
+  status: notificationStateStatus,
+} = await useAsyncData<PublicNotificationStateResponse>(
+  'public-home-notifications',
+  () => $fetch<PublicNotificationStateResponse>('/api/notifications'),
+  {
+    default: fallbackNotificationState,
+  },
+)
 const initialDateRange = resolveAvailabilityDateRange(route.query.od, route.query.do)
 const dateFrom = ref(initialDateRange.dateFrom)
 const dateTo = ref(initialDateRange.dateTo)
@@ -27,9 +45,41 @@ const reservedCount = computed(() =>
   livePegAvailabilityRows.value.filter((availability) => !availability.reservable).length,
 )
 const cabinCount = computed(() => pegs.filter((peg) => peg.type === 'cabin').length)
-const latestCatches = computed(() => catches.filter((catchItem) => catchItem.status === 'approved').slice(0, 3))
-const todayReservations = computed(() => reservations.slice(0, 4))
-const activeAlert = alerts[0]!
+const publicCatches = computed(() => catches.filter((catchItem) => catchItem.status === 'approved'))
+const latestCatches = computed(() => publicCatches.value.slice(0, 3))
+const publicAlerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
+const activeAlert = computed(() => publicAlerts.value[0])
+const alertCardTitle = computed(() => {
+  if (activeAlert.value) return activeAlert.value.title
+  if (notificationStateStatus.value === 'pending') return 'Kontrolujem výstrahy'
+  if (notificationStateError.value) return 'Výstrahy sa nepodarilo obnoviť'
+
+  return 'Bez aktívnej výstrahy'
+})
+const alertCardBody = computed(() => {
+  if (activeAlert.value) return activeAlert.value.body
+  if (notificationStateStatus.value === 'pending') {
+    return 'Overujeme aktuálne oznamy pre počasie, revír, rezervácie a súťaže.'
+  }
+  if (notificationStateError.value) {
+    return 'Zobrazte stránku výstrah alebo skúste obnoviť pripojenie.'
+  }
+
+  return 'Momentálne nie je zverejnený žiadny mimoriadny oznam pre rybárov.'
+})
+const alertCardIcon = computed(() =>
+  activeAlert.value || notificationStateError.value
+    ? 'i-heroicons-bell-alert'
+    : 'i-heroicons-check-circle',
+)
+const alertCardIconClasses = computed(() =>
+  activeAlert.value || notificationStateError.value
+    ? 'bg-error-500 text-white'
+    : 'bg-success-500 text-white',
+)
+const alertCardMeta = computed(() =>
+  activeAlert.value ? `Platí do ${activeAlert.value.validUntil}` : 'Aktuálny stav výstrah',
+)
 const mapTarget = computed(() => ({
   path: '/mapa',
   query: { do: dateTo.value, od: dateFrom.value },
@@ -38,6 +88,37 @@ const reservationTarget = computed(() => ({
   path: '/rezervacie',
   query: { do: dateTo.value, od: dateFrom.value },
 }))
+const lakeAvailabilityRows = computed(() =>
+  lakes.map((lake) => {
+    const lakePegs = pegs.filter((peg) => peg.lake === lake.slug)
+    const availabilityRows = lakePegs.map((peg) => ({
+      availability: getPegAvailability(peg, {
+        closures: liveClosures.value,
+        dateFrom: dateFrom.value,
+        dateTo: dateTo.value,
+        reservations,
+      }),
+      peg,
+    }))
+    const reservablePegs = availabilityRows.filter((row) => row.availability.reservable)
+
+    return {
+      cabinCount: lakePegs.filter((peg) => peg.type === 'cabin').length,
+      cabinReservableCount: reservablePegs.filter((row) => row.peg.type === 'cabin').length,
+      lake,
+      mapTarget: {
+        path: '/mapa',
+        query: { do: dateTo.value, jazero: lake.slug, od: dateFrom.value },
+      },
+      pegCount: lakePegs.length,
+      reservationTarget: {
+        path: '/rezervacie',
+        query: { do: dateTo.value, jazero: lake.slug, od: dateFrom.value },
+      },
+      reservableCount: reservablePegs.length,
+    }
+  }),
+)
 
 watch([dateFrom, dateTo], () => {
   if (!import.meta.client) return
@@ -89,16 +170,16 @@ watch([dateFrom, dateTo], () => {
           </div>
         </div>
 
-        <div class="relative rounded-card border border-white/10 bg-white/10 p-4 backdrop-blur">
+        <div class="relative self-start rounded-card border border-white/10 bg-white/10 p-4 backdrop-blur">
           <div class="flex items-start gap-3">
-            <div class="bg-error-500 rounded-full p-2 text-white">
-              <UIcon name="i-heroicons-bell-alert" class="h-5 w-5" />
+            <div class="rounded-full p-2" :class="alertCardIconClasses">
+              <UIcon :name="alertCardIcon" class="h-5 w-5" />
             </div>
             <div>
-              <p class="text-sm font-semibold text-white">{{ activeAlert.title }}</p>
-              <p class="mt-1 text-sm text-white/75">{{ activeAlert.body }}</p>
+              <p class="text-sm font-semibold text-white">{{ alertCardTitle }}</p>
+              <p class="mt-1 text-sm text-white/75">{{ alertCardBody }}</p>
               <p class="mt-3 text-xs font-semibold text-accent-200">
-                Platí do {{ activeAlert.validUntil }}
+                {{ alertCardMeta }}
               </p>
             </div>
           </div>
@@ -132,8 +213,8 @@ watch([dateFrom, dateTo], () => {
         </div>
         <div class="border-border bg-surface rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Úlovky v denníku</p>
-          <p class="mt-2 text-3xl font-bold">{{ catches.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">s mierou, váhou a nástrahou</p>
+          <p class="mt-2 text-3xl font-bold">{{ publicCatches.length }}</p>
+          <p class="text-foreground-muted mt-1 text-sm">schválené správcom</p>
         </div>
       </div>
     </section>
@@ -167,33 +248,36 @@ watch([dateFrom, dateTo], () => {
         <div class="border-border bg-surface rounded-card border p-4">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <h2 class="text-lg font-bold">Dnešné rezervácie</h2>
-              <p class="text-foreground-muted text-sm">Prvý nástrel kalendára správcu.</p>
+              <h2 class="text-lg font-bold">Dostupnosť podľa jazera</h2>
+              <p class="text-foreground-muted text-sm">Súhrn voľných miest pre zvolený termín.</p>
             </div>
             <UButton to="/rezervacie" icon="i-heroicons-arrow-right" variant="ghost" aria-label="Rezervácie" />
           </div>
-          <div class="mt-4 space-y-3">
+          <div class="mt-4 space-y-4">
             <div
-              v-for="reservation in todayReservations"
-              :key="reservation.id"
-              class="bg-muted rounded-md p-3"
+              v-for="row in lakeAvailabilityRows"
+              :key="row.lake.slug"
+              class="rounded-md border border-border bg-muted/70 p-3"
             >
-              <div class="flex items-center justify-between gap-3">
-                <p class="font-semibold">{{ getPegLabel(reservation.pegId) }}</p>
-                <span
-                  class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                  :class="
-                    reservation.status === 'confirmed'
-                      ? 'bg-success-500/10 text-success-500'
-                      : 'bg-warning-500/10 text-warning-500'
-                  "
-                >
-                  {{ reservation.status === 'confirmed' ? 'potvrdené' : 'čaká' }}
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-semibold">{{ row.lake.name }}</p>
+                  <p class="text-foreground-muted mt-1 text-sm">
+                    {{ row.reservableCount }} voľných z {{ row.pegCount }} miest
+                  </p>
+                </div>
+                <span class="rounded-full bg-success-500/10 px-2 py-0.5 text-xs font-semibold text-success-700">
+                  {{ row.cabinReservableCount }}/{{ row.cabinCount }} chát
                 </span>
               </div>
-              <p class="text-foreground-muted mt-1 text-sm">
-                {{ reservation.guest }} · {{ getLakeName(reservation.lake) }}
-              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <UButton :to="row.mapTarget" icon="i-heroicons-map-pin" size="xs" variant="soft">
+                  Mapa
+                </UButton>
+                <UButton :to="row.reservationTarget" icon="i-heroicons-calendar-days" size="xs" color="warning">
+                  Rezervovať
+                </UButton>
+              </div>
             </div>
           </div>
         </div>

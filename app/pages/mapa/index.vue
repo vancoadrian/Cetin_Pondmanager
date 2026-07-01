@@ -31,7 +31,12 @@ const fallbackMapState = (): MapStateResponse => ({
   pegs,
   updatedAt: 'seed',
 })
-const { data: mapState } = await useAsyncData<MapStateResponse>(
+const {
+  data: mapState,
+  error: mapStateError,
+  refresh: refreshMapState,
+  status: mapStateStatus,
+} = await useAsyncData<MapStateResponse>(
   'public-map-state',
   () => $fetch<MapStateResponse>('/api/map'),
   {
@@ -64,6 +69,8 @@ const issueForm = reactive({
   title: '',
 })
 
+const isMapStateLoading = computed(() => mapStateStatus.value === 'pending')
+const hasMapStateError = computed(() => Boolean(mapStateError.value))
 const currentLake = computed(() => lakes.find((lake) => lake.slug === selectedLake.value) ?? lakes[0]!)
 const livePegs = computed(() => mapState.value.pegs)
 const liveMapFacilities = computed(() => mapState.value.mapFacilities)
@@ -112,6 +119,11 @@ const selectedAvailability = computed(() =>
       })
     : undefined,
 )
+const selectedAvailabilityReason = computed(() =>
+  selectedAvailability.value?.reasons[0]
+  ?? selectedAvailability.value?.description
+  ?? '',
+)
 const reservationTarget = computed(() => ({
   path: '/rezervacie',
   query: {
@@ -121,6 +133,10 @@ const reservationTarget = computed(() => ({
     od: dateFrom.value,
   },
 }))
+
+async function retryMapState() {
+  await refreshMapState()
+}
 const issueCategoryOptions = computed(() =>
   Object.entries(placeIssueCategoryLabels).map(([value, label]) => ({
     label,
@@ -370,10 +386,22 @@ onBeforeUnmount(() => {
             Len rezervovateľné
           </label>
           <UButton :to="reservationTarget" icon="i-heroicons-calendar-days" color="warning">
-          Rezervovať vybrané miesto
+            Rezervovať vybrané miesto
           </UButton>
         </div>
       </div>
+
+      <DataStatusNotice
+        v-if="isMapStateLoading || hasMapStateError"
+        class="mb-5"
+        :title="hasMapStateError ? 'Mapu sa nepodarilo obnoviť' : 'Načítavam aktuálnu mapu'"
+        :description="hasMapStateError ? 'Zobrazujeme posledný dostupný stav lovných miest a bodov v areáli.' : 'Kontrolujeme aktuálne lovné miesta, chaty a servisné body.'"
+        :tone="hasMapStateError ? 'warning' : 'info'"
+        :loading="isMapStateLoading && !hasMapStateError"
+        :action-label="hasMapStateError ? 'Skúsiť znova' : ''"
+        :action-loading="isMapStateLoading"
+        @action="retryMapState"
+      />
 
       <LakeMap
         :title="currentLake.name"
@@ -399,8 +427,8 @@ onBeforeUnmount(() => {
               <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
             </div>
             <p class="text-foreground-muted text-sm">{{ selectedPeg.notes }}</p>
-            <p v-if="selectedAvailability" class="text-primary-800 text-sm font-semibold">
-              {{ selectedAvailability.reasons[0] }}
+            <p v-if="selectedAvailabilityReason" class="text-primary-800 text-sm font-semibold">
+              {{ selectedAvailabilityReason }}
             </p>
             <div class="grid grid-cols-2 gap-3">
               <div class="bg-muted rounded-md p-3">

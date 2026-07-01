@@ -2,6 +2,7 @@ export const ANGLER_SESSION_COOKIE = 'rybolov_cetin_mock_angler_session'
 
 export interface MockAnglerAccount {
   email: string
+  emailAliases?: string[]
   id: string
   name: string
 }
@@ -9,6 +10,7 @@ export interface MockAnglerAccount {
 export const mockAnglerAccounts: MockAnglerAccount[] = [
   {
     email: 'marek.horvath@example.test',
+    emailAliases: ['marek.h@example.com'],
     id: 'angler-marek',
     name: 'Marek H.',
   },
@@ -23,7 +25,15 @@ export function findMockAnglerAccountById(accountId?: string | null) {
   return mockAnglerAccounts.find((account) => account.id === accountId)
 }
 
+export function getMockAnglerAccountEmails(account: MockAnglerAccount) {
+  return [account.email, ...(account.emailAliases ?? [])]
+    .map((email) => email.trim().toLocaleLowerCase('sk'))
+    .filter(Boolean)
+}
+
 export function findMockAnglerAccountByEmail(email: string) {
   const normalizedEmail = email.trim().toLocaleLowerCase('sk')
-  return mockAnglerAccounts.find((account) => account.email.toLocaleLowerCase('sk') === normalizedEmail)
+  return mockAnglerAccounts.find((account) =>
+    getMockAnglerAccountEmails(account).includes(normalizedEmail),
+  )
 }

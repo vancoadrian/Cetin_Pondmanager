@@ -6,6 +6,7 @@ import type {
   TournamentRequestSubmissionSuccess,
   TournamentStateResponse,
 } from '~/services/tournamentApiService'
+import type { StatusBadgeTone } from '~/utils/ui'
 import {
   getValidationMessages,
   tournamentRequestInputSchema,
@@ -124,6 +125,7 @@ const activeTournament = computed(() =>
 const tournamentCapabilities = computed(() => getTournamentOperationalCapabilities(activeTournament.value))
 const canSubmitTeamRegistration = computed(() => tournamentCapabilities.value.allowsTeamRegistration)
 const canSubmitTournamentRequest = computed(() => tournamentCapabilities.value.allowsTeamRequests)
+const canUseTeamRequestWorkflow = computed(() => canUseTeamPanel.value && canSubmitTournamentRequest.value)
 const activeTeamCount = computed(() =>
   activeTournament.value.sectors.filter((sector) => Boolean(sector.team)).length,
 )
@@ -132,6 +134,28 @@ const tournamentStatusLabel = computed(() => ({
   live: 'Prebieha',
   planned: 'Pripravuje sa',
 })[activeTournament.value.status])
+function tournamentStatusTone(status: 'closed' | 'live' | 'planned'): StatusBadgeTone {
+  if (status === 'live') {
+    return 'success'
+  }
+
+  if (status === 'planned') {
+    return 'warning'
+  }
+
+  return 'neutral'
+}
+function tournamentStatusIcon(status: 'closed' | 'live' | 'planned') {
+  if (status === 'live') {
+    return 'i-heroicons-signal'
+  }
+
+  if (status === 'planned') {
+    return 'i-heroicons-calendar-days'
+  }
+
+  return 'i-heroicons-check-circle'
+}
 const activeTournamentLake = computed(() => lakes.find((lake) => lake.slug === activeTournament.value.lake))
 const activeTournamentBackgroundLayer = computed(() =>
   liveMapLayers.value.find((layer) => layer.lake === activeTournament.value.lake && layer.kind === 'background' && layer.enabled),
@@ -372,6 +396,10 @@ const getQueueFallbackErrorMessage = (error: unknown) =>
 
 async function refreshOfflineRequestQueue() {
   if (!import.meta.client) return
+  if (!canUseTeamPanel.value) {
+    offlineRequestQueue.value = []
+    return
+  }
 
   try {
     offlineRequestQueue.value = await readOfflineTournamentRequestQueue()
@@ -383,6 +411,12 @@ async function refreshOfflineRequestQueue() {
 }
 
 async function queueOfflineRequest(payload: OfflineTournamentRequestPayload) {
+  if (!canUseTeamPanel.value) {
+    requestSubmitStatus.value = 'error'
+    requestSubmitMessage.value = 'Tímové hlásenie je dostupné iba po prihlásení tímového účtu.'
+    return
+  }
+
   try {
     const item = await enqueueOfflineTournamentRequest(payload)
 
@@ -414,6 +448,10 @@ async function discardOfflineRequest(id: string) {
 
 async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
   if (!import.meta.client || offlineSyncInProgress) return
+  if (!canUseTeamPanel.value) {
+    offlineRequestQueue.value = []
+    return
+  }
 
   isOnline.value = navigator.onLine
   if (!isOnline.value) {
@@ -426,14 +464,14 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
   if (offlineRequestQueue.value.length === 0) {
     if (!options.silent) {
       offlineSyncStatus.value = 'success'
-      offlineSyncMessage.value = 'Offline fronta hlásení je prázdna.'
+      offlineSyncMessage.value = 'Žiadne hlásenia nečakajú na odoslanie.'
     }
     return
   }
 
   offlineSyncInProgress = true
   offlineSyncStatus.value = 'syncing'
-  offlineSyncMessage.value = `Odosielam ${offlineRequestQueue.value.length} offline hlásení.`
+  offlineSyncMessage.value = `Odosielam ${offlineRequestQueue.value.length} čakajúcich hlásení.`
 
   let syncedCount = 0
 
@@ -463,7 +501,7 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
     offlineSyncStatus.value = offlineRequestQueue.value.length > 0 ? 'error' : 'success'
     offlineSyncMessage.value = offlineRequestQueue.value.length > 0
       ? `${syncedCount} hlásení odoslaných, ${offlineRequestQueue.value.length} čaká na ďalší pokus.`
-      : `${syncedCount} offline hlásení bolo odoslaných do dispečingu.`
+      : `${syncedCount} čakajúcich hlásení bolo odoslaných do dispečingu.`
   }
   finally {
     offlineSyncInProgress = false
@@ -471,6 +509,12 @@ async function syncOfflineRequestQueue(options: { silent?: boolean } = {}) {
 }
 
 const submitRequest = async () => {
+  if (!canUseTeamPanel.value) {
+    requestSubmitStatus.value = 'error'
+    requestSubmitMessage.value = 'Tímové hlásenie je dostupné iba po prihlásení tímového účtu.'
+    return
+  }
+
   if (!canSubmitTournamentRequest.value) {
     requestSubmitStatus.value = 'error'
     requestSubmitMessage.value = 'Organizátor tejto súťaže nemá zapnuté tímové hlásenia cez aplikáciu.'
@@ -552,7 +596,9 @@ const submitTeamRegistration = async () => {
 
 function handleOnline() {
   isOnline.value = true
-  void syncOfflineRequestQueue({ silent: true })
+  if (canUseTeamPanel.value) {
+    void syncOfflineRequestQueue({ silent: true })
+  }
 }
 
 function handleOffline() {
@@ -565,6 +611,8 @@ onMounted(() => {
   if (!import.meta.client) return
 
   isOnline.value = navigator.onLine
+  if (!canUseTeamPanel.value) return
+
   void refreshOfflineRequestQueue().then(() => {
     if (navigator.onLine && offlineRequestQueue.value.length > 0) {
       void syncOfflineRequestQueue({ silent: true })
@@ -586,6 +634,16 @@ watch(requestValidation, () => {
     requestSubmitStatus.value = 'idle'
     requestSubmitMessage.value = ''
   }
+})
+watch(canUseTeamPanel, (isTeam) => {
+  if (isTeam) {
+    void refreshOfflineRequestQueue()
+    return
+  }
+
+  offlineRequestQueue.value = []
+  offlineSyncStatus.value = 'idle'
+  offlineSyncMessage.value = ''
 })
 watch(teamRegistrationValidation, () => {
   if (teamRegistrationStatus.value !== 'submitting') {
@@ -624,18 +682,11 @@ watch(activeTournament, (tournament) => {
               <h2 class="text-2xl font-bold">{{ activeTournament.name }}</h2>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="rounded-md px-3 py-1 text-sm font-bold"
-                :class="
-                  activeTournament.status === 'live'
-                    ? 'bg-success-500/10 text-success-700'
-                    : activeTournament.status === 'planned'
-                      ? 'bg-warning-500/10 text-warning-800'
-                      : 'bg-muted text-foreground-muted'
-                "
-              >
-                {{ tournamentStatusLabel }}
-              </span>
+              <StatusBadge
+                :icon="tournamentStatusIcon(activeTournament.status)"
+                :label="tournamentStatusLabel"
+                :tone="tournamentStatusTone(activeTournament.status)"
+              />
             </div>
           </div>
 
@@ -695,7 +746,7 @@ watch(activeTournament, (tournament) => {
               "
               :style="{ left: `${sector.x}%`, top: `${sector.y}%` }"
               :aria-label="sector.label"
-              @click="canSubmitTournamentRequest && (requestForm.sectorId = sector.id)"
+              @click="canUseTeamRequestWorkflow && (requestForm.sectorId = sector.id)"
             >
               {{ sector.label }}
               <span
@@ -819,7 +870,7 @@ watch(activeTournament, (tournament) => {
                     {{ row.sectorLabel }} · {{ row.verifiedCatchCount }} overených úlovkov
                   </p>
                   <NuxtLink
-                  v-if="canUseTeamPanel && canSubmitTournamentRequest"
+                  v-if="canUseTeamRequestWorkflow"
                     :to="tournamentTeamAccessUrl(row.sectorId)"
                     class="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
                   >
@@ -1150,7 +1201,7 @@ watch(activeTournament, (tournament) => {
                 type="submit"
                 icon="i-heroicons-paper-airplane"
                 block
-                :disabled="!canSubmitTournamentRequest || !requestValidation.success || requestSubmitStatus === 'submitting'"
+                :disabled="!canUseTeamRequestWorkflow || !requestValidation.success || requestSubmitStatus === 'submitting'"
                 :loading="requestSubmitStatus === 'submitting'"
               >
                 Odoslať hlásenie

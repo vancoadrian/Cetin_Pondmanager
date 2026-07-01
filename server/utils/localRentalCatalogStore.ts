@@ -64,6 +64,54 @@ function isRentalCatalogState(value: unknown): value is LocalRentalCatalogState 
   )
 }
 
+const legacyReservationExtraDescriptions: Record<string, string[]> = {
+  'gazebo-kocka': [
+    'Web uvádza možnosť prenajatia altánku na firemné akcie, oslavy a večierky.',
+  ],
+  'third-rod': [
+    'Web uvádza možnosť dokúpenia po dohode so správcom.',
+  ],
+}
+
+const seedReservationExtraById = new Map(reservationExtras.map((extra) => [extra.id, extra]))
+
+function normalizeReservationExtraCopy(extra: ReservationExtra) {
+  const seedExtra = seedReservationExtraById.get(extra.id)
+  const legacyDescriptions = legacyReservationExtraDescriptions[extra.id] ?? []
+
+  if (seedExtra && legacyDescriptions.includes(extra.description)) {
+    return {
+      changed: true,
+      extra: {
+        ...extra,
+        description: seedExtra.description,
+      },
+    }
+  }
+
+  return {
+    changed: false,
+    extra,
+  }
+}
+
+function normalizeRentalCatalogStateCopy(state: LocalRentalCatalogState) {
+  let changed = false
+  const reservationExtras = state.reservationExtras.map((extra) => {
+    const normalized = normalizeReservationExtraCopy(extra)
+    changed ||= normalized.changed
+    return normalized.extra
+  })
+
+  return {
+    changed,
+    state: {
+      ...state,
+      reservationExtras,
+    },
+  }
+}
+
 export async function readLocalRentalCatalogState(
   filePath = resolveLocalRentalCatalogStorePath(),
 ): Promise<LocalRentalCatalogState> {
@@ -72,11 +120,17 @@ export async function readLocalRentalCatalogState(
     const parsed: unknown = JSON.parse(raw)
 
     if (isRentalCatalogState(parsed)) {
-      return {
+      const normalized = normalizeRentalCatalogStateCopy({
         ...parsed,
         rentalItems: sortRentalItems(parsed.rentalItems),
         reservationExtras: sortReservationExtras(parsed.reservationExtras),
+      })
+
+      if (normalized.changed) {
+        return writeLocalRentalCatalogState(normalized.state, filePath)
       }
+
+      return normalized.state
     }
   }
   catch (error) {
