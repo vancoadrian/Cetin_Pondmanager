@@ -13,6 +13,8 @@ import {
   type ClientPushSupport,
 } from '~/services/pushSubscriptionClient'
 
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
+
 useHead({ title: 'Výstrahy' })
 
 const { alerts: seedAlerts } = usePondData()
@@ -45,25 +47,45 @@ const pushSupport = ref<ClientPushSupport>({
 const requesting = ref(false)
 const subscriptionEndpoint = ref('')
 const subscriptionSubmitMessage = ref('')
-const subscriptionSubmitStatus = ref<'idle' | 'success' | 'error'>('idle')
+const subscriptionSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
+const activeAlertCount = computed(() => alerts.value.length)
 const isLoadingNotifications = computed(() => notificationFetchStatus.value === 'pending')
 const notificationLoadError = computed(() =>
   notificationError.value
     ? 'Výstrahy sa nepodarilo obnoviť. Skontrolujte pripojenie a skúste to znova.'
     : '',
 )
+const lastNotificationUpdateLabel = computed(() => {
+  const value = notificationState.value?.updatedAt
+
+  if (!value || value === 'seed') {
+    return 'priebežne'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'priebežne'
+  }
+
+  return new Intl.DateTimeFormat('sk-SK', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date)
+})
 const notificationsAvailable = computed(() => pushSupport.value.mode === 'web-push')
+const notificationsEnabled = computed(() => notificationsAvailable.value && Boolean(subscriptionEndpoint.value))
 const notificationAvailabilityMessage = computed(() => {
   if (notificationsAvailable.value) {
-    return 'Upozornenia sú v tomto zariadení dostupné.'
+    return 'Toto zariadenie vie prijímať výstrahy z revíru.'
   }
 
   if (pushSupport.value.reason === 'missing-notification' || pushSupport.value.reason === 'missing-push-manager') {
-    return 'Tento prehliadač nepodporuje upozornenia. Aktuálne výstrahy zostávajú dostupné na tejto stránke.'
+    return 'Tento prehliadač nevie prijímať výstrahy. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
   }
 
-  return 'Upozornenia momentálne nie sú dostupné. Aktuálne výstrahy zostávajú dostupné na tejto stránke.'
+  return 'Upozornenia momentálne nie sú dostupné. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
 })
 const notificationStatusBadge = computed<{
   icon: string
@@ -108,6 +130,67 @@ const notificationStatusBadge = computed<{
     tone: 'warning',
   }
 })
+const subscriptionNoticeTitle = computed(() => {
+  if (subscriptionSubmitStatus.value === 'error') return 'Upozornenia sa nepodarilo nastaviť'
+  if (subscriptionSubmitStatus.value === 'submitting') return 'Spracúvam upozornenia'
+  return subscriptionEndpoint.value ? 'Upozornenia sú zapnuté' : 'Upozornenia sú vypnuté'
+})
+const subscriptionNoticeTone = computed<NoticeTone>(() => {
+  if (subscriptionSubmitStatus.value === 'error') return 'error'
+  if (subscriptionSubmitStatus.value === 'submitting') return 'info'
+  return 'success'
+})
+const notificationSupportNoticeTitle = computed(() => {
+  if (notificationStatus.value === 'denied') return 'Upozornenia sú zamietnuté v prehliadači'
+  if (notificationsAvailable.value) return 'Upozornenia môžete zapnúť'
+
+  return 'Upozornenia tu nie sú dostupné'
+})
+const notificationSupportNoticeTone = computed<NoticeTone>(() => {
+  if (notificationStatus.value === 'denied') return 'error'
+  if (notificationsAvailable.value) return 'success'
+
+  return 'warning'
+})
+const notificationSummaryItems = computed(() => [
+  {
+    icon: 'i-heroicons-megaphone',
+    label: 'Aktívne oznamy',
+    value: String(activeAlertCount.value),
+  },
+  {
+    icon: notificationsEnabled.value ? 'i-heroicons-bell-alert' : 'i-heroicons-bell-slash',
+    label: 'Toto zariadenie',
+    value: notificationsEnabled.value ? 'výstrahy zapnuté' : 'výstrahy vypnuté',
+  },
+  {
+    icon: 'i-heroicons-clock',
+    label: 'Posledná aktualizácia',
+    value: lastNotificationUpdateLabel.value,
+  },
+])
+const notificationTopicCards = [
+  {
+    description: 'búrky, vietor, nárazový dážď, bezpečnosť člnov a bivakov',
+    icon: 'i-heroicons-bolt',
+    title: 'Počasie',
+  },
+  {
+    description: 'údržba chaty, zákaz vjazdu, zmena pravidiel a pohyb techniky',
+    icon: 'i-heroicons-wrench-screwdriver',
+    title: 'Revír',
+  },
+  {
+    description: 'potvrdenie, presun termínu, pripomenutie príchodu a odchodu',
+    icon: 'i-heroicons-calendar-days',
+    title: 'Rezervácie',
+  },
+  {
+    description: 'zmeny programu, váženia, uzávierky sektorov a organizačné pokyny',
+    icon: 'i-heroicons-trophy',
+    title: 'Súťaže',
+  },
+]
 
 onMounted(() => {
   const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
@@ -171,11 +254,13 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 async function requestNotifications() {
   if (!('Notification' in window)) {
     notificationStatus.value = 'unsupported'
+    subscriptionSubmitStatus.value = 'error'
+    subscriptionSubmitMessage.value = 'Tento prehliadač nepodporuje upozornenia.'
     return
   }
   requesting.value = true
-  subscriptionSubmitMessage.value = ''
-  subscriptionSubmitStatus.value = 'idle'
+  subscriptionSubmitStatus.value = 'submitting'
+  subscriptionSubmitMessage.value = 'Spracúvam zapnutie upozornení.'
   try {
     const permission = await Notification.requestPermission()
     notificationStatus.value = permission as 'granted' | 'denied'
@@ -199,7 +284,9 @@ async function requestNotifications() {
     subscriptionEndpoint.value = result.subscription.endpoint
     localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, result.subscription.endpoint)
     subscriptionSubmitStatus.value = 'success'
-    subscriptionSubmitMessage.value = result.message
+    subscriptionSubmitMessage.value = result.subscription.enabled
+      ? 'Výstrahy sú zapnuté pre toto zariadenie.'
+      : 'Výstrahy sa nepodarilo zapnúť pre toto zariadenie.'
     await refreshNotifications()
   }
   catch (error) {
@@ -214,8 +301,8 @@ async function disableNotifications() {
   if (!subscriptionEndpoint.value) return
 
   requesting.value = true
-  subscriptionSubmitMessage.value = ''
-  subscriptionSubmitStatus.value = 'idle'
+  subscriptionSubmitStatus.value = 'submitting'
+  subscriptionSubmitMessage.value = 'Spracúvam vypnutie upozornení.'
   try {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       const registration = await navigator.serviceWorker.ready
@@ -233,7 +320,9 @@ async function disableNotifications() {
     localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
     subscriptionEndpoint.value = ''
     subscriptionSubmitStatus.value = 'success'
-    subscriptionSubmitMessage.value = result.message
+    subscriptionSubmitMessage.value = result.subscription?.enabled
+      ? 'Výstrahy zostali zapnuté pre toto zariadenie.'
+      : 'Výstrahy sú vypnuté pre toto zariadenie.'
     await refreshNotifications()
   }
   catch (error) {
@@ -270,6 +359,13 @@ function alertIcon(severity: string) {
   return 'i-heroicons-information-circle'
 }
 
+function alertSeverityLabel(severity: string) {
+  if (severity === 'storm') return 'počasie'
+  if (severity === 'water') return 'voda'
+  if (severity === 'service') return 'prevádzka'
+
+  return 'oznam'
+}
 </script>
 
 <template>
@@ -284,20 +380,19 @@ function alertIcon(severity: string) {
       <div class="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <div class="border-border bg-surface rounded-card border p-5">
           <div class="flex items-start gap-3">
-            <div class="bg-primary-50 text-primary-700 rounded-full p-2">
+            <div class="bg-primary-50 text-primary-700 rounded-md p-2">
               <UIcon name="i-heroicons-bell-alert" class="h-6 w-6" />
             </div>
             <div>
-              <h2 class="text-xl font-bold">Povolenie notifikácií</h2>
+              <h2 class="text-xl font-bold">Upozornenia do telefónu</h2>
               <p class="text-foreground-muted mt-2 text-sm">
-                Povoľte upozornenia, aby ste dostali výstrahy a dôležité prevádzkové oznamy aj
-                mimo otvorenej stránky.
+                Zapnite si výstrahy, aby vás revír upozornil na búrku, silný vietor, zmenu rezervácie alebo dôležitý oznam.
               </p>
             </div>
           </div>
 
           <div class="bg-muted mt-5 rounded-md p-4">
-            <p class="text-foreground-muted text-sm">Stav</p>
+            <p class="text-foreground-muted text-sm">Stav zariadenia</p>
             <StatusBadge
               class="mt-2"
               :icon="notificationStatusBadge.icon"
@@ -306,6 +401,26 @@ function alertIcon(severity: string) {
             />
             <p class="text-foreground-muted mt-2 text-sm">{{ notificationAvailabilityMessage }}</p>
           </div>
+
+          <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            <div
+              v-for="item in notificationSummaryItems"
+              :key="item.label"
+              class="rounded-md border border-border bg-muted/60 p-3"
+            >
+              <UIcon :name="item.icon" class="h-5 w-5 text-primary-700" />
+              <p class="text-foreground-muted mt-2 text-xs">{{ item.label }}</p>
+              <p class="mt-1 font-bold">{{ item.value }}</p>
+            </div>
+          </div>
+
+          <DataStatusNotice
+            v-if="!notificationsAvailable || notificationStatus === 'denied'"
+            class="mt-4"
+            :description="notificationAvailabilityMessage"
+            :title="notificationSupportNoticeTitle"
+            :tone="notificationSupportNoticeTone"
+          />
 
           <div class="mt-5 grid gap-2 sm:grid-cols-2">
             <UButton
@@ -329,13 +444,14 @@ function alertIcon(severity: string) {
               Vypnúť
             </UButton>
           </div>
-          <p
+          <DataStatusNotice
             v-if="subscriptionSubmitMessage"
-            class="mt-3 text-sm font-semibold"
-            :class="subscriptionSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-          >
-            {{ subscriptionSubmitMessage }}
-          </p>
+            class="mt-3"
+            :description="subscriptionSubmitMessage"
+            :loading="subscriptionSubmitStatus === 'submitting'"
+            :title="subscriptionNoticeTitle"
+            :tone="subscriptionNoticeTone"
+          />
         </div>
 
         <div class="space-y-4">
@@ -372,36 +488,36 @@ function alertIcon(severity: string) {
                   <h2 class="text-xl font-bold">{{ alert.title }}</h2>
                   <p class="text-foreground-muted mt-2 text-sm">{{ alert.body }}</p>
                 </div>
-                <StatusBadge
-                  class="shrink-0"
-                  :icon="alertIcon(alert.severity)"
-                  :label="`do ${alert.validUntil}`"
-                  :tone="alertTone(alert.severity)"
-                  size="xs"
-                />
+                <div class="flex shrink-0 flex-wrap gap-2">
+                  <StatusBadge
+                    :icon="alertIcon(alert.severity)"
+                    :label="alertSeverityLabel(alert.severity)"
+                    :tone="alertTone(alert.severity)"
+                    size="xs"
+                  />
+                  <StatusBadge
+                    icon="i-heroicons-clock"
+                    :label="`do ${alert.validUntil}`"
+                    tone="neutral"
+                    size="xs"
+                  />
+                </div>
               </div>
             </article>
           </template>
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 md:grid-cols-3">
-        <div class="border-border bg-surface rounded-card border p-5">
-          <h3 class="font-bold">Počasie</h3>
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          v-for="topic in notificationTopicCards"
+          :key="topic.title"
+          class="border-border bg-surface rounded-card border p-5"
+        >
+          <UIcon :name="topic.icon" class="h-5 w-5 text-primary-700" />
+          <h3 class="mt-3 font-bold">{{ topic.title }}</h3>
           <p class="text-foreground-muted mt-2 text-sm">
-            búrky, vietor, nárazový dážď, bezpečnosť člnov a bivakov
-          </p>
-        </div>
-        <div class="border-border bg-surface rounded-card border p-5">
-          <h3 class="font-bold">Revír</h3>
-          <p class="text-foreground-muted mt-2 text-sm">
-            údržba chaty, zákaz vjazdu, zmena pravidiel, zvýšený pohyb techniky
-          </p>
-        </div>
-        <div class="border-border bg-surface rounded-card border p-5">
-          <h3 class="font-bold">Rezervácie</h3>
-          <p class="text-foreground-muted mt-2 text-sm">
-            potvrdenie, presun termínu, pripomenutie príchodu a odchodu
+            {{ topic.description }}
           </p>
         </div>
       </div>

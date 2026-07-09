@@ -39,6 +39,8 @@ const { canManage, canOperate, isReadOnly, label: accessLabel, readOnlyMessage }
 const requestFetch = useRequestFetch()
 const route = useRoute()
 const defaultSettings = createDefaultFishRegistrySettings()
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
+
 const fallbackRegistryState = (): FishRegistryStateResponse => ({
   fish: [],
   observations: [],
@@ -202,6 +204,29 @@ const editStatusChanged = computed(() => editForm.status !== editOriginalStatus.
 const measurementDisabled = computed(() =>
   selectedFish.value?.status === 'dead' || selectedFish.value?.status === 'transferred',
 )
+const chipScanNoticeTitle = computed(() => {
+  if (chipScanStatus.value === 'error') return 'Čip sa nepodarilo načítať'
+  if (chipScanStatus.value === 'found') return 'Čip je v registri'
+  if (chipScanStatus.value === 'new') return 'Nový čip'
+  return 'Výsledok čítačky'
+})
+const chipScanNoticeTone = computed<NoticeTone>(() => {
+  if (chipScanStatus.value === 'error') return 'error'
+  if (chipScanStatus.value === 'found') return 'success'
+  return 'warning'
+})
+const mutationNoticeTitle = computed(() => {
+  if (mutationStatus.value === 'error') return 'Akciu sa nepodarilo dokončiť'
+  if (mutationStatus.value === 'warning') return 'Akcia je dokončená s upozornením'
+  if (mutationStatus.value === 'submitting') return 'Spracúvam požiadavku'
+  return 'Akcia je uložená'
+})
+const mutationNoticeTone = computed<NoticeTone>(() => {
+  if (mutationStatus.value === 'error') return 'error'
+  if (mutationStatus.value === 'warning') return 'warning'
+  if (mutationStatus.value === 'submitting') return 'info'
+  return 'success'
+})
 
 const selectedObservations = computed(() =>
   selectedFish.value
@@ -463,6 +488,26 @@ function candidateAvailability(candidate: FishCatchCandidate) {
 
 function liveManagerAvailability(rule: FishLargeCatchRule) {
   return getFishManagerAvailability(rule, currentAvailabilityTime.value)
+}
+
+function managerPresenceTitle(rule: FishLargeCatchRule) {
+  const availability = liveManagerAvailability(rule)
+  if (availability.source === 'presence') return 'Správca potvrdil, že je tu'
+  if (availability.source === 'schedule') return 'Dostupný podľa rozpisu'
+  return 'Teraz nie je v službe'
+}
+
+function managerPresenceDescription(rule: FishLargeCatchRule) {
+  const availability = liveManagerAvailability(rule)
+  if (availability.presenceOverride) {
+    return `Do ${formatDateTime(availability.presenceOverride.endsAt)} · ${availability.presenceOverride.setBy}`
+  }
+  if (availability.matchingWindow) return availability.matchingWindow.label
+  return 'Rybár pri veľkej rybe uvidí pokyn mimo služby správcu.'
+}
+
+function managerPresenceTone(rule: FishLargeCatchRule): NoticeTone {
+  return liveManagerAvailability(rule).available ? 'success' : 'info'
 }
 
 async function toggleManagerPresence(rule: FishLargeCatchRule) {
@@ -1040,22 +1085,23 @@ async function refreshRegistryWorkspace() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="isReadOnly"
-        class="mb-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-4 text-sm text-warning-800"
-      >
-        <p class="font-bold">Režim prístupu: {{ accessLabel }}</p>
-        <p class="mt-1">{{ readOnlyMessage }}</p>
-      </div>
+        class="mb-6"
+        :description="readOnlyMessage"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${accessLabel}`"
+        tone="warning"
+      />
 
       <section
         v-if="openAssistanceRequests.length"
-        class="mb-6 border-y border-warning-500/30 bg-warning-500/10 px-4 py-5 sm:px-5"
+        class="mb-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 class="text-lg font-bold text-warning-950">Privolania k veľkej rybe</h2>
-            <p class="mt-1 text-sm text-warning-900">
+            <h2 class="text-lg font-bold">Privolania k veľkej rybe</h2>
+            <p class="mt-1 text-sm text-foreground-muted">
               Rybár čaká pri rybe na jasnú odpoveď. Najprv potvrď príchod alebo pokyn na pustenie.
             </p>
           </div>
@@ -1072,13 +1118,13 @@ async function refreshRegistryWorkspace() {
             :key="request.id"
             class="rounded-md border bg-white p-4 shadow-sm"
             :class="route.query.privolanie === request.id
-              ? 'border-warning-600 ring-2 ring-warning-500/20'
-              : 'border-warning-500/25'"
+              ? 'border-warning-500 ring-2 ring-warning-500/20'
+              : 'border-border'"
           >
             <div class="flex flex-col gap-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p class="text-2xl font-bold text-warning-950">
+                  <p class="text-2xl font-bold">
                     {{ formatWeightKg(request.weightKg) }} · {{ request.species }}
                   </p>
                   <p class="mt-1 text-sm text-foreground-muted">
@@ -1101,10 +1147,12 @@ async function refreshRegistryWorkspace() {
               </div>
 
               <div class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div class="rounded-md bg-warning-500/10 px-3 py-3">
-                  <p class="text-xs font-semibold text-warning-800">Ďalší krok</p>
-                  <p class="mt-1 text-sm font-semibold text-warning-950">{{ assistanceNextStep(request) }}</p>
-                </div>
+                <DataStatusNotice
+                  :description="assistanceNextStep(request)"
+                  icon="i-heroicons-arrow-right-circle"
+                  title="Ďalší krok"
+                  tone="warning"
+                />
                 <UButton
                   :to="phoneHref(request.phone)"
                   icon="i-heroicons-phone"
@@ -1126,9 +1174,13 @@ async function refreshRegistryWorkspace() {
                 </div>
               </div>
 
-              <p v-if="request.responseMessage" class="rounded-md bg-success-500/10 p-3 text-sm text-success-900">
-                {{ request.responseMessage }}
-              </p>
+              <DataStatusNotice
+                v-if="request.responseMessage"
+                :description="request.responseMessage"
+                icon="i-heroicons-check-circle"
+                title="Odpoveď odoslaná rybárovi"
+                tone="success"
+              />
 
               <div v-if="canOperate" class="flex flex-col gap-2 border-t border-border pt-4">
                 <div v-if="request.status === 'waiting'" class="grid gap-2 sm:grid-cols-[auto_1fr_1fr] sm:items-center">
@@ -1192,15 +1244,19 @@ async function refreshRegistryWorkspace() {
       <section
         v-if="activePanel === 'assistance' && activeAssistance"
         ref="assistancePanelElement"
-        class="mb-6 rounded-card border border-success-500/30 bg-success-500/10 p-5"
+        class="mb-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p class="text-sm font-bold text-success-800">Správca je pri rybe</p>
-            <h2 class="mt-1 text-2xl font-bold text-success-950">
+            <StatusBadge
+              icon="i-heroicons-check-circle"
+              label="Správca je pri rybe"
+              tone="success"
+            />
+            <h2 class="mt-3 text-2xl font-bold">
               {{ formatWeightKg(activeAssistance.weightKg) }} · {{ activeAssistance.species }}
             </h2>
-            <p class="mt-1 text-sm text-success-900">
+            <p class="mt-1 text-sm text-foreground-muted">
               {{ activeAssistance.lengthCm }} cm · {{ activeAssistance.pegLabel }} ·
               {{ activeAssistance.anglerName }}
             </p>
@@ -1224,11 +1280,11 @@ async function refreshRegistryWorkspace() {
         </div>
 
         <div class="mt-5 grid gap-4 lg:grid-cols-2">
-          <div class="rounded-md border border-success-500/25 bg-white p-4">
+          <div class="rounded-md border border-border bg-white p-4">
             <div class="flex items-start gap-3">
-              <UIcon name="i-heroicons-identification" class="mt-0.5 h-5 w-5 shrink-0 text-success-700" />
+              <UIcon name="i-heroicons-identification" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
               <div class="min-w-0 flex-1">
-                <h3 class="font-bold text-success-950">Čip nájdený</h3>
+                <h3 class="font-bold">Čip nájdený</h3>
                 <p class="mt-1 text-sm text-foreground-muted">
                   Vyberte existujúcu rybu a uložte nové meranie do jej histórie.
                 </p>
@@ -1257,20 +1313,24 @@ async function refreshRegistryWorkspace() {
             </UButton>
           </div>
 
-          <div class="rounded-md border border-warning-500/25 bg-white p-4">
+          <div class="rounded-md border border-border bg-white p-4">
             <div class="flex items-start gap-3">
-              <UIcon name="i-heroicons-tag" class="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
+              <UIcon name="i-heroicons-tag" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
               <div class="min-w-0 flex-1">
-                <h3 class="font-bold text-warning-950">Čip nenájdený</h3>
+                <h3 class="font-bold">Čip nenájdený</h3>
                 <p class="mt-1 text-sm text-foreground-muted">
                   Založte novú označenú rybu. Údaje z privolania sa predvyplnia automaticky.
                 </p>
               </div>
             </div>
 
-            <div class="mt-4 rounded-md bg-warning-500/10 px-3 py-3 text-sm text-warning-950">
-              Rybár môže navrhnúť meno ryby pri čipovaní.
-            </div>
+            <DataStatusNotice
+              class="mt-4"
+              description="Rybár môže navrhnúť meno ryby pri čipovaní."
+              icon="i-heroicons-pencil-square"
+              title="Meno ryby"
+              tone="info"
+            />
 
             <UButton icon="i-heroicons-tag" color="warning" block class="mt-4" @click="prepareAssistanceRegistration">
               Začipovať novú rybu
@@ -1278,8 +1338,8 @@ async function refreshRegistryWorkspace() {
           </div>
         </div>
 
-        <div class="mt-4 flex flex-col gap-3 border-t border-success-500/25 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-success-900">
+        <div class="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-foreground-muted">
             Po uložení merania alebo nového čipu sa privolanie automaticky uzavrie.
           </p>
           <UButton
@@ -1363,7 +1423,7 @@ async function refreshRegistryWorkspace() {
           v-for="rule in activeLargeCatchRules"
           :key="rule.lake"
           :data-testid="`manager-presence-${rule.lake}`"
-          class="rounded-card border border-info-500/25 bg-info-500/10 p-5 text-info-800"
+          class="rounded-card border border-border bg-surface p-5 text-foreground"
         >
           <div class="flex items-start gap-3">
             <UIcon
@@ -1374,7 +1434,7 @@ async function refreshRegistryWorkspace() {
             />
             <div class="min-w-0 flex-1">
               <p class="font-bold">{{ getLakeName(rule.lake) }} · od {{ rule.thresholdKg }} kg</p>
-              <p class="mt-1 text-sm">{{ rule.instruction }}</p>
+              <p class="mt-1 text-sm text-foreground-muted">{{ rule.instruction }}</p>
               <p class="mt-2 text-xs font-bold">
                 {{ fishManagerContactModeLabels[rule.contactMode] }}
                 <template v-if="rule.phone"> · {{ rule.phone }}</template>
@@ -1383,59 +1443,43 @@ async function refreshRegistryWorkspace() {
               <p class="mt-1 text-xs font-semibold">
                 Služba: {{ formatFishManagerAvailability(rule) }}
               </p>
-              <div
-                class="mt-4 rounded-md border p-3"
-                :class="liveManagerAvailability(rule).available
-                  ? 'border-success-500/30 bg-success-500/10 text-success-900'
-                  : 'border-info-500/25 bg-white/60 text-info-900'"
-              >
-                <p class="text-sm font-bold">
-                  <template v-if="liveManagerAvailability(rule).source === 'presence'">
-                    Správca potvrdil, že je tu
-                  </template>
-                  <template v-else-if="liveManagerAvailability(rule).source === 'schedule'">
-                    Dostupný podľa rozpisu
-                  </template>
-                  <template v-else>
-                    Teraz nie je v službe
-                  </template>
-                </p>
-                <p
-                  v-if="liveManagerAvailability(rule).presenceOverride"
-                  class="mt-1 text-xs"
-                >
-                  Do {{ formatDateTime(liveManagerAvailability(rule).presenceOverride?.endsAt) }}
-                  · {{ liveManagerAvailability(rule).presenceOverride?.setBy }}
-                </p>
+              <DataStatusNotice
+                class="mt-4"
+                :description="managerPresenceDescription(rule)"
+                :icon="liveManagerAvailability(rule).available
+                  ? 'i-heroicons-check-circle'
+                  : 'i-heroicons-clock'"
+                :title="managerPresenceTitle(rule)"
+                :tone="managerPresenceTone(rule)"
+              />
 
-                <div v-if="canManage" class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <select
-                    v-if="liveManagerAvailability(rule).source !== 'presence'"
-                    v-model.number="presenceDurationHours[rule.lake]"
-                    :aria-label="`Trvanie dostupnosti ${getLakeName(rule.lake)}`"
-                    class="h-9 rounded-md border border-border bg-white px-3 text-sm text-foreground"
-                  >
-                    <option :value="2">na 2 hodiny</option>
-                    <option :value="4">na 4 hodiny</option>
-                    <option :value="8">na 8 hodín</option>
-                    <option :value="12">na 12 hodín</option>
-                  </select>
-                  <UButton
-                    :data-testid="`manager-presence-toggle-${rule.lake}`"
-                    size="sm"
-                    :icon="liveManagerAvailability(rule).source === 'presence'
-                      ? 'i-heroicons-stop-circle'
-                      : 'i-heroicons-map-pin'"
-                    :color="liveManagerAvailability(rule).source === 'presence' ? 'neutral' : 'success'"
-                    :variant="liveManagerAvailability(rule).source === 'presence' ? 'soft' : 'solid'"
-                    :loading="presenceSubmitKey === rule.lake"
-                    @click="toggleManagerPresence(rule)"
-                  >
-                    {{ liveManagerAvailability(rule).source === 'presence'
-                      ? 'Ukončiť prítomnosť'
-                      : 'Som tu a dostupný' }}
-                  </UButton>
-                </div>
+              <div v-if="canManage" class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  v-if="liveManagerAvailability(rule).source !== 'presence'"
+                  v-model.number="presenceDurationHours[rule.lake]"
+                  :aria-label="`Trvanie dostupnosti ${getLakeName(rule.lake)}`"
+                  class="h-9 rounded-md border border-border bg-white px-3 text-sm text-foreground"
+                >
+                  <option :value="2">na 2 hodiny</option>
+                  <option :value="4">na 4 hodiny</option>
+                  <option :value="8">na 8 hodín</option>
+                  <option :value="12">na 12 hodín</option>
+                </select>
+                <UButton
+                  :data-testid="`manager-presence-toggle-${rule.lake}`"
+                  size="sm"
+                  :icon="liveManagerAvailability(rule).source === 'presence'
+                    ? 'i-heroicons-stop-circle'
+                    : 'i-heroicons-map-pin'"
+                  :color="liveManagerAvailability(rule).source === 'presence' ? 'neutral' : 'success'"
+                  :variant="liveManagerAvailability(rule).source === 'presence' ? 'soft' : 'solid'"
+                  :loading="presenceSubmitKey === rule.lake"
+                  @click="toggleManagerPresence(rule)"
+                >
+                  {{ liveManagerAvailability(rule).source === 'presence'
+                    ? 'Ukončiť prítomnosť'
+                    : 'Som tu a dostupný' }}
+                </UButton>
               </div>
             </div>
           </div>
@@ -1514,23 +1558,24 @@ async function refreshRegistryWorkspace() {
           </div>
         </div>
 
-        <div
+        <DataStatusNotice
           v-if="chipScanMessage"
-          class="mt-4 rounded-md border px-3 py-2 text-sm font-semibold"
-          :class="chipScanStatus === 'error'
-            ? 'border-error-500/25 bg-error-500/10 text-error-800'
-            : chipScanStatus === 'found'
-              ? 'border-success-500/25 bg-success-500/10 text-success-800'
-              : 'border-warning-500/25 bg-warning-500/10 text-warning-900'"
-        >
-          {{ chipScanMessage }}
-        </div>
+          class="mt-4"
+          :description="chipScanMessage"
+          :icon="chipScanStatus === 'found'
+            ? 'i-heroicons-check-circle'
+            : chipScanStatus === 'error'
+              ? 'i-heroicons-exclamation-triangle'
+              : 'i-heroicons-tag'"
+          :title="chipScanNoticeTitle"
+          :tone="chipScanNoticeTone"
+        />
 
         <div v-if="lastScannedChipCode && chipScanStatus !== 'error'" class="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div v-if="lastScannedFish" class="rounded-md border border-success-500/25 bg-white px-4 py-3">
+          <div v-if="lastScannedFish" class="rounded-md border border-border bg-white px-4 py-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p class="text-xs font-semibold uppercase text-success-700">Nájdená ryba</p>
+                <p class="text-xs font-semibold uppercase text-foreground-muted">Nájdená ryba</p>
                 <p class="mt-1 font-bold">{{ lastScannedFish.name || 'Ryba bez mena' }}</p>
                 <p class="mt-1 text-sm text-foreground-muted">
                   {{ lastScannedFish.species }} · {{ getLakeName(lastScannedFish.lake) }}
@@ -1539,8 +1584,8 @@ async function refreshRegistryWorkspace() {
               <StatusBadge :label="fishRegistryStatusLabels[lastScannedFish.status]" :tone="statusTone(lastScannedFish.status)" size="xs" />
             </div>
           </div>
-          <div v-else class="rounded-md border border-warning-500/25 bg-white px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-warning-700">Nový čip</p>
+          <div v-else class="rounded-md border border-border bg-white px-4 py-3">
+            <p class="text-xs font-semibold uppercase text-foreground-muted">Nový čip</p>
             <p class="mt-1 break-all font-mono font-bold">{{ lastScannedChipCode }}</p>
             <p class="mt-1 text-sm text-foreground-muted">Číslo je pripravené na založenie ryby.</p>
           </div>
@@ -1569,12 +1614,12 @@ async function refreshRegistryWorkspace() {
 
       <section
         v-if="candidateState.candidates.length"
-        class="mt-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-5"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 class="text-lg font-bold text-warning-900">Úlovky čakajúce na kontrolu čipu</h2>
-            <p class="mt-1 text-sm text-warning-800">
+            <h2 class="text-lg font-bold">Úlovky čakajúce na kontrolu čipu</h2>
+            <p class="mt-1 text-sm text-foreground-muted">
               Úlovky nad limitom konkrétneho jazera bez väzby na označenú rybu.
             </p>
           </div>
@@ -1589,7 +1634,7 @@ async function refreshRegistryWorkspace() {
           <article
             v-for="candidate in candidateState.candidates"
             :key="candidate.id"
-            class="rounded-md border border-warning-500/25 bg-white p-4"
+            class="rounded-md border border-border bg-white p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1606,14 +1651,17 @@ async function refreshRegistryWorkspace() {
               <span>{{ formatDateTime(candidate.caughtAt) }}</span>
               <span>{{ candidate.statusLabel }}</span>
             </div>
-            <p
-              class="mt-3 text-xs font-bold"
-              :class="candidateAvailability(candidate)?.available ? 'text-success-700' : 'text-warning-800'"
-            >
-              {{ candidateAvailability(candidate)?.available
-                ? `Úlovok počas služby: ${candidateAvailability(candidate)?.matchingWindow?.label}`
-                : 'Úlovok mimo služby správcu' }}
-            </p>
+            <StatusBadge
+              class="mt-3"
+              :icon="candidateAvailability(candidate)?.available
+                ? 'i-heroicons-check-circle'
+                : 'i-heroicons-clock'"
+              :label="candidateAvailability(candidate)?.available
+                ? `Počas služby: ${candidateAvailability(candidate)?.matchingWindow?.label}`
+                : 'Mimo služby správcu'"
+              :tone="candidateAvailability(candidate)?.available ? 'success' : 'warning'"
+              size="xs"
+            />
             <UButton
               v-if="canOperate"
               class="mt-4"
@@ -1695,17 +1743,14 @@ async function refreshRegistryWorkspace() {
         </div>
       </div>
 
-      <div
+      <DataStatusNotice
         v-if="mutationMessage"
-        class="mt-4 rounded-md border p-4 text-sm font-semibold"
-        :class="mutationStatus === 'error'
-          ? 'border-error-500/25 bg-error-500/10 text-error-800'
-          : mutationStatus === 'warning'
-            ? 'border-warning-500/25 bg-warning-500/10 text-warning-900'
-          : 'border-success-500/25 bg-success-500/10 text-success-800'"
-      >
-        {{ mutationMessage }}
-      </div>
+        class="mt-4"
+        :description="mutationMessage"
+        :loading="mutationStatus === 'submitting'"
+        :title="mutationNoticeTitle"
+        :tone="mutationNoticeTone"
+      />
 
       <section
         v-if="activePanel === 'candidate' && activeCandidate"
@@ -1980,13 +2025,14 @@ async function refreshRegistryWorkspace() {
           </label>
         </fieldset>
 
-        <p
+        <DataStatusNotice
           v-if="activeCandidate && candidateNeedsRegistrationPeg"
-          class="mt-4 rounded-md bg-warning-500/10 p-3 text-sm font-semibold text-warning-800"
-        >
-          Súťažný úlovok pozná sektor {{ activeCandidate.locationLabel }}, nie konkrétne lovné miesto.
-          Pred uložením vyber miesto, pri ktorom bola ryba označená.
-        </p>
+          class="mt-4"
+          :description="`Súťažný úlovok pozná sektor ${activeCandidate.locationLabel}, nie konkrétne lovné miesto. Pred uložením vyber miesto, pri ktorom bola ryba označená.`"
+          icon="i-heroicons-map-pin"
+          title="Doplň konkrétne miesto označenia"
+          tone="warning"
+        />
 
         <div class="mt-4 flex justify-end">
           <UButton type="submit" icon="i-heroicons-check" color="warning" :loading="mutationStatus === 'submitting'">
@@ -2178,7 +2224,7 @@ async function refreshRegistryWorkspace() {
                   required
                   minlength="3"
                   maxlength="500"
-                  class="w-full rounded-md border border-warning-500 bg-white px-3 py-2"
+                  class="w-full rounded-md border border-border bg-white px-3 py-2"
                   placeholder="Napr. potvrdené správcom pri kontrole"
                 >
               </label>
@@ -2188,18 +2234,14 @@ async function refreshRegistryWorkspace() {
               </label>
             </fieldset>
 
-            <div
+            <DataStatusNotice
               v-if="editStatusChanged"
-              class="mt-4 rounded-md border border-warning-500/30 bg-warning-500/10 p-3 text-sm text-warning-900"
-            >
-              <p class="font-bold">
-                Pôvodný stav: {{ fishRegistryStatusLabels[editOriginalStatus] }}.
-                Nový stav: {{ fishRegistryStatusLabels[editForm.status] }}.
-              </p>
-              <p class="mt-1">
-                Identita ryby aj všetky doterajšie merania ostanú zachované v registri a zmena sa zapíše do auditu.
-              </p>
-            </div>
+              class="mt-4"
+              :description="`Pôvodný stav: ${fishRegistryStatusLabels[editOriginalStatus]}. Nový stav: ${fishRegistryStatusLabels[editForm.status]}. Identita ryby aj všetky doterajšie merania ostanú zachované v registri a zmena sa zapíše do auditu.`"
+              icon="i-heroicons-exclamation-triangle"
+              title="Meníš stav ryby"
+              tone="warning"
+            />
 
             <div class="mt-4 flex justify-end">
               <UButton type="submit" icon="i-heroicons-check" color="warning" :loading="mutationStatus === 'submitting'">
@@ -2282,13 +2324,14 @@ async function refreshRegistryWorkspace() {
               </label>
             </fieldset>
 
-            <p
+            <DataStatusNotice
               v-if="activeCandidate && candidateNeedsObservationPeg"
-              class="mt-4 rounded-md bg-warning-500/10 p-3 text-sm font-semibold text-warning-800"
-            >
-              Úlovok prišiel zo sektora {{ activeCandidate.locationLabel }}. Vyber konkrétne lovné miesto
-              pred uložením merania.
-            </p>
+              class="mt-4"
+              :description="`Úlovok prišiel zo sektora ${activeCandidate.locationLabel}. Vyber konkrétne lovné miesto pred uložením merania.`"
+              icon="i-heroicons-map-pin"
+              title="Doplň konkrétne miesto merania"
+              tone="warning"
+            />
 
             <div class="mt-4 flex justify-end">
               <UButton type="submit" icon="i-heroicons-check" color="warning" :loading="mutationStatus === 'submitting'">

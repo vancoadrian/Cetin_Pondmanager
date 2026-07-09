@@ -337,10 +337,17 @@ const createReservationPayload = (data: OfflineReservationPayload): OfflineReser
 })
 
 const getQueueFallbackErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : 'Offline rezerváciu sa nepodarilo uložiť v zariadení.'
+  error instanceof Error ? error.message : 'Rezerváciu sa nepodarilo uložiť v tomto zariadení.'
 
 const getLivePegLabel = (pegId: string) =>
   livePegs.value.find((peg) => peg.id === pegId)?.label ?? getPegLabel(pegId)
+
+function formatReservationCount(count: number) {
+  if (count === 1) return '1 rezervácia'
+  if (count > 1 && count < 5) return `${count} rezervácie`
+
+  return `${count} rezervácií`
+}
 
 const availabilityCellClasses: Record<AvailabilityStatus, string> = {
   available: 'border-success-200 bg-success-500/10 text-success-700 hover:bg-success-500/20',
@@ -426,13 +433,13 @@ async function refreshOfflineReservationQueue() {
 
 async function queueOfflineReservation(payload: OfflineReservationPayload) {
   try {
-    const item = await enqueueOfflineReservation(payload)
+    await enqueueOfflineReservation(payload)
 
     await refreshOfflineReservationQueue()
     reservationSubmitStatus.value = 'success'
-    reservationSubmitMessage.value = `Slabý signál: žiadosť je uložená v tomto zariadení a odošle sa automaticky. Fronta: ${item.id}.`
+    reservationSubmitMessage.value = 'Slabý signál: žiadosť je uložená v tomto zariadení a odošle sa automaticky po obnovení pripojenia.'
     offlineSyncStatus.value = 'success'
-    offlineSyncMessage.value = `Vo fronte čaká ${offlineReservationQueue.value.length} rezervácia.`
+    offlineSyncMessage.value = `Na odoslanie čaká ${formatReservationCount(offlineReservationQueue.value.length)}.`
   }
   catch (error) {
     reservationSubmitStatus.value = 'error'
@@ -445,7 +452,7 @@ async function discardOfflineReservation(id: string) {
     await removeOfflineReservation(id)
     await refreshOfflineReservationQueue()
     offlineSyncStatus.value = 'success'
-    offlineSyncMessage.value = 'Offline žiadosť bola odstránená zo zariadenia.'
+    offlineSyncMessage.value = 'Čakajúca žiadosť bola odstránená zo zariadenia.'
   }
   catch (error) {
     offlineSyncStatus.value = 'error'
@@ -459,7 +466,7 @@ async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
   isOnline.value = navigator.onLine
   if (!isOnline.value) {
     offlineSyncStatus.value = 'error'
-    offlineSyncMessage.value = 'Bez pripojenia nechávam žiadosti bezpečne v zariadení.'
+    offlineSyncMessage.value = 'Bez pripojenia zostanú žiadosti bezpečne v tomto zariadení.'
     return
   }
 
@@ -467,14 +474,14 @@ async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
   if (offlineReservationQueue.value.length === 0) {
     if (!options.silent) {
       offlineSyncStatus.value = 'success'
-      offlineSyncMessage.value = 'Offline fronta rezervácií je prázdna.'
+      offlineSyncMessage.value = 'V tomto zariadení nečaká žiadna rezervácia na odoslanie.'
     }
     return
   }
 
   offlineSyncInProgress = true
   offlineSyncStatus.value = 'syncing'
-  offlineSyncMessage.value = `Odosielam ${offlineReservationQueue.value.length} offline žiadostí.`
+  offlineSyncMessage.value = `Odosielam ${formatReservationCount(offlineReservationQueue.value.length)}.`
 
   let syncedCount = 0
 
@@ -503,8 +510,8 @@ async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
 
     offlineSyncStatus.value = offlineReservationQueue.value.length > 0 ? 'error' : 'success'
     offlineSyncMessage.value = offlineReservationQueue.value.length > 0
-      ? `${syncedCount} žiadostí odoslaných, ${offlineReservationQueue.value.length} čaká na ďalší pokus.`
-      : `${syncedCount} offline žiadostí bolo odoslaných správcovi.`
+      ? `${formatReservationCount(syncedCount)} odoslaných, ${formatReservationCount(offlineReservationQueue.value.length)} čaká na ďalší pokus.`
+      : `${formatReservationCount(syncedCount)} bolo odoslaných správcovi.`
   }
   finally {
     offlineSyncInProgress = false
@@ -525,7 +532,7 @@ const submitReservation = async () => {
   }
 
   reservationSubmitStatus.value = 'submitting'
-  reservationSubmitMessage.value = ''
+  reservationSubmitMessage.value = 'Odosielam žiadosť správcovi.'
 
   try {
     const payload = createReservationPayload(validation.data)
@@ -535,7 +542,7 @@ const submitReservation = async () => {
     })
 
     reservationSubmitStatus.value = 'success'
-    reservationSubmitMessage.value = `${result.message} ID žiadosti: ${result.reservation.id}.`
+    reservationSubmitMessage.value = `${result.message} Správca termín potvrdí v aplikácii, telefonicky alebo e-mailom.`
     await refreshReservationState()
   }
   catch (error) {
@@ -559,7 +566,7 @@ function handleOnline() {
 function handleOffline() {
   isOnline.value = false
   offlineSyncStatus.value = 'idle'
-  offlineSyncMessage.value = 'Signál vypadol. Nové rezervácie sa uložia v zariadení.'
+  offlineSyncMessage.value = 'Signál vypadol. Nové rezervácie sa uložia v tomto zariadení.'
 }
 
 onMounted(() => {
@@ -946,42 +953,35 @@ watch(
             <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
             <div
               v-if="!isOnline || offlineReservationQueue.length > 0 || offlineSyncMessage"
-              class="mt-4 rounded-md border p-3"
-              :class="
-                offlineSyncStatus === 'error' || !isOnline
-                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
-                  : 'border-primary-200 bg-primary-50 text-primary-950'
-              "
+              class="mt-4 space-y-3"
             >
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
-                      class="h-5 w-5"
-                    />
-                    <p class="text-sm font-bold">
-                      {{ isOnline ? 'Offline fronta rezervácií' : 'Bez pripojenia pri rezervácii' }}
-                    </p>
-                  </div>
-                  <p class="mt-1 text-sm opacity-80">
-                    {{ offlineSyncMessage || 'Pri výpadku signálu podržíme žiadosť v zariadení a odošleme ju hneď po návrate internetu.' }}
-                  </p>
-                </div>
-                <UButton
-                  v-if="offlineReservationQueue.length > 0"
-                  size="sm"
-                  icon="i-heroicons-arrow-path"
-                  variant="soft"
-                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
-                  :loading="offlineSyncStatus === 'syncing'"
-                  @click="syncOfflineReservationQueue()"
-                >
-                  Odoslať
-                </UButton>
-              </div>
+              <DataStatusNotice
+                :action-label="offlineReservationQueue.length > 0 && isOnline ? 'Odoslať' : ''"
+                :action-loading="offlineSyncStatus === 'syncing'"
+                :description="offlineSyncMessage || 'Pri výpadku signálu podržíme žiadosť v zariadení a odošleme ju hneď po návrate internetu.'"
+                :icon="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                :loading="offlineSyncStatus === 'syncing'"
+                :title="
+                  !isOnline
+                    ? 'Bez pripojenia pri rezervácii'
+                    : offlineSyncStatus === 'syncing'
+                      ? 'Odosielam čakajúce rezervácie'
+                      : 'Čakajúce rezervácie v zariadení'
+                "
+                :tone="
+                  offlineSyncStatus === 'error' || !isOnline
+                    ? 'warning'
+                    : offlineSyncStatus === 'success'
+                      ? 'success'
+                      : 'info'
+                "
+                @action="syncOfflineReservationQueue()"
+              />
 
-              <div v-if="offlineReservationQueue.length > 0" class="mt-3 space-y-2">
+              <div
+                v-if="offlineReservationQueue.length > 0"
+                class="space-y-2 rounded-md border border-border bg-muted/50 p-3"
+              >
                 <div
                   v-for="item in offlineReservationQueue"
                   :key="item.id"
@@ -1002,7 +1002,7 @@ watch(
                   <button
                     type="button"
                     class="text-foreground-muted hover:text-error-700 shrink-0 rounded-md p-1"
-                    aria-label="Odstrániť offline rezerváciu"
+                    aria-label="Odstrániť čakajúcu rezerváciu"
                     @click="discardOfflineReservation(item.id)"
                   >
                     <UIcon name="i-heroicons-trash" class="h-4 w-4" />
@@ -1175,16 +1175,12 @@ watch(
                     <span class="min-w-0 flex-1">
                       <span class="flex items-center justify-between gap-2">
                         <span class="font-semibold">{{ extra.label }}</span>
-                        <span
-                          class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                          :class="
-                            extra.source === 'web'
-                              ? 'bg-success-500/10 text-success-700'
-                              : 'bg-warning-100 text-warning-800'
-                          "
-                        >
-                          {{ extra.source === 'web' ? 'služba revíru' : 'doplnok' }}
-                        </span>
+                        <StatusBadge
+                          :icon="extra.source === 'web' ? 'i-heroicons-building-storefront' : 'i-heroicons-plus-circle'"
+                          :label="extra.source === 'web' ? 'služba revíru' : 'doplnok'"
+                          size="xs"
+                          :tone="extra.source === 'web' ? 'success' : 'warning'"
+                        />
                       </span>
                       <span class="text-foreground-muted mt-1 block text-sm">
                         {{ extra.description }}
@@ -1288,17 +1284,25 @@ watch(
                 valid-description="Termín, miesto, kontakt a vybrané služby sú vyplnené."
               />
 
-              <div
+              <DataStatusNotice
                 v-if="reservationSubmitMessage"
-                class="rounded-md border px-3 py-2 text-sm font-semibold"
-                :class="
-                  reservationSubmitStatus === 'success'
-                    ? 'border-success-500/25 bg-success-500/10 text-success-700'
-                    : 'border-error-500/25 bg-error-500/10 text-error-700'
+                :description="reservationSubmitMessage"
+                :loading="reservationSubmitStatus === 'submitting'"
+                :title="
+                  reservationSubmitStatus === 'error'
+                    ? 'Žiadosť sa nepodarilo odoslať'
+                    : reservationSubmitStatus === 'submitting'
+                      ? 'Odosielam žiadosť'
+                      : 'Žiadosť je odoslaná'
                 "
-              >
-                {{ reservationSubmitMessage }}
-              </div>
+                :tone="
+                  reservationSubmitStatus === 'error'
+                    ? 'error'
+                    : reservationSubmitStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="button"

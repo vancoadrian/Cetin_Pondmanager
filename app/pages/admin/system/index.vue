@@ -42,6 +42,7 @@ import {
   localDataExportAssetPolicyLabels,
   localDataImportPreviewStatusLabels,
 } from '~/services/localDataExportService'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin systém' })
 
@@ -293,6 +294,12 @@ const importPreviewIntegrityStatusLabels: Record<ImportPreviewIntegrityStatus, s
   verified: 'integrita overená',
 }
 
+const importPreviewStoreStatusLabels: Record<LocalDataImportPreviewResponse['stores'][number]['status'], string> = {
+  extra: 'navyše',
+  matched: 'sedí',
+  missing: 'chýba',
+}
+
 function latestAuditEventByAction(action: string) {
   return (backupAuditLog.value?.events ?? []).find((event) => event.action === action)
 }
@@ -367,31 +374,46 @@ const localDataOpsSteps = computed<LocalDataOpsStep[]>(() => {
   ]
 })
 
-function statusClass(status: SystemHealthStatus) {
-  if (status === 'down') return 'bg-error-500/10 text-error-700'
-  if (status === 'degraded') return 'bg-warning-500/10 text-warning-700'
+function statusTone(status: SystemHealthStatus): StatusBadgeTone {
+  if (status === 'down') return 'error'
+  if (status === 'degraded') return 'warning'
 
-  return 'bg-success-500/10 text-success-700'
+  return 'success'
 }
 
-function readinessSummaryClass(status?: EnvironmentReadinessSummaryStatus) {
-  if (status === 'blocked') return 'bg-error-500/10 text-error-700'
-  if (status === 'attention') return 'bg-warning-500/10 text-warning-700'
+function readinessSummaryTone(status?: EnvironmentReadinessSummaryStatus): StatusBadgeTone {
+  if (status === 'blocked') return 'error'
+  if (status === 'attention') return 'warning'
 
-  return 'bg-success-500/10 text-success-700'
+  return 'success'
 }
 
-function readinessStatusClass(status: EnvironmentReadinessStatus) {
-  if (status === 'missing') return 'bg-error-500/10 text-error-700'
-  if (status === 'mock') return 'bg-warning-500/10 text-warning-700'
-  if (status === 'not-applicable') return 'bg-muted text-foreground-muted'
+function readinessStatusTone(status: EnvironmentReadinessStatus): StatusBadgeTone {
+  if (status === 'missing') return 'error'
+  if (status === 'mock') return 'warning'
+  if (status === 'not-applicable') return 'muted'
 
-  return 'bg-success-500/10 text-success-700'
+  return 'success'
 }
 
 function statusIcon(status: SystemHealthStatus) {
   if (status === 'down') return 'i-heroicons-x-circle'
   if (status === 'degraded') return 'i-heroicons-exclamation-triangle'
+
+  return 'i-heroicons-check-circle'
+}
+
+function readinessSummaryIcon(status?: EnvironmentReadinessSummaryStatus) {
+  if (status === 'blocked') return 'i-heroicons-x-circle'
+  if (status === 'attention') return 'i-heroicons-exclamation-triangle'
+
+  return 'i-heroicons-check-circle'
+}
+
+function readinessStatusIcon(status: EnvironmentReadinessStatus) {
+  if (status === 'missing') return 'i-heroicons-x-circle'
+  if (status === 'mock') return 'i-heroicons-beaker'
+  if (status === 'not-applicable') return 'i-heroicons-minus-circle'
 
   return 'i-heroicons-check-circle'
 }
@@ -408,25 +430,11 @@ function severityClass(severity: ObservedErrorSeverity) {
   return 'bg-info-500/10 text-info-700'
 }
 
-function importPreviewStatusClass(status?: LocalDataImportPreviewStatus) {
-  if (status === 'invalid') return 'bg-error-500/10 text-error-700'
-  if (status === 'warning') return 'bg-warning-500/10 text-warning-700'
-
-  return 'bg-success-500/10 text-success-700'
-}
-
 function importPreviewIssueClass(severity: LocalDataImportPreviewIssueSeverity) {
   if (severity === 'error') return 'bg-error-500/10 text-error-700'
   if (severity === 'warning') return 'bg-warning-500/10 text-warning-700'
 
   return 'bg-info-500/10 text-info-700'
-}
-
-function importPreviewIntegrityClass(status?: ImportPreviewIntegrityStatus) {
-  if (status === 'mismatch') return 'bg-error-500/10 text-error-700'
-  if (status === 'missing') return 'bg-warning-500/10 text-warning-700'
-
-  return 'bg-success-500/10 text-success-700'
 }
 
 function localDataOpsStepClass(status: LocalDataOpsStepStatus) {
@@ -437,12 +445,12 @@ function localDataOpsStepClass(status: LocalDataOpsStepStatus) {
   return 'border-border bg-white'
 }
 
-function localDataOpsStepBadgeClass(status: LocalDataOpsStepStatus) {
-  if (status === 'attention') return 'bg-warning-500/10 text-warning-700'
-  if (status === 'done') return 'bg-success-500/10 text-success-700'
-  if (status === 'ready') return 'bg-info-500/10 text-info-700'
+function localDataOpsStepTone(status: LocalDataOpsStepStatus): StatusBadgeTone {
+  if (status === 'attention') return 'warning'
+  if (status === 'done') return 'success'
+  if (status === 'ready') return 'info'
 
-  return 'bg-muted text-foreground-muted'
+  return 'muted'
 }
 
 function localDataOpsStepIconClass(status: LocalDataOpsStepStatus) {
@@ -453,11 +461,54 @@ function localDataOpsStepIconClass(status: LocalDataOpsStepStatus) {
   return 'bg-muted text-foreground-muted'
 }
 
-function importPreviewStoreStatusClass(status: LocalDataImportPreviewResponse['stores'][number]['status']) {
-  if (status === 'missing') return 'bg-warning-500/10 text-warning-700'
-  if (status === 'extra') return 'bg-info-500/10 text-info-700'
+function importPreviewStatusTone(status?: LocalDataImportPreviewStatus): StatusBadgeTone {
+  if (status === 'invalid') return 'error'
+  if (status === 'warning') return 'warning'
 
-  return 'bg-success-500/10 text-success-700'
+  return 'success'
+}
+
+function importPreviewStatusIcon(status?: LocalDataImportPreviewStatus) {
+  if (status === 'invalid') return 'i-heroicons-x-circle'
+  if (status === 'warning') return 'i-heroicons-exclamation-triangle'
+
+  return 'i-heroicons-check-circle'
+}
+
+function importPreviewIntegrityTone(status?: ImportPreviewIntegrityStatus): StatusBadgeTone {
+  if (status === 'mismatch') return 'error'
+  if (status === 'missing') return 'warning'
+
+  return 'success'
+}
+
+function importPreviewIntegrityIcon(status?: ImportPreviewIntegrityStatus) {
+  if (status === 'mismatch') return 'i-heroicons-shield-exclamation'
+  if (status === 'missing') return 'i-heroicons-question-mark-circle'
+
+  return 'i-heroicons-shield-check'
+}
+
+function importPreviewStoreStatusTone(status: LocalDataImportPreviewResponse['stores'][number]['status']): StatusBadgeTone {
+  if (status === 'missing') return 'warning'
+  if (status === 'extra') return 'info'
+
+  return 'success'
+}
+
+function importPreviewStoreStatusIcon(status: LocalDataImportPreviewResponse['stores'][number]['status']) {
+  if (status === 'missing') return 'i-heroicons-exclamation-triangle'
+  if (status === 'extra') return 'i-heroicons-plus-circle'
+
+  return 'i-heroicons-check-circle'
+}
+
+function safetyBackupCleanupTone(hasRemovableBackups: boolean): StatusBadgeTone {
+  return hasRemovableBackups ? 'warning' : 'success'
+}
+
+function safetyBackupCleanupIcon(hasRemovableBackups: boolean) {
+  return hasRemovableBackups ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-check-circle'
 }
 
 function auditSeverityClass(severity: AuditEvent['severity']) {
@@ -947,10 +998,11 @@ async function restoreImportedBackup() {
           <p class="text-sm font-semibold text-accent-300">{{ systemHealth?.service }}</p>
           <div class="mt-2 flex flex-wrap items-center gap-3">
             <h2 class="text-2xl font-bold">Stav systému</h2>
-            <span class="inline-flex w-fit items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold" :class="statusClass(systemHealth?.status ?? 'ok')">
-              <UIcon :name="statusIcon(systemHealth?.status ?? 'ok')" class="h-3.5 w-3.5" />
-              {{ statusLabels[systemHealth?.status ?? 'ok'] }}
-            </span>
+            <StatusBadge
+              :icon="statusIcon(systemHealth?.status ?? 'ok')"
+              :label="statusLabels[systemHealth?.status ?? 'ok']"
+              :tone="statusTone(systemHealth?.status ?? 'ok')"
+            />
           </div>
           <p class="mt-2 text-sm text-white/75">
             Posledná kontrola {{ formatDate(systemHealth?.checkedAt) }} · prostredie {{ formatSystemEnvironment(systemHealth?.environment) }}
@@ -989,12 +1041,11 @@ async function restoreImportedBackup() {
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-lg font-bold">Pripravenosť prostredia</h2>
-              <span
-                class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                :class="readinessSummaryClass(readinessDisplayStatus)"
-              >
-                {{ environmentReadinessSummaryLabels[readinessDisplayStatus] }}
-              </span>
+              <StatusBadge
+                :icon="readinessSummaryIcon(readinessDisplayStatus)"
+                :label="environmentReadinessSummaryLabels[readinessDisplayStatus]"
+                :tone="readinessSummaryTone(readinessDisplayStatus)"
+              />
             </div>
             <p class="text-foreground-muted mt-1 text-sm">
               Profil {{ readinessDisplayEnvironment ? deploymentEnvironmentLabels[readinessDisplayEnvironment] : 'nezistený' }} kontroluje nastavenia pre URL, úložisko, notifikácie, reporty a počasie.
@@ -1037,9 +1088,12 @@ async function restoreImportedBackup() {
                 <p class="mt-2 break-all text-xs font-semibold text-foreground-muted">{{ item.key }}</p>
                 <p class="mt-2 text-sm">{{ item.message }}</p>
               </div>
-              <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="readinessStatusClass(item.status)">
-                {{ environmentReadinessStatusLabels[item.status] }}
-              </span>
+              <StatusBadge
+                class="w-fit shrink-0"
+                :icon="readinessStatusIcon(item.status)"
+                :label="environmentReadinessStatusLabels[item.status]"
+                :tone="readinessStatusTone(item.status)"
+              />
             </div>
           </article>
 
@@ -1082,9 +1136,12 @@ async function restoreImportedBackup() {
                     <p class="text-foreground-muted mt-2 text-sm">{{ check.detail }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">{{ formatDate(check.checkedAt) }}</p>
                   </div>
-                  <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusClass(check.status)">
-                    {{ statusLabels[check.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit shrink-0"
+                    :icon="statusIcon(check.status)"
+                    :label="statusLabels[check.status]"
+                    :tone="statusTone(check.status)"
+                  />
                 </div>
 
                 <div v-if="metadataEntries(check).length" class="mt-4 flex flex-wrap gap-2">
@@ -1135,9 +1192,12 @@ async function restoreImportedBackup() {
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                       <p class="font-semibold">{{ step.label }}</p>
-                      <span class="rounded-md px-2 py-0.5 text-xs font-bold" :class="localDataOpsStepBadgeClass(step.status)">
-                        {{ step.statusLabel }}
-                      </span>
+                      <StatusBadge
+                        :icon="step.icon"
+                        :label="step.statusLabel"
+                        size="xs"
+                        :tone="localDataOpsStepTone(step.status)"
+                      />
                     </div>
                     <p class="text-foreground-muted mt-1 break-words text-xs">
                       {{ step.detail }}
@@ -1308,12 +1368,12 @@ async function restoreImportedBackup() {
                         Uvoľní približne {{ formatLocalDataExportBytes(safetyBackupCleanupPreview.removableSizeBytes) }}. Najnovšie ponechané: {{ safetyBackupCleanupPreview.retainedBackups.length }}.
                       </p>
                     </div>
-                    <span
-                      class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                      :class="safetyBackupCleanupRemovableBackups.length ? 'bg-warning-500/10 text-warning-700' : 'bg-success-500/10 text-success-700'"
-                    >
-                      {{ safetyBackupCleanupRemovableBackups.length ? 'vyžaduje potvrdenie' : 'bez mazania' }}
-                    </span>
+                    <StatusBadge
+                      class="w-fit shrink-0"
+                      :icon="safetyBackupCleanupIcon(safetyBackupCleanupRemovableBackups.length > 0)"
+                      :label="safetyBackupCleanupRemovableBackups.length ? 'vyžaduje potvrdenie' : 'bez mazania'"
+                      :tone="safetyBackupCleanupTone(safetyBackupCleanupRemovableBackups.length > 0)"
+                    />
                   </div>
 
                   <div v-if="safetyBackupCleanupRemovableBackups.length" class="mt-3 space-y-2">
@@ -1500,12 +1560,11 @@ async function restoreImportedBackup() {
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       <p class="font-bold">{{ importPreviewFileName || 'Záloha' }}</p>
-                      <span
-                        class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                        :class="importPreviewStatusClass(importPreview.status)"
-                      >
-                        {{ localDataImportPreviewStatusLabels[importPreview.status] }}
-                      </span>
+                      <StatusBadge
+                        :icon="importPreviewStatusIcon(importPreview.status)"
+                        :label="localDataImportPreviewStatusLabels[importPreview.status]"
+                        :tone="importPreviewStatusTone(importPreview.status)"
+                      />
                     </div>
                     <p class="text-foreground-muted mt-2 text-sm">
                       {{ importPreviewStatusMessage }}
@@ -1514,12 +1573,11 @@ async function restoreImportedBackup() {
                       {{ importPreview.exportId ?? 'bez export ID' }} · {{ formatDate(importPreview.exportedAt) }}
                     </p>
                     <div v-if="importPreview.integrity" class="mt-2 flex flex-wrap items-center gap-2">
-                      <span
-                        class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                        :class="importPreviewIntegrityClass(importPreview.integrity.status)"
-                      >
-                        {{ importPreviewIntegrityStatusLabels[importPreview.integrity.status] }}
-                      </span>
+                      <StatusBadge
+                        :icon="importPreviewIntegrityIcon(importPreview.integrity.status)"
+                        :label="importPreviewIntegrityStatusLabels[importPreview.integrity.status]"
+                        :tone="importPreviewIntegrityTone(importPreview.integrity.status)"
+                      />
                       <span class="break-all rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground-muted">
                         odtlačok: {{ shortChecksum(importPreview.integrity.checksum) }}
                       </span>
@@ -1564,9 +1622,13 @@ async function restoreImportedBackup() {
                         Aktuálne {{ store.currentRecordCount ?? 0 }} · v zálohe {{ store.incomingRecordCount }}
                       </p>
                     </div>
-                    <span class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold" :class="importPreviewStoreStatusClass(store.status)">
-                      {{ store.status === 'matched' ? 'sedí' : store.status === 'missing' ? 'chýba' : 'navyše' }}
-                    </span>
+                    <StatusBadge
+                      class="shrink-0"
+                      :icon="importPreviewStoreStatusIcon(store.status)"
+                      :label="importPreviewStoreStatusLabels[store.status]"
+                      size="xs"
+                      :tone="importPreviewStoreStatusTone(store.status)"
+                    />
                   </div>
                 </div>
 

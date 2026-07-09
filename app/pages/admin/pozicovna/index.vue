@@ -2,7 +2,8 @@
 import type { LakeSlug, RentalItem, ReservationExtra } from '~/data/pond'
 import type { ReservationStateResponse } from '~/services/reservationApiService'
 import type { RentalCatalogMutationSuccess } from '~/services/rentalCatalogService'
-import { getRentalAvailability } from '~/utils/rentals'
+import { getRentalAvailability, type RentalAvailabilityStatus } from '~/utils/rentals'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin požičovňa' })
 
@@ -99,6 +100,46 @@ const activeRentalBookings = computed(() =>
 const rangeAvailableStock = computed(() =>
   rentalAvailabilityRows.value.reduce((sum, row) => sum + row.availability.availableQuantity, 0),
 )
+
+function activeStateTone(active: boolean): StatusBadgeTone {
+  return active ? 'success' : 'muted'
+}
+
+function activeStateIcon(active: boolean) {
+  return active ? 'i-heroicons-check-circle' : 'i-heroicons-pause-circle'
+}
+
+function bookingStatusTone(status: string): StatusBadgeTone {
+  return status === 'reserved' ? 'success' : 'warning'
+}
+
+function bookingStatusIcon(status: string) {
+  return status === 'reserved' ? 'i-heroicons-check-circle' : 'i-heroicons-clock'
+}
+
+function reservationExtraSourceTone(source: ReservationExtra['source']): StatusBadgeTone {
+  return source === 'web' ? 'success' : 'warning'
+}
+
+function reservationExtraSourceIcon(source: ReservationExtra['source']) {
+  return source === 'web' ? 'i-heroicons-globe-alt' : 'i-heroicons-pencil-square'
+}
+
+function availabilityTone(status: RentalAvailabilityStatus): StatusBadgeTone {
+  if (status === 'available') return 'success'
+  if (status === 'limited') return 'warning'
+  if (status === 'unavailable') return 'error'
+
+  return 'muted'
+}
+
+function availabilityIcon(status: RentalAvailabilityStatus) {
+  if (status === 'available') return 'i-heroicons-check-circle'
+  if (status === 'limited') return 'i-heroicons-exclamation-triangle'
+  if (status === 'unavailable') return 'i-heroicons-x-circle'
+
+  return 'i-heroicons-minus-circle'
+}
 
 watch(
   liveRentalItems,
@@ -544,17 +585,13 @@ async function saveRentalCatalogSettings() {
         </form>
       </div>
 
-      <p
+      <DataStatusNotice
         v-if="catalogDraftMessage"
-        class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-        :class="
-          catalogDraftStatus === 'error'
-            ? 'bg-error-500/10 text-error-700'
-            : 'bg-success-500/10 text-success-700'
-        "
-      >
-        {{ catalogDraftMessage }}
-      </p>
+        class="mt-4"
+        :description="catalogDraftMessage"
+        :title="catalogDraftStatus === 'error' ? 'Návrh sa nedá pridať' : 'Návrh je pripravený'"
+        :tone="catalogDraftStatus === 'error' ? 'error' : 'success'"
+      />
 
       <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_0.75fr]">
         <div class="rounded-card border border-border bg-surface p-5">
@@ -573,17 +610,13 @@ async function saveRentalCatalogSettings() {
               Uložiť požičovňu
             </UButton>
           </div>
-          <p
+          <DataStatusNotice
             v-if="catalogSubmitMessage"
-            class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-            :class="
-              catalogSubmitStatus === 'error'
-                ? 'bg-error-500/10 text-error-700'
-                : 'bg-success-500/10 text-success-700'
-            "
-          >
-            {{ catalogSubmitMessage }}
-          </p>
+            class="mt-4"
+            :description="catalogSubmitMessage"
+            :title="catalogSubmitStatus === 'error' ? 'Požičovňu sa nepodarilo uložiť' : 'Požičovňa je uložená'"
+            :tone="catalogSubmitStatus === 'error' ? 'error' : 'success'"
+          />
 
           <div class="mt-5 grid gap-3 rounded-md bg-muted p-3 sm:grid-cols-2">
             <label class="block">
@@ -614,18 +647,25 @@ async function saveRentalCatalogSettings() {
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="font-bold">{{ row.item.label }}</p>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="row.item.active ? 'bg-success-500/10 text-success-700' : 'bg-foreground-muted/10 text-foreground-muted'"
-                  >
-                    {{ row.item.active ? 'aktívne' : 'vypnuté' }}
-                  </span>
-                  <span v-if="row.item.recommended" class="rounded-md bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">
-                    odporúčané
-                  </span>
-                  <span class="rounded-md border px-2 py-1 text-xs font-bold" :class="row.availability.classes">
-                    {{ row.availability.label }}
-                  </span>
+                  <StatusBadge
+                    :icon="activeStateIcon(row.item.active)"
+                    :label="row.item.active ? 'aktívne' : 'vypnuté'"
+                    size="xs"
+                    :tone="activeStateTone(row.item.active)"
+                  />
+                  <StatusBadge
+                    v-if="row.item.recommended"
+                    icon="i-heroicons-star"
+                    label="odporúčané"
+                    size="xs"
+                    tone="primary"
+                  />
+                  <StatusBadge
+                    :icon="availabilityIcon(row.availability.status)"
+                    :label="row.availability.label"
+                    size="xs"
+                    :tone="availabilityTone(row.availability.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-1 text-sm">{{ row.item.description }}</p>
                 <p class="text-primary-800 mt-2 text-xs font-semibold">{{ row.item.priceLabel }}</p>
@@ -719,12 +759,12 @@ async function saveRentalCatalogSettings() {
                   Aktívne väzby na rezervácie od {{ rangeFrom }} do {{ rangeTo }}.
                 </p>
               </div>
-              <span
-                class="rounded-md px-2 py-1 text-xs font-bold"
-                :class="unavailableItems.length ? 'bg-error-500/10 text-error-700' : 'bg-success-500/10 text-success-700'"
-              >
-                {{ unavailableItems.length ? `${unavailableItems.length} konflikt` : 'bez konfliktu' }}
-              </span>
+              <StatusBadge
+                class="shrink-0"
+                :icon="unavailableItems.length ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-check-circle'"
+                :label="unavailableItems.length ? `${unavailableItems.length} konflikt` : 'bez konfliktu'"
+                :tone="unavailableItems.length ? 'error' : 'success'"
+              />
             </div>
 
             <div class="mt-4 space-y-3">
@@ -744,12 +784,13 @@ async function saveRentalCatalogSettings() {
                       {{ getPegLabel(entry.reservation.pegId) }} · {{ entry.booking.from }} až {{ entry.booking.to }}
                     </p>
                   </div>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="entry.booking.status === 'reserved' ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-700'"
-                  >
-                    {{ entry.booking.status === 'reserved' ? 'potvrdené' : 'čaká' }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="bookingStatusIcon(entry.booking.status)"
+                    :label="entry.booking.status === 'reserved' ? 'potvrdené' : 'čaká'"
+                    size="xs"
+                    :tone="bookingStatusTone(entry.booking.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-2 text-xs">{{ entry.booking.note }}</p>
               </div>
@@ -771,18 +812,18 @@ async function saveRentalCatalogSettings() {
                     <p class="text-foreground-muted mt-1 text-sm">{{ extra.description }}</p>
                   </div>
                   <div class="flex flex-wrap justify-end gap-2">
-                    <span
-                      class="rounded-md px-2 py-1 text-xs font-bold"
-                      :class="extra.active ? 'bg-success-500/10 text-success-700' : 'bg-foreground-muted/10 text-foreground-muted'"
-                    >
-                      {{ extra.active ? 'aktívne' : 'vypnuté' }}
-                    </span>
-                    <span
-                      class="rounded-md px-2 py-1 text-xs font-bold"
-                      :class="extra.source === 'web' ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-700'"
-                    >
-                      {{ extra.source === 'web' ? 'web' : 'návrh' }}
-                    </span>
+                    <StatusBadge
+                      :icon="activeStateIcon(extra.active)"
+                      :label="extra.active ? 'aktívne' : 'vypnuté'"
+                      size="xs"
+                      :tone="activeStateTone(extra.active)"
+                    />
+                    <StatusBadge
+                      :icon="reservationExtraSourceIcon(extra.source)"
+                      :label="extra.source === 'web' ? 'web' : 'návrh'"
+                      size="xs"
+                      :tone="reservationExtraSourceTone(extra.source)"
+                    />
                   </div>
                 </div>
                 <div class="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">

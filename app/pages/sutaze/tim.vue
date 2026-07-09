@@ -36,6 +36,7 @@ import {
   touchTournamentTeamSession,
   type TournamentTeamSession,
 } from '~/utils/tournamentTeamSession'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Tímový panel súťaže' })
 
@@ -211,6 +212,12 @@ const offlineSyncMessage = ref('')
 const isOnline = ref(true)
 let offlineSyncInProgress = false
 
+type TeamStatusBadge = {
+  icon: string
+  label: string
+  tone: StatusBadgeTone
+}
+
 const requestTypeOptions: Array<{
   description: string
   icon: string
@@ -261,6 +268,43 @@ const visibleOfflineRequestQueue = computed(() =>
 const activeTeamSession = computed(() =>
   isTournamentTeamSessionForSector(teamSession.value, activeTournament.value.id, requestForm.sectorId),
 )
+const onlineConnectionBadge = computed<TeamStatusBadge>(() => isOnline.value
+  ? {
+      icon: 'i-heroicons-signal',
+      label: 'online',
+      tone: 'success',
+    }
+  : {
+      icon: 'i-heroicons-signal-slash',
+      label: 'offline režim',
+      tone: 'warning',
+    })
+const teamAccessBadge = computed<TeamStatusBadge>(() =>
+  isRoleScopedTeam.value || activeTeamSession.value
+    ? {
+        icon: 'i-heroicons-check-circle',
+        label: 'aktívny',
+        tone: 'success',
+      }
+    : {
+        icon: 'i-heroicons-device-phone-mobile',
+        label: 'neuložený',
+        tone: 'neutral',
+      },
+)
+const sectorAssignmentBadge = computed<TeamStatusBadge>(() =>
+  teamAccessSummary.value.hasAssignedTeam
+    ? {
+        icon: 'i-heroicons-user-group',
+        label: 'priradený',
+        tone: 'success',
+      }
+    : {
+        icon: 'i-heroicons-exclamation-triangle',
+        label: 'bez tímu',
+        tone: 'warning',
+      },
+)
 const canRestoreTeamSession = computed(() =>
   Boolean(
     teamSession.value
@@ -279,16 +323,29 @@ const formatWeight = (value: number) =>
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
 
-const requestStatusClass = (status: TournamentRequest['status']) => {
+const requestStatusTone = (status: TournamentRequest['status']): StatusBadgeTone => {
   switch (status) {
     case 'new':
-      return 'bg-error-500/10 text-error-700'
+      return 'error'
     case 'assigned':
-      return 'bg-warning-500/10 text-warning-700'
+      return 'warning'
     case 'resolved':
-      return 'bg-success-500/10 text-success-700'
+      return 'success'
     default:
-      return 'bg-muted text-foreground-muted'
+      return 'neutral'
+  }
+}
+
+const requestStatusIcon = (status: TournamentRequest['status']) => {
+  switch (status) {
+    case 'new':
+      return 'i-heroicons-bell-alert'
+    case 'assigned':
+      return 'i-heroicons-user-circle'
+    case 'resolved':
+      return 'i-heroicons-check-circle'
+    default:
+      return 'i-heroicons-clock'
   }
 }
 
@@ -431,7 +488,7 @@ async function submitRequest() {
   }
 
   requestSubmitStatus.value = 'submitting'
-  requestSubmitMessage.value = ''
+  requestSubmitMessage.value = 'Odosielam hlásenie dispečingu.'
 
   try {
     const result = await $fetch<TournamentRequestSubmissionSuccess>('/api/tournament-requests', {
@@ -685,20 +742,13 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
     />
 
     <section class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <div
+      <DataStatusNotice
         v-if="hasInvalidRequestedAccessCode"
-        class="mb-6 rounded-card border border-error-500/25 bg-error-500/10 p-4 text-error-700"
-      >
-        <div class="flex items-start gap-3">
-          <UIcon name="i-heroicons-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <h2 class="font-bold">Tímový kód sa nenašiel</h2>
-            <p class="mt-1 text-sm">
-              Kód {{ normalizedRequestedAccessCode }} nepatrí k žiadnemu aktuálnemu sektoru.
-            </p>
-          </div>
-        </div>
-      </div>
+        class="mb-6"
+        :description="`Kód ${normalizedRequestedAccessCode} nepatrí k žiadnemu aktuálnemu sektoru.`"
+        title="Tímový kód sa nenašiel"
+        tone="error"
+      />
 
       <div class="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div class="space-y-6">
@@ -713,29 +763,29 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                   {{ teamAccessSummary.teamName }}
                 </p>
               </div>
-              <span
-                class="w-fit rounded-md px-3 py-1 text-sm font-bold"
-                :class="isOnline ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-900'"
-              >
-                {{ isOnline ? 'online' : 'offline režim' }}
-              </span>
+              <StatusBadge
+                class="w-fit"
+                :icon="onlineConnectionBadge.icon"
+                :label="onlineConnectionBadge.label"
+                :tone="onlineConnectionBadge.tone"
+              />
             </div>
 
-            <div
+            <DataStatusNotice
               v-if="!canSubmitTournamentRequest"
-              class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800"
-            >
-              <p class="font-bold">Tímové hlásenia nie sú v tomto režime zapnuté.</p>
-              <p class="mt-1">{{ tournamentCapabilities.description }}</p>
-            </div>
+              class="mt-5"
+              :description="tournamentCapabilities.description"
+              title="Tímové hlásenia nie sú v tomto režime zapnuté"
+              tone="info"
+            />
 
-            <div
+            <DataStatusNotice
               v-else-if="hasInvalidRequestedAccessCode"
-              class="mt-5 rounded-md border border-error-500/25 bg-error-500/10 p-4 text-sm text-error-700"
-            >
-              <p class="font-bold">Hlásenie je pozastavené.</p>
-              <p class="mt-1">Najprv opravte tímový kód v karte Tímový prístup.</p>
-            </div>
+              class="mt-5"
+              description="Najprv opravte tímový kód v karte Tímový prístup."
+              title="Hlásenie je pozastavené"
+              tone="error"
+            />
 
             <form class="mt-5 space-y-5" @submit.prevent="submitRequest">
               <label class="block">
@@ -798,17 +848,25 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 :valid-description="hasInvalidRequestedAccessCode ? 'Po oprave kódu sa hlásenie odošle do správneho sektora.' : 'Dispečing dostane sektor, typ udalosti a prípadnú poznámku.'"
               />
 
-              <p
+              <DataStatusNotice
                 v-if="requestSubmitMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  requestSubmitStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
+                :description="requestSubmitMessage"
+                :loading="requestSubmitStatus === 'submitting'"
+                :title="
+                  requestSubmitStatus === 'error'
+                    ? 'Hlásenie sa nepodarilo odoslať'
+                    : requestSubmitStatus === 'submitting'
+                      ? 'Odosielam hlásenie'
+                      : 'Hlásenie je odoslané'
                 "
-              >
-                {{ requestSubmitMessage }}
-              </p>
+                :tone="
+                  requestSubmitStatus === 'error'
+                    ? 'error'
+                    : requestSubmitStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="submit"
@@ -825,42 +883,35 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
 
           <div
             v-if="!isOnline || visibleOfflineRequestQueue.length > 0 || offlineSyncMessage"
-            class="rounded-card border p-5"
-            :class="
-              offlineSyncStatus === 'error' || !isOnline
-                ? 'border-warning-200 bg-warning-500/10 text-warning-900'
-                : 'border-primary-200 bg-primary-50 text-primary-950'
-            "
+            class="space-y-3"
           >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div class="flex items-center gap-2">
-                  <UIcon
-                    :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
-                    class="h-5 w-5"
-                  />
-                  <h2 class="font-bold">
-                    {{ isOnline ? 'Offline fronta hlásení' : 'Bez pripojenia pri sektore' }}
-                  </h2>
-                </div>
-                <p class="mt-1 text-sm opacity-80">
-                  {{ offlineSyncMessage || 'Pri výpadku signálu podržíme hlásenie v zariadení a odošleme ho po návrate internetu.' }}
-                </p>
-              </div>
-              <UButton
-                v-if="offlineRequestQueue.length > 0"
-                size="sm"
-                icon="i-heroicons-arrow-path"
-                variant="soft"
-                :disabled="!isOnline || offlineSyncStatus === 'syncing'"
-                :loading="offlineSyncStatus === 'syncing'"
-                @click="syncOfflineRequestQueue()"
-              >
-                Odoslať frontu
-              </UButton>
-            </div>
+            <DataStatusNotice
+              :action-label="offlineRequestQueue.length > 0 && isOnline ? 'Odoslať frontu' : ''"
+              :action-loading="offlineSyncStatus === 'syncing'"
+              :description="offlineSyncMessage || 'Pri výpadku signálu podržíme hlásenie v zariadení a odošleme ho po návrate internetu.'"
+              :icon="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+              :loading="offlineSyncStatus === 'syncing'"
+              :title="
+                !isOnline
+                  ? 'Bez pripojenia pri sektore'
+                  : offlineSyncStatus === 'syncing'
+                    ? 'Odosielam offline hlásenia'
+                    : 'Offline fronta hlásení'
+              "
+              :tone="
+                offlineSyncStatus === 'error' || !isOnline
+                  ? 'warning'
+                  : offlineSyncStatus === 'success'
+                    ? 'success'
+                    : 'info'
+              "
+              @action="syncOfflineRequestQueue()"
+            />
 
-            <div v-if="visibleOfflineRequestQueue.length > 0" class="mt-3 space-y-2">
+            <div
+              v-if="visibleOfflineRequestQueue.length > 0"
+              class="space-y-2 rounded-md border border-border bg-muted/50 p-3"
+            >
               <div
                 v-for="item in visibleOfflineRequestQueue"
                 :key="item.id"
@@ -896,12 +947,11 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                   {{ isRoleScopedTeam ? 'Priradený k používateľskému účtu' : activeTeamSession ? 'Aktívny v tomto zariadení' : 'Lokálny prístup pre aktuálny sektor' }}
                 </p>
               </div>
-              <span
-                class="rounded-md px-2.5 py-1 text-xs font-bold"
-                :class="isRoleScopedTeam || activeTeamSession ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-              >
-                {{ isRoleScopedTeam || activeTeamSession ? 'aktívny' : 'neuložený' }}
-              </span>
+              <StatusBadge
+                :icon="teamAccessBadge.icon"
+                :label="teamAccessBadge.label"
+                :tone="teamAccessBadge.tone"
+              />
             </div>
 
             <div class="mt-4 rounded-md border border-border bg-white p-3 text-sm">
@@ -931,32 +981,29 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                   Použiť kód
                 </UButton>
               </div>
-              <p
+              <DataStatusNotice
                 v-if="teamCodeMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="teamCodeStatus === 'success' ? 'bg-success-500/10 text-success-700' : 'bg-error-500/10 text-error-700'"
-              >
-                {{ teamCodeMessage }}
-              </p>
+                :description="teamCodeMessage"
+                :title="teamCodeStatus === 'success' ? 'Tímový kód je aktívny' : 'Tímový kód sa nepodarilo použiť'"
+                :tone="teamCodeStatus === 'success' ? 'success' : 'error'"
+              />
             </form>
 
-            <div
+            <DataStatusNotice
               v-if="teamSession && !activeTeamSession"
-              class="mt-3 rounded-md border border-warning-200 bg-warning-500/10 p-3 text-sm text-warning-900"
-            >
-              <p class="font-bold">{{ teamSession.teamName }}</p>
-              <p class="mt-1">
-                Uložený sektor {{ teamSession.sectorLabel }} · {{ teamSession.code }}
-              </p>
-            </div>
+              class="mt-3"
+              :description="`Uložený sektor ${teamSession.sectorLabel} · ${teamSession.code}`"
+              :title="teamSession.teamName"
+              tone="warning"
+            />
 
-            <p
+            <DataStatusNotice
               v-if="teamSessionMessage"
-              class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="teamSessionStatus === 'success' ? 'bg-success-500/10 text-success-700' : 'bg-error-500/10 text-error-700'"
-            >
-              {{ teamSessionMessage }}
-            </p>
+              class="mt-3"
+              :description="teamSessionMessage"
+              :title="teamSessionStatus === 'success' ? 'Tímový prístup je aktualizovaný' : 'Tímový prístup sa nepodarilo aktualizovať'"
+              :tone="teamSessionStatus === 'success' ? 'success' : 'error'"
+            />
 
             <div v-if="!isRoleScopedTeam" class="mt-4 flex flex-wrap gap-2">
               <UButton
@@ -1004,12 +1051,11 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 <h2 class="text-lg font-bold">Stav sektora</h2>
                 <p class="text-foreground-muted mt-1 text-sm">{{ teamAccessSummary.title }}</p>
               </div>
-              <span
-                class="rounded-md px-2.5 py-1 text-xs font-bold"
-                :class="teamAccessSummary.hasAssignedTeam ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-900'"
-              >
-                {{ teamAccessSummary.hasAssignedTeam ? 'priradený' : 'bez tímu' }}
-              </span>
+              <StatusBadge
+                :icon="sectorAssignmentBadge.icon"
+                :label="sectorAssignmentBadge.label"
+                :tone="sectorAssignmentBadge.tone"
+              />
             </div>
 
             <div class="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -1034,13 +1080,13 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               </p>
             </div>
 
-            <div
+            <DataStatusNotice
               v-if="activeSectorPenalty"
-              class="mt-4 rounded-md border border-error-500/25 bg-error-500/10 p-3 text-sm text-error-700"
-            >
-              <p class="font-bold">{{ tournamentPenaltyTypeLabels[activeSectorPenalty.type] }}</p>
-              <p class="mt-1">{{ activeSectorPenalty.reason }}</p>
-            </div>
+              class="mt-4"
+              :description="activeSectorPenalty.reason"
+              :title="tournamentPenaltyTypeLabels[activeSectorPenalty.type]"
+              tone="error"
+            />
           </div>
 
           <div v-if="!isRoleScopedTeam" class="rounded-card border border-border bg-surface p-5">
@@ -1077,13 +1123,13 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
             <p class="mt-4 break-all rounded-md bg-muted px-3 py-2 text-xs font-semibold text-foreground-muted">
               {{ absoluteTeamAccessUrl }}
             </p>
-            <p
+            <DataStatusNotice
               v-if="copyMessage"
-              class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="copyStatus === 'success' ? 'bg-success-500/10 text-success-700' : 'bg-error-500/10 text-error-700'"
-            >
-              {{ copyMessage }}
-            </p>
+              class="mt-3"
+              :description="copyMessage"
+              :title="copyStatus === 'success' ? 'Skopírované' : 'Kopírovanie zlyhalo'"
+              :tone="copyStatus === 'success' ? 'success' : 'error'"
+            />
             <div class="mt-4 flex flex-wrap gap-2">
               <UButton :to="publicTournamentUrl" icon="i-heroicons-map" variant="soft" size="sm">
                 Verejná súťaž
@@ -1107,9 +1153,12 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                     <p class="text-sm font-bold">{{ tournamentRequestTypeLabels[request.type] }}</p>
                     <p class="text-foreground-muted mt-1 text-xs">{{ formatDateTime(request.createdAt) }}</p>
                   </div>
-                  <span class="rounded-md px-2 py-1 text-xs font-bold" :class="requestStatusClass(request.status)">
-                    {{ tournamentRequestStatusLabels[request.status] }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="requestStatusIcon(request.status)"
+                    :label="tournamentRequestStatusLabels[request.status]"
+                    :tone="requestStatusTone(request.status)"
+                  />
                 </div>
                 <p v-if="request.description" class="text-foreground-muted mt-2 text-sm">{{ request.description }}</p>
               </div>

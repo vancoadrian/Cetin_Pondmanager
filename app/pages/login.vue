@@ -119,13 +119,14 @@ async function submit() {
           </NuxtLink>
         </div>
 
-        <p
+        <DataStatusNotice
           v-if="submitMessage"
-          class="mt-4 rounded-md bg-error-500/10 px-3 py-2 text-sm font-semibold text-error-700"
-          role="alert"
-        >
-          {{ submitMessage }}
-        </p>
+          class="mt-4"
+          :description="submitMessage"
+          icon="i-heroicons-exclamation-triangle"
+          title="Prihlásenie sa nepodarilo"
+          tone="error"
+        />
 
         <UButton
           type="submit"

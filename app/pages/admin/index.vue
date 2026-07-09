@@ -3,6 +3,7 @@ import { placeIssuePriorityLabels } from '~/data/pond'
 import type { LargeFishAssistanceStateResponse } from '~/services/largeFishAssistanceService'
 import type { PlaceIssueStateResponse } from '~/services/placeIssueService'
 import { getPegAvailability } from '~/utils/availability'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin' })
 
@@ -88,12 +89,40 @@ async function signOut() {
   await navigateTo('/login')
 }
 
+async function goToLogin() {
+  await navigateTo('/login')
+}
+
 function dashboardSponsorLogo(sponsor: (typeof liveSponsors.value)[number]) {
   return getSponsorLogo(sponsor, sponsor.placementType ?? 'sponsors')
 }
 
 function formatAssistanceTime(value: string) {
   return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function assistanceStatusLabel(status: string) {
+  if (status === 'on-route') return 'správca ide'
+  return 'čaká na odpoveď'
+}
+
+function assistanceStatusTone(status: string): StatusBadgeTone {
+  if (status === 'on-route') return 'success'
+  return 'warning'
+}
+
+function reservationStatusLabel(status: string) {
+  if (status === 'pending') return 'čaká'
+  if (status === 'blocked') return 'blokované'
+
+  return status
+}
+
+function reservationStatusTone(status: string): StatusBadgeTone {
+  if (status === 'blocked') return 'error'
+  if (status === 'pending') return 'warning'
+
+  return 'neutral'
 }
 </script>
 
@@ -108,22 +137,16 @@ function formatAssistanceTime(value: string) {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="deniedModuleLabel"
-        class="mb-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-4 text-warning-800"
-      >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p class="text-sm font-bold">Nemáte prístup do modulu {{ deniedModuleLabel }}.</p>
-            <p class="mt-1 text-sm">
-              Zobrazené moduly a povolené akcie sa riadia vašou používateľskou rolou.
-            </p>
-          </div>
-          <UButton to="/login" color="warning" variant="soft" icon="i-heroicons-user-circle">
-            Späť na prihlásenie
-          </UButton>
-        </div>
-      </div>
+        class="mb-6"
+        action-label="Späť na prihlásenie"
+        :description="'Zobrazené moduly a povolené akcie sa riadia vašou používateľskou rolou.'"
+        icon="i-heroicons-lock-closed"
+        :title="`Nemáte prístup do modulu ${deniedModuleLabel}.`"
+        tone="warning"
+        @action="goToLogin"
+      />
 
       <div class="mb-6 flex flex-col gap-4 rounded-card border border-border bg-primary-900 p-5 text-white lg:flex-row lg:items-center lg:justify-between">
         <div>
@@ -161,21 +184,16 @@ function formatAssistanceTime(value: string) {
 
       <section
         v-if="activeFishAssistance.length"
-        class="mb-6 border-y border-warning-500/30 bg-warning-500/10 px-4 py-5 sm:px-5"
+        class="mb-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm font-bold text-warning-800">Vyžaduje okamžitú reakciu</p>
-            <h2 class="mt-1 text-xl font-bold text-warning-950">
-              {{ activeFishAssistance.length }}
-              {{ activeFishAssistance.length === 1 ? 'otvorené privolanie' : 'otvorené privolania' }} správcu
-            </h2>
-            <p class="mt-1 text-sm text-warning-900">
-              {{ firstActiveFishAssistance?.anglerName }} čaká pri
-              {{ firstActiveFishAssistance?.weightKg }} kg rybe na mieste
-              {{ firstActiveFishAssistance?.pegLabel }}.
-            </p>
-          </div>
+          <DataStatusNotice
+            class="flex-1"
+            :description="`${firstActiveFishAssistance?.anglerName} čaká pri ${firstActiveFishAssistance?.weightKg} kg rybe na mieste ${firstActiveFishAssistance?.pegLabel}.`"
+            icon="i-heroicons-bell-alert"
+            :title="`${activeFishAssistance.length} ${activeFishAssistance.length === 1 ? 'otvorené privolanie' : 'otvorené privolania'} správcu`"
+            tone="warning"
+          />
           <UButton
             :to="{ path: '/admin/ryby', query: { privolanie: firstActiveFishAssistance?.id } }"
             icon="i-heroicons-bell-alert"
@@ -190,19 +208,21 @@ function formatAssistanceTime(value: string) {
             v-for="request in activeFishAssistance.slice(0, 3)"
             :key="request.id"
             :to="{ path: '/admin/ryby', query: { privolanie: request.id } }"
-            class="rounded-md border border-warning-500/25 bg-white p-3 transition hover:border-warning-500 hover:bg-warning-50"
+            class="rounded-md border border-border bg-white p-3 transition hover:border-warning-500 hover:bg-warning-50"
           >
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="font-bold text-warning-950">{{ request.weightKg }} kg · {{ request.species }}</p>
-                <p class="mt-1 text-sm text-warning-900">{{ request.pegLabel }} · {{ request.anglerName }}</p>
+                <p class="font-bold">{{ request.weightKg }} kg · {{ request.species }}</p>
+                <p class="mt-1 text-sm text-foreground-muted">{{ request.pegLabel }} · {{ request.anglerName }}</p>
               </div>
-              <UIcon
-                :name="request.status === 'on-route' ? 'i-heroicons-truck' : 'i-heroicons-clock'"
-                class="h-5 w-5 shrink-0 text-warning-700"
+              <StatusBadge
+                :icon="request.status === 'on-route' ? 'i-heroicons-truck' : 'i-heroicons-clock'"
+                :label="assistanceStatusLabel(request.status)"
+                :tone="assistanceStatusTone(request.status)"
+                size="xs"
               />
             </div>
-            <p class="mt-2 text-xs font-semibold text-warning-800">
+            <p class="mt-2 text-xs font-semibold text-foreground-muted">
               {{ formatAssistanceTime(request.createdAt) }} · {{ request.phone }}
             </p>
           </NuxtLink>
@@ -270,16 +290,13 @@ function formatAssistanceTime(value: string) {
                       {{ closure.from }} až {{ closure.to }}
                     </p>
                   </div>
-                  <span
-                    class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                    :class="
-                      closure.visibility === 'public'
-                        ? 'bg-success-500/10 text-success-700'
-                        : 'bg-warning-500/10 text-warning-700'
-                    "
-                  >
-                    {{ closure.visibility === 'public' ? 'public' : 'interné' }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit"
+                    :icon="closure.visibility === 'public' ? 'i-heroicons-eye' : 'i-heroicons-eye-slash'"
+                    :label="closure.visibility === 'public' ? 'Verejné' : 'Interné'"
+                    size="xs"
+                    :tone="closure.visibility === 'public' ? 'success' : 'warning'"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-3 text-sm">{{ closure.notes }}</p>
               </div>
@@ -306,9 +323,12 @@ function formatAssistanceTime(value: string) {
                       {{ getLakeName(reservation.lake) }} · {{ reservation.pegId }}
                     </p>
                   </div>
-                  <span class="rounded-md bg-warning-500/10 px-2 py-1 text-xs font-bold text-warning-700">
-                    {{ reservation.status }}
-                  </span>
+                  <StatusBadge
+                    :icon="reservation.status === 'blocked' ? 'i-heroicons-no-symbol' : 'i-heroicons-clock'"
+                    :label="reservationStatusLabel(reservation.status)"
+                    size="xs"
+                    :tone="reservationStatusTone(reservation.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-3 text-sm">
                   {{ reservation.from }} až {{ reservation.to }}
@@ -331,12 +351,12 @@ function formatAssistanceTime(value: string) {
                     <p class="font-semibold">{{ issue.title }}</p>
                     <p class="text-foreground-muted text-sm">{{ getLakeName(issue.lake) }} · {{ issue.targetLabel }}</p>
                   </div>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="issue.priority === 'urgent' ? 'bg-error-500/10 text-error-700' : 'bg-warning-500/10 text-warning-700'"
-                  >
-                    {{ placeIssuePriorityLabels[issue.priority] }}
-                  </span>
+                  <StatusBadge
+                    :icon="issue.priority === 'urgent' ? 'i-heroicons-bell-alert' : 'i-heroicons-flag'"
+                    :label="placeIssuePriorityLabels[issue.priority]"
+                    size="xs"
+                    :tone="issue.priority === 'urgent' ? 'error' : 'warning'"
+                  />
                 </div>
               </div>
               <p v-if="activePlaceIssues.length === 0" class="text-sm text-foreground-muted">
@@ -381,11 +401,14 @@ function formatAssistanceTime(value: string) {
                 <p class="text-foreground-muted mt-2 text-sm">{{ request.description }}</p>
               </div>
             </div>
-            <div v-if="activeTournamentPenalties.length" class="mt-4 rounded-md bg-error-500/10 p-4">
-              <p class="text-sm font-bold text-error-700">
-                {{ activeTournamentPenalties.length }} aktívny trest v súťaži
-              </p>
-            </div>
+            <DataStatusNotice
+              v-if="activeTournamentPenalties.length"
+              class="mt-4"
+              :description="activeTournamentPenalties.length === 1 ? 'Jeden tím má aktívne obmedzenie.' : `${activeTournamentPenalties.length} tímov má aktívne obmedzenie.`"
+              icon="i-heroicons-no-symbol"
+              title="Aktívny trest v súťaži"
+              tone="error"
+            />
           </div>
 
           <div class="border-border bg-surface rounded-card border p-5">
@@ -408,12 +431,12 @@ function formatAssistanceTime(value: string) {
                   <p class="truncate font-semibold">{{ sponsor.name }}</p>
                   <p class="text-foreground-muted truncate text-sm">{{ sponsor.placement }}</p>
                 </div>
-                <span
-                  class="rounded-md px-2 py-1 text-xs font-bold"
-                  :class="sponsor.active ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-                >
-                  {{ sponsor.active ? 'aktívny' : 'pauza' }}
-                </span>
+                <StatusBadge
+                  :icon="sponsor.active ? 'i-heroicons-check-circle' : 'i-heroicons-pause-circle'"
+                  :label="sponsor.active ? 'aktívny' : 'pauza'"
+                  size="xs"
+                  :tone="sponsor.active ? 'success' : 'muted'"
+                />
               </div>
             </div>
           </div>

@@ -217,13 +217,12 @@ watch(contactForm, () => {
               Zavolať
             </UButton>
           </div>
-          <p
+          <DataStatusNotice
             v-if="copyMessage"
-            class="rounded-md px-3 py-2 text-sm"
-            :class="copyStatus === 'success' ? 'bg-success-500/10 text-success-700' : 'bg-error-500/10 text-error-700'"
-          >
-            {{ copyMessage }}
-          </p>
+            :description="copyMessage"
+            :title="copyStatus === 'success' ? 'Text je pripravený' : 'Text sa nedá pripraviť'"
+            :tone="copyStatus === 'success' ? 'success' : 'error'"
+          />
         </form>
       </div>
     </section>

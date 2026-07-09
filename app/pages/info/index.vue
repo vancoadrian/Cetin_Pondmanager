@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CabinProduct, ReservationExtra } from '~/data/pond'
+import type { CabinProduct, RequiredEquipmentItem, ReservationExtra } from '~/data/pond'
 
 useHead({ title: 'Pravidlá a výbava' })
 
@@ -22,6 +22,22 @@ const {
 const displayedCabinProducts = computed(() =>
   liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts,
 )
+const recommendedRentalItems = computed(() => activeRentalItems.value.filter((item) => item.recommended))
+const rentableRequiredEquipmentCount = computed(() =>
+  requiredEquipment.filter((item) => item.rentable).length,
+)
+const reservationTarget = {
+  path: '/rezervacie',
+}
+const mapTarget = {
+  path: '/mapa',
+}
+const equipmentRentalIdByEquipmentId: Partial<Record<string, string>> = {
+  disinfection: 'fish-care-kit',
+  'fish-cradle': 'fish-cradle-rental',
+  'landing-net': 'landing-net-rental',
+  pean: 'fish-care-kit',
+}
 
 function paymentMethodIcon(kind: string) {
   if (kind === 'cash') return 'i-heroicons-banknotes'
@@ -37,6 +53,12 @@ const reservationWithRental = (rentalId: string) => ({
     vybava: rentalId,
   },
 })
+
+const reservationWithEquipment = (item: RequiredEquipmentItem) => {
+  const rentalId = equipmentRentalIdByEquipmentId[item.id]
+
+  return rentalId ? reservationWithRental(rentalId) : undefined
+}
 
 const reservationWithExtra = (extra: ReservationExtra) => ({
   path: '/rezervacie',
@@ -70,6 +92,79 @@ const reservationWithCabin = (cabin: CabinProduct) => {
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div class="mb-6 grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <div class="rounded-card border border-primary-200 bg-primary-50 p-5">
+          <div class="flex items-start gap-3">
+            <span class="bg-primary-900 text-white flex h-10 w-10 shrink-0 items-center justify-center rounded-md">
+              <UIcon name="i-heroicons-clipboard-document-check" class="h-5 w-5" />
+            </span>
+            <div>
+              <h2 class="text-xl font-bold">Pred príchodom k vode</h2>
+              <p class="text-foreground-muted mt-1 text-sm">
+                Vyberte termín, skontrolujte povinnú výbavu a doplnky pridajte rovno do rezervácie.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-md bg-white p-3">
+              <p class="text-primary-800 text-xs font-semibold">1. Termín</p>
+              <p class="mt-1 text-sm font-bold">Miesto alebo chata</p>
+            </div>
+            <div class="rounded-md bg-white p-3">
+              <p class="text-primary-800 text-xs font-semibold">2. Výbava</p>
+              <p class="mt-1 text-sm font-bold">Požičateľné položky: {{ rentableRequiredEquipmentCount }}</p>
+            </div>
+            <div class="rounded-md bg-white p-3">
+              <p class="text-primary-800 text-xs font-semibold">3. Potvrdenie</p>
+              <p class="mt-1 text-sm font-bold">Správca potvrdí rezerváciu</p>
+            </div>
+          </div>
+
+          <div class="mt-5 flex flex-wrap gap-3">
+            <UButton :to="reservationTarget" icon="i-heroicons-calendar-days" color="warning">
+              Začať rezerváciu
+            </UButton>
+            <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="soft">
+              Pozrieť mapu miest
+            </UButton>
+          </div>
+        </div>
+
+        <div class="rounded-card border border-border bg-surface p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-xl font-bold">Najčastejšie doplnky</h2>
+              <p class="text-foreground-muted mt-1 text-sm">
+                Položky, ktoré má zmysel riešiť už pri odoslaní žiadosti.
+              </p>
+            </div>
+            <StatusBadge
+              icon="i-heroicons-archive-box"
+              :label="`${recommendedRentalItems.length} odporúčané`"
+              tone="primary"
+              size="xs"
+            />
+          </div>
+
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
+            <NuxtLink
+              v-for="item in recommendedRentalItems"
+              :key="item.id"
+              :to="reservationWithRental(item.id)"
+              class="group rounded-md border border-border bg-muted p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
+            >
+              <p class="font-semibold">{{ item.label }}</p>
+              <p class="text-foreground-muted mt-1 text-xs">{{ item.priceLabel }}</p>
+              <span class="text-primary-800 mt-3 inline-flex items-center gap-1 text-xs font-bold">
+                Pridať k rezervácii
+                <UIcon name="i-heroicons-arrow-right" class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+
       <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
         <aside class="space-y-6">
           <div class="border-border bg-primary-900 rounded-card border p-5 text-white">
@@ -159,6 +254,16 @@ const reservationWithCabin = (cabin: CabinProduct) => {
                   <div>
                     <p class="font-semibold">{{ item.label }}</p>
                     <p class="text-foreground-muted mt-1 text-sm">{{ item.detail }}</p>
+                    <UButton
+                      v-if="item.rentable && reservationWithEquipment(item)"
+                      :to="reservationWithEquipment(item)"
+                      icon="i-heroicons-plus-circle"
+                      size="xs"
+                      variant="soft"
+                      class="mt-3"
+                    >
+                      Pridať k rezervácii
+                    </UButton>
                   </div>
                   <StatusBadge
                     class="shrink-0"

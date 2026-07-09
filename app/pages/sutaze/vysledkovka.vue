@@ -149,11 +149,63 @@ const scoreboardStatusLabel = computed(() => {
   return 'živý stav'
 })
 
-const statusLabels = {
-  closed: 'uzavreté',
-  live: 'prebieha',
-  planned: 'plánované',
-} as const
+type TournamentStatus = 'closed' | 'live' | 'planned'
+type ScoreboardChipTone = 'accent' | 'muted' | 'success' | 'warning'
+
+type ScoreboardChip = {
+  icon: string
+  label: string
+  tone: ScoreboardChipTone
+}
+
+const tournamentStatusChip = computed<ScoreboardChip>(() => {
+  const status = activeTournament.value.status as TournamentStatus
+
+  if (status === 'live') {
+    return {
+      icon: 'i-heroicons-signal',
+      label: 'prebieha',
+      tone: 'success',
+    }
+  }
+
+  if (status === 'planned') {
+    return {
+      icon: 'i-heroicons-calendar-days',
+      label: 'plánované',
+      tone: 'accent',
+    }
+  }
+
+  return {
+    icon: 'i-heroicons-check-circle',
+    label: 'uzavreté',
+    tone: 'muted',
+  }
+})
+const scoreboardSyncChip = computed<ScoreboardChip>(() => {
+  if (isRefreshing.value || isScoreboardLoading.value) {
+    return {
+      icon: 'i-heroicons-arrow-path',
+      label: scoreboardStatusLabel.value,
+      tone: 'accent',
+    }
+  }
+
+  if (scoreboardLoadError.value) {
+    return {
+      icon: 'i-heroicons-exclamation-triangle',
+      label: scoreboardStatusLabel.value,
+      tone: 'warning',
+    }
+  }
+
+  return {
+    icon: 'i-heroicons-bolt',
+    label: scoreboardStatusLabel.value,
+    tone: 'success',
+  }
+})
 
 const sponsorLogo = (sponsor: Sponsor, placementType: SponsorLogoVariant['placementType']) =>
   getSponsorLogo(sponsor, placementType)
@@ -177,17 +229,11 @@ const formatTime = (value?: string) => {
   })
 }
 
-const statusClass = (status: string) => {
-  switch (status) {
-    case 'live':
-      return 'bg-success-500 text-white'
-    case 'planned':
-      return 'bg-accent-400 text-primary-950'
-    case 'closed':
-      return 'bg-white/15 text-white'
-    default:
-      return 'bg-white/15 text-white'
-  }
+const scoreboardChipClass = (tone: ScoreboardChipTone) => {
+  if (tone === 'accent') return 'border-accent-300/50 bg-accent-300 text-primary-950'
+  if (tone === 'success') return 'border-success-300/35 bg-success-400/20 text-success-50'
+  if (tone === 'warning') return 'border-warning-300/40 bg-warning-400/20 text-warning-50'
+  return 'border-white/15 bg-white/10 text-white/80'
 }
 
 const podiumClass = (row: TournamentLeaderboardRow) => {
@@ -251,19 +297,36 @@ onBeforeUnmount(() => {
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <span
-                class="rounded-md px-2.5 py-1 text-xs font-black"
-                :class="statusClass(activeTournament.status)"
+                class="inline-flex min-h-6 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-black"
+                :class="scoreboardChipClass(tournamentStatusChip.tone)"
               >
-                {{ statusLabels[activeTournament.status] }}
+                <UIcon :name="tournamentStatusChip.icon" class="h-3.5 w-3.5 shrink-0" />
+                {{ tournamentStatusChip.label }}
               </span>
-              <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-white/80">
+              <span
+                class="inline-flex min-h-6 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold"
+                :class="scoreboardChipClass('muted')"
+              >
+                <UIcon name="i-heroicons-map-pin" class="h-3.5 w-3.5 shrink-0" />
                 {{ getLakeName(activeTournament.lake) }}
               </span>
-              <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-white/80">
+              <span
+                class="inline-flex min-h-6 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold"
+                :class="scoreboardChipClass('muted')"
+              >
+                <UIcon name="i-heroicons-calendar-days" class="h-3.5 w-3.5 shrink-0" />
                 {{ activeTournament.dateRange }}
               </span>
-              <span class="rounded-md bg-white/10 px-2.5 py-1 text-xs font-bold text-white/80">
-                {{ scoreboardStatusLabel }}
+              <span
+                class="inline-flex min-h-6 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold"
+                :class="scoreboardChipClass(scoreboardSyncChip.tone)"
+              >
+                <UIcon
+                  :name="scoreboardSyncChip.icon"
+                  class="h-3.5 w-3.5 shrink-0"
+                  :class="{ 'animate-spin': isRefreshing || isScoreboardLoading }"
+                />
+                {{ scoreboardSyncChip.label }}
               </span>
             </div>
             <h1 class="mt-2 truncate text-2xl font-black sm:text-3xl lg:text-4xl">
@@ -404,7 +467,7 @@ onBeforeUnmount(() => {
             v-else
             class="text-primary-950"
             icon="i-heroicons-trophy"
-            title="Výsledkovka je zatiaľ prázdna"
+            title="Výsledkovka čaká na prvý overený úlovok"
             description="Po prvom overenom úlovku sa tu automaticky zobrazí poradie tímov, skóre a najväčšie ryby."
           />
         </div>

@@ -91,6 +91,14 @@ const pendingReservationCount = computed(() =>
 const confirmedReservationCount = computed(() =>
   accountReservations.value.filter((reservation) => reservation.status === 'confirmed').length,
 )
+const accountEmailCount = computed(() =>
+  account.value ? 1 + (account.value.emailAliases?.length ?? 0) : 0,
+)
+const hasAnyAccountData = computed(() =>
+  accountReservations.value.length > 0
+  || accountState.value.tripLogbooks.length > 0
+  || accountState.value.tripLogbookEntries.length > 0,
+)
 const sortedEntries = computed(() =>
   [...accountState.value.tripLogbookEntries].sort((first, second) =>
     new Date(second.caughtAt).getTime() - new Date(first.caughtAt).getTime(),
@@ -100,6 +108,40 @@ const recentEntries = computed(() => sortedEntries.value.slice(0, 5))
 const largestEntry = computed(() =>
   [...accountState.value.tripLogbookEntries].sort((first, second) => second.weightKg - first.weightKg)[0],
 )
+const accountSummaryCards = computed(() => [
+  {
+    detail: `${confirmedReservationCount.value} potvrdené · ${pendingReservationCount.value} čaká`,
+    icon: 'i-heroicons-calendar-days',
+    label: 'Rezervácie',
+    value: String(accountReservations.value.length),
+  },
+  {
+    detail: `${activeLogbooks.value.length} aktívne · ${closedLogbooks.value.length} ukončené`,
+    icon: 'i-heroicons-book-open',
+    label: 'Zápisníky',
+    value: String(accountState.value.tripLogbooks.length),
+  },
+  {
+    detail: 'zapísané v priradených výpravách',
+    icon: 'i-heroicons-camera',
+    label: 'Úlovky',
+    value: String(accountState.value.tripLogbookEntries.length),
+  },
+  {
+    detail: 'spoločná váha výprav',
+    icon: 'i-heroicons-scale',
+    label: 'Váha úlovkov',
+    value: `${formatWeight(totalWeight.value)} kg`,
+  },
+  {
+    detail: largestEntry.value
+      ? `${largestEntry.value.species} · ${getPegLabel(largestEntry.value.pegId)}`
+      : 'bez zapísaného úlovku',
+    icon: 'i-heroicons-trophy',
+    label: 'Najväčší úlovok',
+    value: largestEntry.value ? `${formatWeight(largestEntry.value.weightKg)} kg` : '—',
+  },
+])
 
 function entriesFor(logbookId: string) {
   return accountState.value.tripLogbookEntries.filter((entry) => entry.logbookId === logbookId)
@@ -283,17 +325,73 @@ async function submitLogout() {
     />
 
     <section class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <div class="flex flex-col gap-4 border-y border-primary-200 bg-primary-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="font-bold">{{ account?.name }}</p>
-          <p class="mt-1 text-sm text-foreground-muted">{{ account?.email }}</p>
+      <div class="rounded-card border border-border bg-surface p-5 shadow-sm">
+        <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+          <div class="flex items-start gap-4">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+              <UIcon name="i-heroicons-user-circle" class="h-7 w-7" />
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-2xl font-bold">{{ account?.name }}</h2>
+                <StatusBadge icon="i-heroicons-identification" label="rybársky účet" tone="primary" size="xs" />
+              </div>
+              <p class="mt-1 text-sm text-foreground-muted">{{ account?.email }}</p>
+              <p class="mt-3 max-w-2xl text-sm text-foreground-muted">
+                Rezervácie a zápisníky vytvorené po prihlásení sa ukladajú k tomuto účtu.
+                Členovia výpravy môžu ďalej zapisovať úlovky cez kód zápisníka bez vlastného účtu.
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <StatusBadge
+                  icon="i-heroicons-envelope"
+                  :label="`${accountEmailCount} ${accountEmailCount === 1 ? 'e-mail' : 'e-maily'}`"
+                  tone="neutral"
+                  size="xs"
+                />
+                <StatusBadge
+                  icon="i-heroicons-shield-check"
+                  label="história zostáva v účte"
+                  tone="success"
+                  size="xs"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 lg:justify-end">
+            <UButton to="/rezervacie" icon="i-heroicons-calendar-days" color="warning">Nová rezervácia</UButton>
+            <UButton to="/ulovky" icon="i-heroicons-book-open" variant="soft">Otvoriť zápisník</UButton>
+            <UButton icon="i-heroicons-arrow-right-on-rectangle" variant="ghost" @click="submitLogout">
+              Odhlásiť
+            </UButton>
+          </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <UButton to="/ulovky" icon="i-heroicons-plus" color="warning">Nový zápisník</UButton>
-          <UButton icon="i-heroicons-arrow-right-on-rectangle" variant="ghost" @click="submitLogout">
-            Odhlásiť
-          </UButton>
-        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 md:grid-cols-3">
+        <NuxtLink
+          to="/rezervacie"
+          class="rounded-md border border-border bg-muted/60 p-4 transition hover:border-primary-300 hover:bg-primary-50"
+        >
+          <UIcon name="i-heroicons-calendar-days" class="h-5 w-5 text-primary-700" />
+          <p class="mt-3 font-bold">Rezervovať termín</p>
+          <p class="mt-1 text-sm text-foreground-muted">Miesto, chata, výbava a doplnky v jednom formulári.</p>
+        </NuxtLink>
+        <NuxtLink
+          to="/ulovky"
+          class="rounded-md border border-border bg-muted/60 p-4 transition hover:border-primary-300 hover:bg-primary-50"
+        >
+          <UIcon name="i-heroicons-book-open" class="h-5 w-5 text-primary-700" />
+          <p class="mt-3 font-bold">Zápisník výpravy</p>
+          <p class="mt-1 text-sm text-foreground-muted">Vytvorte spoločnú tabuľku úlovkov pre celú partiu.</p>
+        </NuxtLink>
+        <NuxtLink
+          to="/ulovky#velka-ryba"
+          class="rounded-md border border-border bg-muted/60 p-4 transition hover:border-primary-300 hover:bg-primary-50"
+        >
+          <UIcon name="i-heroicons-bell-alert" class="h-5 w-5 text-primary-700" />
+          <p class="mt-3 font-bold">Veľká ryba</p>
+          <p class="mt-1 text-sm text-foreground-muted">Pri úlovku nad limit privolajte správcu priamo z aplikácie.</p>
+        </NuxtLink>
       </div>
 
       <AppState
@@ -316,34 +414,25 @@ async function submitLogout() {
       </AppState>
 
       <template v-else>
+        <DataStatusNotice
+          v-if="!hasAnyAccountData"
+          class="mt-6"
+          description="Začnite rezerváciou alebo spoločným zápisníkom. Po prihlásení sa nové záznamy automaticky priradia k vášmu e-mailu."
+          icon="i-heroicons-sparkles"
+          title="Účet je pripravený na prvú výpravu"
+          tone="info"
+        />
+
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div class="rounded-card border border-border bg-surface p-4">
-            <p class="text-sm text-foreground-muted">Rezervácie</p>
-            <p class="mt-2 text-3xl font-bold">{{ accountReservations.length }}</p>
-            <p class="mt-1 text-xs text-foreground-muted">
-              {{ confirmedReservationCount }} potvrdené · {{ pendingReservationCount }} čaká
-            </p>
-          </div>
-          <div class="rounded-card border border-border bg-surface p-4">
-            <p class="text-sm text-foreground-muted">Zápisníky</p>
-            <p class="mt-2 text-3xl font-bold">{{ accountState.tripLogbooks.length }}</p>
-          </div>
-          <div class="rounded-card border border-border bg-surface p-4">
-            <p class="text-sm text-foreground-muted">Úlovky vo výpravách</p>
-            <p class="mt-2 text-3xl font-bold">{{ accountState.tripLogbookEntries.length }}</p>
-          </div>
-          <div class="rounded-card border border-border bg-surface p-4">
-            <p class="text-sm text-foreground-muted">Spoločná váha</p>
-            <p class="mt-2 text-3xl font-bold">{{ formatWeight(totalWeight) }} kg</p>
-          </div>
-          <div class="rounded-card border border-border bg-surface p-4">
-            <p class="text-sm text-foreground-muted">Najväčší úlovok</p>
-            <p class="mt-2 text-3xl font-bold">
-              {{ largestEntry ? `${formatWeight(largestEntry.weightKg)} kg` : '—' }}
-            </p>
-            <p v-if="largestEntry" class="mt-1 text-xs text-foreground-muted">
-              {{ largestEntry.species }} · {{ getPegLabel(largestEntry.pegId) }}
-            </p>
+          <div
+            v-for="item in accountSummaryCards"
+            :key="item.label"
+            class="rounded-card border border-border bg-surface p-4"
+          >
+            <UIcon :name="item.icon" class="h-5 w-5 text-primary-700" />
+            <p class="mt-3 text-sm text-foreground-muted">{{ item.label }}</p>
+            <p class="mt-2 text-3xl font-bold">{{ item.value }}</p>
+            <p class="mt-1 text-xs text-foreground-muted">{{ item.detail }}</p>
           </div>
         </div>
 
@@ -458,8 +547,8 @@ async function submitLogout() {
           </div>
           <AppState
             v-else
-            title="Zatiaľ bez rezervácií"
-            description="Rezervácia odoslaná s týmto e-mailom sa po uložení zobrazí v účte."
+            title="Nemáte rezerváciu v účte"
+            description="Rezervácia odoslaná po prihlásení alebo s týmto e-mailom sa po uložení zobrazí v účte."
             icon="i-heroicons-calendar-days"
             class="mt-4"
           >
@@ -516,10 +605,14 @@ async function submitLogout() {
           </div>
           <AppState
             v-else
-            title="Zatiaľ bez úlovkov"
-            description="Keď do zápisníka pribudne prvý úlovok, zobrazí sa v tomto prehľade."
+            title="Bez uložených úlovkov"
+            description="Prvý zápis v spoločnom zápisníku sa zobrazí aj v osobnej histórii účtu."
             icon="i-heroicons-camera"
-          />
+          >
+            <UButton to="/ulovky" icon="i-heroicons-plus" variant="soft">
+              Zapísať úlovok
+            </UButton>
+          </AppState>
         </section>
 
         <section class="mt-8">
@@ -590,10 +683,14 @@ async function submitLogout() {
           </div>
           <AppState
             v-else-if="status !== 'pending'"
-            title="Zatiaľ bez aktívnej výpravy"
-            description="Nový zápisník vytvorený po prihlásení sa tu zobrazí automaticky."
+            title="Bez aktívnej výpravy"
+            description="Vytvorte zápisník pred príchodom k vode a zdieľajte kód s partiou."
             icon="i-heroicons-book-open"
-          />
+          >
+            <UButton to="/ulovky" icon="i-heroicons-book-open" variant="soft">
+              Vytvoriť zápisník
+            </UButton>
+          </AppState>
         </section>
 
         <section v-if="closedLogbooks.length" class="mt-10">

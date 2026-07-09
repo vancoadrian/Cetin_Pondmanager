@@ -20,6 +20,7 @@ import type {
   NotificationDeliveryStatus,
   PushSubscriptionTopic,
 } from '~/data/pond'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin notifikácie' })
 
@@ -27,6 +28,7 @@ type NotificationTimelineFilter = 'all' | 'public' | 'test'
 type NotificationSubscriptionScopeFilter = 'all' | 'internal' | 'public'
 type NotificationSubscriptionStatusFilter = 'active' | 'all' | 'disabled'
 type NotificationSubscriptionTopicFilter = PushSubscriptionTopic | 'all'
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 const { tournaments, tournamentMarshals } = usePondData()
 const fallbackDeliveryDiagnostics: NotificationStateResponse['deliveryDiagnostics'] = {
@@ -77,9 +79,9 @@ const broadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('
 const broadcastSubmitMessage = ref('')
 const broadcastFilter = ref<NotificationTimelineFilter>('all')
 const testBroadcastForm = reactive({
-  body: 'Toto je interný test doručenia notifikácie Rybolov Cetín.',
+  body: 'Kontrolné interné rozoslanie pre overenie doručenia notifikácií Rybolov Cetín.',
   targetTopics: ['weather', 'service', 'reservations', 'tournaments'] as PushSubscriptionTopic[],
-  title: 'Test doručenia notifikácie',
+  title: 'Kontrola doručenia notifikácie',
 })
 const testBroadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const testBroadcastSubmitMessage = ref('')
@@ -130,7 +132,7 @@ const internalAudienceRoles: NotificationAudienceRole[] = [
 ]
 const deliveryProviderLabels: Record<NotificationDeliveryProvider, string> = {
   disabled: 'vypnuté',
-  mock: 'skúšobné',
+  mock: 'kontrolné',
   'web-push': 'push cez prehliadač',
 }
 const notificationBroadcastStatusLabels: Record<NotificationBroadcastStatus, string> = {
@@ -175,7 +177,7 @@ const missingDeliveryConfig = computed(() => deliveryDiagnostics.value.missingCo
 const timelineFilters: { label: string, value: NotificationTimelineFilter }[] = [
   { label: 'Všetko', value: 'all' },
   { label: 'Verejné', value: 'public' },
-  { label: 'Testy', value: 'test' },
+  { label: 'Kontrolné', value: 'test' },
 ]
 const subscriptionStatusFilters: { label: string, value: NotificationSubscriptionStatusFilter }[] = [
   { label: 'Aktívne', value: 'active' },
@@ -259,6 +261,78 @@ const latestLargeFishDeliveryLogs = computed(() =>
     ? getBroadcastDeliveryLogs(latestLargeFishBroadcast.value.id)
     : [],
 )
+const broadcastNoticeTitle = computed(() =>
+  broadcastSubmitStatus.value === 'error'
+    ? 'Odoslanie sa nepodarilo pripraviť'
+    : broadcastSubmitStatus.value === 'submitting'
+      ? 'Pripravujem odoslanie'
+      : 'Odoslanie je pripravené',
+)
+const broadcastNoticeTone = computed<NoticeTone>(() =>
+  broadcastSubmitStatus.value === 'error'
+    ? 'error'
+    : broadcastSubmitStatus.value === 'submitting' ? 'info' : 'success',
+)
+const testBroadcastNoticeTitle = computed(() =>
+  testBroadcastSubmitStatus.value === 'error'
+    ? 'Kontrolu doručenia sa nepodarilo spustiť'
+    : testBroadcastSubmitStatus.value === 'submitting'
+      ? 'Spúšťam kontrolu doručenia'
+      : 'Kontrola doručenia je pripravená',
+)
+const testBroadcastNoticeTone = computed<NoticeTone>(() =>
+  testBroadcastSubmitStatus.value === 'error'
+    ? 'error'
+    : testBroadcastSubmitStatus.value === 'submitting' ? 'info' : 'success',
+)
+const testCleanupNoticeTitle = computed(() =>
+  testCleanupSubmitStatus.value === 'error'
+    ? 'Údržba kontrolných rozoslaní zlyhala'
+    : testCleanupSubmitStatus.value === 'submitting'
+      ? 'Čistím kontrolné rozoslania'
+      : 'Kontrolné rozoslania sú vyčistené',
+)
+const testCleanupNoticeTone = computed<NoticeTone>(() =>
+  testCleanupSubmitStatus.value === 'error'
+    ? 'error'
+    : testCleanupSubmitStatus.value === 'submitting' ? 'info' : 'success',
+)
+const internalDeviceNoticeTitle = computed(() =>
+  mockSubscriptionSubmitStatus.value === 'error'
+    ? 'Interné zariadenie sa nepodarilo uložiť'
+    : mockSubscriptionSubmitStatus.value === 'submitting'
+      ? 'Ukladám interné zariadenie'
+      : 'Interné zariadenie je uložené',
+)
+const internalDeviceNoticeTone = computed<NoticeTone>(() =>
+  mockSubscriptionSubmitStatus.value === 'error'
+    ? 'error'
+    : mockSubscriptionSubmitStatus.value === 'submitting' ? 'info' : 'success',
+)
+const managerDeviceNoticeTitle = computed(() =>
+  managerServiceSubscriptionStatus.value === 'error'
+    ? 'Zariadenie správcu sa nepodarilo pridať'
+    : managerServiceSubscriptionStatus.value === 'submitting'
+      ? 'Pridávam zariadenie správcu'
+      : 'Zariadenie správcu je pripravené',
+)
+const managerDeviceNoticeTone = computed<NoticeTone>(() =>
+  managerServiceSubscriptionStatus.value === 'error'
+    ? 'error'
+    : managerServiceSubscriptionStatus.value === 'submitting' ? 'info' : 'success',
+)
+const subscriptionActionNoticeTitle = computed(() =>
+  subscriptionActionStatus.value === 'error'
+    ? 'Odber sa nepodarilo vypnúť'
+    : subscriptionActionStatus.value === 'submitting'
+      ? 'Vypínam odber'
+      : 'Odber je vypnutý',
+)
+const subscriptionActionNoticeTone = computed<NoticeTone>(() =>
+  subscriptionActionStatus.value === 'error'
+    ? 'error'
+    : subscriptionActionStatus.value === 'submitting' ? 'info' : 'success',
+)
 const largeFishReadinessTone = computed(() => {
   if (deliveryDiagnostics.value.provider === 'disabled') return 'neutral'
   if (largeFishServiceSubscriptions.value.length === 0) return 'warning'
@@ -270,33 +344,57 @@ const largeFishReadinessLabel = computed(() => {
   if (deliveryDiagnostics.value.provider === 'disabled') return 'doručovanie vypnuté'
   if (largeFishServiceSubscriptions.value.length === 0) return 'chýba správca alebo majiteľ'
   if (deliveryDiagnostics.value.webPushReady) return 'pripravené na doručenie'
-  if (deliveryDiagnostics.value.provider === 'mock') return 'skúšobné doručovanie pripravené'
+  if (deliveryDiagnostics.value.provider === 'mock') return 'kontrolné doručovanie pripravené'
 
   return 'potrebné doplniť kľúče'
 })
 
-function severityClass(severity: AlertSeverity) {
-  if (severity === 'storm') return 'bg-error-500/10 text-error-700'
-  if (severity === 'water') return 'bg-info-500/10 text-info-500'
-  if (severity === 'service') return 'bg-warning-500/10 text-warning-700'
+function severityTone(severity: AlertSeverity): StatusBadgeTone {
+  if (severity === 'storm') return 'error'
+  if (severity === 'water') return 'info'
+  if (severity === 'service') return 'warning'
 
-  return 'bg-primary-50 text-primary-700'
+  return 'primary'
 }
 
-function deliveryStatusClass(status: NotificationDeliveryStatus) {
-  if (status === 'sent') return 'bg-success-500/10 text-success-700'
-  if (status === 'failed') return 'bg-error-500/10 text-error-700'
-  if (status === 'skipped') return 'bg-muted text-foreground-muted'
+function severityIcon(severity: AlertSeverity) {
+  if (severity === 'storm') return 'i-heroicons-bolt'
+  if (severity === 'water') return 'i-heroicons-beaker'
+  if (severity === 'service') return 'i-heroicons-wrench-screwdriver'
 
-  return 'bg-warning-500/10 text-warning-700'
+  return 'i-heroicons-megaphone'
 }
 
-function deliveryDiagnosticsClass() {
-  if (deliveryDiagnostics.value.webPushReady) return 'bg-success-500/10 text-success-700'
-  if (deliveryDiagnostics.value.provider === 'disabled') return 'bg-muted text-foreground-muted'
-  if (deliveryDiagnostics.value.provider === 'web-push') return 'bg-warning-500/10 text-warning-700'
+function deliveryStatusTone(status: NotificationDeliveryStatus): StatusBadgeTone {
+  if (status === 'sent') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'skipped') return 'muted'
 
-  return 'bg-info-500/10 text-info-700'
+  return 'warning'
+}
+
+function deliveryStatusIcon(status: NotificationDeliveryStatus) {
+  if (status === 'sent') return 'i-heroicons-paper-airplane'
+  if (status === 'failed') return 'i-heroicons-x-circle'
+  if (status === 'skipped') return 'i-heroicons-minus-circle'
+
+  return 'i-heroicons-clock'
+}
+
+function deliveryDiagnosticsTone(): StatusBadgeTone {
+  if (deliveryDiagnostics.value.webPushReady) return 'success'
+  if (deliveryDiagnostics.value.provider === 'disabled') return 'muted'
+  if (deliveryDiagnostics.value.provider === 'web-push') return 'warning'
+
+  return 'info'
+}
+
+function deliveryDiagnosticsIcon() {
+  if (deliveryDiagnostics.value.webPushReady) return 'i-heroicons-check-circle'
+  if (deliveryDiagnostics.value.provider === 'disabled') return 'i-heroicons-pause-circle'
+  if (deliveryDiagnostics.value.provider === 'web-push') return 'i-heroicons-key'
+
+  return 'i-heroicons-signal'
 }
 
 function deliveryDiagnosticsLabel() {
@@ -304,13 +402,29 @@ function deliveryDiagnosticsLabel() {
   if (deliveryDiagnostics.value.provider === 'disabled') return 'doručovanie vypnuté'
   if (deliveryDiagnostics.value.provider === 'web-push') return 'chýbajú kľúče doručovania'
 
-  return 'skúšobný režim'
+  return 'kontrolný režim doručovania'
 }
 
-function broadcastStatusTone(status: NotificationStateResponse['broadcasts'][number]['status']) {
+function broadcastStatusTone(status: NotificationStateResponse['broadcasts'][number]['status']): StatusBadgeTone {
   if (status === 'sent' || status === 'prepared') return 'success'
   if (status === 'failed') return 'error'
   return 'neutral'
+}
+
+function broadcastStatusIcon(status: NotificationStateResponse['broadcasts'][number]['status']) {
+  if (status === 'sent') return 'i-heroicons-paper-airplane'
+  if (status === 'prepared') return 'i-heroicons-clock'
+  if (status === 'failed') return 'i-heroicons-x-circle'
+
+  return 'i-heroicons-minus-circle'
+}
+
+function subscriptionStatusTone(enabled: boolean): StatusBadgeTone {
+  return enabled ? 'success' : 'muted'
+}
+
+function subscriptionStatusIcon(enabled: boolean) {
+  return enabled ? 'i-heroicons-bell-alert' : 'i-heroicons-bell-slash'
 }
 
 function formatNotificationBroadcastStatus(status: NotificationBroadcastStatus) {
@@ -349,15 +463,15 @@ function formatTopics(topics: PushSubscriptionTopic[]) {
 
 function formatStoredNotificationMessage(message: string) {
   return message
-    .replace(/^Mock dispatcher pripravil notifikáciu pre (\d+) odberov\.$/u, 'Skúšobné doručovanie pripravilo notifikáciu pre $1 odberov.')
-    .replace(/^Mock dispatcher označil notifikáciu ako doručenú\.$/u, 'Skúšobné doručovanie označilo notifikáciu ako doručenú.')
-    .replace(/^Mock dispatcher zaevidoval (\d+) doručení\.$/u, 'Skúšobné doručovanie zaevidovalo $1 doručení.')
-    .replace(/^Mock endpoint čaká na reálny Web Push endpoint zariadenia\.$/u, 'Skúšobný odber čaká na reálne zariadenie.')
-    .replace(/^Mock doručenie\.$/u, 'Skúšobné doručenie.')
+    .replace(/^Mock dispatcher pripravil notifikáciu pre (\d+) odberov\.$/u, 'Kontrolné doručovanie pripravilo notifikáciu pre $1 odberov.')
+    .replace(/^Mock dispatcher označil notifikáciu ako doručenú\.$/u, 'Kontrolné doručovanie označilo notifikáciu ako doručenú.')
+    .replace(/^Mock dispatcher zaevidoval (\d+) doručení\.$/u, 'Kontrolné doručovanie zaevidovalo $1 doručení.')
+    .replace(/^Mock endpoint čaká na reálny Web Push endpoint zariadenia\.$/u, 'Kontrolný odber čaká na reálne zariadenie.')
+    .replace(/^Mock doručenie\.$/u, 'Kontrolné doručenie.')
 }
 
 function formatPushEndpoint(endpoint: string) {
-  if (endpoint.startsWith('mock://')) return 'skúšobný interný odber'
+  if (endpoint.startsWith('mock://')) return 'kontrolný interný odber'
 
   try {
     const url = new URL(endpoint)
@@ -484,14 +598,14 @@ function getSubscriptionTopicFilterCount(filter: NotificationSubscriptionTopicFi
 
 function broadcastEmptyMessage() {
   if (broadcastFilter.value === 'public') return 'Pre verejný filter zatiaľ nie je pripravený žiadny oznam.'
-  if (broadcastFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je pripravené žiadne interné rozoslanie.'
+  if (broadcastFilter.value === 'test') return 'Pre kontrolný filter zatiaľ nie je pripravené žiadne interné rozoslanie.'
 
   return 'Zatiaľ nie je pripravené žiadne rozoslanie.'
 }
 
 function deliveryEmptyMessage() {
   if (deliveryFilter.value === 'public') return 'Pre verejný filter zatiaľ nie je zaevidované žiadne doručenie.'
-  if (deliveryFilter.value === 'test') return 'Pre testovací filter zatiaľ nie je zaevidované žiadne doručenie.'
+  if (deliveryFilter.value === 'test') return 'Pre kontrolný filter zatiaľ nie je zaevidované žiadne doručenie.'
 
   return 'Zatiaľ nie je zaevidované žiadne doručenie.'
 }
@@ -573,7 +687,7 @@ async function submitBroadcast() {
   }
 
   broadcastSubmitStatus.value = 'submitting'
-  broadcastSubmitMessage.value = ''
+  broadcastSubmitMessage.value = 'Pripravujem rozoslanie pre zvolené okruhy.'
 
   try {
     const result = await $fetch<NotificationBroadcastSuccess>('/api/admin/notifications/broadcast', {
@@ -599,12 +713,12 @@ async function submitTestBroadcast() {
   }
   if (testBroadcastForm.targetTopics.length === 0) {
     testBroadcastSubmitStatus.value = 'error'
-    testBroadcastSubmitMessage.value = 'Vyberte aspoň jeden okruh testu.'
+    testBroadcastSubmitMessage.value = 'Vyberte aspoň jeden okruh kontroly.'
     return
   }
 
   testBroadcastSubmitStatus.value = 'submitting'
-  testBroadcastSubmitMessage.value = ''
+  testBroadcastSubmitMessage.value = 'Pripravujem kontrolné rozoslanie.'
 
   try {
     const result = await $fetch<NotificationTestBroadcastSuccess>('/api/admin/notifications/test-broadcast', {
@@ -618,7 +732,7 @@ async function submitTestBroadcast() {
   }
   catch (error) {
     testBroadcastSubmitStatus.value = 'error'
-    testBroadcastSubmitMessage.value = getApiErrorMessage(error, 'Test doručenia sa nepodarilo spustiť.')
+    testBroadcastSubmitMessage.value = getApiErrorMessage(error, 'Kontrolu doručenia sa nepodarilo spustiť.')
   }
 }
 
@@ -630,7 +744,7 @@ async function submitTestCleanup() {
   }
 
   testCleanupSubmitStatus.value = 'submitting'
-  testCleanupSubmitMessage.value = ''
+  testCleanupSubmitMessage.value = 'Čistím staršie kontrolné rozoslania.'
 
   try {
     const result = await $fetch<NotificationTestCleanupSuccess>('/api/admin/notifications/test-cleanup', {
@@ -644,7 +758,7 @@ async function submitTestCleanup() {
   }
   catch (error) {
     testCleanupSubmitStatus.value = 'error'
-    testCleanupSubmitMessage.value = getApiErrorMessage(error, 'Údržbu testov sa nepodarilo spustiť.')
+    testCleanupSubmitMessage.value = getApiErrorMessage(error, 'Údržbu kontrolných rozoslaní sa nepodarilo spustiť.')
   }
 }
 
@@ -661,7 +775,7 @@ async function submitMockSubscription() {
   }
 
   mockSubscriptionSubmitStatus.value = 'submitting'
-  mockSubscriptionSubmitMessage.value = ''
+  mockSubscriptionSubmitMessage.value = 'Ukladám interné zariadenie.'
 
   try {
     const result = await $fetch<PushSubscriptionMutationSuccess>('/api/admin/notifications/subscriptions', {
@@ -687,7 +801,7 @@ async function submitMockSubscription() {
   }
   catch (error) {
     mockSubscriptionSubmitStatus.value = 'error'
-    mockSubscriptionSubmitMessage.value = getApiErrorMessage(error, 'Testovacie zariadenie sa nepodarilo uložiť.')
+    mockSubscriptionSubmitMessage.value = getApiErrorMessage(error, 'Interné zariadenie sa nepodarilo uložiť.')
   }
 }
 
@@ -708,7 +822,7 @@ async function createManagerServiceSubscription() {
   }
 
   managerServiceSubscriptionStatus.value = 'submitting'
-  managerServiceSubscriptionMessage.value = ''
+  managerServiceSubscriptionMessage.value = 'Pridávam zariadenie správcu do prevádzkových odberov.'
   prepareManagerServiceSubscriptionForm()
 
   try {
@@ -748,7 +862,7 @@ async function disableAdminSubscription(subscription: NotificationStateResponse[
 
   subscriptionActionId.value = subscription.id
   subscriptionActionStatus.value = 'submitting'
-  subscriptionActionMessage.value = ''
+  subscriptionActionMessage.value = 'Vypínam odber zariadenia.'
 
   try {
     const result = await $fetch<PushSubscriptionMutationSuccess>(
@@ -817,13 +931,14 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="notificationsReadOnly"
-        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
-      >
-        <p class="text-sm font-bold">Režim prístupu: {{ notificationAccessLabel }}</p>
-        <p class="mt-1 text-sm">{{ notificationReadOnlyMessage }}</p>
-      </div>
+        class="mb-5"
+        :description="notificationReadOnlyMessage"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${notificationAccessLabel}`"
+        tone="info"
+      />
 
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
@@ -840,14 +955,14 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <p class="text-foreground-muted text-sm">Rozoslania</p>
           <p class="mt-2 text-3xl font-bold">{{ broadcasts.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">
-            {{ publicBroadcasts.length }} verejné · {{ testBroadcasts.length }} testy
+            {{ publicBroadcasts.length }} verejné · {{ testBroadcasts.length }} kontrolné
           </p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
           <p class="text-foreground-muted text-sm">Záznamy doručenia</p>
           <p class="mt-2 text-3xl font-bold">{{ deliveryLogs.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">
-            {{ publicDeliveryLogs.length }} verejné · {{ testDeliveryLogs.length }} testy
+            {{ publicDeliveryLogs.length }} verejné · {{ testDeliveryLogs.length }} kontrolné
           </p>
         </div>
       </div>
@@ -860,9 +975,12 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               Stav doručovania podľa aktuálneho serverového nastavenia.
             </p>
           </div>
-          <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="deliveryDiagnosticsClass()">
-            {{ deliveryDiagnosticsLabel() }}
-          </span>
+          <StatusBadge
+            class="w-fit"
+            :icon="deliveryDiagnosticsIcon()"
+            :label="deliveryDiagnosticsLabel()"
+            :tone="deliveryDiagnosticsTone()"
+          />
         </div>
 
         <dl class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -893,12 +1011,13 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           </p>
         </div>
 
-        <p
+        <DataStatusNotice
           v-if="missingDeliveryConfig.length > 0"
-          class="mt-4 rounded-md border border-warning-500/25 bg-warning-500/10 px-3 py-2 text-sm font-semibold text-warning-700"
-        >
-          Chýba konfigurácia: {{ missingDeliveryConfig.join(', ') }}
-        </p>
+          class="mt-4"
+          :description="`Chýba konfigurácia: ${missingDeliveryConfig.join(', ')}`"
+          title="Doručovanie čaká na nastavenie"
+          tone="warning"
+        />
       </div>
 
       <section class="mt-5 rounded-card border border-border bg-surface p-5">
@@ -930,7 +1049,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <div class="rounded-md bg-muted px-3 py-3">
             <p class="text-xs font-semibold uppercase text-foreground-muted">Servisné rozoslania</p>
             <p class="mt-1 text-2xl font-bold">{{ serviceBroadcasts.length }}</p>
-            <p class="mt-1 text-xs text-foreground-muted">bez interných testov</p>
+            <p class="mt-1 text-xs text-foreground-muted">bez kontrolných rozoslaní</p>
           </div>
           <div class="rounded-md bg-muted px-3 py-3">
             <p class="text-xs font-semibold uppercase text-foreground-muted">Veľké ryby</p>
@@ -965,13 +1084,14 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               >
                 {{ largeFishServiceSubscriptions.length > 0 ? 'Pridať ďalšie zariadenie správcu' : 'Pridať zariadenie správcu' }}
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="managerServiceSubscriptionMessage"
-                class="text-sm font-semibold"
-                :class="managerServiceSubscriptionStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ managerServiceSubscriptionMessage }}
-              </p>
+                class="flex-1"
+                :description="managerServiceSubscriptionMessage"
+                :loading="managerServiceSubscriptionStatus === 'submitting'"
+                :title="managerDeviceNoticeTitle"
+                :tone="managerDeviceNoticeTone"
+              />
             </div>
 
             <div v-if="largeFishServiceSubscriptions.length" class="mt-4 space-y-2">
@@ -1042,9 +1162,13 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     <p class="truncate text-sm font-semibold">{{ delivery.deviceLabel }}</p>
                     <p class="mt-0.5 text-xs text-foreground-muted">{{ formatStoredNotificationMessage(delivery.message) }}</p>
                   </div>
-                  <span class="w-fit shrink-0 rounded-md px-2 py-0.5 text-xs font-bold" :class="deliveryStatusClass(delivery.status)">
-                    {{ formatNotificationDeliveryStatus(delivery.status) }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="deliveryStatusIcon(delivery.status)"
+                    :label="formatNotificationDeliveryStatus(delivery.status)"
+                    size="xs"
+                    :tone="deliveryStatusTone(delivery.status)"
+                  />
                 </div>
               </div>
             </article>
@@ -1060,9 +1184,9 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Test doručenia</h2>
+                <h2 class="text-lg font-bold">Kontrola doručenia</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Spustí interné rozoslanie bez pridania verejného oznamu do výstrah.
+                  Overí interné doručenie bez pridania verejného oznamu do výstrah.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
@@ -1089,7 +1213,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   />
                 </label>
                 <div>
-                  <p class="text-sm font-semibold">Okruhy testu</p>
+                  <p class="text-sm font-semibold">Okruhy kontroly</p>
                   <div class="mt-2 flex flex-wrap gap-3 text-sm">
                     <label v-for="topic in availableTopics" :key="topic" class="flex items-center gap-2">
                       <input
@@ -1112,28 +1236,29 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 :loading="testBroadcastSubmitStatus === 'submitting'"
                 @click="submitTestBroadcast"
               >
-                Spustiť test
+                Spustiť kontrolu
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="testBroadcastSubmitMessage"
-                class="text-sm font-semibold"
-                :class="testBroadcastSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ testBroadcastSubmitMessage }}
-              </p>
+                class="flex-1"
+                :description="testBroadcastSubmitMessage"
+                :loading="testBroadcastSubmitStatus === 'submitting'"
+                :title="testBroadcastNoticeTitle"
+                :tone="testBroadcastNoticeTone"
+              />
             </div>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 class="text-lg font-bold">Údržba testov</h2>
+                <h2 class="text-lg font-bold">Údržba kontrolných rozoslaní</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Vyčistí staré interné testy a ich záznamy doručenia.
+                  Vyčistí staré interné kontroly a ich záznamy doručenia.
                 </p>
               </div>
               <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                len testy
+                iba kontrolné
               </span>
             </div>
 
@@ -1150,7 +1275,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   >
                 </label>
                 <label class="block">
-                  <span class="text-sm font-semibold">Ponechať posledné testy</span>
+                  <span class="text-sm font-semibold">Ponechať posledné</span>
                   <input
                     v-model.number="testCleanupForm.keepRecentTestBroadcasts"
                     type="number"
@@ -1163,7 +1288,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </fieldset>
 
             <p class="mt-3 rounded-md bg-muted px-3 py-2 text-sm text-foreground-muted">
-              Aktuálne: {{ testBroadcasts.length }} testov · {{ testDeliveryLogs.length }} testovacích doručení
+              Aktuálne: {{ testBroadcasts.length }} kontrolných rozoslaní · {{ testDeliveryLogs.length }} kontrolných doručení
             </p>
 
             <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1175,15 +1300,16 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 :loading="testCleanupSubmitStatus === 'submitting'"
                 @click="submitTestCleanup"
               >
-                Vyčistiť staré testy
+                Vyčistiť staré kontroly
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="testCleanupSubmitMessage"
-                class="text-sm font-semibold"
-                :class="testCleanupSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ testCleanupSubmitMessage }}
-              </p>
+                class="flex-1"
+                :description="testCleanupSubmitMessage"
+                :loading="testCleanupSubmitStatus === 'submitting'"
+                :title="testCleanupNoticeTitle"
+                :tone="testCleanupNoticeTone"
+              />
             </div>
           </div>
 
@@ -1259,20 +1385,21 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               >
                 Pripraviť odoslanie
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="broadcastSubmitMessage"
-                class="text-sm font-semibold"
-                :class="broadcastSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ broadcastSubmitMessage }}
-              </p>
+                class="flex-1"
+                :description="broadcastSubmitMessage"
+                :loading="broadcastSubmitStatus === 'submitting'"
+                :title="broadcastNoticeTitle"
+                :tone="broadcastNoticeTone"
+              />
             </div>
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Interné testovacie zariadenie</h2>
+            <h2 class="text-lg font-bold">Interné zariadenie</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Testovací odber pre interné role, súťažné sektory a kontrolórov.
+              Odber pre interné role, súťažné sektory a kontrolórov.
             </p>
 
             <fieldset :disabled="!canOperateNotifications" class="contents">
@@ -1366,15 +1493,16 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                 :loading="mockSubscriptionSubmitStatus === 'submitting'"
                 @click="submitMockSubscription"
               >
-                Uložiť testovacie zariadenie
+                Uložiť interné zariadenie
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="mockSubscriptionSubmitMessage"
-                class="text-sm font-semibold"
-                :class="mockSubscriptionSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ mockSubscriptionSubmitMessage }}
-              </p>
+                class="flex-1"
+                :description="mockSubscriptionSubmitMessage"
+                :loading="mockSubscriptionSubmitStatus === 'submitting'"
+                :title="internalDeviceNoticeTitle"
+                :tone="internalDeviceNoticeTone"
+              />
             </div>
           </div>
         </div>
@@ -1385,7 +1513,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
               <div>
                 <h2 class="text-lg font-bold">Posledné rozoslania</h2>
                 <p class="text-foreground-muted mt-1 text-sm">
-                  Verejné oznamy a interné testy sú oddelené pre čistejšiu prevádzku.
+                  Verejné oznamy a kontrolné interné rozoslania sú oddelené pre čistejšiu prevádzku.
                 </p>
               </div>
               <div class="flex flex-wrap gap-2">
@@ -1407,12 +1535,13 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   <div>
                     <div class="flex flex-wrap items-center gap-2">
                       <h3 class="font-bold">{{ broadcast.title }}</h3>
-                      <span
+                      <StatusBadge
                         v-if="isTestBroadcast(broadcast)"
-                        class="rounded-md bg-muted px-2 py-0.5 text-xs font-bold text-foreground-muted"
-                      >
-                        interný test
-                      </span>
+                        icon="i-heroicons-signal"
+                        label="kontrolné"
+                        size="xs"
+                        tone="muted"
+                      />
                     </div>
                     <p class="text-foreground-muted mt-1 text-sm">{{ formatStoredNotificationMessage(broadcast.message) }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">
@@ -1422,9 +1551,20 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                       {{ formatNotificationAudience(broadcast.targetAudience) }}
                     </p>
                   </div>
-                  <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="severityClass(broadcast.severity)">
-                    {{ formatNotificationBroadcastStatus(broadcast.status) }}
-                  </span>
+                  <div class="flex w-fit flex-wrap justify-start gap-2 sm:justify-end">
+                    <StatusBadge
+                      :icon="broadcastStatusIcon(broadcast.status)"
+                      :label="formatNotificationBroadcastStatus(broadcast.status)"
+                      size="xs"
+                      :tone="broadcastStatusTone(broadcast.status)"
+                    />
+                    <StatusBadge
+                      :icon="severityIcon(broadcast.severity)"
+                      :label="broadcast.severity === 'storm' ? 'búrka' : broadcast.severity === 'water' ? 'voda' : broadcast.severity === 'service' ? 'servis' : 'oznam'"
+                      size="xs"
+                      :tone="severityTone(broadcast.severity)"
+                    />
+                  </div>
                 </div>
               </article>
               <p v-if="filteredBroadcasts.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
@@ -1464,9 +1604,13 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                       {{ deliveryProviderLabels[delivery.provider] }} · {{ formatPushEndpoint(delivery.endpoint) }}
                     </p>
                   </div>
-                  <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="deliveryStatusClass(delivery.status)">
-                    {{ formatNotificationDeliveryStatus(delivery.status) }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit"
+                    :icon="deliveryStatusIcon(delivery.status)"
+                    :label="formatNotificationDeliveryStatus(delivery.status)"
+                    size="xs"
+                    :tone="deliveryStatusTone(delivery.status)"
+                  />
                 </div>
               </article>
               <p v-if="filteredDeliveryLogs.length === 0" class="rounded-md border border-dashed border-border p-4 text-sm text-foreground-muted">
@@ -1546,21 +1690,22 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     <p v-if="formatSubscriptionAudience(subscription)" class="text-foreground-muted mt-1 text-xs">
                       {{ formatSubscriptionAudience(subscription) }}
                     </p>
-                    <p
+                    <DataStatusNotice
                       v-if="subscriptionActionId === subscription.id && subscriptionActionMessage"
-                      class="mt-2 text-xs font-semibold"
-                      :class="subscriptionActionStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-                    >
-                      {{ subscriptionActionMessage }}
-                    </p>
+                      class="mt-3"
+                      :description="subscriptionActionMessage"
+                      :loading="subscriptionActionStatus === 'submitting'"
+                      :title="subscriptionActionNoticeTitle"
+                      :tone="subscriptionActionNoticeTone"
+                    />
                   </div>
                   <div class="flex w-fit flex-col items-start gap-2 sm:items-end">
-                    <span
-                      class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                      :class="subscription.enabled ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-                    >
-                      {{ subscription.enabled ? 'aktívny' : 'vypnutý' }}
-                    </span>
+                    <StatusBadge
+                      :icon="subscriptionStatusIcon(subscription.enabled)"
+                      :label="subscription.enabled ? 'aktívny' : 'vypnutý'"
+                      size="xs"
+                      :tone="subscriptionStatusTone(subscription.enabled)"
+                    />
                     <UButton
                       v-if="subscription.enabled"
                       icon="i-heroicons-bell-slash"

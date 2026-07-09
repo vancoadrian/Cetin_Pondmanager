@@ -22,6 +22,7 @@ import type {
   CatchReportScheduleRunSuccess,
   CatchReportStateResponse,
 } from '~/services/catchReportService'
+import type { StatusBadgeTone } from '~/utils/ui'
 import {
   catchReportAudienceLabels,
   catchReportCadenceLabels,
@@ -56,6 +57,7 @@ type CatchReportScheduleRunSummary = Pick<
   CatchReportScheduleRunSuccess,
   'deliveryProvider' | 'dueCount' | 'failedCount' | 'preparedCount' | 'processedCount' | 'sentCount' | 'skippedCount'
 >
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 const {
   catches: seedCatches,
@@ -171,6 +173,7 @@ const reportSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idl
 const reportSubmitMessage = ref('')
 const generatedCatchReport = ref<CatchGeneratedReport>()
 const generatingReportId = ref('')
+const generateReportStatus = ref<'idle' | 'success' | 'error'>('idle')
 const generateReportMessage = ref('')
 const reportEmailDraft = ref<CatchReportEmailDraft>()
 const preparingEmailReportId = ref('')
@@ -180,6 +183,54 @@ const schedulerRunStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idl
 const schedulerRunMessage = ref('')
 const schedulerRunRows = ref<CatchReportScheduleRunSuccess['rows']>([])
 const schedulerRunSummary = ref<CatchReportScheduleRunSummary>()
+const reportSubmitNoticeTitle = computed(() =>
+  reportSubmitStatus.value === 'success'
+    ? 'Report je uložený'
+    : 'Report sa nepodarilo uložiť',
+)
+const reportSubmitNoticeTone = computed<NoticeTone>(() =>
+  reportSubmitStatus.value === 'success' ? 'success' : 'error',
+)
+const generateReportNoticeTitle = computed(() =>
+  generateReportStatus.value === 'success'
+    ? 'Report je vygenerovaný'
+    : 'Report sa nepodarilo vygenerovať',
+)
+const generateReportNoticeTone = computed<NoticeTone>(() =>
+  generateReportStatus.value === 'success' ? 'success' : 'error',
+)
+const reportEmailDraftNoticeTitle = computed(() =>
+  reportEmailDraftStatus.value === 'success'
+    ? 'E-mailový draft je pripravený'
+    : 'E-mailový draft sa nepodarilo pripraviť',
+)
+const reportEmailDraftNoticeTone = computed<NoticeTone>(() =>
+  reportEmailDraftStatus.value === 'success' ? 'success' : 'error',
+)
+const schedulerRunNoticeTitle = computed(() =>
+  schedulerRunStatus.value === 'success'
+    ? 'Plánovač reportov dobehol'
+    : 'Plánovač reportov potrebuje kontrolu',
+)
+const schedulerRunNoticeTone = computed<NoticeTone>(() =>
+  schedulerRunStatus.value === 'success' ? 'success' : 'error',
+)
+const correctionNoticeTitle = computed(() =>
+  correctionSubmitStatus.value === 'success'
+    ? 'Oprava je uložená'
+    : 'Opravu sa nepodarilo uložiť',
+)
+const correctionNoticeTone = computed<NoticeTone>(() =>
+  correctionSubmitStatus.value === 'success' ? 'success' : 'error',
+)
+const decisionNoticeTitle = computed(() =>
+  decisionSubmitStatus.value === 'error'
+    ? 'Rozhodnutie sa nepodarilo uložiť'
+    : 'Rozhodnutie je uložené',
+)
+const decisionNoticeTone = computed<NoticeTone>(() =>
+  decisionSubmitStatus.value === 'error' ? 'error' : 'success',
+)
 
 const liveCatches = computed(() => catchState.value?.catches ?? seedCatches)
 const liveCatchPhotos = computed(() => catchState.value?.catchPhotos ?? seedCatchPhotos)
@@ -476,18 +527,21 @@ const statusFilterModel = computed({
   },
 })
 
-const statusMeta: Record<CatchRecordStatus, { class: string, label: string }> = {
+const statusMeta: Record<CatchRecordStatus, { icon: string, label: string, tone: StatusBadgeTone }> = {
   approved: {
-    class: 'bg-success-500/10 text-success-700',
+    icon: 'i-heroicons-check-circle',
     label: 'schválené',
+    tone: 'success',
   },
   pending: {
-    class: 'bg-warning-500/10 text-warning-800',
+    icon: 'i-heroicons-clock',
     label: 'čaká',
+    tone: 'warning',
   },
   rejected: {
-    class: 'bg-error-500/10 text-error-700',
+    icon: 'i-heroicons-x-circle',
     label: 'zamietnuté',
+    tone: 'error',
   },
 }
 
@@ -790,14 +844,32 @@ function formatSchedulerAction(row: CatchReportScheduleRunRow) {
   return row.due ? 'preskočené' : 'čaká'
 }
 
-function getSchedulerActionClass(row: CatchReportScheduleRunRow) {
-  if (row.action === 'failed') return 'border-error-500/25 bg-error-500/10 text-error-700'
+function getSchedulerActionTone(row: CatchReportScheduleRunRow): StatusBadgeTone {
+  if (row.action === 'failed') return 'error'
   if (row.action === 'sent' || row.action === 'prepared' || row.action === 'generated') {
-    return 'border-success-500/25 bg-success-500/10 text-success-700'
+    return 'success'
   }
-  if (row.due) return 'border-warning-500/25 bg-warning-500/10 text-warning-800'
+  if (row.due) return 'warning'
 
-  return 'border-border bg-muted text-foreground-muted'
+  return 'neutral'
+}
+
+function getSchedulerActionIcon(row: CatchReportScheduleRunRow) {
+  if (row.action === 'failed') return 'i-heroicons-exclamation-triangle'
+  if (row.action === 'sent') return 'i-heroicons-paper-airplane'
+  if (row.action === 'prepared') return 'i-heroicons-envelope'
+  if (row.action === 'generated') return 'i-heroicons-document-chart-bar'
+  if (row.due) return 'i-heroicons-clock'
+
+  return 'i-heroicons-minus-circle'
+}
+
+function savedReportStatusTone(enabled: boolean): StatusBadgeTone {
+  return enabled ? 'success' : 'neutral'
+}
+
+function savedReportStatusIcon(enabled: boolean) {
+  return enabled ? 'i-heroicons-check-circle' : 'i-heroicons-pause-circle'
 }
 
 function formatSchedulerRowMeta(row: CatchReportScheduleRunRow) {
@@ -958,11 +1030,13 @@ async function saveCurrentCatchReport() {
 
 async function generateSavedCatchReport(report: CatchSavedReport) {
   if (!canManageCatches.value) {
+    generateReportStatus.value = 'error'
     generateReportMessage.value = catchReadOnlyMessage.value
     return
   }
 
   generatingReportId.value = report.id
+  generateReportStatus.value = 'idle'
   generateReportMessage.value = ''
 
   try {
@@ -971,10 +1045,12 @@ async function generateSavedCatchReport(report: CatchSavedReport) {
     })
 
     generatedCatchReport.value = result.generatedReport
+    generateReportStatus.value = 'success'
     generateReportMessage.value = result.message
     await refreshCatchReports()
   }
   catch (error) {
+    generateReportStatus.value = 'error'
     generateReportMessage.value = getApiErrorMessage(error, 'Report sa nepodarilo vygenerovať.')
   }
   finally {
@@ -1134,16 +1210,14 @@ async function saveCorrection() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="catchesReadOnly"
-        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
-      >
-        <p class="text-sm font-bold">Režim prístupu: {{ catchAccessLabel }}</p>
-        <p class="mt-1 text-sm">{{ catchReadOnlyMessage }}</p>
-        <p class="mt-1 text-sm">
-          Exporty ostávajú dostupné, schvaľovanie, korekcie a ukladanie reportov sú vypnuté.
-        </p>
-      </div>
+        class="mb-5"
+        :description="`${catchReadOnlyMessage} Exporty ostávajú dostupné, schvaľovanie, korekcie a ukladanie reportov sú vypnuté.`"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${catchAccessLabel}`"
+        tone="info"
+      />
 
       <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-card border border-border bg-surface p-4">
@@ -1363,13 +1437,13 @@ async function saveCorrection() {
               >
                 Uložiť aktuálny report
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="reportSubmitMessage"
-                class="text-sm"
-                :class="reportSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ reportSubmitMessage }}
-              </p>
+                class="sm:flex-1"
+                :description="reportSubmitMessage"
+                :title="reportSubmitNoticeTitle"
+                :tone="reportSubmitNoticeTone"
+              />
             </div>
           </div>
 
@@ -1400,41 +1474,51 @@ async function saveCorrection() {
 
             <div
               v-if="schedulerRunMessage"
-              class="mt-4 rounded-md border p-3"
-              :class="schedulerRunStatus === 'error' ? 'border-error-500/25 bg-error-500/10' : 'border-success-500/25 bg-success-500/10'"
+              class="mt-4 rounded-md border border-border bg-white p-3"
             >
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p class="text-xs font-bold uppercase" :class="schedulerRunStatus === 'error' ? 'text-error-700' : 'text-success-700'">
-                    Plánovač reportov
-                  </p>
-                  <p class="mt-1 text-sm font-semibold" :class="schedulerRunStatus === 'error' ? 'text-error-700' : 'text-success-700'">
-                    {{ schedulerRunMessage }}
-                  </p>
-                </div>
-                <span class="text-foreground-muted text-xs">
-                  {{ scheduledCatchReports.length }} plánovaných
-                </span>
-              </div>
+              <DataStatusNotice
+                :description="schedulerRunMessage"
+                icon="i-heroicons-clock"
+                :title="schedulerRunNoticeTitle"
+                :tone="schedulerRunNoticeTone"
+              />
               <div v-if="schedulerRunSummary" class="mt-3 flex flex-wrap gap-2">
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Provider: {{ catchReportDeliveryProviderLabels[schedulerRunSummary.deliveryProvider] }}
-                </span>
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Splatné: {{ schedulerRunSummary.dueCount }}
-                </span>
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Odoslané: {{ schedulerRunSummary.sentCount }}
-                </span>
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Pripravené: {{ schedulerRunSummary.preparedCount }}
-                </span>
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Preskočené: {{ schedulerRunSummary.skippedCount }}
-                </span>
-                <span class="rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-foreground">
-                  Chyby: {{ schedulerRunSummary.failedCount }}
-                </span>
+                <StatusBadge
+                  icon="i-heroicons-server"
+                  :label="`Provider: ${catchReportDeliveryProviderLabels[schedulerRunSummary.deliveryProvider]}`"
+                  size="xs"
+                  tone="neutral"
+                />
+                <StatusBadge
+                  icon="i-heroicons-calendar-days"
+                  :label="`Splatné: ${schedulerRunSummary.dueCount}`"
+                  size="xs"
+                  tone="warning"
+                />
+                <StatusBadge
+                  icon="i-heroicons-paper-airplane"
+                  :label="`Odoslané: ${schedulerRunSummary.sentCount}`"
+                  size="xs"
+                  tone="success"
+                />
+                <StatusBadge
+                  icon="i-heroicons-envelope"
+                  :label="`Pripravené: ${schedulerRunSummary.preparedCount}`"
+                  size="xs"
+                  tone="success"
+                />
+                <StatusBadge
+                  icon="i-heroicons-forward"
+                  :label="`Preskočené: ${schedulerRunSummary.skippedCount}`"
+                  size="xs"
+                  tone="neutral"
+                />
+                <StatusBadge
+                  icon="i-heroicons-exclamation-triangle"
+                  :label="`Chyby: ${schedulerRunSummary.failedCount}`"
+                  size="xs"
+                  tone="error"
+                />
               </div>
               <div v-if="schedulerRunRows.length > 0" class="mt-3 grid gap-2">
                 <div
@@ -1448,12 +1532,13 @@ async function saveCorrection() {
                       <p class="text-foreground-muted mt-0.5 text-xs">{{ row.message }}</p>
                       <p class="text-foreground-muted mt-1 text-xs">{{ formatSchedulerRowMeta(row) }}</p>
                     </div>
-                    <span
-                      class="shrink-0 rounded-md border px-2 py-1 text-xs font-bold"
-                      :class="getSchedulerActionClass(row)"
-                    >
-                      {{ formatSchedulerAction(row) }}
-                    </span>
+                    <StatusBadge
+                      class="shrink-0"
+                      :icon="getSchedulerActionIcon(row)"
+                      :label="formatSchedulerAction(row)"
+                      size="xs"
+                      :tone="getSchedulerActionTone(row)"
+                    />
                   </div>
                 </div>
               </div>
@@ -1470,12 +1555,13 @@ async function saveCorrection() {
                     <h4 class="font-semibold">{{ report.title }}</h4>
                     <p class="text-foreground-muted mt-1 text-xs">{{ formatSavedReportFilter(report) }}</p>
                   </div>
-                  <span
-                    class="w-fit rounded-md px-2 py-1 text-xs font-bold"
-                    :class="report.enabled ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-                  >
-                    {{ report.enabled ? 'aktívny' : 'pozastavený' }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit shrink-0"
+                    :icon="savedReportStatusIcon(report.enabled)"
+                    :label="report.enabled ? 'aktívny' : 'pozastavený'"
+                    size="xs"
+                    :tone="savedReportStatusTone(report.enabled)"
+                  />
                 </div>
                 <div class="text-foreground-muted mt-3 grid gap-1 text-xs sm:grid-cols-2">
                   <span>{{ catchReportCadenceLabels[report.cadence] }} · {{ catchReportAudienceLabels[report.audience] }}</span>
@@ -1516,6 +1602,13 @@ async function saveCorrection() {
             <p v-else class="text-foreground-muted mt-4 rounded-md border border-dashed border-border p-4 text-sm">
               Zatiaľ nie je uložený žiadny report. Nastav filter a ulož prvú šablónu pre správcu.
             </p>
+            <DataStatusNotice
+              v-if="generateReportMessage"
+              class="mt-4"
+              :description="generateReportMessage"
+              :title="generateReportNoticeTitle"
+              :tone="generateReportNoticeTone"
+            />
             <div
               v-if="generatedCatchReport"
               class="mt-4 rounded-md border border-primary-200 bg-primary-50 p-3"
@@ -1531,9 +1624,6 @@ async function saveCorrection() {
                 <span>Top druh: {{ generatedCatchReport.summary.topSpeciesLabel }}</span>
                 <span>Top miesto: {{ generatedCatchReport.summary.topPegLabel }}</span>
               </div>
-              <p v-if="generateReportMessage" class="mt-2 text-sm text-success-700">
-                {{ generateReportMessage }}
-              </p>
             </div>
             <div
               v-if="reportEmailDraft"
@@ -1546,13 +1636,13 @@ async function saveCorrection() {
                 <span>Prílohy: {{ formatEmailDraftAttachments(reportEmailDraft) }}</span>
                 <span>{{ reportEmailDraft.previewText }}</span>
               </div>
-              <p
+              <DataStatusNotice
                 v-if="reportEmailDraftMessage"
-                class="mt-2 text-sm"
-                :class="reportEmailDraftStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-              >
-                {{ reportEmailDraftMessage }}
-              </p>
+                class="mt-3"
+                :description="reportEmailDraftMessage"
+                :title="reportEmailDraftNoticeTitle"
+                :tone="reportEmailDraftNoticeTone"
+              />
             </div>
           </div>
         </div>
@@ -1967,9 +2057,12 @@ async function saveCorrection() {
                     {{ catchItem.angler }} · {{ getLakeName(catchItem.lake) }} · {{ getPegLabel(catchItem.pegId) }}
                   </p>
                 </div>
-                <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusMeta[catchItem.status].class">
-                  {{ statusMeta[catchItem.status].label }}
-                </span>
+                <StatusBadge
+                  class="w-fit shrink-0"
+                  :icon="statusMeta[catchItem.status].icon"
+                  :label="statusMeta[catchItem.status].label"
+                  :tone="statusMeta[catchItem.status].tone"
+                />
               </div>
               <div class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                 <div class="rounded-md bg-muted p-3">
@@ -2008,9 +2101,12 @@ async function saveCorrection() {
                   {{ selectedCatch.angler }} · {{ formatCatchTime(selectedCatch.caughtAt) }}
                 </p>
               </div>
-              <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusMeta[selectedCatch.status].class">
-                {{ statusMeta[selectedCatch.status].label }}
-              </span>
+              <StatusBadge
+                class="w-fit shrink-0"
+                :icon="statusMeta[selectedCatch.status].icon"
+                :label="statusMeta[selectedCatch.status].label"
+                :tone="statusMeta[selectedCatch.status].tone"
+              />
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -2292,17 +2388,13 @@ async function saveCorrection() {
                 valid-description="Údaje majú platné miesto, čas, rozmery aj nástrahu."
               />
 
-              <p
+              <DataStatusNotice
                 v-if="correctionSubmitMessage"
-                class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  correctionSubmitStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
-                "
-              >
-                {{ correctionSubmitMessage }}
-              </p>
+                class="mt-3"
+                :description="correctionSubmitMessage"
+                :title="correctionNoticeTitle"
+                :tone="correctionNoticeTone"
+              />
 
               <UButton
                 class="mt-4"
@@ -2378,17 +2470,13 @@ async function saveCorrection() {
               >
                 Uložiť rozhodnutie
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="decisionSubmitMessage"
-                class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  decisionSubmitStatus === 'error'
-                    ? 'bg-error-500/10 text-error-700'
-                    : 'bg-primary-50 text-primary-800'
-                "
-              >
-                {{ decisionSubmitMessage }}
-              </p>
+                class="mt-3"
+                :description="decisionSubmitMessage"
+                :title="decisionNoticeTitle"
+                :tone="decisionNoticeTone"
+              />
             </div>
           </div>
 

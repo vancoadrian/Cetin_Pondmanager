@@ -23,7 +23,8 @@ import {
 } from '~/services/reservationWorkflowService'
 import { getPegAvailability, rangesOverlap } from '~/utils/availability'
 import { addDays, addMonths, buildCalendarDays, buildMonthCalendarDays, getMonthStart } from '~/utils/calendar'
-import { getRentalAvailability } from '~/utils/rentals'
+import { getRentalAvailability, type RentalAvailabilityStatus } from '~/utils/rentals'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin rezervácie' })
 
@@ -525,29 +526,42 @@ function buildMailtoHref(draft: NonNullable<ReservationDecisionSuccess['communic
   return `mailto:${encodeURIComponent(draft.emailTo)}?subject=${encodeURIComponent(draft.emailSubject)}&body=${encodeURIComponent(draft.emailBody ?? '')}`
 }
 
-function communicationDeliveryClass(status: NonNullable<ReservationDecisionSuccess['communicationDelivery']>['status']) {
+function deliveryStatusTone(status: NotificationBroadcastStatus | NotificationDeliveryStatus | NonNullable<ReservationDecisionSuccess['communicationDelivery']>['status']): StatusBadgeTone {
   switch (status) {
     case 'sent':
-      return 'bg-success-500/10 text-success-700'
+      return 'success'
     case 'failed':
-      return 'bg-error-500/10 text-error-700'
+      return 'error'
     case 'skipped':
-      return 'bg-warning-500/10 text-warning-800'
+      return 'muted'
     case 'prepared':
-      return 'bg-primary-50 text-primary-800'
+      return 'warning'
   }
 }
 
-const statusClass = (status: Reservation['status']) => {
+function deliveryStatusIcon(status: NotificationBroadcastStatus | NotificationDeliveryStatus | NonNullable<ReservationDecisionSuccess['communicationDelivery']>['status']) {
   switch (status) {
-    case 'confirmed':
-      return 'bg-success-500/10 text-success-700'
-    case 'pending':
-      return 'bg-warning-500/10 text-warning-700'
-    case 'blocked':
-      return 'bg-error-500/10 text-error-700'
+    case 'sent':
+      return 'i-heroicons-paper-airplane'
+    case 'failed':
+      return 'i-heroicons-x-circle'
+    case 'skipped':
+      return 'i-heroicons-minus-circle'
+    case 'prepared':
+      return 'i-heroicons-clock'
   }
 }
+
+const statusTone = (status: Reservation['status']): StatusBadgeTone =>
+  status === 'confirmed' ? 'success' : status === 'pending' ? 'warning' : 'error'
+
+const statusIcon = (status: Reservation['status']) =>
+  status === 'confirmed'
+    ? 'i-heroicons-check-circle'
+    : status === 'pending'
+      ? 'i-heroicons-clock'
+      : 'i-heroicons-no-symbol'
+
 const statusLabel = (status: Reservation['status']) => {
   switch (status) {
     case 'confirmed':
@@ -568,6 +582,13 @@ const sourceLabel = (source: Reservation['source']) => {
       return 'admin'
   }
 }
+const sourceIcon = (source: Reservation['source']) =>
+  source === 'web'
+    ? 'i-heroicons-globe-alt'
+    : source === 'phone'
+      ? 'i-heroicons-phone'
+      : 'i-heroicons-user-circle'
+
 const notificationBroadcastStatusLabels: Record<NotificationBroadcastStatus, string> = {
   failed: 'chyba',
   prepared: 'pripravené',
@@ -581,17 +602,23 @@ const notificationDeliveryStatusLabels: Record<NotificationDeliveryStatus, strin
   skipped: 'preskočené',
 }
 const notificationDeliveryStatuses: NotificationDeliveryStatus[] = ['sent', 'prepared', 'failed', 'skipped']
-const notificationStatusClass = (status: NotificationBroadcastStatus | NotificationDeliveryStatus) => {
-  switch (status) {
-    case 'sent':
-      return 'bg-success-500/10 text-success-700'
-    case 'failed':
-      return 'bg-error-500/10 text-error-700'
-    case 'skipped':
-      return 'bg-muted text-foreground-muted'
-    case 'prepared':
-      return 'bg-warning-500/10 text-warning-800'
-  }
+const paymentMethodTone = (enabled: boolean): StatusBadgeTone => enabled ? 'success' : 'warning'
+const paymentMethodIcon = (enabled: boolean) => enabled ? 'i-heroicons-check-circle' : 'i-heroicons-pause-circle'
+const draftReservationStatusTone = computed(() => adminReservationDraft.status === 'confirmed' ? 'success' : 'warning')
+const draftReservationStatusIcon = computed(() =>
+  adminReservationDraft.status === 'confirmed' ? 'i-heroicons-check-circle' : 'i-heroicons-clock',
+)
+function rentalAvailabilityTone(status: RentalAvailabilityStatus): StatusBadgeTone {
+  if (status === 'available') return 'success'
+  if (status === 'limited') return 'warning'
+
+  return 'error'
+}
+function rentalAvailabilityIcon(status: RentalAvailabilityStatus) {
+  if (status === 'available') return 'i-heroicons-check-circle'
+  if (status === 'limited') return 'i-heroicons-exclamation-triangle'
+
+  return 'i-heroicons-x-circle'
 }
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
@@ -920,25 +947,22 @@ async function savePaymentMethodSettings() {
                 >
               </span>
             </span>
-            <span
-              class="mt-4 w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-              :class="method.enabled ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-800'"
-            >
-              {{ method.enabled ? 'zapnuté' : 'vypnuté' }}
-            </span>
+            <StatusBadge
+              class="mt-4 w-fit"
+              :icon="paymentMethodIcon(method.enabled)"
+              :label="method.enabled ? 'zapnuté' : 'vypnuté'"
+              size="xs"
+              :tone="paymentMethodTone(method.enabled)"
+            />
           </label>
         </div>
-        <p
+        <DataStatusNotice
           v-if="paymentMethodSubmitMessage"
-          class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-          :class="
-            paymentMethodSubmitStatus === 'error'
-              ? 'bg-error-500/10 text-error-700'
-              : 'bg-success-500/10 text-success-700'
-          "
-        >
-          {{ paymentMethodSubmitMessage }}
-        </p>
+          class="mt-4"
+          :description="paymentMethodSubmitMessage"
+          :title="paymentMethodSubmitStatus === 'error' ? 'Platobné metódy sa nepodarilo uložiť' : 'Platobné metódy sú uložené'"
+          :tone="paymentMethodSubmitStatus === 'error' ? 'error' : 'success'"
+        />
       </div>
 
       <div class="mt-6 rounded-card border border-border bg-surface p-5">
@@ -949,9 +973,12 @@ async function savePaymentMethodSettings() {
               Pre telefonát, osobnú dohodu alebo internú blokáciu bez toho, aby správca vypĺňal public formulár.
             </p>
           </div>
-          <span class="w-fit rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
-            {{ adminReservationDraft.status === 'confirmed' ? 'uloží sa ako potvrdená' : 'uloží sa ako čakajúca' }}
-          </span>
+          <StatusBadge
+            class="w-fit"
+            :icon="draftReservationStatusIcon"
+            :label="adminReservationDraft.status === 'confirmed' ? 'uloží sa ako potvrdená' : 'uloží sa ako čakajúca'"
+            :tone="draftReservationStatusTone"
+          />
         </div>
 
         <form class="mt-5 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]" @submit.prevent="submitAdminReservation">
@@ -1130,17 +1157,12 @@ async function savePaymentMethodSettings() {
             >
               Vytvoriť rezerváciu
             </UButton>
-            <p
+            <DataStatusNotice
               v-if="adminReservationSubmitMessage"
-              class="rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                adminReservationSubmitStatus === 'error'
-                  ? 'bg-error-500/10 text-error-700'
-                  : 'bg-success-500/10 text-success-700'
-              "
-            >
-              {{ adminReservationSubmitMessage }}
-            </p>
+              :description="adminReservationSubmitMessage"
+              :title="adminReservationSubmitStatus === 'error' ? 'Rezerváciu sa nepodarilo vytvoriť' : 'Rezervácia je vytvorená'"
+              :tone="adminReservationSubmitStatus === 'error' ? 'error' : 'success'"
+            />
           </div>
         </form>
       </div>
@@ -1335,12 +1357,18 @@ async function savePaymentMethodSettings() {
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusClass(reservation.status)">
-                    {{ statusLabel(reservation.status) }}
-                  </span>
-                  <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted">
-                    {{ sourceLabel(reservation.source) }}
-                  </span>
+                  <StatusBadge
+                    :icon="statusIcon(reservation.status)"
+                    :label="statusLabel(reservation.status)"
+                    size="xs"
+                    :tone="statusTone(reservation.status)"
+                  />
+                  <StatusBadge
+                    :icon="sourceIcon(reservation.source)"
+                    :label="sourceLabel(reservation.source)"
+                    size="xs"
+                    tone="muted"
+                  />
                 </div>
               </div>
               <div class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
@@ -1376,9 +1404,12 @@ async function savePaymentMethodSettings() {
                   <span v-if="selectedReservation.contactEmail"> · {{ selectedReservation.contactEmail }}</span>
                 </p>
               </div>
-              <span class="w-fit rounded-md px-2.5 py-1 text-xs font-bold" :class="statusClass(selectedReservation.status)">
-                {{ statusLabel(selectedReservation.status) }}
-              </span>
+              <StatusBadge
+                class="w-fit"
+                :icon="statusIcon(selectedReservation.status)"
+                :label="statusLabel(selectedReservation.status)"
+                :tone="statusTone(selectedReservation.status)"
+              />
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1435,28 +1466,29 @@ async function savePaymentMethodSettings() {
                     {{ selectedReservationNotification.message }}
                   </p>
                 </div>
-                <span
-                  class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                  :class="notificationStatusClass(selectedReservationNotification.status)"
-                >
-                  {{ notificationBroadcastStatusLabels[selectedReservationNotification.status] }}
-                </span>
+                <StatusBadge
+                  class="w-fit"
+                  :icon="deliveryStatusIcon(selectedReservationNotification.status)"
+                  :label="notificationBroadcastStatusLabels[selectedReservationNotification.status]"
+                  :tone="deliveryStatusTone(selectedReservationNotification.status)"
+                />
               </div>
               <div class="mt-3 flex flex-wrap gap-2">
-                <span
+                <StatusBadge
                   v-for="badge in getReservationNotificationDeliveryBadges(selectedReservationNotification)"
                   :key="badge.status"
-                  class="rounded-md px-2.5 py-1 text-xs font-bold"
-                  :class="notificationStatusClass(badge.status)"
-                >
-                  {{ badge.count }}× {{ badge.label }}
-                </span>
-                <span
+                  :icon="deliveryStatusIcon(badge.status)"
+                  :label="`${badge.count}× ${badge.label}`"
+                  size="xs"
+                  :tone="deliveryStatusTone(badge.status)"
+                />
+                <StatusBadge
                   v-if="getReservationNotificationDeliveryBadges(selectedReservationNotification).length === 0"
-                  class="rounded-md bg-white/70 px-2.5 py-1 text-xs font-bold text-primary-800"
-                >
-                  Bez pokusu doručenia
-                </span>
+                  icon="i-heroicons-minus-circle"
+                  label="Bez pokusu doručenia"
+                  size="xs"
+                  tone="muted"
+                />
               </div>
             </div>
             <div
@@ -1495,9 +1527,13 @@ async function savePaymentMethodSettings() {
                         {{ row.availability.availableQuantity }} ks voľné po ostatných rezerváciách
                       </p>
                     </div>
-                    <span class="rounded-md border px-2 py-1 text-xs font-bold" :class="row.availability.classes">
-                      {{ row.availability.label }}
-                    </span>
+                    <StatusBadge
+                      class="shrink-0"
+                      :icon="rentalAvailabilityIcon(row.availability.status)"
+                      :label="row.availability.label"
+                      size="xs"
+                      :tone="rentalAvailabilityTone(row.availability.status)"
+                    />
                   </div>
                 </div>
                 <AppState
@@ -1581,15 +1617,20 @@ async function savePaymentMethodSettings() {
                   Zavolať hosťovi
                 </UButton>
               </div>
-              <p
+              <DataStatusNotice
                 v-if="decisionSubmitMessage"
-                class="mt-3 rounded-md bg-error-500/10 px-3 py-2 text-sm font-semibold text-error-700"
-              >
-                {{ decisionSubmitMessage }}
-              </p>
-              <p v-if="workflowMessage" class="mt-3 rounded-md bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800">
-                {{ workflowMessage }}
-              </p>
+                class="mt-3"
+                :description="decisionSubmitMessage"
+                title="Rozhodnutie sa nepodarilo uložiť"
+                tone="error"
+              />
+              <DataStatusNotice
+                v-if="workflowMessage"
+                class="mt-3"
+                :description="workflowMessage"
+                title="Rozhodnutie je uložené"
+                tone="success"
+              />
               <div
                 v-if="decisionCommunicationDraft"
                 class="mt-4 rounded-md border border-border bg-white p-4"
@@ -1602,19 +1643,18 @@ async function savePaymentMethodSettings() {
                     </p>
                   </div>
                   <div class="flex flex-wrap gap-2">
-                    <span
+                    <StatusBadge
                       v-if="decisionCommunicationDelivery"
-                      class="inline-flex min-h-8 items-center rounded-md px-2.5 py-1 text-xs font-bold"
-                      :class="communicationDeliveryClass(decisionCommunicationDelivery.status)"
-                    >
-                      {{ reservationCommunicationDeliveryStatusLabels[decisionCommunicationDelivery.status] }}
-                    </span>
-                    <span
+                      :icon="deliveryStatusIcon(decisionCommunicationDelivery.status)"
+                      :label="reservationCommunicationDeliveryStatusLabels[decisionCommunicationDelivery.status]"
+                      :tone="deliveryStatusTone(decisionCommunicationDelivery.status)"
+                    />
+                    <StatusBadge
                       v-if="decisionCommunicationDelivery"
-                      class="inline-flex min-h-8 items-center rounded-md bg-muted px-2.5 py-1 text-xs font-bold text-foreground-muted"
-                    >
-                      {{ reservationCommunicationDeliveryProviderLabels[decisionCommunicationDelivery.provider] }}
-                    </span>
+                      icon="i-heroicons-server-stack"
+                      :label="reservationCommunicationDeliveryProviderLabels[decisionCommunicationDelivery.provider]"
+                      tone="muted"
+                    />
                     <UButton
                       :to="buildSmsHref(decisionCommunicationDraft)"
                       icon="i-heroicons-chat-bubble-left-right"

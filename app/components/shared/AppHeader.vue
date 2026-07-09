@@ -55,6 +55,9 @@ const offlineQueueLabel = computed(() =>
     ? '1 položka čaká na odoslanie'
     : `${offlineQueueTotal.value} položiek čaká na odoslanie`,
 )
+const accountStatusLabel = computed(() =>
+  user.value ? `${user.value.name} · ${user.value.roleLabel}` : 'Neprihlásený používateľ',
+)
 const allMobileNav = computed(() => [...primaryNav, ...secondaryNav])
 const isSecondaryActive = computed(() => secondaryNav.some((item) => isActive(item.to)))
 
@@ -150,7 +153,29 @@ async function signOut() {
             {{ offlineQueueTotal > 9 ? '9+' : offlineQueueTotal }}
           </span>
         </NuxtLink>
+        <div v-if="isLoggedIn" class="hidden items-center gap-1 rounded-md bg-white/5 p-1 lg:flex">
+          <UButton
+            :to="accountAction.to"
+            :icon="accountAction.icon"
+            color="neutral"
+            variant="ghost"
+            class="max-w-48 text-white hover:bg-white/10"
+            :aria-label="`${accountStatusLabel}: ${accountAction.label}`"
+            :title="accountStatusLabel"
+          >
+            <span class="truncate">{{ accountAction.label }}</span>
+          </UButton>
+          <UButton
+            icon="i-heroicons-arrow-left-on-rectangle"
+            color="neutral"
+            variant="ghost"
+            class="text-white hover:bg-white/10"
+            :aria-label="`Odhlásiť: ${accountStatusLabel}`"
+            @click="signOut"
+          />
+        </div>
         <UButton
+          v-else
           :to="accountAction.to"
           :icon="accountAction.icon"
           color="neutral"

@@ -7,7 +7,7 @@ const props = withDefaults(
     icon?: string
     loading?: boolean
     title: string
-    tone?: 'error' | 'info' | 'warning'
+    tone?: 'error' | 'info' | 'success' | 'warning'
   }>(),
   {
     actionLabel: '',
@@ -25,11 +25,13 @@ const emit = defineEmits<{
 const noticeIcon = computed(() => {
   if (props.icon) return props.icon
   if (props.tone === 'error' || props.tone === 'warning') return 'i-heroicons-exclamation-triangle'
+  if (props.tone === 'success') return 'i-heroicons-check-circle'
   return 'i-heroicons-arrow-path'
 })
 
 const noticeClasses = computed(() => {
   if (props.tone === 'error') return 'border-error-200 bg-error-500/10 text-error-950'
+  if (props.tone === 'success') return 'border-success-500/25 bg-success-500/10 text-success-800'
   if (props.tone === 'warning') return 'border-warning-200 bg-warning-500/10 text-warning-950'
   return 'border-primary-200 bg-primary-50 text-primary-950'
 })

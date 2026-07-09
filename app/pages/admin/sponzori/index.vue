@@ -981,17 +981,13 @@ async function saveSponsorSettings() {
               Uložiť sponzorov
             </UButton>
           </div>
-          <p
+          <DataStatusNotice
             v-if="sponsorSubmitMessage"
-            class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-            :class="
-              sponsorSubmitStatus === 'error'
-                ? 'bg-error-500/10 text-error-700'
-                : 'bg-success-500/10 text-success-700'
-            "
-          >
-            {{ sponsorSubmitMessage }}
-          </p>
+            class="mt-4"
+            :description="sponsorSubmitMessage"
+            :title="sponsorSubmitStatus === 'error' ? 'Sponzorov sa nepodarilo uložiť' : 'Sponzori sú uložení'"
+            :tone="sponsorSubmitStatus === 'error' ? 'error' : 'success'"
+          />
 
           <div class="mt-5 space-y-3">
             <div v-for="sponsor in sponsorDraft" :key="sponsor.id" class="rounded-md border border-border bg-white p-4" :class="!sponsor.active ? 'opacity-75' : ''">
@@ -1069,12 +1065,13 @@ async function saveSponsorSettings() {
                         />
                       </label>
                     </div>
-                    <span
-                      class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                      :class="sponsor.active ? 'bg-success-500/10 text-success-700' : 'bg-muted text-foreground-muted'"
-                    >
-                      {{ sponsor.active ? 'aktívny' : 'pauza' }}
-                    </span>
+                    <StatusBadge
+                      class="w-fit"
+                      :icon="sponsor.active ? 'i-heroicons-check-circle' : 'i-heroicons-pause-circle'"
+                      :label="sponsor.active ? 'aktívny' : 'pauza'"
+                      size="xs"
+                      :tone="sponsor.active ? 'success' : 'muted'"
+                    />
                   </div>
                   <div class="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
                     <label class="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-semibold">
@@ -1600,17 +1597,13 @@ async function saveSponsorSettings() {
               </fieldset>
               <UButton type="submit" icon="i-heroicons-plus" block :disabled="!canOperateSponsors">Pridať partnera</UButton>
             </form>
-            <p
+            <DataStatusNotice
               v-if="sponsorDraftMessage"
-              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                sponsorDraftStatus === 'error'
-                  ? 'bg-error-500/10 text-error-700'
-                  : 'bg-success-500/10 text-success-700'
-              "
-            >
-              {{ sponsorDraftMessage }}
-            </p>
+              class="mt-4"
+              :description="sponsorDraftMessage"
+              :title="sponsorDraftStatus === 'error' ? 'Partnera sa nepodarilo pridať' : 'Partner je pripravený'"
+              :tone="sponsorDraftStatus === 'error' ? 'error' : 'success'"
+            />
           </div>
 
           <div class="rounded-card border border-border bg-primary-900 p-5 text-white">

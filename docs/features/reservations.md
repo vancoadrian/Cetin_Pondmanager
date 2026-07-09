@@ -20,6 +20,7 @@ Verejné odkazy z informačnej stránky môžu predvybrať službu priamo v reze
 - `vybava=<rental-id>` predvyberie položku požičovne,
 - `doplnok=<extra-id>` predvyberie doplnok,
 - `chata=<cabin-product-id>&typ=chata` otvorí rezerváciu na prvom mieste viazanom na danú chatu.
+- Povinná výbava na informačnej stránke má pri požičateľných položkách priamu akciu `Pridať k rezervácii`, napríklad podberák, podložka alebo základný fish-care kit.
 
 ## Interný tok
 
@@ -63,6 +64,8 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 ## Stav v prototype
 
 - `/rezervacie` obsahuje verejný rezervačný formulár.
+- Úvodná stránka používa rovnaký termínový rozsah ako mapa a rezervácia. Karty dostupnosti vedú priamo na mapu voľných miest, rezerváciu chaty, žiadosť o potvrdenie alebo zmenu termínu.
+- Detail revíru má výber termínu, súhrn voľných miest a chát pre zvolený rozsah, 7-dňový prehľad od zvoleného dátumu a prekliky do mapy alebo rezervácie s rovnakými parametrami.
 - Prihlásený rybár má v public formulári predvyplnené meno a e-mail účtu. Polia môže prepísať, ale aplikácia mu rozpracovaný kontakt neprepisuje automaticky.
 - `/konto` zobrazuje vlastné rezervácie bez interných poznámok, s platobným stavom, pokynmi k zvolenej platobnej metóde a rýchlym telefonátom alebo SMS správcovi s predvyplneným ID rezervácie.
 - `/admin` ukazuje súhrn rezervácií na spracovanie.
@@ -87,6 +90,7 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín; správca vie pridať novú výbavu alebo doplnok, dočasne vypnúť položku, upraviť sklad, odporúčanie a cenníkový text.
 - Nepoužitú výbavu alebo doplnok vie správca bezpečne odstrániť. Položky použité v rezerváciách alebo výpožičkách sa nemažú kvôli histórii, UI aj API ich navádzajú radšej vypnúť cez `active`.
 - Aktívny katalóg požičovne a doplnkov sa dočasne ukladá do `.data/rybolov-cetin/rental-catalog-state.json`; public rezervácia, info stránka a admin vytváranie rezervácie čítajú iba aktívne položky. Informačná stránka posiela aktívne položky do rezervácie cez query predvýber, takže rybár nemusí tú istú službu hľadať druhýkrát.
+- Informačná stránka má blok `Pred príchodom k vode`, ktorý spája termín, povinnú výbavu, odporúčané požičovne a potvrdenie správcom do jedného krátkeho toku pred rezerváciou.
 - Dáta sú v `app/data/pond.ts`.
 
 ## Ďalšie kroky

@@ -59,11 +59,20 @@ const {
 } = usePondData()
 
 type LogbookMode = keyof typeof tripLogbookModeLabels
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
+
 interface LargeFishFlowStep {
   description: string
   icon: string
   label: string
   tone: StatusBadgeTone
+}
+
+interface LargeFishNoticeMeta {
+  description: string
+  icon: string
+  title: string
+  tone: NoticeTone
 }
 
 function currentDateTimeInput() {
@@ -285,6 +294,46 @@ const largeFishFlowSteps = computed<LargeFishFlowStep[]>(() => {
       tone: hasClosedInstruction ? 'success' : 'neutral',
     },
   ]
+})
+const largeFishManagerNoticeMeta = computed<LargeFishNoticeMeta | null>(() => {
+  const rule = activeLargeCatchRule.value
+  if (!catchRequiresManager.value || !rule) return null
+
+  if (managerAvailability.value?.available) {
+    return {
+      description: rule.instruction,
+      icon: 'i-heroicons-phone-arrow-up-right',
+      title: `Pri rybe od ${rule.thresholdKg} kg privolajte správcu`,
+      tone: 'success',
+    }
+  }
+
+  return {
+    description: rule.outsideAvailabilityInstruction,
+    icon: 'i-heroicons-clock',
+    title: `Ryba je nad limitom ${rule.thresholdKg} kg, správca nie je v službe`,
+    tone: 'warning',
+  }
+})
+const activeAssistanceNoticeMeta = computed<LargeFishNoticeMeta | null>(() => {
+  const request = activeAssistance.value
+  if (!request) return null
+
+  const tone: NoticeTone =
+    request.status === 'on-route' || request.status === 'completed'
+      ? 'success'
+      : ['release-without-manager', 'cancelled', 'expired'].includes(request.status)
+        ? 'warning'
+        : 'info'
+
+  return {
+    description: request.responseMessage
+      || assistanceMessage.value
+      || 'Požiadavka je odoslaná. Čakáme na odpoveď správcu.',
+    icon: assistanceStatusIcon(request.status),
+    title: largeFishAssistanceStatusLabels[request.status],
+    tone,
+  }
 })
 const compatibleLogbooks = computed(() =>
   liveTripLogbooks.value.filter((logbook) =>
@@ -513,16 +562,6 @@ const getApiErrorMessage = (error: unknown) => {
 
 const getQueueFallbackErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Offline zápis sa nepodarilo uložiť v zariadení.'
-
-function assistanceStatusClass(status: LargeFishAssistanceRequest['status']) {
-  if (status === 'on-route' || status === 'completed') {
-    return 'border-success-500/30 bg-success-500/10 text-success-900'
-  }
-  if (status === 'release-without-manager' || status === 'cancelled' || status === 'expired') {
-    return 'border-warning-500/30 bg-warning-500/10 text-warning-900'
-  }
-  return 'border-info-500/30 bg-info-500/10 text-info-900'
-}
 
 function assistanceStatusIcon(status: LargeFishAssistanceRequest['status']) {
   if (status === 'on-route') return 'i-heroicons-truck'
@@ -754,7 +793,7 @@ const submitLogbook = async () => {
   }
 
   logbookSubmitStatus.value = 'submitting'
-  logbookSubmitMessage.value = ''
+  logbookSubmitMessage.value = 'Vytváram zápisník výpravy.'
 
   try {
     const result = await $fetch<TripLogbookSubmissionSuccess>('/api/logbooks', {
@@ -787,7 +826,7 @@ const openLogbookByCode = async () => {
   }
 
   logbookLookupStatus.value = 'submitting'
-  logbookLookupMessage.value = ''
+  logbookLookupMessage.value = 'Otváram zápisník podľa kódu.'
 
   try {
     const result = await $fetch<TripLogbookLookupSuccess>(`/api/logbooks/${encodeURIComponent(code)}`)
@@ -825,7 +864,7 @@ const submitCatch = async () => {
   }
 
   catchSubmitStatus.value = 'submitting'
-  catchSubmitMessage.value = ''
+  catchSubmitMessage.value = 'Odosielam úlovok na schválenie.'
 
   try {
     const payload: OfflineCatchPayload = {
@@ -1210,17 +1249,26 @@ watch(catchValidation, () => {
                 Otvoriť
               </UButton>
             </form>
-            <p
+            <DataStatusNotice
               v-if="logbookLookupMessage"
-              class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                logbookLookupStatus === 'success'
-                  ? 'bg-success-500/10 text-success-700'
-                  : 'bg-danger-500/10 text-danger-700'
+              class="mt-3"
+              :description="logbookLookupMessage"
+              :loading="logbookLookupStatus === 'submitting'"
+              :title="
+                logbookLookupStatus === 'error'
+                  ? 'Zápisník sa nepodarilo otvoriť'
+                  : logbookLookupStatus === 'submitting'
+                    ? 'Otváram zápisník'
+                    : 'Zápisník je otvorený'
               "
-            >
-              {{ logbookLookupMessage }}
-            </p>
+              :tone="
+                logbookLookupStatus === 'error'
+                  ? 'error'
+                  : logbookLookupStatus === 'submitting'
+                    ? 'info'
+                    : 'success'
+              "
+            />
           </div>
 
           <div v-if="isAnglerLoggedIn || activeLogbook" class="border-border bg-surface rounded-card border p-5">
@@ -1234,23 +1282,17 @@ watch(catchValidation, () => {
               <UIcon name="i-heroicons-table-cells" class="text-primary-800 h-5 w-5" />
             </div>
 
-            <div
-              class="mt-4 flex items-start gap-3 rounded-md border px-3 py-3 text-sm"
-              :class="isAnglerLoggedIn
-                ? 'border-success-500/25 bg-success-500/10 text-success-900'
-                : 'border-border bg-muted text-foreground-muted'"
-            >
-              <UIcon
-                :name="isAnglerLoggedIn ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-key'"
-                class="mt-0.5 h-5 w-5 shrink-0"
-              />
-              <p>
-                <strong>{{ isAnglerLoggedIn ? 'Uloží sa do účtu.' : 'Uloží sa iba pod kódom.' }}</strong>
-                {{ isAnglerLoggedIn
+            <DataStatusNotice
+              class="mt-4"
+              :description="
+                isAnglerLoggedIn
                   ? `Vlastníkom bude ${anglerAccount?.name}; prvé meno vo formulári nemusí byť zhodné.`
-                  : 'Kód si odložte alebo sa pred vytvorením prihláste.' }}
-              </p>
-            </div>
+                  : 'Kód si odložte alebo sa pred vytvorením prihláste.'
+              "
+              :icon="isAnglerLoggedIn ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-key'"
+              :title="isAnglerLoggedIn ? 'Uloží sa do účtu' : 'Uloží sa iba pod kódom'"
+              :tone="isAnglerLoggedIn ? 'success' : 'info'"
+            />
 
             <form class="mt-5 space-y-4" @submit.prevent="submitLogbook">
               <div>
@@ -1317,17 +1359,25 @@ watch(catchValidation, () => {
                 valid-description="Partia má názov, miesto aj zoznam členov."
               />
 
-              <p
+              <DataStatusNotice
                 v-if="logbookSubmitMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  logbookSubmitStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
+                :description="logbookSubmitMessage"
+                :loading="logbookSubmitStatus === 'submitting'"
+                :title="
+                  logbookSubmitStatus === 'error'
+                    ? 'Zápisník sa nepodarilo vytvoriť'
+                    : logbookSubmitStatus === 'submitting'
+                      ? 'Vytváram zápisník'
+                      : 'Zápisník je vytvorený'
                 "
-              >
-                {{ logbookSubmitMessage }}
-              </p>
+                :tone="
+                  logbookSubmitStatus === 'error'
+                    ? 'error'
+                    : logbookSubmitStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="submit"
@@ -1345,42 +1395,35 @@ watch(catchValidation, () => {
             <h2 class="text-lg font-bold">Pridať úlovok</h2>
             <div
               v-if="!isOnline || offlineCatchQueue.length > 0 || offlineSyncMessage"
-              class="mt-4 rounded-md border p-3"
-              :class="
-                offlineSyncStatus === 'error' || !isOnline
-                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
-                  : 'border-primary-200 bg-primary-50 text-primary-950'
-              "
+              class="mt-4 space-y-3"
             >
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
-                      class="h-5 w-5"
-                    />
-                    <p class="text-sm font-bold">
-                      {{ isOnline ? 'Offline fronta úlovkov' : 'Bez pripojenia pri vode' }}
-                    </p>
-                  </div>
-                  <p class="mt-1 text-sm opacity-80">
-                    {{ offlineSyncMessage || 'Pri výpadku signálu uložíme úlovok v zariadení a odošleme ho po návrate internetu.' }}
-                  </p>
-                </div>
-                <UButton
-                  v-if="offlineCatchQueue.length > 0"
-                  size="sm"
-                  icon="i-heroicons-arrow-path"
-                  variant="soft"
-                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
-                  :loading="offlineSyncStatus === 'syncing'"
-                  @click="syncOfflineCatchQueue()"
-                >
-                  Odoslať
-                </UButton>
-              </div>
+              <DataStatusNotice
+                :action-label="offlineCatchQueue.length > 0 && isOnline ? 'Odoslať' : ''"
+                :action-loading="offlineSyncStatus === 'syncing'"
+                :description="offlineSyncMessage || 'Pri výpadku signálu uložíme úlovok v zariadení a odošleme ho po návrate internetu.'"
+                :icon="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                :loading="offlineSyncStatus === 'syncing'"
+                :title="
+                  !isOnline
+                    ? 'Bez pripojenia pri vode'
+                    : offlineSyncStatus === 'syncing'
+                      ? 'Odosielam offline úlovky'
+                      : 'Offline fronta úlovkov'
+                "
+                :tone="
+                  offlineSyncStatus === 'error' || !isOnline
+                    ? 'warning'
+                    : offlineSyncStatus === 'success'
+                      ? 'success'
+                      : 'info'
+                "
+                @action="syncOfflineCatchQueue()"
+              />
 
-              <div v-if="offlineCatchQueue.length > 0" class="mt-3 space-y-2">
+              <div
+                v-if="offlineCatchQueue.length > 0"
+                class="space-y-2 rounded-md border border-border bg-muted/50 p-3"
+              >
                 <div
                   v-for="item in offlineCatchQueue"
                   :key="item.id"
@@ -1476,141 +1519,144 @@ watch(catchValidation, () => {
                 </label>
               </div>
               <div
-                v-if="catchRequiresManager && activeLargeCatchRule"
-                class="rounded-md border p-4"
-                :class="managerAvailability?.available
-                  ? 'border-success-500/30 bg-success-500/10 text-success-900'
-                  : 'border-warning-500/30 bg-warning-500/10 text-warning-900'"
+                v-if="largeFishManagerNoticeMeta && activeLargeCatchRule"
+                class="rounded-md border border-border bg-muted/30 p-4 text-foreground"
               >
-                <div class="flex items-start gap-3">
-                  <UIcon
-                    :name="managerAvailability?.available
-                      ? 'i-heroicons-phone-arrow-up-right'
-                      : 'i-heroicons-clock'"
-                    class="mt-0.5 h-5 w-5 shrink-0"
+                <DataStatusNotice
+                  :description="largeFishManagerNoticeMeta.description"
+                  :icon="largeFishManagerNoticeMeta.icon"
+                  :title="largeFishManagerNoticeMeta.title"
+                  :tone="largeFishManagerNoticeMeta.tone"
+                />
+
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <StatusBadge
+                    v-if="managerAvailability?.available"
+                    :label="fishManagerContactModeLabels[activeLargeCatchRule.contactMode]"
+                    icon="i-heroicons-bell-alert"
+                    size="xs"
+                    tone="success"
                   />
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-bold">
-                      {{ managerAvailability?.available
-                        ? `Pri rybe od ${activeLargeCatchRule.thresholdKg} kg privolajte správcu`
-                        : `Ryba je nad limitom ${activeLargeCatchRule.thresholdKg} kg, pre zadaný čas však správca nie je v službe` }}
-                    </p>
-                    <p class="mt-1 text-sm">
-                      {{ managerAvailability?.available
-                        ? activeLargeCatchRule.instruction
-                        : activeLargeCatchRule.outsideAvailabilityInstruction }}
-                    </p>
-                    <p v-if="managerAvailability?.available" class="mt-2 text-xs font-bold">
-                      {{ fishManagerContactModeLabels[activeLargeCatchRule.contactMode] }}
-                      <template v-if="activeLargeCatchRule.phone"> · {{ activeLargeCatchRule.phone }}</template>
-                      <template v-if="activeLargeCatchRule.email"> · {{ activeLargeCatchRule.email }}</template>
-                    </p>
-                    <p class="mt-2 text-xs font-semibold">
-                      Služba správcu: {{ formatFishManagerAvailability(activeLargeCatchRule) }}
-                    </p>
+                  <StatusBadge
+                    v-if="managerAvailability?.available && activeLargeCatchRule.phone"
+                    :label="activeLargeCatchRule.phone"
+                    icon="i-heroicons-phone"
+                    size="xs"
+                    tone="neutral"
+                  />
+                  <StatusBadge
+                    v-if="managerAvailability?.available && activeLargeCatchRule.email"
+                    :label="activeLargeCatchRule.email"
+                    icon="i-heroicons-envelope"
+                    size="xs"
+                    tone="neutral"
+                  />
+                </div>
+                <p class="mt-2 text-xs font-semibold text-foreground-muted">
+                  Služba správcu: {{ formatFishManagerAvailability(activeLargeCatchRule) }}
+                </p>
 
-                    <div class="mt-4 grid gap-2">
-                      <div
-                        v-for="step in largeFishFlowSteps"
-                        :key="step.label"
-                        class="flex items-start gap-3 rounded-md border bg-white/70 px-3 py-3 text-foreground"
-                      >
-                        <StatusBadge
-                          :icon="step.icon"
-                          :label="step.label"
-                          :tone="step.tone"
-                          size="xs"
-                          class="shrink-0"
-                        />
-                        <p class="text-sm text-foreground-muted">{{ step.description }}</p>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="activeAssistance"
-                      class="mt-4 rounded-md border p-4"
-                      :class="assistanceStatusClass(activeAssistance.status)"
-                    >
-                      <div class="flex items-start gap-3">
-                        <UIcon :name="assistanceStatusIcon(activeAssistance.status)" class="mt-0.5 h-5 w-5 shrink-0" />
-                        <div class="min-w-0 flex-1">
-                          <p class="font-bold">{{ largeFishAssistanceStatusLabels[activeAssistance.status] }}</p>
-                          <p class="mt-1 text-sm">
-                            {{ activeAssistance.responseMessage || assistanceMessage }}
-                          </p>
-                          <p v-if="activeAssistance.managerName" class="mt-2 text-xs font-bold">
-                            {{ activeAssistance.managerName }}
-                            <template v-if="activeAssistance.etaMinutes"> · do {{ activeAssistance.etaMinutes }} min</template>
-                          </p>
-                          <p v-if="activeAssistance.status === 'waiting'" class="mt-2 text-xs font-semibold">
-                            Čakáte {{ assistanceWaitMinutes }} min.
-                          </p>
-                          <a
-                            v-if="showAssistancePhoneFallback"
-                            :href="`tel:${activeAssistance.managerPhone}`"
-                            class="mt-3 inline-flex h-10 items-center gap-2 rounded-md bg-warning-600 px-3 text-sm font-bold text-white"
-                          >
-                            <UIcon name="i-heroicons-phone" class="h-4 w-4" />
-                            Zavolať správcovi
-                          </a>
-                          <p v-if="showAssistancePhoneFallback" class="mt-2 text-xs">
-                            Upozornenie mohlo zostať bez odozvy. Rybu zbytočne nezadržiavajte.
-                          </p>
-                          <button
-                            v-if="['waiting', 'on-route'].includes(activeAssistance.status)"
-                            type="button"
-                            class="mt-3 block text-xs font-bold underline"
-                            :disabled="assistanceStatus === 'submitting'"
-                            @click="cancelManagerAssistance"
-                          >
-                            Zrušiť privolanie
-                          </button>
-                          <button
-                            v-if="['cancelled', 'completed', 'expired', 'release-without-manager'].includes(activeAssistance.status)"
-                            type="button"
-                            class="mt-3 text-xs font-bold underline"
-                            @click="clearAssistanceAccess"
-                          >
-                            Zavrieť stav
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div v-else-if="managerAvailability?.available" class="mt-4 space-y-3">
-                      <label class="block">
-                        <span class="text-xs font-bold">Telefón pre správcu</span>
-                        <input
-                          v-model="assistancePhone"
-                          type="tel"
-                          inputmode="tel"
-                          placeholder="+421 9..."
-                          class="mt-1 h-10 w-full rounded-md border border-success-500/30 bg-white px-3 text-sm text-foreground"
-                        >
-                      </label>
-                      <UButton
-                        type="button"
-                        icon="i-heroicons-bell-alert"
-                        color="success"
-                        :disabled="!canRequestManager"
-                        :loading="assistanceStatus === 'submitting'"
-                        @click="requestManagerAssistance"
-                      >
-                        Privolať správcu
-                      </UButton>
-                      <p class="text-xs">
-                        Správca dostane upozornenie. Jeho odpoveď sa zobrazí tu automaticky.
-                      </p>
-                    </div>
-
-                    <p
-                      v-if="assistanceStatus === 'error' && assistanceMessage"
-                      class="mt-3 rounded-md bg-error-500/10 px-3 py-2 text-xs font-semibold text-error-800"
-                    >
-                      {{ assistanceMessage }}
-                    </p>
+                <div class="mt-4 grid gap-2">
+                  <div
+                    v-for="step in largeFishFlowSteps"
+                    :key="step.label"
+                    class="flex items-start gap-3 rounded-md border border-border bg-white/80 px-3 py-3 text-foreground"
+                  >
+                    <StatusBadge
+                      :icon="step.icon"
+                      :label="step.label"
+                      :tone="step.tone"
+                      size="xs"
+                      class="shrink-0"
+                    />
+                    <p class="text-sm text-foreground-muted">{{ step.description }}</p>
                   </div>
                 </div>
+
+                <div v-if="activeAssistance && activeAssistanceNoticeMeta" class="mt-4 space-y-3">
+                  <DataStatusNotice
+                    :description="activeAssistanceNoticeMeta.description"
+                    :icon="activeAssistanceNoticeMeta.icon"
+                    :title="activeAssistanceNoticeMeta.title"
+                    :tone="activeAssistanceNoticeMeta.tone"
+                  />
+
+                  <div class="space-y-2 text-xs font-semibold text-foreground-muted">
+                    <p v-if="activeAssistance.managerName" class="text-foreground">
+                      {{ activeAssistance.managerName }}
+                      <template v-if="activeAssistance.etaMinutes"> · do {{ activeAssistance.etaMinutes }} min</template>
+                    </p>
+                    <p v-if="activeAssistance.status === 'waiting'">
+                      Čakáte {{ assistanceWaitMinutes }} min.
+                    </p>
+                    <p v-if="showAssistancePhoneFallback">
+                      Upozornenie mohlo zostať bez odozvy. Rybu zbytočne nezadržiavajte.
+                    </p>
+                  </div>
+
+                  <div class="flex flex-wrap gap-2">
+                    <a
+                      v-if="showAssistancePhoneFallback"
+                      :href="`tel:${activeAssistance.managerPhone}`"
+                      class="inline-flex h-10 items-center gap-2 rounded-md bg-warning-600 px-3 text-sm font-bold text-white"
+                    >
+                      <UIcon name="i-heroicons-phone" class="h-4 w-4" />
+                      Zavolať správcovi
+                    </a>
+                    <button
+                      v-if="['waiting', 'on-route'].includes(activeAssistance.status)"
+                      type="button"
+                      class="inline-flex h-10 items-center rounded-md border border-border bg-white px-3 text-sm font-bold text-foreground"
+                      :disabled="assistanceStatus === 'submitting'"
+                      @click="cancelManagerAssistance"
+                    >
+                      Zrušiť privolanie
+                    </button>
+                    <button
+                      v-if="['cancelled', 'completed', 'expired', 'release-without-manager'].includes(activeAssistance.status)"
+                      type="button"
+                      class="inline-flex h-10 items-center rounded-md border border-border bg-white px-3 text-sm font-bold text-foreground"
+                      @click="clearAssistanceAccess"
+                    >
+                      Zavrieť stav
+                    </button>
+                  </div>
+                </div>
+
+                <div v-else-if="managerAvailability?.available" class="mt-4 space-y-3 border-t border-border pt-4">
+                  <label class="block">
+                    <span class="text-xs font-bold">Telefón pre správcu</span>
+                    <input
+                      v-model="assistancePhone"
+                      type="tel"
+                      inputmode="tel"
+                      placeholder="+421 9..."
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm text-foreground"
+                    >
+                  </label>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-bell-alert"
+                    color="success"
+                    :disabled="!canRequestManager"
+                    :loading="assistanceStatus === 'submitting'"
+                    @click="requestManagerAssistance"
+                  >
+                    Privolať správcu
+                  </UButton>
+                  <p class="text-xs text-foreground-muted">
+                    Správca dostane upozornenie. Jeho odpoveď sa zobrazí tu automaticky.
+                  </p>
+                </div>
+
+                <DataStatusNotice
+                  v-if="assistanceStatus === 'error' && assistanceMessage"
+                  class="mt-3"
+                  :description="assistanceMessage"
+                  icon="i-heroicons-exclamation-triangle"
+                  title="Správcu sa nepodarilo privolať"
+                  tone="error"
+                />
               </div>
               <label class="block">
                 <span class="text-sm font-semibold">Nástraha</span>
@@ -1673,17 +1719,25 @@ watch(catchValidation, () => {
                 valid-description="Záznam má miesto, rybára, rozmery, nástrahu a čas."
               />
 
-              <p
+              <DataStatusNotice
                 v-if="catchSubmitMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  catchSubmitStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
+                :description="catchSubmitMessage"
+                :loading="catchSubmitStatus === 'submitting'"
+                :title="
+                  catchSubmitStatus === 'error'
+                    ? 'Úlovok sa nepodarilo uložiť'
+                    : catchSubmitStatus === 'submitting'
+                      ? 'Odosielam úlovok'
+                      : 'Úlovok je uložený'
                 "
-              >
-                {{ catchSubmitMessage }}
-              </p>
+                :tone="
+                  catchSubmitStatus === 'error'
+                    ? 'error'
+                    : catchSubmitStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="submit"

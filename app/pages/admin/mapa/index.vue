@@ -54,6 +54,7 @@ import {
   getTournamentSectorMapRows,
   type TournamentSectorShapeAlignmentMode,
 } from '~/utils/tournamentMap'
+import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin mapa' })
 
@@ -89,6 +90,7 @@ type FacilityQuickAddOption = {
   label: string
   type: MapFacilityType
 }
+type LayerReadinessStatus = 'active' | 'disabled' | 'missing'
 
 const { cabinProducts: seedCabinProducts, getLakeName, lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, tournaments } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-map-closure-state' })
@@ -609,13 +611,28 @@ const hiddenContentLayerSummaryLabel = computed(() =>
 function getLayerReadiness(kind: MapLayer['kind']) {
   const layers = lakeLayers.value.filter((layer) => layer.kind === kind)
   const enabled = layers.some((layer) => enabledLayerIds.value.includes(layer.id))
+  const status: LayerReadinessStatus = enabled ? 'active' : layers.length > 0 ? 'disabled' : 'missing'
 
   return {
     kind,
     label: mapLayerKindLabels[kind],
-    status: enabled ? 'active' : layers.length > 0 ? 'disabled' : 'missing',
-    statusLabel: enabled ? 'aktívna' : layers.length > 0 ? 'zapne sa' : 'vytvorí sa',
+    status,
+    statusLabel: status === 'active' ? 'aktívna' : status === 'disabled' ? 'zapne sa' : 'vytvorí sa',
   }
+}
+
+function getLayerReadinessTone(status: LayerReadinessStatus): StatusBadgeTone {
+  if (status === 'active') return 'success'
+  if (status === 'disabled') return 'warning'
+
+  return 'info'
+}
+
+function getLayerReadinessIcon(status: LayerReadinessStatus) {
+  if (status === 'active') return 'i-heroicons-eye'
+  if (status === 'disabled') return 'i-heroicons-eye-slash'
+
+  return 'i-heroicons-plus-circle'
 }
 
 const addPanelLayerReadinessRows = computed(() => [
@@ -1007,13 +1024,6 @@ function showSelectedElementLayer() {
 
   ensureLayerKindVisible(selectedElementLayerReadiness.value.kind)
   resetSaveFeedback()
-}
-
-function getLayerReadinessClasses(status: string) {
-  if (status === 'active') return 'border-success-500/20 bg-success-500/10 text-success-800'
-  if (status === 'disabled') return 'border-warning-200 bg-warning-50/80 text-warning-950'
-
-  return 'border-info-500/20 bg-info-500/10 text-info-800'
 }
 
 function getLakePrefix(lake: LakeSlug) {
@@ -2422,23 +2432,20 @@ async function discardMapDraft() {
               <div
                 v-for="row in addPanelLayerReadinessRows"
                 :key="row.id"
-                class="rounded-md border px-3 py-2"
-                :class="
-                  row.status === 'active'
-                    ? 'border-success-500/20 bg-success-500/10 text-success-800'
-                    : row.status === 'disabled'
-                      ? 'border-warning-200 bg-warning-50/80 text-warning-950'
-                    : 'border-info-500/20 bg-info-500/10 text-info-800'
-                "
+                class="rounded-md border border-border bg-white px-3 py-2"
               >
                 <div class="flex items-center justify-between gap-2">
                   <span class="flex min-w-0 items-center gap-2">
                     <UIcon :name="row.icon" class="h-4 w-4 shrink-0" />
                     <span class="truncate text-xs font-bold">{{ row.title }}</span>
                   </span>
-                  <span class="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
-                    {{ row.statusLabel }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="getLayerReadinessIcon(row.status)"
+                    :label="row.statusLabel"
+                    size="xs"
+                    :tone="getLayerReadinessTone(row.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-1 truncate text-xs">{{ row.label }}</p>
               </div>
@@ -3029,17 +3036,13 @@ async function discardMapDraft() {
               >
             </label>
             <p class="text-foreground-muted mt-2 text-xs">Maximálna veľkosť 10 MB. Obrázok sa použije na aktuálne vybranom jazere.</p>
-            <p
+            <DataStatusNotice
               v-if="backgroundUploadMessage"
-              class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                backgroundUploadStatus === 'success'
-                  ? 'bg-success-500/10 text-success-700'
-                  : 'bg-error-500/10 text-error-700'
-              "
-            >
-              {{ backgroundUploadMessage }}
-            </p>
+              class="mt-3"
+              :description="backgroundUploadMessage"
+              :title="backgroundUploadStatus === 'success' ? 'Podklad je nahratý' : 'Podklad sa nepodarilo nahrať'"
+              :tone="backgroundUploadStatus === 'success' ? 'success' : 'error'"
+            />
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
@@ -3082,15 +3085,22 @@ async function discardMapDraft() {
 
             <div
               v-if="selectedElementLayerReadiness"
-              class="mt-4 rounded-md border p-3"
-              :class="getLayerReadinessClasses(selectedElementLayerReadiness.status)"
+              class="mt-4 rounded-md border border-border bg-white p-3"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p class="text-sm font-bold">{{ selectedElementLayerReadiness.title }}</p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-sm font-bold">{{ selectedElementLayerReadiness.title }}</p>
+                    <StatusBadge
+                      :icon="getLayerReadinessIcon(selectedElementLayerReadiness.status)"
+                      :label="selectedElementLayerReadiness.statusLabel"
+                      size="xs"
+                      :tone="getLayerReadinessTone(selectedElementLayerReadiness.status)"
+                    />
+                  </div>
                   <p class="text-foreground-muted mt-1 text-xs">
                     {{ selectedElementLayerReadiness.itemLabel }} · {{ selectedElementLayerReadiness.label }} ·
-                    {{ selectedElementLayerReadiness.statusLabel }}
+                    {{ selectedElementLayerReadiness.status === 'active' ? 'viditeľné v aktuálnom náhľade' : 'treba zapnúť alebo vytvoriť vrstvu' }}
                   </p>
                 </div>
                 <UButton
@@ -3150,12 +3160,13 @@ async function discardMapDraft() {
                       {{ selectedPegCabinCatalogHint }}
                     </p>
                   </div>
-                  <span
-                    class="rounded-full px-2 py-1 text-xs font-bold"
-                    :class="selectedPegCabinProduct ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-800'"
-                  >
-                    {{ selectedPegCabinProduct ? 'naviazané' : 'bez väzby' }}
-                  </span>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="selectedPegCabinProduct ? 'i-heroicons-link' : 'i-heroicons-link-slash'"
+                    :label="selectedPegCabinProduct ? 'naviazané' : 'bez väzby'"
+                    size="xs"
+                    :tone="selectedPegCabinProduct ? 'success' : 'warning'"
+                  />
                 </div>
                 <label class="mt-3 block">
                   <span class="text-sm font-semibold">Priradiť k položke</span>
@@ -3195,17 +3206,13 @@ async function discardMapDraft() {
                     {{ changedCabinProducts.length > 0 ? `${changedCabinProducts.length} zmena čaká na uloženie` : 'Väzby sú bez zmien' }}
                   </span>
                 </div>
-                <p
+                <DataStatusNotice
                   v-if="cabinCatalogMessage"
-                  class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-                  :class="
-                    cabinCatalogStatus === 'success'
-                      ? 'bg-success-500/10 text-success-700'
-                      : 'bg-error-500/10 text-error-700'
-                  "
-                >
-                  {{ cabinCatalogMessage }}
-                </p>
+                  class="mt-3"
+                  :description="cabinCatalogMessage"
+                  :title="cabinCatalogStatus === 'success' ? 'Väzba chaty je uložená' : 'Väzbu chaty sa nepodarilo uložiť'"
+                  :tone="cabinCatalogStatus === 'success' ? 'success' : 'error'"
+                />
               </div>
               <label class="block">
                 <span class="text-sm font-semibold">Názov</span>
@@ -3498,39 +3505,27 @@ async function discardMapDraft() {
                 Publikovať
               </UButton>
             </div>
-            <p
+            <DataStatusNotice
               v-if="saveMessage"
-              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                saveStatus === 'success'
-                  ? 'bg-success-500/10 text-success-700'
-                  : 'bg-error-500/10 text-error-700'
-              "
-            >
-              {{ saveMessage }}
-            </p>
-            <p
+              class="mt-4"
+              :description="saveMessage"
+              :title="saveStatus === 'success' ? 'Draft mapy je uložený' : 'Draft mapy sa nepodarilo uložiť'"
+              :tone="saveStatus === 'success' ? 'success' : 'error'"
+            />
+            <DataStatusNotice
               v-if="publishMessage"
-              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                publishStatus === 'success'
-                  ? 'bg-success-500/10 text-success-700'
-                  : 'bg-error-500/10 text-error-700'
-              "
-            >
-              {{ publishMessage }}
-            </p>
-            <p
+              class="mt-4"
+              :description="publishMessage"
+              :title="publishStatus === 'success' ? 'Mapa je publikovaná' : 'Mapu sa nepodarilo publikovať'"
+              :tone="publishStatus === 'success' ? 'success' : 'error'"
+            />
+            <DataStatusNotice
               v-if="discardMessage"
-              class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-              :class="
-                discardStatus === 'success'
-                  ? 'bg-success-500/10 text-success-700'
-                  : 'bg-error-500/10 text-error-700'
-              "
-            >
-              {{ discardMessage }}
-            </p>
+              class="mt-4"
+              :description="discardMessage"
+              :title="discardStatus === 'success' ? 'Draft mapy je zahodený' : 'Draft mapy sa nepodarilo zahodiť'"
+              :tone="discardStatus === 'success' ? 'success' : 'error'"
+            />
           </div>
 
           <div class="rounded-card border border-border bg-surface p-5">
@@ -3548,16 +3543,22 @@ async function discardMapDraft() {
               />
             </div>
 
-            <div class="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-              <span class="rounded-full bg-error-500/10 px-2.5 py-1 text-error-700">
-                {{ mapPublishQualitySummary.errorCount }} kritické celkom
-              </span>
-              <span class="rounded-full bg-warning-500/10 px-2.5 py-1 text-warning-700">
-                {{ mapPublishQualitySummary.warningCount }} upozornenia celkom
-              </span>
-              <span class="rounded-full bg-info-500/10 px-2.5 py-1 text-info-700">
-                {{ mapPublishQualitySummary.infoCount }} info celkom
-              </span>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <StatusBadge
+                icon="i-heroicons-exclamation-triangle"
+                :label="`${mapPublishQualitySummary.errorCount} kritické celkom`"
+                tone="error"
+              />
+              <StatusBadge
+                icon="i-heroicons-exclamation-circle"
+                :label="`${mapPublishQualitySummary.warningCount} upozornenia celkom`"
+                tone="warning"
+              />
+              <StatusBadge
+                icon="i-heroicons-information-circle"
+                :label="`${mapPublishQualitySummary.infoCount} info celkom`"
+                tone="info"
+              />
             </div>
 
             <div

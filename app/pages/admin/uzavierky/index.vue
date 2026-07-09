@@ -156,17 +156,18 @@ async function submitClosure() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="closuresReadOnly"
-        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
-      >
-        <p class="text-sm font-bold">Režim prístupu: {{ closureAccessLabel }}</p>
-        <p class="mt-1 text-sm">{{ closureReadOnlyMessage }}</p>
-      </div>
+        class="mb-5"
+        :description="closureReadOnlyMessage"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${closureAccessLabel}`"
+        tone="info"
+      />
 
       <div class="grid gap-4 md:grid-cols-3">
         <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Public uzávierky</p>
+          <p class="text-foreground-muted text-sm">Verejné uzávierky</p>
           <p class="mt-2 text-3xl font-bold">{{ publicClosures.length }}</p>
         </div>
         <div class="rounded-card border border-border bg-surface p-4">
@@ -202,19 +203,24 @@ async function submitClosure() {
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
-                    {{ reasonLabels[closure.reason] }}
-                  </span>
-                  <span
-                    class="rounded-md px-2.5 py-1 text-xs font-bold"
-                    :class="
-                      closure.visibility === 'public'
-                        ? 'bg-success-500/10 text-success-700'
-                        : 'bg-warning-500/10 text-warning-700'
-                    "
-                  >
-                    {{ closure.visibility === 'public' ? 'public' : 'interné' }}
-                  </span>
+                  <StatusBadge
+                    icon="i-heroicons-tag"
+                    :label="reasonLabels[closure.reason]"
+                    size="xs"
+                    tone="primary"
+                  />
+                  <StatusBadge
+                    :icon="closure.visibility === 'public' ? 'i-heroicons-eye' : 'i-heroicons-eye-slash'"
+                    :label="closure.visibility === 'public' ? 'Verejné' : 'Interné'"
+                    size="xs"
+                    :tone="closure.visibility === 'public' ? 'success' : 'warning'"
+                  />
+                  <StatusBadge
+                    :icon="closure.affectsReservations ? 'i-heroicons-no-symbol' : 'i-heroicons-information-circle'"
+                    :label="closure.affectsReservations ? 'blokuje rezervácie' : 'iba informácia'"
+                    size="xs"
+                    :tone="closure.affectsReservations ? 'error' : 'neutral'"
+                  />
                   <UButton
                     type="button"
                     size="xs"
@@ -236,9 +242,9 @@ async function submitClosure() {
                 <span
                   v-for="pegId in closure.pegIds"
                   :key="pegId"
-                  class="rounded-md bg-muted px-2 py-1 font-semibold text-foreground-muted"
+                  class="inline-flex"
                 >
-                  {{ pegId }}
+                  <StatusBadge :label="pegId" size="xs" tone="muted" />
                 </span>
               </div>
             </div>
@@ -307,12 +313,12 @@ async function submitClosure() {
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="block">
-                    <span class="text-sm font-semibold">Viditeľnosť</span>
-                    <select v-model="closureDraft.visibility" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
-                      <option value="public">public</option>
-                      <option value="internal">interné</option>
-                    </select>
-                  </label>
+                  <span class="text-sm font-semibold">Viditeľnosť</span>
+                  <select v-model="closureDraft.visibility" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                      <option value="public">Verejné</option>
+                      <option value="internal">Interné</option>
+                  </select>
+                </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Organizácia</span>
                     <input v-model="closureDraft.organization" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="voliteľné">
@@ -350,17 +356,19 @@ async function submitClosure() {
               >
                 {{ isEditingClosure ? 'Uložiť zmeny' : 'Uložiť uzávierku' }}
               </UButton>
-              <p
+              <DataStatusNotice
                 v-if="closureSubmitMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
+                :description="closureSubmitMessage"
+                :loading="closureSubmitStatus === 'submitting'"
+                :title="
                   closureSubmitStatus === 'error'
-                    ? 'bg-error-500/10 text-error-700'
-                    : 'bg-success-500/10 text-success-700'
+                    ? 'Uzávierku sa nepodarilo uložiť'
+                    : closureSubmitStatus === 'submitting'
+                      ? 'Ukladám uzávierku'
+                      : 'Uzávierka je uložená'
                 "
-              >
-                {{ closureSubmitMessage }}
-              </p>
+                :tone="closureSubmitStatus === 'error' ? 'error' : closureSubmitStatus === 'submitting' ? 'info' : 'success'"
+              />
             </form>
           </div>
 

@@ -50,11 +50,11 @@ const selectedLake = ref<LakeSlug>(routeLake ?? 'velky-cetin')
 const dateFrom = ref(initialDateRange.dateFrom)
 const dateTo = ref(initialDateRange.dateTo)
 const showOnlyReservable = ref(route.query.volne === '1')
-const selectedPegId = ref(
+const initialSelectedPegId =
   pegs.find((peg) => peg.id === route.query.miesto && peg.lake === selectedLake.value)?.id
   ?? pegs.find((peg) => peg.lake === selectedLake.value)?.id
-  ?? '',
-)
+  ?? ''
+const selectedPegId = ref(initialSelectedPegId)
 const offlinePlaceIssueQueue = ref<OfflinePlaceIssueQueueItem[]>([])
 const isClientOnline = ref(true)
 const issueSubmitStatus = ref<'error' | 'idle' | 'submitting' | 'success'>('idle')
@@ -65,9 +65,40 @@ const issueForm = reactive({
   photoLabel: '',
   reporterName: '',
   reporterPhone: '',
-  targetKey: 'peg:vc-03',
+  targetKey: initialSelectedPegId ? `peg:${initialSelectedPegId}` : `lake:${selectedLake.value}`,
   title: '',
 })
+const issueTemplateCards: Array<{
+  category: PlaceIssueCategory
+  description: string
+  icon: string
+  title: string
+}> = [
+  {
+    category: 'lighting',
+    description: 'Napr. nesvieti lampa, zásuvka alebo osvetlenie pri chate.',
+    icon: 'i-heroicons-light-bulb',
+    title: 'Nesvieti alebo nejde elektrina',
+  },
+  {
+    category: 'missing-equipment',
+    description: 'Napr. chýba podberák, podložka, drevo, kľúč alebo dohodnutá výbava.',
+    icon: 'i-heroicons-archive-box',
+    title: 'Niečo chýba',
+  },
+  {
+    category: 'broken',
+    description: 'Napr. poškodený prístup, lavica, mólo, zámok, dvere alebo vybavenie chaty.',
+    icon: 'i-heroicons-wrench-screwdriver',
+    title: 'Niečo je poškodené',
+  },
+  {
+    category: 'safety',
+    description: 'Napr. nebezpečný konár, šmykľavý vstup, otvorená jama alebo riziko úrazu.',
+    icon: 'i-heroicons-exclamation-triangle',
+    title: 'Bezpečnostný problém',
+  },
+]
 
 const isMapStateLoading = computed(() => mapStateStatus.value === 'pending')
 const hasMapStateError = computed(() => Boolean(mapStateError.value))
@@ -108,6 +139,7 @@ const visiblePegs = computed(() => visibleAvailabilityRows.value.map((row) => ro
 const reservableCount = computed(() =>
   availabilityRows.value.filter((row) => row.availability.reservable).length,
 )
+const unavailableCount = computed(() => Math.max(availabilityRows.value.length - reservableCount.value, 0))
 const selectedPeg = computed(() => lakePegs.value.find((peg) => peg.id === selectedPegId.value))
 const selectedAvailability = computed(() =>
   selectedPeg.value
@@ -124,6 +156,7 @@ const selectedAvailabilityReason = computed(() =>
   ?? selectedAvailability.value?.description
   ?? '',
 )
+const selectedPegCanReserve = computed(() => Boolean(selectedPeg.value && selectedAvailability.value?.reservable))
 const reservationTarget = computed(() => ({
   path: '/rezervacie',
   query: {
@@ -133,6 +166,67 @@ const reservationTarget = computed(() => ({
     od: dateFrom.value,
   },
 }))
+const reservationActionTarget = computed(() => selectedPegCanReserve.value ? reservationTarget.value : undefined)
+const reservationActionLabel = computed(() => {
+  if (!selectedPeg.value) return 'Vyberte miesto'
+  if (!selectedPegCanReserve.value) return 'Miesto nie je dostupné'
+
+  return 'Rezervovať vybrané miesto'
+})
+
+function formatMapDate(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('sk-SK', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date)
+}
+
+type MapSummaryTone = 'primary' | 'success' | 'warning'
+
+const availabilitySummaryItems = computed<Array<{
+  description: string
+  icon: string
+  label: string
+  tone: MapSummaryTone
+  value: string
+}>>(() => [
+  {
+    description: `${formatMapDate(dateFrom.value)} až ${formatMapDate(dateTo.value)}`,
+    icon: 'i-heroicons-check-circle',
+    label: 'Rezervovateľné miesta',
+    tone: reservableCount.value > 0 ? 'success' : 'warning',
+    value: `${reservableCount.value} z ${availabilityRows.value.length}`,
+  },
+  {
+    description: showOnlyReservable.value
+      ? `${unavailableCount.value} obsadených alebo blokovaných miest je skrytých.`
+      : 'Mapa ukazuje voľné aj obsadené miesta.',
+    icon: showOnlyReservable.value ? 'i-heroicons-funnel' : 'i-heroicons-map-pin',
+    label: 'Zobrazenie mapy',
+    tone: showOnlyReservable.value ? 'success' : 'primary',
+    value: showOnlyReservable.value ? 'len voľné' : 'všetky miesta',
+  },
+  {
+    description: selectedPeg.value
+      ? selectedAvailabilityReason.value || 'Vybrané miesto je pripravené na rezerváciu.'
+      : 'Vyberte bod na mape alebo v zozname miest.',
+    icon: selectedPegCanReserve.value ? 'i-heroicons-calendar-days' : 'i-heroicons-exclamation-triangle',
+    label: 'Vybrané miesto',
+    tone: selectedPegCanReserve.value ? 'success' : 'warning',
+    value: selectedPeg.value?.label ?? 'žiadne',
+  },
+])
+
+function mapSummaryToneClass(tone: MapSummaryTone) {
+  if (tone === 'success') return 'border-success-500/25 bg-success-500/10 text-success-800'
+  if (tone === 'warning') return 'border-warning-200 bg-warning-500/10 text-warning-950'
+
+  return 'border-primary-200 bg-primary-50 text-primary-950'
+}
 
 async function retryMapState() {
   await refreshMapState()
@@ -157,6 +251,24 @@ const issueTargetOptions = computed(() => [
     value: `facility:${facility.id}`,
   })),
 ])
+const selectedIssueTargetLabel = computed(() =>
+  issueTargetOptions.value.find((option) => option.value === issueForm.targetKey)?.label ?? currentLake.value.name,
+)
+const selectedIssueCategoryLabel = computed(() =>
+  placeIssueCategoryLabels[issueForm.category],
+)
+const issueSubmitNoticeTitle = computed(() => {
+  if (issueSubmitStatus.value === 'error') return 'Hlásenie sa nepodarilo odoslať'
+  if (issueSubmitStatus.value === 'submitting') return 'Odosielam hlásenie'
+
+  return 'Hlásenie je prijaté'
+})
+const issueSubmitNoticeTone = computed(() => {
+  if (issueSubmitStatus.value === 'error') return 'error'
+  if (issueSubmitStatus.value === 'submitting') return 'info'
+
+  return 'success'
+})
 
 watch(selectedLake, () => {
   selectedPegId.value = lakePegs.value[0]?.id ?? ''
@@ -189,6 +301,12 @@ watch(
 function selectPeg(peg: Peg) {
   selectedPegId.value = peg.id
   issueForm.targetKey = `peg:${peg.id}`
+}
+
+function applyIssueTemplate(template: (typeof issueTemplateCards)[number]) {
+  issueForm.category = template.category
+  issueForm.title = template.title
+  issueForm.description = template.description
 }
 
 function parseIssueTarget(targetKey: string): { targetId?: string, targetType: PlaceIssueTargetType } {
@@ -243,15 +361,15 @@ async function refreshOfflinePlaceIssueQueue() {
   offlinePlaceIssueQueue.value = await readOfflinePlaceIssueQueue()
 }
 
-let offlinePlaceIssueSyncInProgress = false
+const offlinePlaceIssueSyncInProgress = ref(false)
 
 async function syncOfflinePlaceIssueQueue(options: { silent?: boolean } = {}) {
-  if (!import.meta.client || offlinePlaceIssueSyncInProgress) return
+  if (!import.meta.client || offlinePlaceIssueSyncInProgress.value) return
 
   isClientOnline.value = navigator.onLine
   if (!isClientOnline.value) return
 
-  offlinePlaceIssueSyncInProgress = true
+  offlinePlaceIssueSyncInProgress.value = true
   let syncedCount = 0
 
   try {
@@ -286,13 +404,13 @@ async function syncOfflinePlaceIssueQueue(options: { silent?: boolean } = {}) {
     }
   }
   finally {
-    offlinePlaceIssueSyncInProgress = false
+    offlinePlaceIssueSyncInProgress.value = false
   }
 }
 
 async function submitPlaceIssue() {
   issueSubmitStatus.value = 'submitting'
-  issueSubmitMessage.value = ''
+  issueSubmitMessage.value = 'Odosielam hlásenie správcovi.'
   const payload = buildPlaceIssuePayload()
 
   try {
@@ -385,9 +503,32 @@ onBeforeUnmount(() => {
             <input v-model="showOnlyReservable" type="checkbox" class="h-4 w-4 accent-primary-700">
             Len rezervovateľné
           </label>
-          <UButton :to="reservationTarget" icon="i-heroicons-calendar-days" color="warning">
-            Rezervovať vybrané miesto
+          <UButton
+            :to="reservationActionTarget"
+            icon="i-heroicons-calendar-days"
+            color="warning"
+            :disabled="!selectedPegCanReserve"
+          >
+            {{ reservationActionLabel }}
           </UButton>
+        </div>
+      </div>
+
+      <div class="mb-5 grid gap-3 md:grid-cols-3">
+        <div
+          v-for="item in availabilitySummaryItems"
+          :key="item.label"
+          class="rounded-md border p-4"
+          :class="mapSummaryToneClass(item.tone)"
+        >
+          <div class="flex items-start gap-3">
+            <UIcon :name="item.icon" class="mt-0.5 h-5 w-5 shrink-0" />
+            <div class="min-w-0">
+              <p class="text-xs font-semibold opacity-75">{{ item.label }}</p>
+              <p class="mt-1 truncate text-lg font-black">{{ item.value }}</p>
+              <p class="mt-1 text-sm opacity-80">{{ item.description }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -443,8 +584,54 @@ onBeforeUnmount(() => {
 
             <form class="border-border space-y-3 border-t pt-4" @submit.prevent="submitPlaceIssue">
               <div class="flex items-center justify-between gap-3">
-                <h3 class="font-bold">Nahlásiť nedostatok</h3>
+                <div>
+                  <h3 class="font-bold">Nahlásiť nedostatok</h3>
+                  <p class="text-foreground-muted mt-1 text-sm">
+                    Správca dostane miesto, kategóriu a popis. Kontakt vyplňte iba vtedy, ak má zavolať späť.
+                  </p>
+                </div>
                 <UIcon name="i-heroicons-wrench-screwdriver" class="text-primary-700 h-5 w-5" />
+              </div>
+
+              <div class="rounded-md border border-border bg-muted/60 p-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    icon="i-heroicons-map-pin"
+                    :label="selectedIssueTargetLabel"
+                    tone="primary"
+                    size="xs"
+                  />
+                  <StatusBadge
+                    icon="i-heroicons-tag"
+                    :label="selectedIssueCategoryLabel"
+                    tone="neutral"
+                    size="xs"
+                  />
+                </div>
+                <p class="text-foreground-muted mt-2 text-xs">
+                  Cieľ hlásenia môžete zmeniť nižšie, ak problém patrí k inému miestu alebo servisnému bodu.
+                </p>
+              </div>
+
+              <div>
+                <p class="text-sm font-semibold">Rýchle voľby</p>
+                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    v-for="template in issueTemplateCards"
+                    :key="template.title"
+                    type="button"
+                    class="rounded-md border border-border bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                    @click="applyIssueTemplate(template)"
+                  >
+                    <div class="flex items-start gap-2">
+                      <UIcon :name="template.icon" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                      <div>
+                        <p class="text-sm font-bold">{{ template.title }}</p>
+                        <p class="text-foreground-muted mt-1 text-xs">{{ template.description }}</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-2">
@@ -479,48 +666,43 @@ onBeforeUnmount(() => {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Meno</span>
-                  <input v-model="issueForm.reporterName" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="voliteľné">
+                  <input v-model="issueForm.reporterName" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="meno pre spätný kontakt">
                 </label>
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Telefón</span>
-                  <input v-model="issueForm.reporterPhone" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="voliteľné">
+                  <input v-model="issueForm.reporterPhone" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="+421 ...">
                 </label>
               </div>
 
               <label class="block space-y-1 text-sm font-semibold">
-                <span>Fotka</span>
-                <input v-model="issueForm.photoLabel" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="názov fotky alebo poznámka">
+                <span>Fotka alebo poznámka</span>
+                <input v-model="issueForm.photoLabel" class="w-full rounded-md border border-border px-3 py-2 text-sm" placeholder="napr. fotka v telefóne, pošlem správcovi cez SMS">
               </label>
 
-              <div
+              <DataStatusNotice
                 v-if="offlinePlaceIssueQueue.length"
-                class="rounded-md border border-warning-300 bg-warning-100 px-3 py-2 text-sm text-warning-900"
-              >
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p class="font-semibold">
-                    V tomto zariadení čaká {{ offlinePlaceIssueQueue.length }} hlásení na odoslanie.
-                  </p>
-                  <UButton
-                    type="button"
-                    icon="i-heroicons-cloud-arrow-up"
-                    size="xs"
-                    variant="soft"
-                    :disabled="!isClientOnline"
-                    @click="syncOfflinePlaceIssueQueue()"
-                  >
-                    Odoslať teraz
-                  </UButton>
-                </div>
-              </div>
+                :action-label="isClientOnline ? 'Odoslať teraz' : ''"
+                :action-loading="offlinePlaceIssueSyncInProgress"
+                :description="
+                  isClientOnline
+                    ? 'Hlásenia sa odošlú pri najbližšej synchronizácii alebo ich môžete odoslať hneď.'
+                    : 'Hlásenia ostanú uložené v tomto zariadení a odošlú sa po obnovení signálu.'
+                "
+                icon="i-heroicons-cloud-arrow-up"
+                :title="`V tomto zariadení čaká ${offlinePlaceIssueQueue.length} hlásení na odoslanie`"
+                tone="warning"
+                @action="syncOfflinePlaceIssueQueue()"
+              />
 
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <DataStatusNotice
                   v-if="issueSubmitMessage"
-                  class="text-sm font-semibold"
-                  :class="issueSubmitStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-                >
-                  {{ issueSubmitMessage }}
-                </p>
+                  class="sm:flex-1"
+                  :description="issueSubmitMessage"
+                  :loading="issueSubmitStatus === 'submitting'"
+                  :title="issueSubmitNoticeTitle"
+                  :tone="issueSubmitNoticeTone"
+                />
                 <UButton
                   type="submit"
                   icon="i-heroicons-paper-airplane"

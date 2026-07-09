@@ -3,8 +3,11 @@ import type {
   Sponsor,
   SponsorLogoVariant,
   Tournament,
+  TournamentCatch,
+  TournamentMarshal,
   TournamentOperationsMode,
   TournamentPenalty,
+  TournamentRequest,
   TournamentRuleCheck,
   TournamentTeamRegistration,
 } from '~/data/pond'
@@ -43,6 +46,7 @@ import {
   getTournamentMapSourceSummary,
   getTournamentSectorMapRows,
   getTournamentSectorShapes,
+  type TournamentMapSourceSummary,
 } from '~/utils/tournamentMap'
 import {
   getTournamentLeaderboard,
@@ -58,6 +62,9 @@ import {
   getTournamentTeamAccessRows,
 } from '~/utils/tournamentTeamAccess'
 import { createTournamentMarshalAccessUrl } from '~/utils/tournamentMarshalAccess'
+import type { StatusBadgeTone } from '~/utils/ui'
+
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 useHead({ title: 'Admin súťaže' })
 
@@ -302,18 +309,159 @@ const sectorOptionLabel = (sectorId?: string) => {
   return sector ? `${sector.label} · ${sector.team ?? 'voľný'}` : 'bez preferencie'
 }
 
-const registrationStatusClass = (status: TournamentTeamRegistration['status']) => {
+const registrationStatusTone = (status: TournamentTeamRegistration['status']): StatusBadgeTone => {
   switch (status) {
     case 'approved':
-      return 'bg-success-500/10 text-success-700'
+      return 'success'
     case 'submitted':
-      return 'bg-info-500/10 text-info-700'
+      return 'info'
     case 'waitlisted':
-      return 'bg-warning-500/10 text-warning-700'
+      return 'warning'
     case 'rejected':
-      return 'bg-error-500/10 text-error-700'
+      return 'error'
     default:
-      return 'bg-muted text-foreground-muted'
+      return 'neutral'
+  }
+}
+
+const registrationStatusIcon = (status: TournamentTeamRegistration['status']) => {
+  switch (status) {
+    case 'approved':
+      return 'i-heroicons-check-circle'
+    case 'submitted':
+      return 'i-heroicons-inbox-arrow-down'
+    case 'waitlisted':
+      return 'i-heroicons-clock'
+    case 'rejected':
+      return 'i-heroicons-x-circle'
+    default:
+      return 'i-heroicons-question-mark-circle'
+  }
+}
+
+const operationsModeTone = (mode: TournamentOperationsMode): StatusBadgeTone => {
+  switch (mode) {
+    case 'full-dispatch':
+      return 'success'
+    case 'registration-only':
+      return 'info'
+    case 'public-only':
+      return 'neutral'
+    default:
+      return 'muted'
+  }
+}
+
+const operationsModeIcon = (mode: TournamentOperationsMode) => {
+  switch (mode) {
+    case 'full-dispatch':
+      return 'i-heroicons-radio'
+    case 'registration-only':
+      return 'i-heroicons-inbox-arrow-down'
+    case 'public-only':
+      return 'i-heroicons-eye'
+    default:
+      return 'i-heroicons-cog-6-tooth'
+  }
+}
+
+const mapSourceSummaryTone = (tone: TournamentMapSourceSummary['tone']): StatusBadgeTone =>
+  tone === 'published' ? 'success' : 'warning'
+
+const mapSourceSummaryIcon = (tone: TournamentMapSourceSummary['tone']) =>
+  tone === 'published' ? 'i-heroicons-check-circle' : 'i-heroicons-pencil-square'
+
+const sectorMapRowTone = (mapped: boolean): StatusBadgeTone => mapped ? 'success' : 'warning'
+
+const sectorMapRowIcon = (mapped: boolean) => mapped ? 'i-heroicons-squares-2x2' : 'i-heroicons-map-pin'
+
+const requestStatusTone = (status: TournamentRequest['status']): StatusBadgeTone => {
+  switch (status) {
+    case 'assigned':
+      return 'warning'
+    case 'new':
+      return 'error'
+    case 'resolved':
+      return 'success'
+    default:
+      return 'neutral'
+  }
+}
+
+const requestStatusIcon = (status: TournamentRequest['status']) => {
+  switch (status) {
+    case 'assigned':
+      return 'i-heroicons-user-circle'
+    case 'new':
+      return 'i-heroicons-bell-alert'
+    case 'resolved':
+      return 'i-heroicons-check-circle'
+    default:
+      return 'i-heroicons-clock'
+  }
+}
+
+const catchStatusTone = (status: TournamentCatch['status']): StatusBadgeTone => {
+  switch (status) {
+    case 'verified':
+      return 'success'
+    case 'waiting':
+      return 'warning'
+    case 'disputed':
+      return 'error'
+    default:
+      return 'neutral'
+  }
+}
+
+const catchStatusIcon = (status: TournamentCatch['status']) => {
+  switch (status) {
+    case 'verified':
+      return 'i-heroicons-scale'
+    case 'waiting':
+      return 'i-heroicons-clock'
+    case 'disputed':
+      return 'i-heroicons-shield-exclamation'
+    default:
+      return 'i-heroicons-question-mark-circle'
+  }
+}
+
+const catchStatusLabel = (status: TournamentCatch['status']) => {
+  if (status === 'waiting') return 'čaká'
+  if (status === 'verified') return 'overené'
+  if (status === 'disputed') return 'sporné'
+
+  return status
+}
+
+const marshalStatusTone = (status: TournamentMarshal['status']): StatusBadgeTone => {
+  switch (status) {
+    case 'available':
+      return 'success'
+    case 'on-route':
+      return 'info'
+    case 'measuring':
+      return 'warning'
+    case 'off-duty':
+      return 'neutral'
+    default:
+      return 'muted'
+  }
+}
+
+const marshalStatusIcon = (status: TournamentMarshal['status']) => {
+  switch (status) {
+    case 'available':
+      return 'i-heroicons-signal'
+    case 'on-route':
+      return 'i-heroicons-truck'
+    case 'measuring':
+      return 'i-heroicons-scale'
+    case 'off-duty':
+      return 'i-heroicons-moon'
+    default:
+      return 'i-heroicons-user-circle'
   }
 }
 
@@ -393,6 +541,62 @@ const penaltyValidationMessages = computed(() => getValidationMessages(penaltyVa
 const ruleCheckValidationMessages = computed(() => getValidationMessages(ruleCheckValidation.value))
 const sectorSettingsValidationMessages = computed(() => getValidationMessages(sectorSettingsValidation.value))
 const offlineAdminActionCount = computed(() => offlineAdminActionQueue.value.length)
+const actionNoticeTitle = computed(() =>
+  actionStatus.value === 'success'
+    ? 'Úkon je uložený'
+    : 'Úkon sa nepodarilo uložiť',
+)
+const actionNoticeTone = computed<NoticeTone>(() =>
+  actionStatus.value === 'success' ? 'success' : 'error',
+)
+const operationsModeNoticeTitle = computed(() =>
+  operationsModeStatus.value === 'success'
+    ? 'Režim súťaže je uložený'
+    : 'Režim súťaže sa nepodarilo uložiť',
+)
+const operationsModeNoticeTone = computed<NoticeTone>(() =>
+  operationsModeStatus.value === 'success' ? 'success' : 'error',
+)
+const offlineAdminNoticeTitle = computed(() => {
+  if (!isOnline.value) return 'Bez signálu pri vode'
+  if (offlineAdminSyncStatus.value === 'syncing') return 'Odosielam kontrolórske úkony'
+  if (offlineAdminSyncStatus.value === 'error') return 'Niektoré úkony čakajú na ďalší pokus'
+  if (offlineAdminSyncStatus.value === 'success' && offlineAdminActionCount.value === 0) {
+    return 'Kontrolórske úkony sú odoslané'
+  }
+
+  return 'Čakajúce úkony kontrolóra'
+})
+const offlineAdminNoticeDescription = computed(() =>
+  offlineAdminSyncMessage.value ||
+  'Váženia, tresty a kontroly sektorov podržíme v zariadení a odošleme ich po návrate pripojenia.',
+)
+const offlineAdminNoticeTone = computed<NoticeTone>(() => {
+  if (!isOnline.value) return 'warning'
+  if (offlineAdminSyncStatus.value === 'error') return 'error'
+  if (offlineAdminSyncStatus.value === 'success') return 'success'
+
+  return 'info'
+})
+const offlineAdminNoticeIcon = computed(() =>
+  isOnline.value ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash',
+)
+const sectorSettingsNoticeTitle = computed(() =>
+  sectorSettingsStatus.value === 'success'
+    ? 'Sektory sú uložené'
+    : 'Sektory sa nepodarilo uložiť',
+)
+const sectorSettingsNoticeTone = computed<NoticeTone>(() =>
+  sectorSettingsStatus.value === 'success' ? 'success' : 'error',
+)
+const teamAccessShareNoticeTitle = computed(() =>
+  teamAccessShareStatus.value === 'success'
+    ? 'Tímové odkazy sú pripravené'
+    : 'Tímové odkazy sa nepodarilo pripraviť',
+)
+const teamAccessShareNoticeTone = computed<NoticeTone>(() =>
+  teamAccessShareStatus.value === 'success' ? 'success' : 'error',
+)
 
 const getApiErrorMessage = (error: unknown) => {
   const fetchError = error as {
@@ -1019,37 +1223,28 @@ onBeforeUnmount(() => {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="tournamentsReadOnly"
-        class="mb-5 rounded-card border border-info-500/25 bg-info-500/10 p-4 text-info-700"
-      >
-        <p class="text-sm font-bold">Režim prístupu: {{ tournamentAccessLabel }}</p>
-        <p class="mt-1 text-sm">{{ tournamentReadOnlyMessage }}</p>
-      </div>
+        class="mb-5"
+        :description="tournamentReadOnlyMessage"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${tournamentAccessLabel}`"
+        tone="info"
+      />
 
       <div
         v-if="!isOnline || offlineAdminActionCount > 0 || offlineAdminSyncMessage"
-        class="mb-5 rounded-card border p-5"
-        :class="
-          offlineAdminSyncStatus === 'error' || !isOnline
-            ? 'border-warning-500/30 bg-warning-500/10 text-warning-900'
-            : 'border-primary-200 bg-primary-50 text-primary-900'
-        "
+        class="mb-5 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div class="flex items-start gap-3">
-            <div class="rounded-full bg-white p-2 text-primary-800">
-              <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5" />
-            </div>
-            <div>
-              <h2 class="font-bold">
-                {{ isOnline ? 'Čakajúce úkony kontrolóra' : 'Bez signálu pri vode' }}
-              </h2>
-              <p class="mt-1 text-sm">
-                {{ offlineAdminSyncMessage || 'Váženia, tresty a kontroly sektorov podržíme v zariadení a odošleme ich po návrate pripojenia.' }}
-              </p>
-            </div>
-          </div>
+          <DataStatusNotice
+            class="min-w-0 flex-1"
+            :description="offlineAdminNoticeDescription"
+            :icon="offlineAdminNoticeIcon"
+            :loading="offlineAdminSyncStatus === 'syncing'"
+            :title="offlineAdminNoticeTitle"
+            :tone="offlineAdminNoticeTone"
+          />
           <UButton
             v-if="offlineAdminActionCount > 0"
             icon="i-heroicons-cloud-arrow-up"
@@ -1084,9 +1279,14 @@ onBeforeUnmount(() => {
                 <UIcon name="i-heroicons-trash" class="h-4 w-4" />
               </button>
             </div>
-            <p v-if="item.lastError" class="mt-2 rounded bg-error-500/10 px-2 py-1 text-xs font-semibold text-error-800">
-              {{ item.lastError }}
-            </p>
+            <DataStatusNotice
+              v-if="item.lastError"
+              class="mt-3"
+              description="Skontroluj súťažný stav, sektor, kontrolóra alebo konkrétny úlovok."
+              icon="i-heroicons-exclamation-triangle"
+              :title="item.lastError"
+              tone="error"
+            />
           </div>
         </div>
       </div>
@@ -1097,9 +1297,12 @@ onBeforeUnmount(() => {
             <h2 class="text-lg font-bold">Režim používania súťaže</h2>
             <p class="text-foreground-muted mt-1 text-sm">{{ tournamentCapabilities.description }}</p>
           </div>
-          <span class="w-fit rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
-            {{ tournamentCapabilities.label }}
-          </span>
+          <StatusBadge
+            class="w-fit"
+            :icon="operationsModeIcon(tournamentCapabilities.mode)"
+            :label="tournamentCapabilities.label"
+            :tone="operationsModeTone(tournamentCapabilities.mode)"
+          />
         </div>
 
         <div class="mt-4 grid gap-3 md:grid-cols-3">
@@ -1119,15 +1322,13 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <p
+        <DataStatusNotice
           v-if="operationsModeMessage"
-          class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
-          :class="operationsModeStatus === 'success'
-            ? 'bg-success-500/10 text-success-700'
-            : 'bg-error-500/10 text-error-700'"
-        >
-          {{ operationsModeMessage }}
-        </p>
+          class="mt-4"
+          :description="operationsModeMessage"
+          :title="operationsModeNoticeTitle"
+          :tone="operationsModeNoticeTone"
+        />
       </div>
 
       <div class="grid gap-4 md:grid-cols-5">
@@ -1234,9 +1435,19 @@ onBeforeUnmount(() => {
                 {{ row.sectorLabel }} · najväčšia {{ formatWeight(row.largestCatchKg) }} kg
               </p>
             </div>
-            <div class="flex gap-2 text-xs sm:block sm:text-right">
-              <p class="font-semibold text-success-700">overené {{ row.verifiedCatchCount }}</p>
-              <p class="font-semibold text-warning-700">čaká {{ row.pendingCatchCount + row.disputedCatchCount }}</p>
+            <div class="flex flex-wrap gap-1.5 sm:justify-end">
+              <StatusBadge
+                icon="i-heroicons-check-circle"
+                :label="`overené ${row.verifiedCatchCount}`"
+                size="xs"
+                tone="success"
+              />
+              <StatusBadge
+                icon="i-heroicons-clock"
+                :label="`čaká ${row.pendingCatchCount + row.disputedCatchCount}`"
+                size="xs"
+                tone="warning"
+              />
             </div>
             <div class="text-right">
               <p class="text-lg font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
@@ -1280,12 +1491,12 @@ onBeforeUnmount(() => {
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <h3 class="truncate text-base font-bold">{{ registration.teamName }}</h3>
-                  <span
-                    class="w-fit rounded-md px-2 py-1 text-xs font-bold"
-                    :class="registrationStatusClass(registration.status)"
-                  >
-                    {{ tournamentTeamRegistrationStatusLabels[registration.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit"
+                    :icon="registrationStatusIcon(registration.status)"
+                    :label="tournamentTeamRegistrationStatusLabels[registration.status]"
+                    :tone="registrationStatusTone(registration.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-1 text-sm">
                   {{ registration.contactName }} · {{ registration.contactPhone }}
@@ -1390,21 +1601,20 @@ onBeforeUnmount(() => {
               Súťažné sektory čítajú SVG polygony z admin mapy, aby organizátor videl aj pripravené drafty.
             </p>
             <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
-              <span
-                class="rounded-md px-2 py-1 font-bold"
-                :class="mapSourceSummary.tone === 'draft'
-                  ? 'bg-warning-500/10 text-warning-900'
-                  : 'bg-success-500/10 text-success-700'"
-              >
-                {{ mapSourceSummary.label }}
-              </span>
+              <StatusBadge
+                :icon="mapSourceSummaryIcon(mapSourceSummary.tone)"
+                :label="mapSourceSummary.label"
+                :tone="mapSourceSummaryTone(mapSourceSummary.tone)"
+              />
               <span>{{ mapSourceSummary.description }}</span>
             </p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="rounded-md bg-primary-50 px-3 py-1 text-sm font-bold text-primary-800">
-              {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }}
-            </span>
+            <StatusBadge
+              icon="i-heroicons-squares-2x2"
+              :label="`${sectorMapCoverage.mappedSectorCount}/${sectorMapCoverage.totalSectorCount}`"
+              tone="primary"
+            />
             <UButton :to="tournamentMapEditorUrl" icon="i-heroicons-map" variant="soft" size="sm">
               Editor mapy
             </UButton>
@@ -1414,17 +1624,17 @@ onBeforeUnmount(() => {
           <div
             v-for="row in sectorMapRows"
             :key="row.sector.id"
-            class="rounded-md border px-3 py-2"
-            :class="row.mapped ? 'border-success-500/30 bg-success-500/10' : 'border-warning-300 bg-warning-500/10'"
+            class="rounded-md border border-border bg-white px-3 py-2"
           >
             <div class="flex items-center justify-between gap-2">
               <p class="font-bold">{{ row.sector.label }}</p>
-              <span
-                class="rounded-md px-2 py-0.5 text-xs font-bold"
-                :class="row.mapped ? 'bg-success-500/15 text-success-700' : 'bg-warning-100 text-warning-900'"
-              >
-                {{ row.mapped ? 'polygon' : 'iba bod' }}
-              </span>
+              <StatusBadge
+                class="shrink-0"
+                :icon="sectorMapRowIcon(row.mapped)"
+                :label="row.mapped ? 'polygon' : 'iba bod'"
+                size="xs"
+                :tone="sectorMapRowTone(row.mapped)"
+              />
             </div>
             <p class="text-foreground-muted mt-1 truncate text-xs">
               {{ row.shape?.label ?? row.sector.team ?? 'bez mapového polygonu' }}
@@ -1469,15 +1679,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p
+        <DataStatusNotice
           v-if="teamAccessShareMessage"
-          class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-          :class="teamAccessShareStatus === 'success'
-            ? 'bg-success-500/10 text-success-700'
-            : 'bg-error-500/10 text-error-700'"
-        >
-          {{ teamAccessShareMessage }}
-        </p>
+          class="mt-4"
+          :description="teamAccessShareMessage"
+          :title="teamAccessShareNoticeTitle"
+          :tone="teamAccessShareNoticeTone"
+        />
 
         <div class="mt-4 grid gap-3 lg:grid-cols-2">
           <div
@@ -1534,17 +1742,13 @@ onBeforeUnmount(() => {
           valid-description="ID sektorov ostávajú stabilné, hodnoty sa dajú bezpečne uložiť do súťažného stavu."
         />
 
-        <p
+        <DataStatusNotice
           v-if="sectorSettingsMessage"
-          class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-          :class="
-            sectorSettingsStatus === 'success'
-              ? 'bg-success-500/10 text-success-700'
-              : 'bg-error-500/10 text-error-700'
-          "
-        >
-          {{ sectorSettingsMessage }}
-        </p>
+          class="mt-4"
+          :description="sectorSettingsMessage"
+          :title="sectorSettingsNoticeTitle"
+          :tone="sectorSettingsNoticeTone"
+        />
 
         <div class="mt-4 grid gap-3 xl:grid-cols-2">
           <div
@@ -1576,7 +1780,7 @@ onBeforeUnmount(() => {
                 </NuxtLink>
                 <NuxtLink
                   :to="tournamentSectorMapEditorUrl(sector.id)"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-warning-500/10 px-2.5 text-xs font-bold text-warning-900 transition-colors hover:bg-warning-500/20"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
                 >
                   <UIcon name="i-heroicons-map" class="h-4 w-4" />
                   Mapa
@@ -1646,17 +1850,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <p
+      <DataStatusNotice
         v-if="actionMessage"
-        class="mt-4 rounded-md px-3 py-2 text-sm font-semibold"
-        :class="
-          actionStatus === 'success'
-            ? 'bg-success-500/10 text-success-700'
-            : 'bg-error-500/10 text-error-700'
-        "
-      >
-        {{ actionMessage }}
-      </p>
+        class="mt-4"
+        :description="actionMessage"
+        :title="actionNoticeTitle"
+        :tone="actionNoticeTone"
+      />
 
       <div class="mt-6 grid gap-4 lg:grid-cols-3">
         <div
@@ -1669,9 +1869,12 @@ onBeforeUnmount(() => {
               <p class="text-xs font-bold uppercase text-primary-700">{{ slot.label }}</p>
               <p class="text-foreground-muted mt-1 text-sm">{{ slot.description }}</p>
             </div>
-            <span class="rounded-md bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">
-              {{ slot.sponsors.length }}
-            </span>
+            <StatusBadge
+              icon="i-heroicons-building-storefront"
+              :label="`${slot.sponsors.length}`"
+              size="xs"
+              tone="primary"
+            />
           </div>
           <div v-if="slot.sponsors.length > 0" class="mt-4 space-y-2">
             <div
@@ -1713,9 +1916,12 @@ onBeforeUnmount(() => {
                     <p class="font-bold">{{ request.team }} · {{ sectorLabel(request.sectorId) }}</p>
                     <p class="text-primary-800 text-sm font-semibold">{{ tournamentRequestTypeLabels[request.type] }}</p>
                   </div>
-                  <span class="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-bold">
-                    {{ tournamentRequestStatusLabels[request.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit"
+                    :icon="requestStatusIcon(request.status)"
+                    :label="tournamentRequestStatusLabels[request.status]"
+                    :tone="requestStatusTone(request.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-3 text-sm">{{ request.description }}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
@@ -1756,9 +1962,12 @@ onBeforeUnmount(() => {
                       {{ catchItem.species }} · {{ catchItem.weightKg }} kg · {{ catchItem.lengthCm }} cm
                     </p>
                   </div>
-                  <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
-                    {{ catchItem.status }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit"
+                    :icon="catchStatusIcon(catchItem.status)"
+                    :label="catchStatusLabel(catchItem.status)"
+                    :tone="catchStatusTone(catchItem.status)"
+                  />
                 </div>
                 <p class="text-foreground-muted mt-2 text-sm">
                   Kontrolór: {{ marshalName(catchItem.verifiedByMarshalId) }} · {{ catchItem.notes }}
@@ -1799,9 +2008,12 @@ onBeforeUnmount(() => {
                       {{ marshal.assignedSectorIds.map(sectorLabel).join(', ') }}
                     </p>
                   </div>
-                  <span class="rounded-md bg-white px-2 py-1 text-xs font-bold text-primary-800">
-                    {{ tournamentMarshalStatusLabels[marshal.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit shrink-0"
+                    :icon="marshalStatusIcon(marshal.status)"
+                    :label="tournamentMarshalStatusLabels[marshal.status]"
+                    :tone="marshalStatusTone(marshal.status)"
+                  />
                 </div>
                 <div class="mt-3 flex flex-wrap gap-2">
                   <UButton
@@ -1992,7 +2204,13 @@ onBeforeUnmount(() => {
             <div class="mt-4 space-y-3">
               <div v-for="penalty in liveTournamentPenalties" :key="penalty.id" class="rounded-md border border-border bg-white p-4">
                 <p class="font-bold">{{ penalty.team }} · {{ sectorLabel(penalty.sectorId) }}</p>
-                <p class="text-error-700 text-sm font-semibold">{{ tournamentPenaltyTypeLabels[penalty.type] }}</p>
+                <StatusBadge
+                  class="mt-1"
+                  icon="i-heroicons-no-symbol"
+                  :label="tournamentPenaltyTypeLabels[penalty.type]"
+                  size="xs"
+                  tone="error"
+                />
                 <p class="text-foreground-muted mt-2 text-sm">{{ penalty.reason }}</p>
               </div>
             </div>

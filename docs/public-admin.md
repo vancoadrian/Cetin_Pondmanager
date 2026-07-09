@@ -4,6 +4,8 @@
 
 Rybolov Cetín používa jednu prihlasovaciu obrazovku `/login` s e-mailom a heslom. Po prihlásení sa používateľ presmeruje do priestoru zodpovedajúceho jeho role. Verejná navigácia neukazuje interné moduly ani odkaz „Admin“.
 
+Verejný header po prihlásení ukáže iba jeden rolovo správny vstup do osobného alebo pracovného priestoru a samostatné odhlásenie. Rybár tak vidí účet, tím tímový panel, kontrolór svoj kontrolórsky panel a interné roly svoj prevádzkový priestor bez toho, aby verejná navigácia miešala administračné moduly medzi verejné odkazy.
+
 Aktuálna lokálna autentifikácia používa cookie `rybolov_cetin_mock_session`. Rovnakú session používa verejné rozhranie, rybársky účet, tímový účet aj interné API guardy. Rozhranie a route guardy sú pripravené na nahradenie produkčným identity providerom bez zmeny informačnej architektúry.
 
 ## Verejné routy
@@ -67,6 +69,7 @@ Kontrolórske zápisy server overuje voči `marshalId`, súťaži a aktuálnemu 
 - Úlovok je verejný až po schválení správcom.
 - Zápisník možno otvoriť platným linkom alebo kódom, ale vytváranie osobných zápisníkov patrí prihlásenému rybárovi.
 - Verejná súťaž ukazuje výsledky a publikované informácie, nie živé hlásenia, kontakty kontrolórov ani interné kontroly, a to aj keď ju otvorí prihlásená interná rola.
+- Prihlásený tím môže z verejnej súťažnej stránky prejsť do tímového panelu, ale verejná výsledkovka neponúka sektorové odkazy ani operačné akcie pri jednotlivých tímoch.
 - Verejné skóre a najväčší úlovok sa počítajú iba z úlovkov potvrdených kontrolórom. Čakajúce a sporné váženia sa nezobrazujú ani nezapočítavajú.
 - Verejné obrazovky nepoužívajú texty o mock dátach, lokálnom store, API feedoch, administračných slotoch ani internom workflow.
 - Offline centrum zobrazuje iba fronty primerané aktuálnej role: verejné rezervácie, úlovky a hlásenia nedostatkov sú dostupné návštevníkovi, tímové súťažné hlásenia až tímu alebo internej súťažnej role a kontrolórske úkony iba role s operačným prístupom k súťažiam.

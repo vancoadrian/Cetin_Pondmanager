@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Sponsor, SponsorLogoVariant, TournamentRequest, TournamentTeamRegistration } from '~/data/pond'
+import type { Sponsor, SponsorLogoVariant, TournamentCatch, TournamentMarshal, TournamentRequest, TournamentTeamRegistration } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import type {
   TournamentTeamRegistrationSubmissionSuccess,
@@ -39,7 +39,6 @@ import {
   getTournamentLeaderboardStats,
 } from '~/utils/tournamentLeaderboard'
 import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperations'
-import { createTournamentTeamAccessUrl } from '~/utils/tournamentTeamAccess'
 
 useHead({ title: 'Súťaže' })
 
@@ -126,6 +125,18 @@ const tournamentCapabilities = computed(() => getTournamentOperationalCapabiliti
 const canSubmitTeamRegistration = computed(() => tournamentCapabilities.value.allowsTeamRegistration)
 const canSubmitTournamentRequest = computed(() => tournamentCapabilities.value.allowsTeamRequests)
 const canUseTeamRequestWorkflow = computed(() => canUseTeamPanel.value && canSubmitTournamentRequest.value)
+const teamScopedSector = computed(() =>
+  user.value?.role === 'team' && user.value.tournamentId === activeTournament.value.id
+    ? activeTournament.value.sectors.find((sector) => sector.id === user.value?.sectorId)
+    : undefined,
+)
+const teamRequestSectors = computed(() =>
+  teamScopedSector.value ? [teamScopedSector.value] : activeTournament.value.sectors,
+)
+const teamPanelTarget = computed(() => ({
+  path: '/sutaze/tim',
+  query: { turnaj: activeTournament.value.id },
+}))
 const activeTeamCount = computed(() =>
   activeTournament.value.sectors.filter((sector) => Boolean(sector.team)).length,
 )
@@ -185,7 +196,7 @@ const requestForm = reactive<{
   type: TournamentRequest['type']
   description: string
 }>({
-  sectorId: activeTournament.value.sectors[1]?.id ?? activeTournament.value.sectors[0]?.id ?? '',
+  sectorId: teamScopedSector.value?.id ?? activeTournament.value.sectors[1]?.id ?? activeTournament.value.sectors[0]?.id ?? '',
   type: 'catch-measurement',
   description: '',
 })
@@ -268,8 +279,6 @@ const leaderboardStats = computed(() =>
   getTournamentLeaderboardStats(tournamentLeaderboard.value),
 )
 const leaderboardKioskUrl = computed(() => `/sutaze/vysledkovka?turnaj=${encodeURIComponent(activeTournament.value.id)}`)
-const tournamentTeamAccessUrl = (sectorId: string) =>
-  createTournamentTeamAccessUrl(activeTournament.value.id, sectorId)
 const selectedSector = computed(() =>
   activeTournament.value.sectors.find((sector) => sector.id === requestForm.sectorId),
 )
@@ -335,20 +344,59 @@ const hasActivePenalty = (sectorId: string) =>
 const hasMapShapeForSector = (sectorId: string) =>
   sectorShapeById.value.has(sectorId)
 
-const requestStatusClass = (status: TournamentRequest['status']) => {
+const requestStatusTone = (status: TournamentRequest['status']): StatusBadgeTone => {
   switch (status) {
     case 'new':
-      return 'bg-error-500/10 text-error-700'
+      return 'error'
     case 'assigned':
-      return 'bg-warning-500/10 text-warning-700'
+      return 'warning'
     case 'resolved':
-      return 'bg-success-500/10 text-success-700'
+      return 'success'
     default:
-      return 'bg-muted text-foreground-muted'
+      return 'neutral'
   }
 }
 
-const catchStatusLabel = (status: string) => {
+const requestStatusIcon = (status: TournamentRequest['status']) => {
+  switch (status) {
+    case 'new':
+      return 'i-heroicons-bell-alert'
+    case 'assigned':
+      return 'i-heroicons-user-circle'
+    case 'resolved':
+      return 'i-heroicons-check-circle'
+    default:
+      return 'i-heroicons-clock'
+  }
+}
+
+const catchStatusTone = (status: TournamentCatch['status']): StatusBadgeTone => {
+  switch (status) {
+    case 'verified':
+      return 'success'
+    case 'waiting':
+      return 'warning'
+    case 'disputed':
+      return 'error'
+    default:
+      return 'neutral'
+  }
+}
+
+const catchStatusIcon = (status: TournamentCatch['status']) => {
+  switch (status) {
+    case 'verified':
+      return 'i-heroicons-scale'
+    case 'waiting':
+      return 'i-heroicons-clock'
+    case 'disputed':
+      return 'i-heroicons-shield-exclamation'
+    default:
+      return 'i-heroicons-question-mark-circle'
+  }
+}
+
+const catchStatusLabel = (status: TournamentCatch['status']) => {
   switch (status) {
     case 'waiting':
       return 'čaká na kontrolóra'
@@ -361,18 +409,63 @@ const catchStatusLabel = (status: string) => {
   }
 }
 
-const registrationStatusClass = (status: TournamentTeamRegistration['status']) => {
+const registrationStatusTone = (status: TournamentTeamRegistration['status']): StatusBadgeTone => {
   switch (status) {
     case 'approved':
-      return 'bg-success-500/10 text-success-700'
+      return 'success'
     case 'submitted':
-      return 'bg-info-500/10 text-info-700'
+      return 'info'
     case 'waitlisted':
-      return 'bg-warning-500/10 text-warning-700'
+      return 'warning'
     case 'rejected':
-      return 'bg-error-500/10 text-error-700'
+      return 'error'
     default:
-      return 'bg-muted text-foreground-muted'
+      return 'neutral'
+  }
+}
+
+const registrationStatusIcon = (status: TournamentTeamRegistration['status']) => {
+  switch (status) {
+    case 'approved':
+      return 'i-heroicons-check-circle'
+    case 'submitted':
+      return 'i-heroicons-inbox-arrow-down'
+    case 'waitlisted':
+      return 'i-heroicons-clock'
+    case 'rejected':
+      return 'i-heroicons-x-circle'
+    default:
+      return 'i-heroicons-question-mark-circle'
+  }
+}
+
+const marshalStatusTone = (status: TournamentMarshal['status']): StatusBadgeTone => {
+  switch (status) {
+    case 'available':
+      return 'success'
+    case 'on-route':
+      return 'info'
+    case 'measuring':
+      return 'warning'
+    case 'off-duty':
+      return 'neutral'
+    default:
+      return 'muted'
+  }
+}
+
+const marshalStatusIcon = (status: TournamentMarshal['status']) => {
+  switch (status) {
+    case 'available':
+      return 'i-heroicons-signal'
+    case 'on-route':
+      return 'i-heroicons-truck'
+    case 'measuring':
+      return 'i-heroicons-scale'
+    case 'off-duty':
+      return 'i-heroicons-moon'
+    default:
+      return 'i-heroicons-user-circle'
   }
 }
 
@@ -529,7 +622,7 @@ const submitRequest = async () => {
   }
 
   requestSubmitStatus.value = 'submitting'
-  requestSubmitMessage.value = ''
+  requestSubmitMessage.value = 'Odosielam hlásenie dispečingu.'
 
   try {
     const result = await $fetch<TournamentRequestSubmissionSuccess>('/api/tournament-requests', {
@@ -570,7 +663,7 @@ const submitTeamRegistration = async () => {
   }
 
   teamRegistrationStatus.value = 'submitting'
-  teamRegistrationMessage.value = ''
+  teamRegistrationMessage.value = 'Odosielam prihlášku organizátorovi.'
 
   try {
     const result = await $fetch<TournamentTeamRegistrationSubmissionSuccess>('/api/tournament-team-registrations', {
@@ -651,16 +744,18 @@ watch(teamRegistrationValidation, () => {
     teamRegistrationMessage.value = ''
   }
 })
-watch(activeTournament, (tournament) => {
-  if (!tournament.sectors.some((sector) => sector.id === requestForm.sectorId)) {
-    requestForm.sectorId = tournament.sectors[1]?.id ?? tournament.sectors[0]?.id ?? ''
+watch([activeTournament, teamScopedSector], ([tournament, scopedSector]) => {
+  const allowedSectors = scopedSector ? [scopedSector] : tournament.sectors
+
+  if (!allowedSectors.some((sector) => sector.id === requestForm.sectorId)) {
+    requestForm.sectorId = scopedSector?.id ?? tournament.sectors[1]?.id ?? tournament.sectors[0]?.id ?? ''
   }
   if (!tournament.sectors.some((sector) => sector.id === teamRegistrationForm.preferredSectorId)) {
     teamRegistrationForm.preferredSectorId = tournament.sectors.find((sector) => !sector.team)?.id
       ?? tournament.sectors[0]?.id
       ?? ''
   }
-})
+}, { immediate: true })
 </script>
 
 <template>
@@ -732,11 +827,10 @@ watch(activeTournament, (tournament) => {
                 </linearGradient>
               </defs>
             </svg>
-            <button
+            <div
               v-for="sector in activeTournament.sectors"
               :key="sector.id"
-              type="button"
-              class="map-dot-shadow absolute flex h-12 min-w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md px-2 text-sm font-black ring-2 ring-white transition-transform hover:scale-105"
+              class="map-dot-shadow absolute flex h-12 min-w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md px-2 text-sm font-black ring-2 ring-white"
               :class="
                 hasActivePenalty(sector.id)
                   ? 'bg-error-500 text-white'
@@ -746,7 +840,6 @@ watch(activeTournament, (tournament) => {
               "
               :style="{ left: `${sector.x}%`, top: `${sector.y}%` }"
               :aria-label="sector.label"
-              @click="canUseTeamRequestWorkflow && (requestForm.sectorId = sector.id)"
             >
               {{ sector.label }}
               <span
@@ -755,7 +848,7 @@ watch(activeTournament, (tournament) => {
               >
                 {{ requestsForSector(sector.id).length }}
               </span>
-            </button>
+            </div>
             <div class="absolute right-4 bottom-4 rounded-md bg-primary-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
               {{ sectorMapCoverage.mappedSectorCount }}/{{ sectorMapCoverage.totalSectorCount }} sektorov
             </div>
@@ -838,9 +931,11 @@ watch(activeTournament, (tournament) => {
                 </p>
               </div>
               <div class="flex flex-col items-end gap-2">
-                <span class="rounded-md bg-success-500/10 px-2.5 py-1 text-xs font-bold text-success-700">
-                  {{ activeTeamCount }} tímov
-                </span>
+                <StatusBadge
+                  icon="i-heroicons-user-group"
+                  :label="`${activeTeamCount} tímov`"
+                  tone="success"
+                />
                 <NuxtLink
                   :to="leaderboardKioskUrl"
                   class="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent-100 px-2 text-xs font-bold text-accent-700 transition-colors hover:bg-accent-200"
@@ -869,14 +964,6 @@ watch(activeTournament, (tournament) => {
                   <p class="text-foreground-muted mt-0.5 truncate text-xs">
                     {{ row.sectorLabel }} · {{ row.verifiedCatchCount }} overených úlovkov
                   </p>
-                  <NuxtLink
-                  v-if="canUseTeamRequestWorkflow"
-                    :to="tournamentTeamAccessUrl(row.sectorId)"
-                    class="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md bg-primary-50 px-2 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
-                  >
-                    <UIcon name="i-heroicons-device-phone-mobile" class="h-3.5 w-3.5" />
-                    Tímový panel
-                  </NuxtLink>
                 </div>
                 <div class="text-right">
                   <p class="font-black">{{ formatWeight(row.scoreWeightKg) }} kg</p>
@@ -1010,17 +1097,25 @@ watch(activeTournament, (tournament) => {
                 valid-description="Po odoslaní ju organizátor skontroluje a ozve sa kontaktnej osobe."
               />
 
-              <p
+              <DataStatusNotice
                 v-if="teamRegistrationMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  teamRegistrationStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
+                :description="teamRegistrationMessage"
+                :loading="teamRegistrationStatus === 'submitting'"
+                :title="
+                  teamRegistrationStatus === 'error'
+                    ? 'Prihlášku sa nepodarilo odoslať'
+                    : teamRegistrationStatus === 'submitting'
+                      ? 'Odosielam prihlášku'
+                      : 'Prihláška je odoslaná'
                 "
-              >
-                {{ teamRegistrationMessage }}
-              </p>
+                :tone="
+                  teamRegistrationStatus === 'error'
+                    ? 'error'
+                    : teamRegistrationStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="submit"
@@ -1033,12 +1128,13 @@ watch(activeTournament, (tournament) => {
               </UButton>
             </form>
 
-            <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
-              <p class="font-bold">Online prihlásenie tímu nie je momentálne dostupné.</p>
-              <p class="mt-1">
-                Informácie o prihlásení tímu vám poskytne organizátor súťaže.
-              </p>
-            </div>
+            <DataStatusNotice
+              v-else
+              class="mt-5"
+              description="Informácie o prihlásení tímu vám poskytne organizátor súťaže."
+              title="Online prihlásenie tímu nie je momentálne dostupné"
+              tone="info"
+            />
 
             <div v-if="canViewCompetitionOperations && tournamentTeamRegistrations.length > 0" class="mt-5 space-y-2">
               <div
@@ -1053,57 +1149,60 @@ watch(activeTournament, (tournament) => {
                       {{ registration.contactName }} · {{ registration.memberCount }} členovia
                     </p>
                   </div>
-                  <span
-                    class="w-fit rounded-md px-2 py-1 text-xs font-bold"
-                    :class="registrationStatusClass(registration.status)"
-                  >
-                    {{ tournamentTeamRegistrationStatusLabels[registration.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit shrink-0"
+                    :icon="registrationStatusIcon(registration.status)"
+                    :label="tournamentTeamRegistrationStatusLabels[registration.status]"
+                    :tone="registrationStatusTone(registration.status)"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
           <div v-if="canUseTeamPanel" class="border-border bg-surface rounded-card border p-5">
-            <h2 class="text-lg font-bold">Privolať kontrolóra</h2>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Tímové hlásenie</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Rýchle hlásenie je naviazané na sektor tímového účtu. Plný tok nájdete v tímovom paneli.
+                </p>
+              </div>
+              <UButton :to="teamPanelTarget" icon="i-heroicons-device-phone-mobile" size="sm" variant="soft">
+                Otvoriť panel
+              </UButton>
+            </div>
             <div
               v-if="!isOnline || offlineRequestQueue.length > 0 || offlineSyncMessage"
-              class="mt-4 rounded-md border p-3"
-              :class="
-                offlineSyncStatus === 'error' || !isOnline
-                  ? 'border-warning-200 bg-warning-500/10 text-warning-900'
-                  : 'border-primary-200 bg-primary-50 text-primary-950'
-              "
+              class="mt-4 space-y-3"
             >
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      :name="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
-                      class="h-5 w-5"
-                    />
-                    <p class="text-sm font-bold">
-                      {{ isOnline ? 'Offline fronta hlásení' : 'Bez pripojenia pri sektore' }}
-                    </p>
-                  </div>
-                  <p class="mt-1 text-sm opacity-80">
-                    {{ offlineSyncMessage || 'Pri výpadku signálu podržíme hlásenie v zariadení a odošleme ho hneď po návrate internetu.' }}
-                  </p>
-                </div>
-                <UButton
-                  v-if="offlineRequestQueue.length > 0"
-                  size="sm"
-                  icon="i-heroicons-arrow-path"
-                  variant="soft"
-                  :disabled="!isOnline || offlineSyncStatus === 'syncing'"
-                  :loading="offlineSyncStatus === 'syncing'"
-                  @click="syncOfflineRequestQueue()"
-                >
-                  Odoslať
-                </UButton>
-              </div>
+              <DataStatusNotice
+                :action-label="offlineRequestQueue.length > 0 && isOnline ? 'Odoslať' : ''"
+                :action-loading="offlineSyncStatus === 'syncing'"
+                :description="offlineSyncMessage || 'Pri výpadku signálu podržíme hlásenie v zariadení a odošleme ho hneď po návrate internetu.'"
+                :icon="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
+                :loading="offlineSyncStatus === 'syncing'"
+                :title="
+                  !isOnline
+                    ? 'Bez pripojenia pri sektore'
+                    : offlineSyncStatus === 'syncing'
+                      ? 'Odosielam offline hlásenia'
+                      : 'Offline fronta hlásení'
+                "
+                :tone="
+                  offlineSyncStatus === 'error' || !isOnline
+                    ? 'warning'
+                    : offlineSyncStatus === 'success'
+                      ? 'success'
+                      : 'info'
+                "
+                @action="syncOfflineRequestQueue()"
+              />
 
-              <div v-if="offlineRequestQueue.length > 0" class="mt-3 space-y-2">
+              <div
+                v-if="offlineRequestQueue.length > 0"
+                class="space-y-2 rounded-md border border-border bg-muted/50 p-3"
+              >
                 <div
                   v-for="item in offlineRequestQueue"
                   :key="item.id"
@@ -1141,9 +1240,10 @@ watch(activeTournament, (tournament) => {
                 <span class="text-sm font-semibold">Sektor tímu</span>
                 <select
                   v-model="requestForm.sectorId"
+                  :disabled="Boolean(teamScopedSector)"
                   class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
                 >
-                  <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
+                  <option v-for="sector in teamRequestSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team }}
                   </option>
                 </select>
@@ -1185,17 +1285,25 @@ watch(activeTournament, (tournament) => {
                 valid-description="Dispečing dostane sektor, typ udalosti a prípadnú poznámku."
               />
 
-              <p
+              <DataStatusNotice
                 v-if="requestSubmitMessage"
-                class="rounded-md px-3 py-2 text-sm font-semibold"
-                :class="
-                  requestSubmitStatus === 'success'
-                    ? 'bg-success-500/10 text-success-700'
-                    : 'bg-error-500/10 text-error-700'
+                :description="requestSubmitMessage"
+                :loading="requestSubmitStatus === 'submitting'"
+                :title="
+                  requestSubmitStatus === 'error'
+                    ? 'Hlásenie sa nepodarilo odoslať'
+                    : requestSubmitStatus === 'submitting'
+                      ? 'Odosielam hlásenie'
+                      : 'Hlásenie je odoslané'
                 "
-              >
-                {{ requestSubmitMessage }}
-              </p>
+                :tone="
+                  requestSubmitStatus === 'error'
+                    ? 'error'
+                    : requestSubmitStatus === 'submitting'
+                      ? 'info'
+                      : 'success'
+                "
+              />
 
               <UButton
                 type="submit"
@@ -1207,12 +1315,13 @@ watch(activeTournament, (tournament) => {
                 Odoslať hlásenie
               </UButton>
             </form>
-            <div v-else class="mt-5 rounded-md border border-info-500/25 bg-info-500/10 p-4 text-sm text-info-800">
-              <p class="font-bold">Tímové hlásenia cez aplikáciu nie sú zapnuté.</p>
-              <p class="mt-1">
-                Pokyny pre tímy poskytne organizátor pred začiatkom súťaže.
-              </p>
-            </div>
+            <DataStatusNotice
+              v-else
+              class="mt-5"
+              description="Pokyny pre tímy poskytne organizátor pred začiatkom súťaže."
+              title="Tímové hlásenia cez aplikáciu nie sú zapnuté"
+              tone="info"
+            />
           </div>
 
           <div v-if="canViewCompetitionOperations" class="border-border bg-surface rounded-card border p-5">
@@ -1230,9 +1339,12 @@ watch(activeTournament, (tournament) => {
                       {{ marshal.assignedSectorIds.map((id) => sectorById(id)?.label ?? id).join(', ') }}
                     </p>
                   </div>
-                  <span class="rounded-md bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">
-                    {{ tournamentMarshalStatusLabels[marshal.status] }}
-                  </span>
+                  <StatusBadge
+                    class="w-fit shrink-0"
+                    :icon="marshalStatusIcon(marshal.status)"
+                    :label="tournamentMarshalStatusLabels[marshal.status]"
+                    :tone="marshalStatusTone(marshal.status)"
+                  />
                 </div>
               </div>
             </div>
@@ -1258,12 +1370,12 @@ watch(activeTournament, (tournament) => {
                     {{ tournamentRequestTypeLabels[request.type] }}
                   </p>
                 </div>
-                <span
-                  class="w-fit rounded-md px-2.5 py-1 text-xs font-bold"
-                  :class="requestStatusClass(request.status)"
-                >
-                  {{ tournamentRequestStatusLabels[request.status] }}
-                </span>
+                <StatusBadge
+                  class="w-fit"
+                  :icon="requestStatusIcon(request.status)"
+                  :label="tournamentRequestStatusLabels[request.status]"
+                  :tone="requestStatusTone(request.status)"
+                />
               </div>
               <p class="text-foreground-muted mt-3 text-sm">{{ request.description }}</p>
               <div class="mt-3 flex flex-wrap gap-2 text-xs text-foreground-muted">
@@ -1326,16 +1438,12 @@ watch(activeTournament, (tournament) => {
                 <p class="text-foreground-muted mt-2 text-xs">{{ catchItem.notes }}</p>
               </div>
               <div class="flex flex-row items-center gap-2 md:flex-col md:items-end">
-                <span
-                  class="rounded-md px-2.5 py-1 text-xs font-bold"
-                  :class="
-                    catchItem.status === 'verified'
-                      ? 'bg-success-500/10 text-success-700'
-                      : 'bg-warning-500/10 text-warning-700'
-                  "
-                >
-                  {{ catchStatusLabel(catchItem.status) }}
-                </span>
+                <StatusBadge
+                  class="w-fit"
+                  :icon="catchStatusIcon(catchItem.status)"
+                  :label="catchStatusLabel(catchItem.status)"
+                  :tone="catchStatusTone(catchItem.status)"
+                />
                 <span class="text-foreground-muted text-xs">
                   {{ marshalById(catchItem.verifiedByMarshalId)?.name }}
                 </span>

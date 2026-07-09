@@ -57,6 +57,8 @@ interface QueueSection {
   to: string
 }
 
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
+
 const {
   getLakeName,
   getPegLabel,
@@ -131,6 +133,41 @@ const issueCount = computed(() =>
   visibleTournamentRequests.value.filter((item) => item.lastError).length +
   visibleTournamentAdminActions.value.filter((item) => item.lastError).length,
 )
+const offlineNoticeTitle = computed(() => {
+  if (!isOnline.value) return 'Bez pripojenia'
+  if (totalQueued.value > 0) return 'Čakajúce položky v zariadení'
+  return 'Offline režim je pripravený'
+})
+const offlineNoticeDescription = computed(() => {
+  if (!isOnline.value) {
+    return 'Položky ostávajú bezpečne uložené v tomto zariadení a odošlú sa po návrate signálu.'
+  }
+  if (totalQueued.value > 0) {
+    return 'Niektoré údaje môžu byť staršie. Pred odoslaním skontroluj položky, ktoré čakajú vo fronte.'
+  }
+  return 'Mapa, kontakty a posledné načítané údaje ostávajú dostupné aj pri slabom signáli.'
+})
+const offlineNoticeTone = computed<NoticeTone>(() => {
+  if (!isOnline.value) return 'warning'
+  if (totalQueued.value > 0) return 'info'
+  return 'success'
+})
+const offlineNoticeIcon = computed(() =>
+  isOnline.value ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash',
+)
+const syncNoticeTitle = computed(() => {
+  if (queueLoadError.value) return 'Čakajúce položky sa nepodarilo načítať'
+  if (syncStatus.value === 'syncing') return 'Odosielam čakajúce položky'
+  if (syncStatus.value === 'error') return 'Odoslanie sa nedokončilo'
+  if (syncStatus.value === 'success') return 'Offline fronta je spracovaná'
+  return 'Stav offline fronty'
+})
+const syncNoticeTone = computed<NoticeTone>(() => {
+  if (queueLoadError.value || syncStatus.value === 'error') return 'error'
+  if (syncStatus.value === 'syncing') return 'info'
+  if (syncStatus.value === 'success') return 'success'
+  return 'warning'
+})
 
 const queueSections = computed<QueueSection[]>(() => {
   const sections: QueueSection[] = [
@@ -507,22 +544,18 @@ onBeforeUnmount(() => {
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div class="rounded-card border border-warning-500/25 bg-warning-500/10 p-5 text-warning-800">
+      <div class="rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-start gap-3">
-            <div class="rounded-full bg-warning-500 p-2 text-primary-950">
-              <UIcon name="i-heroicons-signal-slash" class="h-5 w-5" />
-            </div>
-            <div>
-              <h2 class="text-lg font-bold">Slabý alebo žiadny signál</h2>
-              <p class="mt-1 text-sm">
-                Niektoré údaje môžu byť staršie. Po návrate online sa obrazovky znovu zosynchronizujú.
-              </p>
-            </div>
-          </div>
+          <DataStatusNotice
+            class="flex-1"
+            :description="offlineNoticeDescription"
+            :icon="offlineNoticeIcon"
+            :title="offlineNoticeTitle"
+            :tone="offlineNoticeTone"
+          />
           <UButton
             icon="i-heroicons-cloud-arrow-up"
-            color="warning"
+            color="primary"
             variant="soft"
             :disabled="!isOnline || syncStatus === 'syncing' || totalQueued === 0"
             :loading="syncStatus === 'syncing'"
@@ -562,32 +595,23 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div
+      <DataStatusNotice
         v-if="queueLoadError || syncMessage"
-        class="mt-6 rounded-md border px-4 py-3 text-sm font-semibold"
-        :class="
-          syncStatus === 'error' || queueLoadError
-            ? 'border-error-500/25 bg-error-500/10 text-error-700'
-            : 'border-success-500/25 bg-success-500/10 text-success-700'
-        "
-      >
-        {{ queueLoadError || syncMessage }}
-      </div>
+        class="mt-6"
+        :description="queueLoadError || syncMessage"
+        :loading="syncStatus === 'syncing'"
+        :title="syncNoticeTitle"
+        :tone="syncNoticeTone"
+      />
 
-      <div
+      <DataStatusNotice
         v-if="issueCount > 0"
-        class="mt-6 rounded-md border border-warning-300 bg-warning-100 px-4 py-3 text-sm text-warning-900"
-      >
-        <div class="flex items-start gap-3">
-          <UIcon name="i-heroicons-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p class="font-bold">Niektoré položky sa neodoslali</p>
-            <p class="mt-1">
-              Odoslanie zlyhalo alebo sa zmenila dostupnosť. Otvor príslušný formulár, uprav údaje a potom položku odstráň z čakajúcich odoslaní alebo ju skús odoslať znova.
-            </p>
-          </div>
-        </div>
-      </div>
+        class="mt-6"
+        description="Odoslanie zlyhalo alebo sa zmenila dostupnosť. Otvor príslušný formulár, uprav údaje a potom položku odstráň z čakajúcich odoslaní alebo ju skús odoslať znova."
+        icon="i-heroicons-exclamation-triangle"
+        title="Niektoré položky sa neodoslali"
+        tone="warning"
+      />
 
       <div class="mt-8 grid gap-6 lg:grid-cols-2 xl:grid-cols-5">
         <section class="rounded-card border border-border bg-surface p-5">
@@ -630,10 +654,14 @@ onBeforeUnmount(() => {
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
               </div>
-              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
-                <p class="font-bold">{{ item.lastError }}</p>
-                <p class="mt-1">{{ getQueueActionCopy('reservation') }}</p>
-              </div>
+              <DataStatusNotice
+                v-if="item.lastError"
+                class="mt-3"
+                :description="getQueueActionCopy('reservation')"
+                icon="i-heroicons-exclamation-triangle"
+                :title="item.lastError"
+                tone="error"
+              />
               <div class="mt-3 flex flex-wrap gap-2">
                 <UButton to="/rezervacie" icon="i-heroicons-pencil-square" size="xs" variant="soft">
                   Skontrolovať
@@ -699,10 +727,14 @@ onBeforeUnmount(() => {
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
               </div>
-              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
-                <p class="font-bold">{{ item.lastError }}</p>
-                <p class="mt-1">{{ getQueueActionCopy('catch') }}</p>
-              </div>
+              <DataStatusNotice
+                v-if="item.lastError"
+                class="mt-3"
+                :description="getQueueActionCopy('catch')"
+                icon="i-heroicons-exclamation-triangle"
+                :title="item.lastError"
+                tone="error"
+              />
               <div class="mt-3 flex flex-wrap gap-2">
                 <UButton to="/ulovky" icon="i-heroicons-pencil-square" size="xs" variant="soft">
                   Skontrolovať
@@ -764,10 +796,14 @@ onBeforeUnmount(() => {
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
               </div>
-              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
-                <p class="font-bold">{{ item.lastError }}</p>
-                <p class="mt-1">{{ getQueueActionCopy('place-issue') }}</p>
-              </div>
+              <DataStatusNotice
+                v-if="item.lastError"
+                class="mt-3"
+                :description="getQueueActionCopy('place-issue')"
+                icon="i-heroicons-exclamation-triangle"
+                :title="item.lastError"
+                tone="error"
+              />
               <div class="mt-3 flex flex-wrap gap-2">
                 <UButton to="/mapa" icon="i-heroicons-pencil-square" size="xs" variant="soft">
                   Skontrolovať
@@ -832,10 +868,14 @@ onBeforeUnmount(() => {
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
               </div>
-              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
-                <p class="font-bold">{{ item.lastError }}</p>
-                <p class="mt-1">{{ getQueueActionCopy('tournament-request') }}</p>
-              </div>
+              <DataStatusNotice
+                v-if="item.lastError"
+                class="mt-3"
+                :description="getQueueActionCopy('tournament-request')"
+                icon="i-heroicons-exclamation-triangle"
+                :title="item.lastError"
+                tone="error"
+              />
               <div class="mt-3 flex flex-wrap gap-2">
                 <UButton
                   :to="currentRole === 'team' ? '/sutaze/tim' : '/admin/sutaze'"
@@ -905,10 +945,14 @@ onBeforeUnmount(() => {
                   {{ getAttemptLabel(item.attempts) }}
                 </span>
               </div>
-              <div v-if="item.lastError" class="mt-3 rounded-md bg-error-500/10 p-3 text-xs text-error-800">
-                <p class="font-bold">{{ item.lastError }}</p>
-                <p class="mt-1">{{ getQueueActionCopy('admin-tournament-action') }}</p>
-              </div>
+              <DataStatusNotice
+                v-if="item.lastError"
+                class="mt-3"
+                :description="getQueueActionCopy('admin-tournament-action')"
+                icon="i-heroicons-exclamation-triangle"
+                :title="item.lastError"
+                tone="error"
+              />
               <div class="mt-3 flex flex-wrap gap-2">
                 <UButton
                   :to="currentRole === 'marshal' ? '/admin/sutaze/kontrolor' : '/admin/sutaze'"

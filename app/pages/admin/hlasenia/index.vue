@@ -7,6 +7,10 @@ import {
   placeIssueTargetTypeLabels,
 } from '~/data/pond'
 import type { PlaceIssueActionSuccess, PlaceIssueStateResponse } from '~/services/placeIssueService'
+import type { StatusBadgeTone } from '~/utils/ui'
+
+type IssueMetricId = 'in-progress' | 'open' | 'resolved' | 'urgent'
+type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 useHead({ title: 'Admin hlásenia nedostatkov' })
 
@@ -31,6 +35,7 @@ const { data: issueState } = await useAsyncData<PlaceIssueStateResponse>(
 const liveIssues = ref<PlaceIssue[]>([...issueState.value.placeIssues])
 const selectedIssueId = ref(liveIssues.value.find((issue) => issue.status !== 'resolved' && issue.status !== 'rejected')?.id ?? liveIssues.value[0]?.id ?? '')
 const statusFilter = ref<PlaceIssueStatus | 'all' | 'open'>('open')
+const priorityFilter = ref<PlaceIssuePriority | 'all'>('all')
 const lakeFilter = ref<LakeScope>('all')
 const actionStatus = ref<'error' | 'idle' | 'submitting' | 'success'>('idle')
 const actionMessage = ref('')
@@ -76,6 +81,7 @@ const resolvedIssues = computed(() =>
 const filteredIssues = computed(() =>
   liveIssues.value
     .filter((issue) => lakeFilter.value === 'all' || issue.lake === lakeFilter.value)
+    .filter((issue) => priorityFilter.value === 'all' || issue.priority === priorityFilter.value)
     .filter((issue) => {
       if (statusFilter.value === 'all') return true
       if (statusFilter.value === 'open') return issue.status !== 'resolved' && issue.status !== 'rejected'
@@ -101,7 +107,83 @@ const lakeOptions = computed(() => [
   ...lakes.map((lake) => ({ label: lake.name, value: lake.slug })),
 ])
 
-function getStatusTone(status: PlaceIssueStatus) {
+const issueFiltersActive = computed(() =>
+  lakeFilter.value !== 'all' || priorityFilter.value !== 'all' || statusFilter.value !== 'open',
+)
+
+const issueMetrics = computed<Array<{
+  description: string
+  icon: string
+  id: IssueMetricId
+  label: string
+  tone: StatusBadgeTone
+  value: number
+}>>(() => [
+  {
+    description: 'nové alebo rozpracované',
+    icon: 'i-heroicons-inbox-stack',
+    id: 'open',
+    label: 'Otvorené',
+    tone: 'primary',
+    value: openIssues.value.length,
+  },
+  {
+    description: 'bezpečnosť alebo výbava',
+    icon: 'i-heroicons-bell-alert',
+    id: 'urgent',
+    label: 'Urgentné',
+    tone: 'error',
+    value: urgentIssues.value.length,
+  },
+  {
+    description: 'priradené prevádzke',
+    icon: 'i-heroicons-wrench-screwdriver',
+    id: 'in-progress',
+    label: 'Rieši sa',
+    tone: 'warning',
+    value: inProgressIssues.value.length,
+  },
+  {
+    description: 'uzavreté hlásenia',
+    icon: 'i-heroicons-check-circle',
+    id: 'resolved',
+    label: 'Vyriešené',
+    tone: 'success',
+    value: resolvedIssues.value.length,
+  },
+])
+
+const actionNoticeTitle = computed(() => {
+  if (actionStatus.value === 'error') return 'Hlásenie sa nepodarilo uložiť'
+  if (actionStatus.value === 'submitting') return 'Ukladám hlásenie'
+  return 'Hlásenie je uložené'
+})
+const actionNoticeTone = computed<NoticeTone>(() => {
+  if (actionStatus.value === 'error') return 'error'
+  if (actionStatus.value === 'submitting') return 'info'
+  return 'success'
+})
+const actionNoticeIcon = computed(() => {
+  if (actionStatus.value === 'error') return 'i-heroicons-exclamation-triangle'
+  if (actionStatus.value === 'submitting') return 'i-heroicons-arrow-path'
+  return 'i-heroicons-check-circle'
+})
+const selectedIssuePhoneHref = computed(() => {
+  const phone = normalisePhoneForHref(selectedIssue.value?.reporterPhone)
+  return phone ? `tel:${phone}` : ''
+})
+const selectedIssueSmsHref = computed(() => {
+  const phone = normalisePhoneForHref(selectedIssue.value?.reporterPhone)
+  if (!phone || !selectedIssue.value) return ''
+
+  const message = encodeURIComponent(
+    `Dobrý deň, reagujeme na hlásenie "${selectedIssue.value.title}" v Rybolov Cetín. Správca revíru.`,
+  )
+
+  return `sms:${phone}?body=${message}`
+})
+
+function getStatusTone(status: PlaceIssueStatus): StatusBadgeTone {
   if (status === 'resolved') return 'success'
   if (status === 'rejected') return 'muted'
   if (status === 'in-progress') return 'primary'
@@ -110,7 +192,7 @@ function getStatusTone(status: PlaceIssueStatus) {
   return 'error'
 }
 
-function getPriorityTone(priority: PlaceIssuePriority) {
+function getPriorityTone(priority: PlaceIssuePriority): StatusBadgeTone {
   if (priority === 'urgent') return 'error'
   if (priority === 'normal') return 'warning'
 
@@ -145,6 +227,55 @@ function formatIssueDate(value: string) {
   }).format(new Date(parsed))
 }
 
+function normalisePhoneForHref(value?: string) {
+  if (!value) return ''
+
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  return trimmed.replace(/[^\d+]/g, '')
+}
+
+function applyMetricFilter(metric: IssueMetricId) {
+  if (metric === 'urgent') {
+    statusFilter.value = 'open'
+    priorityFilter.value = 'urgent'
+    return
+  }
+
+  priorityFilter.value = 'all'
+  statusFilter.value = metric === 'open' ? 'open' : metric
+}
+
+function resetIssueFilters() {
+  lakeFilter.value = 'all'
+  priorityFilter.value = 'all'
+  statusFilter.value = 'open'
+}
+
+function isMetricActive(metric: IssueMetricId) {
+  if (metric === 'urgent') return statusFilter.value === 'open' && priorityFilter.value === 'urgent'
+  if (metric === 'open') return statusFilter.value === 'open' && priorityFilter.value === 'all'
+
+  return statusFilter.value === metric && priorityFilter.value === 'all'
+}
+
+function applyQuickStatus(status: PlaceIssueStatus) {
+  actionForm.status = status
+
+  if (status === 'in-progress' && !actionForm.assignedTo.trim()) {
+    actionForm.assignedTo = accessLabel.value
+  }
+
+  if (status === 'resolved' && !actionForm.resolutionNote.trim()) {
+    actionForm.resolutionNote = 'Nedostatok je odstránený a hlásenie uzavreté.'
+  }
+
+  if (status === 'rejected' && !actionForm.resolutionNote.trim()) {
+    actionForm.resolutionNote = 'Hlásenie uzavreté bez zásahu.'
+  }
+}
+
 function getApiErrorMessage(error: unknown, fallback = 'Hlásenie sa nepodarilo uložiť.') {
   const maybeError = error as {
     data?: {
@@ -168,7 +299,7 @@ async function submitIssueAction() {
   }
 
   actionStatus.value = 'submitting'
-  actionMessage.value = ''
+  actionMessage.value = 'Ukladám zmenu stavu hlásenia.'
 
   try {
     const result = await $fetch<PlaceIssueActionSuccess>(`/api/admin/place-issues/${selectedIssue.value.id}/action`, {
@@ -204,35 +335,45 @@ async function submitIssueAction() {
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AdminModuleNav />
 
-      <div
+      <DataStatusNotice
         v-if="isReadOnly"
-        class="mb-6 rounded-card border border-warning-500/25 bg-warning-500/10 p-4 text-sm text-warning-800"
-      >
-        <p class="font-bold">Režim prístupu: {{ accessLabel }}</p>
-        <p class="mt-1">{{ readOnlyMessage }}</p>
-      </div>
+        class="mb-6"
+        :description="readOnlyMessage"
+        icon="i-heroicons-lock-closed"
+        :title="`Režim prístupu: ${accessLabel}`"
+        tone="warning"
+      />
 
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-sm text-foreground-muted">Otvorené</p>
-          <p class="mt-2 text-3xl font-bold">{{ openIssues.length }}</p>
-          <p class="mt-1 text-sm text-foreground-muted">nové alebo rozpracované</p>
-        </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-sm text-foreground-muted">Urgentné</p>
-          <p class="mt-2 text-3xl font-bold text-error-700">{{ urgentIssues.length }}</p>
-          <p class="mt-1 text-sm text-foreground-muted">bezpečnosť alebo výbava</p>
-        </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-sm text-foreground-muted">Rieši sa</p>
-          <p class="mt-2 text-3xl font-bold">{{ inProgressIssues.length }}</p>
-          <p class="mt-1 text-sm text-foreground-muted">priradené prevádzke</p>
-        </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-sm text-foreground-muted">Vyriešené</p>
-          <p class="mt-2 text-3xl font-bold">{{ resolvedIssues.length }}</p>
-          <p class="mt-1 text-sm text-foreground-muted">uzavreté hlásenia</p>
-        </div>
+        <button
+          v-for="metric in issueMetrics"
+          :key="metric.id"
+          type="button"
+          class="rounded-card border p-4 text-left transition-colors"
+          :class="isMetricActive(metric.id)
+            ? 'border-primary-300 bg-primary-50 shadow-sm'
+            : 'border-border bg-surface hover:border-primary-200 hover:bg-muted'"
+          @click="applyMetricFilter(metric.id)"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm text-foreground-muted">{{ metric.label }}</p>
+              <p
+                class="mt-2 text-3xl font-bold"
+                :class="metric.tone === 'error' ? 'text-error-700' : metric.tone === 'success' ? 'text-success-700' : ''"
+              >
+                {{ metric.value }}
+              </p>
+            </div>
+            <span
+              class="grid h-10 w-10 place-items-center rounded-md border"
+              :class="isMetricActive(metric.id) ? 'border-primary-200 bg-white text-primary-800' : 'border-border bg-muted text-foreground-muted'"
+            >
+              <UIcon :name="metric.icon" class="h-5 w-5" />
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-foreground-muted">{{ metric.description }}</p>
+        </button>
       </div>
 
       <div class="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -242,11 +383,20 @@ async function submitIssueAction() {
               <h2 class="text-lg font-bold">Zoznam hlásení</h2>
               <p class="text-sm text-foreground-muted">{{ filteredIssues.length }} záznamov podľa filtra</p>
             </div>
-            <div class="grid gap-2 sm:grid-cols-2">
+            <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <label class="space-y-1 text-xs font-bold text-foreground-muted">
                 <span>Jazero</span>
                 <select v-model="lakeFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground">
                   <option v-for="option in lakeOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="space-y-1 text-xs font-bold text-foreground-muted">
+                <span>Priorita</span>
+                <select v-model="priorityFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground">
+                  <option value="all">Všetky</option>
+                  <option v-for="option in priorityOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
@@ -261,6 +411,15 @@ async function submitIssueAction() {
                   </option>
                 </select>
               </label>
+              <UButton
+                v-if="issueFiltersActive"
+                icon="i-heroicons-x-mark"
+                variant="ghost"
+                class="self-end"
+                @click="resetIssueFilters"
+              >
+                Vyčistiť
+              </UButton>
             </div>
           </div>
 
@@ -322,6 +481,26 @@ async function submitIssueAction() {
                 <p class="text-sm font-semibold text-primary-800">{{ getLakeName(selectedIssue.lake) }} · {{ selectedIssue.targetLabel }}</p>
                 <h2 class="mt-1 text-2xl font-bold">{{ selectedIssue.title }}</h2>
                 <p class="mt-2 text-sm text-foreground-muted">{{ selectedIssue.description }}</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    v-if="selectedIssuePhoneHref"
+                    :to="selectedIssuePhoneHref"
+                    icon="i-heroicons-phone"
+                    size="xs"
+                    variant="soft"
+                  >
+                    Zavolať
+                  </UButton>
+                  <UButton
+                    v-if="selectedIssueSmsHref"
+                    :to="selectedIssueSmsHref"
+                    icon="i-heroicons-chat-bubble-left-ellipsis"
+                    size="xs"
+                    variant="soft"
+                  >
+                    SMS
+                  </UButton>
+                </div>
               </div>
               <div class="flex flex-wrap gap-2">
                 <StatusBadge
@@ -354,9 +533,67 @@ async function submitIssueAction() {
                 <dt class="text-xs text-foreground-muted">Kontakt</dt>
                 <dd class="font-semibold">{{ selectedIssue.reporterPhone || 'bez kontaktu' }}</dd>
               </div>
+              <div class="rounded-md bg-muted p-3">
+                <dt class="text-xs text-foreground-muted">Nahlásené</dt>
+                <dd class="font-semibold">{{ formatIssueDate(selectedIssue.createdAt) }}</dd>
+              </div>
+              <div class="rounded-md bg-muted p-3">
+                <dt class="text-xs text-foreground-muted">Priradené</dt>
+                <dd class="font-semibold">{{ selectedIssue.assignedTo || 'nepriradené' }}</dd>
+              </div>
+              <div v-if="selectedIssue.photoLabel" class="rounded-md bg-muted p-3 sm:col-span-2">
+                <dt class="text-xs text-foreground-muted">Fotka alebo poznámka k fotke</dt>
+                <dd class="font-semibold">{{ selectedIssue.photoLabel }}</dd>
+              </div>
             </dl>
 
             <form class="space-y-4 border-t border-border pt-5" @submit.prevent="submitIssueAction">
+              <div class="rounded-md border border-border bg-white p-3">
+                <p class="text-sm font-bold">Rýchle kroky</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-clipboard-document-check"
+                    size="xs"
+                    variant="soft"
+                    :disabled="!canOperate"
+                    @click="applyQuickStatus('triaged')"
+                  >
+                    Prijať
+                  </UButton>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-wrench-screwdriver"
+                    size="xs"
+                    variant="soft"
+                    :disabled="!canOperate"
+                    @click="applyQuickStatus('in-progress')"
+                  >
+                    Prevziať
+                  </UButton>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-check-circle"
+                    size="xs"
+                    variant="soft"
+                    :disabled="!canOperate"
+                    @click="applyQuickStatus('resolved')"
+                  >
+                    Vyriešené
+                  </UButton>
+                  <UButton
+                    type="button"
+                    icon="i-heroicons-no-symbol"
+                    size="xs"
+                    variant="ghost"
+                    :disabled="!canOperate"
+                    @click="applyQuickStatus('rejected')"
+                  >
+                    Zamietnuť
+                  </UButton>
+                </div>
+              </div>
+
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Stav</span>
@@ -391,14 +628,16 @@ async function submitIssueAction() {
                 <textarea v-model="actionForm.resolutionNote" class="min-h-20 w-full rounded-md border border-border px-3 py-2 text-sm" :disabled="!canOperate" placeholder="čo sa opravilo alebo prečo sa hlásenie zamieta" />
               </label>
 
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <DataStatusNotice
                   v-if="actionMessage"
-                  class="text-sm font-semibold"
-                  :class="actionStatus === 'error' ? 'text-error-700' : 'text-success-700'"
-                >
-                  {{ actionMessage }}
-                </p>
+                  class="sm:flex-1"
+                  :description="actionMessage"
+                  :icon="actionNoticeIcon"
+                  :loading="actionStatus === 'submitting'"
+                  :title="actionNoticeTitle"
+                  :tone="actionNoticeTone"
+                />
                 <UButton
                   type="submit"
                   icon="i-heroicons-check-circle"
@@ -413,9 +652,12 @@ async function submitIssueAction() {
             </form>
           </div>
 
-          <p v-else class="rounded-md bg-muted p-4 text-sm text-foreground-muted">
-            Zatiaľ nie je vybrané žiadne hlásenie.
-          </p>
+          <AppState
+            v-else
+            title="Zatiaľ nie je vybrané žiadne hlásenie"
+            description="Vyber hlásenie zo zoznamu alebo uprav filter."
+            icon="i-heroicons-inbox"
+          />
         </div>
       </div>
     </section>
