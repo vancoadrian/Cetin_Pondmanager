@@ -1,13 +1,75 @@
 <script setup lang="ts">
+import type { StatusBadgeTone } from '~/utils/ui'
+
 useHead({ title: 'Prihlásenie' })
 
+interface AccessGroup {
+  description: string
+  icon: string
+  roles: string[]
+  title: string
+  tone: StatusBadgeTone
+}
+
 const route = useRoute()
+const requestUrl = useRequestURL()
 const { login, user } = useMockAuth()
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const submitStatus = ref<'idle' | 'submitting' | 'error'>('idle')
 const submitMessage = ref('')
+
+const accessGroups: AccessGroup[] = [
+  {
+    description: 'Osobný panel pre výpravy, zápisníky, rezervácie a históriu úlovkov.',
+    icon: 'i-heroicons-user-circle',
+    roles: ['rybár'],
+    title: 'Rybársky účet',
+    tone: 'primary',
+  },
+  {
+    description: 'Súťažné hlásenia, privolanie kontrolóra, meranie úlovkov a priebeh pretekov.',
+    icon: 'i-heroicons-trophy',
+    roles: ['tím', 'kontrolór', 'organizátor'],
+    title: 'Súťaž',
+    tone: 'warning',
+  },
+  {
+    description: 'Rezervácie, obsadenosť, výbava, hlásenia, sponzori a interné nastavenia.',
+    icon: 'i-heroicons-shield-check',
+    roles: ['správca', 'majiteľ', 'účtovník', 'brigádnik'],
+    title: 'Prevádzka',
+    tone: 'success',
+  },
+]
+
+const loginAssuranceItems = [
+  {
+    icon: 'i-heroicons-lock-closed',
+    label: 'Súkromné údaje nie sú súčasťou verejnej stránky',
+  },
+  {
+    icon: 'i-heroicons-device-phone-mobile',
+    label: 'Rovnaký účet funguje na mobile aj počítači',
+  },
+  {
+    icon: 'i-heroicons-user-group',
+    label: 'Obsah a akcie sa riadia pridelenou rolou',
+  },
+]
+
+const requestedRedirect = computed(() =>
+  isSafeAppRedirect(route.query.redirect)
+    ? route.query.redirect
+    : isSafeAppRedirect(requestUrl.searchParams.get('redirect'))
+      ? requestUrl.searchParams.get('redirect') ?? ''
+      : '',
+)
+const loginNotice = computed(() => requestedRedirect.value
+  ? 'Po prihlásení vás vrátime na požadovanú internú stránku.'
+  : 'Po prihlásení sa otvorí priestor podľa pridelenej role.',
+)
 
 async function submit() {
   submitStatus.value = 'submitting'
@@ -19,10 +81,7 @@ async function submit() {
     return
   }
 
-  const requestedRedirect = isSafeAppRedirect(route.query.redirect)
-    ? route.query.redirect
-    : ''
-  const redirect = requestedRedirect || getAuthenticatedHome(user.value?.role)
+  const redirect = requestedRedirect.value || getAuthenticatedHome(user.value?.role)
   await navigateTo(redirect)
 }
 </script>
@@ -36,27 +95,54 @@ async function submit() {
     />
 
     <section class="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-      <div class="bg-primary-900 p-6 text-white lg:p-8">
-        <div class="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 text-accent-300">
-          <UIcon name="i-heroicons-shield-check" class="h-7 w-7" />
+      <div class="rounded-card bg-primary-900 p-6 text-white lg:p-8">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 text-accent-300">
+            <UIcon name="i-heroicons-shield-check" class="h-7 w-7" />
+          </div>
+          <StatusBadge icon="i-heroicons-key" label="email + heslo" tone="accent" size="xs" />
         </div>
-        <h2 class="mt-6 text-3xl font-bold">Všetko dôležité na jednom mieste.</h2>
+        <h2 class="mt-6 text-3xl font-bold">Jeden vstup, rôzne pracovné priestory.</h2>
         <p class="mt-4 text-sm leading-6 text-white/75">
-          Rybári majú svoje výpravy a úlovky. Súťažné tímy, kontrolóri a organizátori vidia iba
-          nástroje potrebné pre priebeh súťaže. Správa revíru je dostupná podľa oprávnení.
+          Rybár vidí svoje dáta, súťažný tím svoje hlásenia a správa revíru iba moduly,
+          ku ktorým má pridelené oprávnenie.
         </p>
-        <div class="mt-8 space-y-3 text-sm text-white/85">
-          <p class="flex items-center gap-3">
-            <UIcon name="i-heroicons-lock-closed" class="h-5 w-5 text-accent-300" />
-            Súkromné údaje nie sú súčasťou verejnej stránky
-          </p>
-          <p class="flex items-center gap-3">
-            <UIcon name="i-heroicons-device-phone-mobile" class="h-5 w-5 text-accent-300" />
-            Účet funguje na mobile aj počítači
-          </p>
-          <p class="flex items-center gap-3">
-            <UIcon name="i-heroicons-user-group" class="h-5 w-5 text-accent-300" />
-            Obsah a akcie sa riadia pridelenou rolou
+
+        <div class="mt-7 space-y-3">
+          <div
+            v-for="group in accessGroups"
+            :key="group.title"
+            class="rounded-card border border-white/10 bg-white/5 p-4"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/10 text-accent-300">
+                <UIcon :name="group.icon" class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="font-semibold text-white">{{ group.title }}</h3>
+                  <StatusBadge
+                    v-for="role in group.roles"
+                    :key="role"
+                    :label="role"
+                    :tone="group.tone"
+                    size="xs"
+                  />
+                </div>
+                <p class="mt-2 text-sm leading-6 text-white/70">{{ group.description }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-7 space-y-3 text-sm text-white/85">
+          <p
+            v-for="item in loginAssuranceItems"
+            :key="item.label"
+            class="flex items-center gap-3"
+          >
+            <UIcon :name="item.icon" class="h-5 w-5 text-accent-300" />
+            {{ item.label }}
           </p>
         </div>
       </div>
@@ -68,6 +154,14 @@ async function submit() {
             Použite e-mailovú adresu a heslo priradené k vášmu účtu.
           </p>
         </div>
+
+        <DataStatusNotice
+          class="mt-5"
+          :description="loginNotice"
+          icon="i-heroicons-information-circle"
+          title="Bezpečný prístup"
+          tone="info"
+        />
 
         <label class="mt-6 block">
           <span class="text-sm font-semibold">E-mail</span>

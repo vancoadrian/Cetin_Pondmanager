@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TripLogbook, TripLogbookEntry } from '~/data/pond'
 import type { AnglerLogbooksResponse } from '~/services/catchApiService'
 import type { AccountReservation, AnglerReservationsResponse } from '~/services/reservationApiService'
 
@@ -85,6 +86,16 @@ const totalWeight = computed(() =>
   accountState.value.tripLogbookEntries.reduce((sum, entry) => sum + entry.weightKg, 0),
 )
 const accountReservations = computed(() => reservationState.value.reservations)
+const todayIso = computed(() => new Date().toISOString().slice(0, 10))
+const sortedAccountReservations = computed(() =>
+  [...accountReservations.value].sort((first, second) =>
+    first.from.localeCompare(second.from) || first.to.localeCompare(second.to),
+  ),
+)
+const upcomingReservations = computed(() =>
+  sortedAccountReservations.value.filter((reservation) => reservation.to >= todayIso.value),
+)
+const nextReservation = computed(() => upcomingReservations.value[0])
 const pendingReservationCount = computed(() =>
   accountReservations.value.filter((reservation) => reservation.status === 'pending').length,
 )
@@ -107,6 +118,15 @@ const sortedEntries = computed(() =>
 const recentEntries = computed(() => sortedEntries.value.slice(0, 5))
 const largestEntry = computed(() =>
   [...accountState.value.tripLogbookEntries].sort((first, second) => second.weightKg - first.weightKg)[0],
+)
+const primaryActiveLogbook = computed(() =>
+  [...activeLogbooks.value].sort((first, second) => {
+    const firstIsCurrent = first.from <= todayIso.value && first.to >= todayIso.value
+    const secondIsCurrent = second.from <= todayIso.value && second.to >= todayIso.value
+    if (firstIsCurrent !== secondIsCurrent) return firstIsCurrent ? -1 : 1
+
+    return first.from.localeCompare(second.from) || first.title.localeCompare(second.title, 'sk')
+  })[0],
 )
 const accountSummaryCards = computed(() => [
   {
@@ -213,7 +233,6 @@ function paymentInstructions(reservation: AccountReservation) {
 function reservationSmsBody(reservation: AccountReservation) {
   return [
     'Rybolov Cetín - rezervácia',
-    `ID: ${reservation.id}`,
     `Meno: ${account.value?.name ?? reservation.guest}`,
     `Termín: ${formatDateRange(reservation.from, reservation.to)}`,
     `Miesto: ${getLakeName(reservation.lake)} · ${getPegLabel(reservation.pegId)}`,
@@ -229,6 +248,34 @@ function entryCountLabel(count: number) {
   if (count === 1) return '1 úlovok'
   if (count >= 2 && count <= 4) return `${count} úlovky`
   return `${count} úlovkov`
+}
+
+function reservationTarget(reservation: AccountReservation) {
+  return {
+    path: '/rezervacie',
+    query: {
+      do: reservation.to,
+      jazero: reservation.lake,
+      miesto: reservation.pegId,
+      od: reservation.from,
+    },
+  }
+}
+
+function tripLogbookTarget(logbook: TripLogbook, hash = '') {
+  return {
+    hash,
+    path: '/ulovky',
+    query: {
+      zapisnik: logbook.shareCode,
+    },
+  }
+}
+
+function entryLogbookTarget(entry: TripLogbookEntry) {
+  const logbook = logbookById(entry.logbookId)
+
+  return logbook ? tripLogbookTarget(logbook) : '/ulovky'
 }
 
 function formatDateRange(from: string, to: string) {
@@ -423,6 +470,89 @@ async function submitLogout() {
           tone="info"
         />
 
+        <section
+          v-if="primaryActiveLogbook || nextReservation"
+          class="mt-6 rounded-card border border-primary-200 bg-primary-50 p-5"
+        >
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="text-sm font-semibold uppercase text-primary-800">Najbližší krok</p>
+              <h2 class="mt-1 text-xl font-bold text-primary-950">Pokračujte tam, kde má účet najväčší zmysel</h2>
+            </div>
+            <StatusBadge icon="i-heroicons-user-circle" label="osobný panel" tone="primary" size="xs" />
+          </div>
+
+          <div class="mt-5 grid gap-4 lg:grid-cols-2">
+            <div
+              v-if="primaryActiveLogbook"
+              class="rounded-md border border-primary-200 bg-white p-4"
+            >
+              <div class="flex items-start gap-3">
+                <UIcon name="i-heroicons-book-open" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase text-foreground-muted">Aktívna výprava</p>
+                  <h3 class="mt-1 truncate font-bold">{{ primaryActiveLogbook.title }}</h3>
+                  <p class="mt-1 text-sm text-foreground-muted">
+                    {{ formatDateRange(primaryActiveLogbook.from, primaryActiveLogbook.to) }} ·
+                    {{ getLakeName(primaryActiveLogbook.lake) }}
+                  </p>
+                  <p class="mt-2 text-xs text-foreground-muted">
+                    {{ entryCountLabel(entriesFor(primaryActiveLogbook.id).length) }} · kód {{ primaryActiveLogbook.shareCode }}
+                  </p>
+                </div>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <UButton
+                  :to="tripLogbookTarget(primaryActiveLogbook)"
+                  icon="i-heroicons-book-open"
+                  variant="soft"
+                >
+                  Otvoriť zápisník
+                </UButton>
+                <UButton
+                  :to="tripLogbookTarget(primaryActiveLogbook, '#pridat-ulovok')"
+                  icon="i-heroicons-plus"
+                  color="warning"
+                >
+                  Zapísať úlovok
+                </UButton>
+              </div>
+            </div>
+
+            <div
+              v-if="nextReservation"
+              class="rounded-md border border-primary-200 bg-white p-4"
+            >
+              <div class="flex items-start gap-3">
+                <UIcon name="i-heroicons-calendar-days" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase text-foreground-muted">Najbližšia rezervácia</p>
+                  <h3 class="mt-1 truncate font-bold">{{ getPegLabel(nextReservation.pegId) }}</h3>
+                  <p class="mt-1 text-sm text-foreground-muted">
+                    {{ formatDateRange(nextReservation.from, nextReservation.to) }} ·
+                    {{ getLakeName(nextReservation.lake) }}
+                  </p>
+                  <p class="mt-2 text-xs text-foreground-muted">
+                    {{ reservationStatusLabel(nextReservation.status) }} · {{ paymentStatusLabel(nextReservation.paymentStatus) }}
+                  </p>
+                </div>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <UButton
+                  :to="reservationTarget(nextReservation)"
+                  icon="i-heroicons-calendar-days"
+                  variant="soft"
+                >
+                  Otvoriť termín
+                </UButton>
+                <UButton :to="`tel:${contactInfo.phoneHref}`" icon="i-heroicons-phone" variant="ghost">
+                  Zavolať správcovi
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div
             v-for="item in accountSummaryCards"
@@ -470,7 +600,7 @@ async function submitLogout() {
 
           <div v-else-if="accountReservations.length" class="mt-4 grid gap-4 lg:grid-cols-2">
             <article
-              v-for="reservation in accountReservations"
+              v-for="reservation in sortedAccountReservations"
               :key="reservation.id"
               class="rounded-card border border-border bg-surface p-5"
             >
@@ -530,7 +660,7 @@ async function submitLogout() {
 
               <div class="mt-5 flex flex-wrap gap-2">
                 <UButton
-                  :to="{ path: '/rezervacie', query: { do: reservation.to, jazero: reservation.lake, miesto: reservation.pegId, od: reservation.from } }"
+                  :to="reservationTarget(reservation)"
                   icon="i-heroicons-calendar-days"
                   variant="ghost"
                 >
@@ -595,7 +725,7 @@ async function submitLogout() {
                 </p>
               </div>
               <UButton
-                :to="{ path: '/ulovky', query: { zapisnik: logbookById(entry.logbookId)?.shareCode } }"
+                :to="entryLogbookTarget(entry)"
                 icon="i-heroicons-book-open"
                 variant="ghost"
               >
@@ -671,14 +801,23 @@ async function submitLogout() {
                   </div>
                 </div>
               </div>
-              <UButton
-                :to="{ path: '/ulovky', query: { zapisnik: logbook.shareCode } }"
-                icon="i-heroicons-book-open"
-                variant="soft"
-                class="mt-5"
-              >
-                Otvoriť zápisník
-              </UButton>
+              <div class="mt-5 flex flex-wrap gap-2">
+                <UButton
+                  :to="tripLogbookTarget(logbook)"
+                  icon="i-heroicons-book-open"
+                  variant="soft"
+                >
+                  Otvoriť zápisník
+                </UButton>
+                <UButton
+                  :to="tripLogbookTarget(logbook, '#pridat-ulovok')"
+                  icon="i-heroicons-plus"
+                  color="warning"
+                  variant="soft"
+                >
+                  Zapísať úlovok
+                </UButton>
+              </div>
             </article>
           </div>
           <AppState
@@ -705,7 +844,7 @@ async function submitLogout() {
                 <p class="font-bold">{{ logbook.title }}</p>
                 <p class="mt-1 text-sm text-foreground-muted">{{ formatDateRange(logbook.from, logbook.to) }}</p>
               </div>
-              <UButton :to="{ path: '/ulovky', query: { zapisnik: logbook.shareCode } }" variant="ghost">
+              <UButton :to="tripLogbookTarget(logbook)" variant="ghost">
                 História
               </UButton>
             </div>

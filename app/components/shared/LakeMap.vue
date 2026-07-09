@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LakeClosure, MapFacility, MapLayerImageSettings, MapShape, Peg, Reservation } from '~/data/pond'
 import { getPegAvailability } from '~/utils/availability'
+import { formatAvailabilityDateRange } from '~/utils/availabilityDateRange'
 import {
   getMapFacilityShortLabel,
   getMapFacilityStyle,
@@ -62,6 +63,35 @@ const selectedAvailabilityReason = computed(() =>
   ?? selectedAvailability.value?.description
   ?? '',
 )
+const selectedRangeLabel = computed(() =>
+  props.dateFrom && props.dateTo
+    ? formatAvailabilityDateRange(props.dateFrom, props.dateTo)
+    : 'zvolený termín',
+)
+const selectedCanReserve = computed(() => Boolean(selectedAvailability.value?.reservable))
+const selectedPegTypeLabel = computed(() => {
+  if (!selectedPeg.value) return 'miesto'
+
+  return selectedPeg.value.type === 'cabin' ? 'miesto s chatou' : 'lovné miesto'
+})
+const reservationActionLabel = computed(() => {
+  if (!selectedPeg.value) return 'Vyberte miesto na mape'
+  if (!selectedCanReserve.value) return 'Miesto teraz nie je dostupné'
+
+  return 'Rezervovať vybrané miesto'
+})
+const reservationHint = computed(() => {
+  if (!selectedPeg.value) return 'Kliknite na bod v mape alebo vyberte miesto zo zoznamu pod mapou.'
+  if (!selectedAvailability.value) return 'Dostupnosť sa načíta podľa zvoleného termínu.'
+  if (!selectedAvailability.value.reservable) {
+    return selectedAvailabilityReason.value || selectedAvailability.value.description
+  }
+  if (selectedPeg.value.requiresCabinReservation) {
+    return 'Toto miesto sa rezervuje spolu s chatou. Rezervačný formulár s tým bude počítať.'
+  }
+
+  return selectedAvailabilityReason.value || 'Miesto je pripravené na odoslanie žiadosti.'
+})
 const mapLegendItems = [
   {
     icon: 'i-heroicons-check-circle',
@@ -250,17 +280,31 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
 
       <aside class="border-border bg-muted/50 border-t p-4 lg:border-t-0 lg:border-l">
         <div v-if="selectedPeg" class="space-y-4">
-          <div>
+          <div class="rounded-md border border-border bg-white p-4">
+            <p class="text-foreground-muted text-xs font-semibold uppercase">Váš výber</p>
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-foreground text-lg font-bold">{{ selectedPeg.label }}</h3>
+              <h3 class="text-foreground mt-1 text-xl font-black">{{ selectedPeg.label }}</h3>
               <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
             </div>
-            <p class="text-foreground-muted mt-2 text-sm">{{ selectedPeg.notes }}</p>
-            <p v-if="selectedAvailabilityReason" class="text-primary-800 mt-2 text-xs font-semibold">
-              {{ selectedAvailabilityReason }}
-            </p>
-            <p v-if="selectedPeg.requiresCabinReservation" class="text-primary-800 mt-2 text-xs font-semibold">
-              Rezervácia miesta je viazaná na chatu.
+            <dl class="mt-4 space-y-3 text-sm">
+              <div class="flex items-start gap-2">
+                <UIcon name="i-heroicons-calendar-days" class="text-primary-700 mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <dt class="text-foreground-muted text-xs">Termín</dt>
+                  <dd class="font-semibold">{{ selectedRangeLabel }}</dd>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <UIcon name="i-heroicons-map-pin" class="text-primary-700 mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <dt class="text-foreground-muted text-xs">Typ miesta</dt>
+                  <dd class="font-semibold">{{ selectedPegTypeLabel }}</dd>
+                </div>
+              </div>
+            </dl>
+            <p class="text-foreground-muted mt-4 text-sm">{{ selectedPeg.notes }}</p>
+            <p class="text-primary-800 mt-3 text-sm font-semibold">
+              {{ reservationHint }}
             </p>
           </div>
           <dl class="grid grid-cols-2 gap-3 text-sm">
@@ -274,13 +318,21 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
             </div>
           </dl>
           <UButton
-            :to="reservationTarget(selectedPeg)"
+            :to="selectedCanReserve ? reservationTarget(selectedPeg) : undefined"
             icon="i-heroicons-calendar-days"
+            color="warning"
             block
+            :disabled="!selectedCanReserve"
           >
-            Rezervovať miesto
+            {{ reservationActionLabel }}
           </UButton>
         </div>
+        <AppState
+          v-else
+          title="Vyberte miesto"
+          description="Kliknite na bod v mape alebo zmeňte filter dostupnosti."
+          icon="i-heroicons-map-pin"
+        />
       </aside>
     </div>
   </div>

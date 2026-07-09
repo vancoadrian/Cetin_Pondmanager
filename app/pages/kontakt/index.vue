@@ -1,38 +1,72 @@
 <script setup lang="ts">
+import type { StatusBadgeTone } from '~/utils/ui'
+
 useHead({ title: 'Kontakt' })
 
 const { contactInfo } = usePondData()
 
-const contactTopics = [
+const contactTopics: Array<{
+  actionLabel: string
+  actionTarget: string
+  detail: string
+  icon: string
+  label: string
+  prefix: string
+  suggestedMessage: string
+  tone: StatusBadgeTone
+  urgent?: boolean
+}> = [
   {
     actionLabel: 'Otvoriť rezervácie',
     actionTarget: '/rezervacie',
+    detail: 'termín, miesto, chata, výbava alebo doplnky',
+    icon: 'i-heroicons-calendar-days',
     label: 'Rezervácia',
     prefix: 'Rezervácia',
+    suggestedMessage: 'Chcem sa informovať k rezervácii. Termín: ____. Jazero/miesto: ____. Počet osôb: ____.',
+    tone: 'primary',
   },
   {
     actionLabel: 'Zapísať úlovok',
     actionTarget: '/ulovky',
+    detail: 'veľká ryba, čip, fotka alebo zápis do zápisníka',
+    icon: 'i-heroicons-camera',
     label: 'Úlovok alebo fotka',
     prefix: 'Úlovok',
+    suggestedMessage: 'Chytil som rybu. Jazero/miesto: ____. Váha/dĺžka: ____. Potrebujem riešiť čip alebo fotku.',
+    tone: 'warning',
+    urgent: true,
   },
   {
     actionLabel: 'Pozrieť výbavu',
     actionTarget: '/info',
+    detail: 'podberák, podložka, drevo, gril alebo veci k chate',
+    icon: 'i-heroicons-archive-box',
     label: 'Požičovňa výbavy',
     prefix: 'Požičovňa',
+    suggestedMessage: 'Potrebujem pripraviť alebo overiť výbavu k rezervácii. Termín: ____. Položky: ____.',
+    tone: 'success',
   },
   {
     actionLabel: 'Otvoriť mapu',
     actionTarget: '/mapa',
+    detail: 'pokazené, chýba, nesvieti, problém s miestom',
+    icon: 'i-heroicons-wrench-screwdriver',
     label: 'Problém pri vode',
     prefix: 'Hlásenie pri vode',
+    suggestedMessage: 'Hlásim problém pri vode. Jazero/miesto: ____. Čo sa stalo alebo chýba: ____.',
+    tone: 'error',
+    urgent: true,
   },
   {
     actionLabel: 'Pozrieť súťaže',
     actionTarget: '/sutaze',
+    detail: 'registrácia tímu, sektor, program alebo organizačná otázka',
+    icon: 'i-heroicons-trophy',
     label: 'Súťaž',
     prefix: 'Súťaž',
+    suggestedMessage: 'Mám otázku k súťaži. Názov súťaže/tím: ____. Čo potrebujem: ____.',
+    tone: 'accent',
   },
 ]
 const contactForm = reactive({
@@ -56,6 +90,26 @@ const isContactMessageReady = computed(() =>
 const smsHref = computed(() =>
   `sms:${contactInfo.phoneHref}?&body=${encodeURIComponent(preparedContactMessage.value)}`,
 )
+const urgentContactNotice = computed(() =>
+  selectedTopic.value.urgent
+    ? 'Pri veľkej rybe, úraze, búrke alebo probléme s bezpečnosťou volajte správcu priamo. SMS použite ako doplnok, keď hovor neprejde.'
+    : 'Správu si môžete pripraviť ako SMS a pri rezervácii si rovno otvoriť príslušnú časť aplikácie.',
+)
+
+function selectTopic(label: string) {
+  const nextTopic = contactTopics.find((topic) => topic.label === label) ?? contactTopics[0]!
+  const previousTopic = selectedTopic.value
+  const canReplaceMessage = !contactForm.message.trim() || contactForm.message === previousTopic.suggestedMessage
+
+  contactForm.topic = nextTopic.label
+  if (canReplaceMessage) {
+    contactForm.message = nextTopic.suggestedMessage
+  }
+}
+
+function handleTopicSelect(event: Event) {
+  selectTopic((event.target as HTMLSelectElement).value)
+}
 
 function openSmsDraft() {
   if (!import.meta.client || !isContactMessageReady.value) return
@@ -129,6 +183,13 @@ watch(contactForm, () => {
           </div>
         </div>
 
+        <DataStatusNotice
+          :description="urgentContactNotice"
+          :icon="selectedTopic.urgent ? 'i-heroicons-phone-arrow-up-right' : 'i-heroicons-chat-bubble-left-right'"
+          :title="selectedTopic.urgent ? 'Pri urgentnej veci volajte' : 'Správu pripravíme ako SMS'"
+          :tone="selectedTopic.urgent ? 'warning' : 'info'"
+        />
+
         <div class="border-border bg-surface rounded-card border p-5">
           <h2 class="text-xl font-bold">Rýchle odkazy</h2>
           <div class="mt-5 grid gap-3">
@@ -148,11 +209,37 @@ watch(contactForm, () => {
           Správca rezervácie a prevádzkové veci potvrdzuje telefonicky. Správu si môžete pripraviť ako SMS.
         </p>
         <form class="mt-5 grid gap-4" @submit.prevent="openSmsDraft">
+          <div>
+            <p class="text-sm font-semibold">Vyberte dôvod</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <button
+                v-for="topic in contactTopics"
+                :key="topic.label"
+                type="button"
+                class="rounded-md border p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50"
+                :class="contactForm.topic === topic.label ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
+                @click="selectTopic(topic.label)"
+              >
+                <div class="flex items-start gap-2">
+                  <UIcon :name="topic.icon" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="font-bold">{{ topic.label }}</p>
+                      <StatusBadge v-if="topic.urgent" label="volať" tone="warning" size="xs" />
+                    </div>
+                    <p class="mt-1 text-xs text-foreground-muted">{{ topic.detail }}</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <label class="block">
             <span class="text-sm font-semibold">Typ správy</span>
             <select
-              v-model="contactForm.topic"
+              :value="contactForm.topic"
               class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+              @change="handleTopicSelect"
             >
               <option v-for="topic in contactTopics" :key="topic.label">
                 {{ topic.label }}
@@ -183,7 +270,7 @@ watch(contactForm, () => {
               <p class="text-sm font-bold">Náhľad SMS</p>
               <UButton
                 :to="selectedTopic.actionTarget"
-                icon="i-heroicons-arrow-top-right-on-square"
+                :icon="selectedTopic.icon"
                 size="sm"
                 variant="soft"
               >

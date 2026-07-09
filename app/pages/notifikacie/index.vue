@@ -49,7 +49,28 @@ const subscriptionEndpoint = ref('')
 const subscriptionSubmitMessage = ref('')
 const subscriptionSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
-const activeAlertCount = computed(() => alerts.value.length)
+const alertSeverityPriority: Record<string, number> = {
+  storm: 0,
+  service: 1,
+  water: 2,
+  info: 3,
+}
+const sortedAlerts = computed(() =>
+  [...alerts.value].sort((first, second) => {
+    const priorityDiff = (alertSeverityPriority[first.severity] ?? 4) - (alertSeverityPriority[second.severity] ?? 4)
+    if (priorityDiff !== 0) return priorityDiff
+
+    return new Date(first.validUntil).getTime() - new Date(second.validUntil).getTime()
+  }),
+)
+const activeAlertCount = computed(() => sortedAlerts.value.length)
+const primaryAlert = computed(() => sortedAlerts.value[0])
+const criticalAlertCount = computed(() =>
+  sortedAlerts.value.filter((alert) => alert.severity === 'storm').length,
+)
+const serviceAlertCount = computed(() =>
+  sortedAlerts.value.filter((alert) => alert.severity === 'service').length,
+)
 const isLoadingNotifications = computed(() => notificationFetchStatus.value === 'pending')
 const notificationLoadError = computed(() =>
   notificationError.value
@@ -154,9 +175,13 @@ const notificationSupportNoticeTone = computed<NoticeTone>(() => {
 })
 const notificationSummaryItems = computed(() => [
   {
-    icon: 'i-heroicons-megaphone',
-    label: 'Aktívne oznamy',
-    value: String(activeAlertCount.value),
+    icon: criticalAlertCount.value > 0 ? 'i-heroicons-bolt' : 'i-heroicons-megaphone',
+    label: 'Stav pri vode',
+    value: criticalAlertCount.value > 0
+      ? `${criticalAlertCount.value} výstraha`
+      : activeAlertCount.value > 0
+        ? `${activeAlertCount.value} oznamy`
+        : 'pokoj',
   },
   {
     icon: notificationsEnabled.value ? 'i-heroicons-bell-alert' : 'i-heroicons-bell-slash',
@@ -164,9 +189,9 @@ const notificationSummaryItems = computed(() => [
     value: notificationsEnabled.value ? 'výstrahy zapnuté' : 'výstrahy vypnuté',
   },
   {
-    icon: 'i-heroicons-clock',
-    label: 'Posledná aktualizácia',
-    value: lastNotificationUpdateLabel.value,
+    icon: serviceAlertCount.value > 0 ? 'i-heroicons-wrench-screwdriver' : 'i-heroicons-clock',
+    label: serviceAlertCount.value > 0 ? 'Prevádzka' : 'Aktualizované',
+    value: serviceAlertCount.value > 0 ? `${serviceAlertCount.value} oznam` : lastNotificationUpdateLabel.value,
   },
 ])
 const notificationTopicCards = [
@@ -366,6 +391,32 @@ function alertSeverityLabel(severity: string) {
 
   return 'oznam'
 }
+
+function alertActionText(severity: string) {
+  if (severity === 'storm') {
+    return 'Pri búrke prerušte lov, zabezpečte výbavu a sledujte pokyny správcu.'
+  }
+  if (severity === 'water') {
+    return 'Skontrolujte podmienky na mieste a prispôsobte lov aktuálnemu stavu vody.'
+  }
+  if (severity === 'service') {
+    return 'Overte, či sa oznam týka vášho miesta, chaty alebo príchodu do areálu.'
+  }
+
+  return 'Prečítajte oznam pred príchodom alebo pokračovaním v love.'
+}
+
+function formatAlertValidUntil(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('sk-SK', {
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(date)
+}
 </script>
 
 <template>
@@ -455,6 +506,14 @@ function alertSeverityLabel(severity: string) {
         </div>
 
         <div class="space-y-4">
+          <DataStatusNotice
+            v-if="primaryAlert"
+            :description="alertActionText(primaryAlert.severity)"
+            :icon="alertIcon(primaryAlert.severity)"
+            :title="primaryAlert.severity === 'storm' ? 'Najdôležitejšia výstraha pri vode' : 'Najdôležitejší aktuálny oznam'"
+            :tone="primaryAlert.severity === 'storm' ? 'error' : primaryAlert.severity === 'service' ? 'warning' : 'info'"
+          />
+
           <AppState
             v-if="isLoadingNotifications"
             type="loading"
@@ -479,7 +538,7 @@ function alertSeverityLabel(severity: string) {
           />
           <template v-else>
             <article
-              v-for="alert in alerts"
+              v-for="alert in sortedAlerts"
               :key="alert.id"
               class="border-border bg-surface rounded-card border p-5"
             >
@@ -497,10 +556,19 @@ function alertSeverityLabel(severity: string) {
                   />
                   <StatusBadge
                     icon="i-heroicons-clock"
-                    :label="`do ${alert.validUntil}`"
+                    :label="`do ${formatAlertValidUntil(alert.validUntil)}`"
                     tone="neutral"
                     size="xs"
                   />
+                </div>
+              </div>
+              <div class="mt-4 rounded-md border border-border bg-muted/60 p-3">
+                <div class="flex items-start gap-2">
+                  <UIcon name="i-heroicons-clipboard-document-check" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                  <div>
+                    <p class="text-sm font-bold">Odporúčaná reakcia</p>
+                    <p class="mt-1 text-sm text-foreground-muted">{{ alertActionText(alert.severity) }}</p>
+                  </div>
                 </div>
               </div>
             </article>

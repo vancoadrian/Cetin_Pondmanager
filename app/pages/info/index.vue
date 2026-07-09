@@ -81,6 +81,29 @@ const reservationWithCabin = (cabin: CabinProduct) => {
     },
   }
 }
+
+const quickReservationItems = computed(() => [
+  ...recommendedRentalItems.value.map((item) => ({
+    badge: 'výbava',
+    description: item.description,
+    icon: 'i-heroicons-archive-box',
+    id: `rental-${item.id}`,
+    label: item.label,
+    priceLabel: item.priceLabel,
+    tone: 'primary' as const,
+    to: reservationWithRental(item.id),
+  })),
+  ...activeReservationExtras.value.map((extra) => ({
+    badge: extra.appliesTo === 'cabin' ? 'k chate' : 'doplnok',
+    description: extra.description,
+    icon: extra.appliesTo === 'cabin' ? 'i-heroicons-home-modern' : 'i-heroicons-plus-circle',
+    id: `extra-${extra.id}`,
+    label: extra.label,
+    priceLabel: extra.priceLabel,
+    tone: extra.appliesTo === 'cabin' ? 'warning' as const : 'success' as const,
+    to: reservationWithExtra(extra),
+  })),
+].slice(0, 6))
 </script>
 
 <template>
@@ -117,7 +140,7 @@ const reservationWithCabin = (cabin: CabinProduct) => {
             </div>
             <div class="rounded-md bg-white p-3">
               <p class="text-primary-800 text-xs font-semibold">3. Potvrdenie</p>
-              <p class="mt-1 text-sm font-bold">Správca potvrdí rezerváciu</p>
+              <p class="mt-1 text-sm font-bold">{{ enabledPaymentMethods.length }} možnosti platby</p>
             </div>
           </div>
 
@@ -134,14 +157,14 @@ const reservationWithCabin = (cabin: CabinProduct) => {
         <div class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <h2 class="text-xl font-bold">Najčastejšie doplnky</h2>
+              <h2 class="text-xl font-bold">Rýchlo pridať k rezervácii</h2>
               <p class="text-foreground-muted mt-1 text-sm">
-                Položky, ktoré má zmysel riešiť už pri odoslaní žiadosti.
+                Výbava a doplnky, ktoré má zmysel riešiť už pri odoslaní žiadosti.
               </p>
             </div>
             <StatusBadge
-              icon="i-heroicons-archive-box"
-              :label="`${recommendedRentalItems.length} odporúčané`"
+              icon="i-heroicons-plus-circle"
+              :label="`${quickReservationItems.length} položiek`"
               tone="primary"
               size="xs"
             />
@@ -149,19 +172,38 @@ const reservationWithCabin = (cabin: CabinProduct) => {
 
           <div class="mt-4 grid gap-2 sm:grid-cols-2">
             <NuxtLink
-              v-for="item in recommendedRentalItems"
+              v-for="item in quickReservationItems"
               :key="item.id"
-              :to="reservationWithRental(item.id)"
+              :to="item.to"
               class="group rounded-md border border-border bg-muted p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
             >
-              <p class="font-semibold">{{ item.label }}</p>
-              <p class="text-foreground-muted mt-1 text-xs">{{ item.priceLabel }}</p>
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="font-semibold">{{ item.label }}</p>
+                  <p class="text-foreground-muted mt-1 line-clamp-2 text-xs">{{ item.description }}</p>
+                </div>
+                <StatusBadge
+                  class="shrink-0"
+                  :icon="item.icon"
+                  :label="item.badge"
+                  :tone="item.tone"
+                  size="xs"
+                />
+              </div>
+              <p class="text-primary-800 mt-2 text-xs font-semibold">{{ item.priceLabel }}</p>
               <span class="text-primary-800 mt-3 inline-flex items-center gap-1 text-xs font-bold">
                 Pridať k rezervácii
                 <UIcon name="i-heroicons-arrow-right" class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </span>
             </NuxtLink>
           </div>
+          <AppState
+            v-if="quickReservationItems.length === 0"
+            class="mt-4"
+            title="Doplnky nie sú zapnuté"
+            description="Rezerváciu môžete odoslať aj bez výbavy alebo doplnkov."
+            icon="i-heroicons-archive-box"
+          />
         </div>
       </div>
 

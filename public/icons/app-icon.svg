@@ -20,32 +20,14 @@
     </clipPath>
   </defs>
 
+  <rect width="220" height="220" fill="#031f1d"/>
   <rect x="12" y="12" width="196" height="196" rx="46" fill="url(#badgeGradient)"/>
   <g clip-path="url(#badgeClip)">
     <circle cx="144" cy="68" r="20" fill="url(#sunGradient)"/>
     <circle cx="137" cy="61" r="5" fill="#fff8d7" opacity=".55"/>
-    <path
-      d="M45 120c20-13 41-13 62 0 20 12 40 12 60 0 4-2 8-4 11-5"
-      fill="none"
-      stroke="#f5fffb"
-      stroke-linecap="round"
-      stroke-width="12"
-    />
-    <path
-      d="M45 148c21-13 43-13 65 0 20 12 41 12 62 0 2-1 4-2 6-3"
-      fill="none"
-      stroke="url(#waterGradient)"
-      stroke-linecap="round"
-      stroke-width="12"
-    />
-    <path
-      d="M59 174c18-8 37-8 56 0 17 7 34 7 51 0"
-      fill="none"
-      stroke="#7bd8ca"
-      stroke-linecap="round"
-      stroke-opacity=".62"
-      stroke-width="7"
-    />
+    <path d="M45 120c20-13 41-13 62 0 20 12 40 12 60 0 4-2 8-4 11-5" fill="none" stroke="#f5fffb" stroke-linecap="round" stroke-width="12"/>
+    <path d="M45 148c21-13 43-13 65 0 20 12 41 12 62 0 2-1 4-2 6-3" fill="none" stroke="url(#waterGradient)" stroke-linecap="round" stroke-width="12"/>
+    <path d="M59 174c18-8 37-8 56 0 17 7 34 7 51 0" fill="none" stroke="#7bd8ca" stroke-linecap="round" stroke-opacity=".62" stroke-width="7"/>
   </g>
   <rect x="18" y="18" width="184" height="184" rx="40" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="2"/>
 </svg>

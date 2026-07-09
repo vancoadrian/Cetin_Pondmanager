@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Peg } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import type { ReservationStateResponse } from '~/services/reservationApiService'
 import { getPegAvailability } from '~/utils/availability'
@@ -90,30 +91,54 @@ const rangeCabinRows = computed(() =>
 const rangeBlockedRows = computed(() =>
   rangeAvailabilityRows.value.filter((row) => !row.availability.reservable),
 )
+const preferredRangeRow = computed(() =>
+  rangeCabinRows.value[0] ?? rangeReservableRows.value[0],
+)
 const preferredRangePeg = computed(() =>
-  rangeCabinRows.value[0]?.peg ?? rangeReservableRows.value[0]?.peg ?? lakePegs.value[0],
+  preferredRangeRow.value?.peg ?? lakePegs.value[0],
+)
+const recommendedRangeRows = computed(() =>
+  [...rangeReservableRows.value]
+    .sort((left, right) => {
+      const typeScore = Number(right.peg.type === 'cabin') - Number(left.peg.type === 'cabin')
+      if (typeScore !== 0) return typeScore
+
+      return left.peg.label.localeCompare(right.peg.label, 'sk')
+    })
+    .slice(0, 3),
 )
 const availabilityRangeLabel = computed(() => formatAvailabilityDateRange(dateFrom.value, dateTo.value))
-const mapTarget = computed(() => ({
-  path: '/mapa',
-  query: {
-    do: dateTo.value,
-    jazero: lake.slug,
-    miesto: preferredRangePeg.value?.id,
-    od: dateFrom.value,
-    volne: '1',
-  },
-}))
-const reservationTarget = computed(() => ({
-  path: '/rezervacie',
-  query: {
-    do: dateTo.value,
-    jazero: lake.slug,
-    miesto: preferredRangePeg.value?.id,
-    od: dateFrom.value,
-    typ: preferredRangePeg.value?.type === 'cabin' ? 'chata' : undefined,
-  },
-}))
+
+function mapTargetForPeg(peg?: Peg) {
+  return {
+    path: '/mapa',
+    query: {
+      do: dateTo.value,
+      jazero: peg?.lake ?? lake!.slug,
+      miesto: peg?.id,
+      od: dateFrom.value,
+      volne: '1',
+    },
+  }
+}
+
+function reservationTargetForPeg(peg?: Peg) {
+  return peg
+    ? {
+        path: '/rezervacie',
+        query: {
+          do: dateTo.value,
+          jazero: peg.lake,
+          miesto: peg.id,
+          od: dateFrom.value,
+          typ: peg.type === 'cabin' ? 'chata' : undefined,
+        },
+      }
+    : undefined
+}
+
+const mapTarget = computed(() => mapTargetForPeg(preferredRangePeg.value))
+const reservationTarget = computed(() => reservationTargetForPeg(preferredRangeRow.value?.peg))
 
 const availabilityDays = computed(() => buildCalendarDays(dateFrom.value, 7))
 const availabilityPreviewRows = computed(() =>
@@ -236,8 +261,12 @@ watch(
             <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="soft">
               Mapa voľných miest
             </UButton>
-            <UButton :to="reservationTarget" icon="i-heroicons-calendar-days">
-              Rezervovať
+            <UButton
+              :to="reservationTarget"
+              icon="i-heroicons-calendar-days"
+              :disabled="!preferredRangeRow"
+            >
+              {{ preferredRangeRow ? 'Rezervovať' : 'Vyberte iný termín' }}
             </UButton>
           </div>
         </div>
@@ -279,12 +308,65 @@ watch(
           </div>
         </div>
 
+        <div
+          v-if="preferredRangeRow"
+          class="mt-5 grid gap-4 rounded-md border border-primary-200 bg-primary-50 p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+        >
+          <div class="min-w-0">
+            <p class="text-primary-800 text-xs font-bold uppercase">Odporúčaný výber pre tento termín</p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <h3 class="text-2xl font-black">{{ preferredRangeRow.peg.label }}</h3>
+              <AvailabilityBadge :availability="preferredRangeRow.availability" />
+              <StatusBadge
+                :icon="preferredRangeRow.peg.type === 'cabin' ? 'i-heroicons-home-modern' : 'i-heroicons-map-pin'"
+                :label="preferredRangeRow.peg.type === 'cabin' ? 'miesto s chatou' : 'lovné miesto'"
+                tone="primary"
+                size="xs"
+              />
+            </div>
+            <p class="text-foreground-muted mt-2 text-sm">{{ preferredRangeRow.peg.notes }}</p>
+            <p class="text-primary-900 mt-2 text-sm font-semibold">
+              {{ preferredRangeRow.availability.reasons[0] || preferredRangeRow.availability.description }}
+            </p>
+            <div v-if="recommendedRangeRows.length > 1" class="mt-4 flex flex-wrap gap-2">
+              <NuxtLink
+                v-for="row in recommendedRangeRows"
+                :key="row.peg.id"
+                :to="reservationTargetForPeg(row.peg)"
+                class="inline-flex items-center gap-2 rounded-md border border-primary-200 bg-white px-3 py-2 text-sm font-bold text-primary-900 transition hover:border-primary-400 hover:bg-primary-100"
+              >
+                <UIcon :name="row.peg.type === 'cabin' ? 'i-heroicons-home-modern' : 'i-heroicons-map-pin'" class="h-4 w-4" />
+                {{ row.peg.label }}
+              </NuxtLink>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
+            <UButton :to="reservationTargetForPeg(preferredRangeRow.peg)" icon="i-heroicons-calendar-days" color="warning">
+              Rezervovať toto miesto
+            </UButton>
+            <UButton :to="mapTargetForPeg(preferredRangeRow.peg)" icon="i-heroicons-map" variant="soft">
+              Otvoriť na mape
+            </UButton>
+          </div>
+        </div>
+
+        <DataStatusNotice
+          v-else
+          class="mt-5"
+          title="V zvolenom termíne nie je voľné miesto"
+          description="Skúste kratší rozsah, iný deň alebo otvorte mapu a pozrite si dôvod blokácie pri jednotlivých miestach."
+          tone="warning"
+          icon="i-heroicons-calendar-days"
+          action-label="Otvoriť mapu"
+          @action="router.push(mapTarget)"
+        />
+
         <div class="mt-5 grid gap-3 md:grid-cols-7">
           <NuxtLink
             v-for="row in availabilityPreviewRows"
             :key="row.day.iso"
             :to="row.target"
-            class="rounded-md border border-border bg-white p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
+            class="group rounded-md border border-border bg-white p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
           >
             <p class="text-xs font-bold uppercase">{{ row.day.dayName }}</p>
             <p class="mt-1 text-lg font-black">{{ row.day.dayNumber }}. {{ row.day.monthName }}</p>
@@ -301,6 +383,10 @@ watch(
             <p class="mt-1 min-h-8 text-xs opacity-80">
               {{ row.firstPeg ? `Najbližšie: ${row.firstPeg.label}` : 'Skúste iný deň alebo zavolajte správcovi.' }}
             </p>
+            <span class="text-primary-800 mt-3 inline-flex items-center gap-1 text-xs font-black">
+              {{ row.firstPeg ? 'Vybrať deň' : 'Pozrieť možnosti' }}
+              <UIcon name="i-heroicons-arrow-right" class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
           </NuxtLink>
         </div>
       </div>

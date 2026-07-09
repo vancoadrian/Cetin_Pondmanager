@@ -232,6 +232,44 @@ const selectedAvailability = computed(() =>
     })
     : undefined,
 )
+const recommendedAvailableRow = computed(() => {
+  const selectedNeedsCabin = selectedPeg.value?.type === 'cabin' || selectedPeg.value?.requiresCabinReservation
+  if (selectedNeedsCabin) return freeCabins.value[0] ?? actionablePegs.value[0]
+
+  return actionablePegs.value[0]
+})
+const selectedAvailabilityReason = computed(() =>
+  selectedAvailability.value?.reasons[0]
+  ?? selectedAvailability.value?.description
+  ?? '',
+)
+const selectedPlaceIsUnavailable = computed(() =>
+  Boolean(selectedPeg.value && selectedAvailability.value && !selectedAvailability.value.reservable),
+)
+const selectedPlaceNoticeTitle = computed(() => {
+  if (!selectedPeg.value) return 'Vyberte lovné miesto'
+  if (selectedAvailability.value?.reservable) return 'Miesto je dostupné'
+
+  return 'Vybrané miesto nie je voľné'
+})
+const selectedPlaceNoticeDescription = computed(() => {
+  if (!selectedPeg.value) return 'Vyberte miesto zo zoznamu alebo otvorte mapu s rovnakým termínom.'
+  if (selectedAvailability.value?.reservable) {
+    return selectedPeg.value.requiresCabinReservation
+      ? 'Miesto je dostupné a do žiadosti sa automaticky pripojí príslušná chata.'
+      : 'Miesto je dostupné pre zvolený termín a môžete pokračovať v žiadosti.'
+  }
+
+  const recommendedLabel = recommendedAvailableRow.value?.peg.label
+  const alternative = recommendedLabel
+    ? ` Najbližšia použiteľná voľba v tomto termíne je ${recommendedLabel}.`
+    : ' Skúste zmeniť termín alebo druhé jazero.'
+
+  return `${selectedAvailabilityReason.value || 'Vybrané miesto sa v tomto termíne nedá rezervovať.'}${alternative}`
+})
+const recommendedPlaceActionLabel = computed(() =>
+  recommendedAvailableRow.value ? `Prepnúť na ${recommendedAvailableRow.value.peg.label}` : '',
+)
 const mapTarget = computed(() => ({
   path: '/mapa',
   query: {
@@ -306,6 +344,109 @@ const reservationAccountHint = computed(() =>
     ? `${anglerAccount.value.name} · ${anglerAccount.value.email}`
     : '',
 )
+const reservationRangeLabel = computed(() =>
+  reservationFrom.value === reservationTo.value
+    ? formatShortDate(reservationFrom.value)
+    : `${formatShortDate(reservationFrom.value)} - ${formatShortDate(reservationTo.value)}`,
+)
+const reservationServiceLines = computed(() => {
+  const lines = [
+    {
+      id: 'permit',
+      icon: 'i-heroicons-ticket',
+      label: selectedPermit.value.label,
+      meta: `${selectedPermit.value.priceEur} € · ${selectedPermit.value.durationHours} h`,
+    },
+  ]
+
+  if (selectedCabin.value) {
+    lines.push({
+      id: 'cabin',
+      icon: 'i-heroicons-home-modern',
+      label: selectedCabin.value.label,
+      meta: `${selectedCabin.value.pricePer24hEur} € / 24 h · kapacita ${selectedCabin.value.capacity}`,
+    })
+  }
+
+  selectedRentals.value.forEach((item) => {
+    lines.push({
+      id: `rental-${item.id}`,
+      icon: 'i-heroicons-archive-box',
+      label: item.label,
+      meta: item.priceLabel,
+    })
+  })
+
+  selectedExtras.value.forEach((item) => {
+    lines.push({
+      id: `extra-${item.id}`,
+      icon: item.appliesTo === 'cabin' ? 'i-heroicons-home' : 'i-heroicons-plus-circle',
+      label: item.label,
+      meta: item.priceLabel,
+    })
+  })
+
+  return lines
+})
+const formatReservationItemCount = (count: number) => {
+  if (count === 1) return '1 položka'
+  if (count > 1 && count < 5) return `${count} položky`
+
+  return `${count} položiek`
+}
+const reservationChecklist = computed(() => {
+  const dateReady = Boolean(reservationFrom.value && reservationTo.value && reservationTo.value >= reservationFrom.value)
+  const placeReady = Boolean(selectedPeg.value && selectedAvailability.value?.reservable)
+  const equipmentReady = unavailableSelectedRentalLabels.value.length === 0
+  const contactReady = reservationContactName.value.trim().length >= 2 && reservationContactPhone.value.trim().length >= 7
+  const paymentReady = enabledPaymentMethods.value.length > 0
+
+  return [
+    {
+      id: 'date',
+      description: dateReady ? reservationRangeLabel.value : 'Skontrolujte dátum príchodu a odchodu.',
+      icon: 'i-heroicons-calendar-days',
+      ready: dateReady,
+      title: 'Termín',
+    },
+    {
+      id: 'place',
+      description: placeReady
+        ? `${getLakeName(selectedLake.value)} · ${selectedPeg.value?.label}`
+        : selectedAvailability.value?.reasons[0] ?? 'Vyberte dostupné miesto.',
+      icon: 'i-heroicons-map-pin',
+      ready: placeReady,
+      title: 'Miesto',
+    },
+    {
+      id: 'equipment',
+      description: equipmentReady
+        ? formatReservationItemCount(reservationServiceLines.value.length)
+        : `Nedostupné: ${unavailableSelectedRentalLabels.value.join(', ')}`,
+      icon: 'i-heroicons-archive-box',
+      ready: equipmentReady,
+      title: 'Služby',
+    },
+    {
+      id: 'contact',
+      description: contactReady
+        ? `${reservationContactName.value.trim()} · ${reservationContactPhone.value.trim()}`
+        : 'Doplňte meno a telefón.',
+      icon: 'i-heroicons-user-circle',
+      ready: contactReady,
+      title: 'Kontakt',
+    },
+    {
+      id: 'payment',
+      description: paymentReady
+        ? 'Platba hotovosťou alebo prevodom po potvrdení.'
+        : 'Spôsob platby doplní správca.',
+      icon: 'i-heroicons-banknotes',
+      ready: paymentReady,
+      title: 'Platba',
+    },
+  ]
+})
 
 const getApiErrorMessage = (error: unknown) => {
   const fetchError = error as {
@@ -376,6 +517,13 @@ function selectAvailabilityOverviewCell(pegId: string, dayIso: string) {
   selectedPegId.value = pegId
   reservationFrom.value = dayIso
   reservationTo.value = dayIso
+}
+
+function selectRecommendedAvailablePlace() {
+  const row = recommendedAvailableRow.value
+  if (!row) return
+
+  selectedPegId.value = row.peg.id
 }
 
 function csvCell(value: string | number | undefined) {
@@ -759,10 +907,21 @@ watch(
         @action="retryReservationData"
       />
 
+      <DataStatusNotice
+        v-if="selectedPlaceIsUnavailable || actionablePegs.length === 0"
+        class="mb-5"
+        :action-label="selectedPlaceIsUnavailable ? recommendedPlaceActionLabel : ''"
+        :description="selectedPlaceNoticeDescription"
+        :icon="selectedPlaceIsUnavailable ? 'i-heroicons-exclamation-triangle' : 'i-heroicons-calendar-days'"
+        :title="selectedPlaceNoticeTitle"
+        tone="warning"
+        @action="selectRecommendedAvailablePlace"
+      />
+
       <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div class="space-y-6">
           <div class="border-border bg-surface rounded-card border p-5">
-            <div class="flex items-center justify-between gap-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Lovné miesta a chaty</h2>
                 <p class="text-foreground-muted text-sm">
@@ -770,7 +929,19 @@ watch(
                   ubytovanie pridá automaticky.
                 </p>
               </div>
-              <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <UButton
+                  v-if="recommendedAvailableRow"
+                  type="button"
+                  icon="i-heroicons-check-circle"
+                  variant="soft"
+                  :disabled="selectedPegId === recommendedAvailableRow.peg.id"
+                  @click="selectRecommendedAvailablePlace"
+                >
+                  {{ selectedPegId === recommendedAvailableRow.peg.id ? 'Voľné miesto vybrané' : 'Vybrať voľné miesto' }}
+                </UButton>
+                <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
+              </div>
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -948,9 +1119,47 @@ watch(
           </div>
         </div>
 
-        <aside class="space-y-6">
+        <aside class="space-y-6 lg:sticky lg:top-24 lg:self-start">
           <div class="border-border bg-surface rounded-card border p-5">
             <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
+
+            <div class="border-border mt-4 border-y py-4">
+              <p class="text-foreground-muted text-xs font-semibold uppercase">Aktuálny výber</p>
+              <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between lg:flex-col xl:flex-row">
+                <div class="min-w-0">
+                  <p class="truncate text-xl font-black">
+                    {{ selectedPeg?.label ?? 'Vyberte miesto' }}
+                  </p>
+                  <p class="text-foreground-muted mt-1 text-sm">
+                    {{ getLakeName(selectedLake) }} · {{ reservationRangeLabel }}
+                  </p>
+                </div>
+                <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
+              </div>
+              <p class="text-foreground-muted mt-3 text-sm">
+                Po odoslaní príde správcovi žiadosť s termínom, miestom, kontaktom a vybranými službami.
+              </p>
+            </div>
+
+            <div class="border-border divide-border divide-y border-b">
+              <div
+                v-for="step in reservationChecklist"
+                :key="step.id"
+                class="flex items-start gap-3 py-3 text-sm"
+              >
+                <div
+                  class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                  :class="step.ready ? 'bg-success-500/10 text-success-700' : 'bg-warning-500/10 text-warning-800'"
+                >
+                  <UIcon :name="step.ready ? 'i-heroicons-check-circle' : step.icon" class="h-4 w-4" />
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold">{{ step.title }}</p>
+                  <p class="text-foreground-muted mt-0.5 break-words">{{ step.description }}</p>
+                </div>
+              </div>
+            </div>
+
             <div
               v-if="!isOnline || offlineReservationQueue.length > 0 || offlineSyncMessage"
               class="mt-4 space-y-3"
@@ -1048,6 +1257,17 @@ watch(
                     <p v-if="selectedPeg?.requiresCabinReservation" class="mt-2 text-xs font-semibold">
                       Toto miesto sa rezervuje spolu s chatou.
                     </p>
+                    <UButton
+                      v-if="selectedPlaceIsUnavailable && recommendedAvailableRow"
+                      type="button"
+                      class="mt-3"
+                      icon="i-heroicons-check-circle"
+                      size="sm"
+                      variant="soft"
+                      @click="selectRecommendedAvailablePlace"
+                    >
+                      Prepnúť na {{ recommendedAvailableRow.peg.label }}
+                    </UButton>
                   </div>
                   <UIcon :name="selectedAvailability.icon" class="mt-0.5 h-5 w-5 shrink-0" />
                 </div>
@@ -1240,25 +1460,31 @@ watch(
               </div>
 
               <div class="rounded-md bg-muted p-4 text-sm">
-                <p class="font-bold">Súhrn žiadosti</p>
-                <div class="mt-3 space-y-2 text-foreground-muted">
-                  <p>{{ getLakeName(selectedLake) }} · {{ selectedPeg?.label ?? 'miesto' }}</p>
-                  <p v-if="selectedAvailability">
-                    Dostupnosť: {{ selectedAvailability.label }} · {{ selectedAvailability.reasons[0] }}
-                  </p>
-                  <p>{{ selectedPermit.label }} · {{ selectedPermit.priceEur }} €</p>
-                  <p v-if="selectedCabin">
-                    {{ selectedCabin.label }} · {{ selectedCabin.pricePer24hEur }} € / 24 h
-                  </p>
-                  <p v-if="selectedRentals.length">
-                    Výbava: {{ selectedRentals.map((item) => item.label).join(', ') }}
-                  </p>
-                  <p v-if="selectedExtras.length">
-                    Doplnky: {{ selectedExtras.map((item) => item.label).join(', ') }}
-                  </p>
-                  <p v-if="!selectedRentals.length && !selectedExtras.length">
-                    Bez požičanej výbavy a doplnkov.
-                  </p>
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="font-bold">Vybrané služby</p>
+                    <p class="text-foreground-muted mt-1">
+                      {{ formatReservationItemCount(reservationServiceLines.length) }} v žiadosti.
+                    </p>
+                  </div>
+                  <StatusBadge
+                    :label="formatReservationItemCount(reservationServiceLines.length)"
+                    tone="primary"
+                    size="xs"
+                  />
+                </div>
+                <div class="border-border divide-border mt-3 divide-y border-y">
+                  <div
+                    v-for="line in reservationServiceLines"
+                    :key="line.id"
+                    class="flex items-start gap-3 py-3"
+                  >
+                    <UIcon :name="line.icon" class="text-primary-800 mt-0.5 h-4 w-4 shrink-0" />
+                    <div class="min-w-0">
+                      <p class="font-semibold">{{ line.label }}</p>
+                      <p class="text-foreground-muted mt-0.5">{{ line.meta }}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 

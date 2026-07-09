@@ -1,21 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Rybolov Cetín">
   <defs>
-    <linearGradient id="bg" x1="36" x2="184" y1="28" y2="196" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#155c55"/>
-      <stop offset="1" stop-color="#062523"/>
+    <linearGradient id="badgeGradient" x1="32" x2="188" y1="18" y2="204" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#126f63"/>
+      <stop offset=".56" stop-color="#073f3a"/>
+      <stop offset="1" stop-color="#021f1d"/>
     </linearGradient>
-    <linearGradient id="water" x1="44" x2="176" y1="124" y2="164" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#d8f1ec"/>
-      <stop offset="1" stop-color="#44b5a3"/>
+    <linearGradient id="waterGradient" x1="44" x2="178" y1="116" y2="166" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f3fff9"/>
+      <stop offset=".5" stop-color="#8ee8d7"/>
+      <stop offset="1" stop-color="#25a092"/>
     </linearGradient>
+    <linearGradient id="sunGradient" x1="124" x2="164" y1="48" y2="89" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff7d1"/>
+      <stop offset=".52" stop-color="#f5c84b"/>
+      <stop offset="1" stop-color="#d89a20"/>
+    </linearGradient>
+    <clipPath id="badgeClip">
+      <rect x="12" y="12" width="196" height="196" rx="46"/>
+    </clipPath>
   </defs>
-  <rect x="12" y="12" width="196" height="196" rx="52" fill="url(#bg)"/>
-  <path d="M42 142c22-16 46-19 72-8 22 9 42 8 64-5" fill="none" stroke="#d8f1ec" stroke-width="13" stroke-linecap="round"/>
-  <path d="M45 164c25-18 51-20 78-7 20 10 39 9 57-3" fill="none" stroke="url(#water)" stroke-width="13" stroke-linecap="round"/>
-  <g fill="none" stroke="#ffc247" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M139 49l14 12-14 12" stroke-width="8"/>
-    <path d="M153 61v53c0 22 15 37 35 37 12 0 20-7 20-18 0-10-6-17-16-20" stroke-width="12"/>
-    <path d="M192 113l18 8-15 12" stroke-width="10"/>
-    <path d="M196 132l-12 8" stroke-width="6"/>
+
+  <rect x="12" y="12" width="196" height="196" rx="46" fill="url(#badgeGradient)"/>
+  <g clip-path="url(#badgeClip)">
+    <circle cx="144" cy="68" r="20" fill="url(#sunGradient)"/>
+    <circle cx="137" cy="61" r="5" fill="#fff8d7" opacity=".55"/>
+    <path d="M45 120c20-13 41-13 62 0 20 12 40 12 60 0 4-2 8-4 11-5" fill="none" stroke="#f5fffb" stroke-linecap="round" stroke-width="12"/>
+    <path d="M45 148c21-13 43-13 65 0 20 12 41 12 62 0 2-1 4-2 6-3" fill="none" stroke="url(#waterGradient)" stroke-linecap="round" stroke-width="12"/>
+    <path d="M59 174c18-8 37-8 56 0 17 7 34 7 51 0" fill="none" stroke="#7bd8ca" stroke-linecap="round" stroke-opacity=".62" stroke-width="7"/>
   </g>
+  <rect x="18" y="18" width="184" height="184" rx="40" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="2"/>
 </svg>

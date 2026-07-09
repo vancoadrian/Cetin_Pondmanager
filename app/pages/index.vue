@@ -2,7 +2,7 @@
 import type { Peg } from '~/data/pond'
 import type { PublicNotificationStateResponse } from '~/services/notificationService'
 import { getPegAvailability } from '~/utils/availability'
-import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
+import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 
 useHead({ title: 'Prehľad' })
 
@@ -45,6 +45,12 @@ const livePegAvailabilityRows = computed(() =>
 const reservableRows = computed(() =>
   livePegAvailabilityRows.value.filter((row) => row.availability.reservable),
 )
+const preferredReservableRow = computed(() =>
+  reservableRows.value.find((row) => row.peg.type === 'cabin') ?? reservableRows.value[0],
+)
+const preferredCabinRow = computed(() =>
+  reservableRows.value.find((row) => row.peg.type === 'cabin'),
+)
 const availableCount = computed(() =>
   reservableRows.value.length,
 )
@@ -62,11 +68,20 @@ const freeCabinCount = computed(() =>
   cabinRows.value.filter((row) => row.availability.reservable).length,
 )
 const preferredReservablePeg = computed(() =>
-  reservableRows.value.find((row) => row.peg.type === 'cabin')?.peg ?? reservableRows.value[0]?.peg,
+  preferredReservableRow.value?.peg,
 )
 const preferredReservableCabinPeg = computed(() =>
-  reservableRows.value.find((row) => row.peg.type === 'cabin')?.peg,
+  preferredCabinRow.value?.peg,
 )
+const firstLimitedRow = computed(() =>
+  livePegAvailabilityRows.value.find((row) =>
+    ['limited', 'requires_approval'].includes(row.availability.status),
+  ),
+)
+const firstUnavailableRow = computed(() =>
+  livePegAvailabilityRows.value.find((row) => !row.availability.reservable),
+)
+const availabilityRangeLabel = computed(() => formatAvailabilityDateRange(dateFrom.value, dateTo.value))
 const publicCatches = computed(() => catches.filter((catchItem) => catchItem.status === 'approved'))
 const latestCatches = computed(() => publicCatches.value.slice(0, 3))
 const publicAlerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
@@ -243,60 +258,105 @@ watch([dateFrom, dateTo], () => {
     </section>
 
     <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="border-border bg-surface rounded-card flex h-full flex-col border p-4">
-          <div class="flex items-start justify-between gap-3">
+      <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="border-border bg-surface rounded-card border p-5">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p class="text-foreground-muted text-sm">Rezervovateľné miesta</p>
-              <p class="mt-2 text-3xl font-bold">{{ availableCount }}</p>
+              <p class="text-primary-700 text-xs font-bold uppercase">Výber pre {{ availabilityRangeLabel }}</p>
+              <h2 class="mt-2 text-2xl font-black">
+                {{ preferredReservableRow ? `Najbližšie voľné: ${preferredReservableRow.peg.label}` : 'V tomto termíne nie je voľné miesto' }}
+              </h2>
+              <p class="text-foreground-muted mt-2 text-sm">
+                {{ preferredReservableRow ? preferredReservableRow.peg.notes : 'Skúste zmeniť termín alebo otvoriť mapu a pozrieť dôvody blokácie pri jednotlivých miestach.' }}
+              </p>
             </div>
-            <UIcon name="i-heroicons-check-circle" class="text-success-600 h-6 w-6" />
+            <AvailabilityBadge v-if="preferredReservableRow" :availability="preferredReservableRow.availability" />
           </div>
-          <p class="text-foreground-muted mt-2 text-sm">Miesta dostupné pre vybraný dátumový rozsah.</p>
-          <UButton :to="mapTarget" class="mt-4 self-start" icon="i-heroicons-map-pin" size="xs" variant="soft">
-            Mapa voľných miest
-          </UButton>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-md border border-success-200 bg-success-500/10 p-3">
+              <p class="text-success-700 text-xs font-semibold">Voľné miesta</p>
+              <p class="mt-1 text-2xl font-black">{{ availableCount }}</p>
+            </div>
+            <div class="rounded-md border border-primary-200 bg-primary-50 p-3">
+              <p class="text-primary-800 text-xs font-semibold">Voľné chaty</p>
+              <p class="mt-1 text-2xl font-black">{{ freeCabinCount }}/{{ cabinCount }}</p>
+            </div>
+            <div class="rounded-md border border-border bg-muted p-3">
+              <p class="text-foreground-muted text-xs font-semibold">Nedostupné</p>
+              <p class="mt-1 text-2xl font-black">{{ unavailableCount }}</p>
+            </div>
+          </div>
+
+          <div class="mt-5 flex flex-col gap-2 sm:flex-row">
+            <UButton
+              :to="reservationTarget"
+              color="warning"
+              icon="i-heroicons-calendar-days"
+              :disabled="!preferredReservableRow"
+            >
+              {{ preferredReservableRow ? 'Rezervovať odporúčané miesto' : 'Vyberte iný termín' }}
+            </UButton>
+            <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="soft">
+              Pozrieť voľné miesta na mape
+            </UButton>
+          </div>
         </div>
-        <div class="border-border bg-surface rounded-card flex h-full flex-col border p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-foreground-muted text-sm">Miesta s chatou</p>
-              <p class="mt-2 text-3xl font-bold">{{ freeCabinCount }}/{{ cabinCount }}</p>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <div class="border-border bg-surface rounded-card border p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-bold">Miesto s chatou</h3>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  {{ preferredCabinRow ? preferredCabinRow.peg.label : 'Pre tento termín nie je voľná chata.' }}
+                </p>
+              </div>
+              <UIcon name="i-heroicons-home-modern" class="text-primary-700 h-5 w-5" />
             </div>
-            <UIcon name="i-heroicons-home-modern" class="text-primary-700 h-6 w-6" />
+            <UButton
+              :to="cabinReservationTarget"
+              class="mt-4"
+              color="warning"
+              icon="i-heroicons-calendar-days"
+              size="xs"
+              :disabled="!preferredCabinRow"
+            >
+              {{ preferredCabinRow ? 'Rezervovať chatu' : 'Zmeniť termín' }}
+            </UButton>
           </div>
-          <p class="text-foreground-muted mt-2 text-sm">Voľné chaty pri lovnom mieste vo zvolenom termíne.</p>
-          <UButton :to="cabinReservationTarget" class="mt-4 self-start" color="warning" icon="i-heroicons-calendar-days" size="xs">
-            Rezervovať chatu
-          </UButton>
-        </div>
-        <div class="border-border bg-surface rounded-card flex h-full flex-col border p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-foreground-muted text-sm">Na potvrdenie</p>
-              <p class="mt-2 text-3xl font-bold">{{ limitedCount }}</p>
+
+          <div class="border-border bg-surface rounded-card border p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-bold">Ďalšie možnosti</h3>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  {{ limitedCount > 0 ? `${limitedCount} miest vyžaduje potvrdenie správcom.` : 'Termín môžete upraviť alebo porovnať obe jazerá.' }}
+                </p>
+              </div>
+              <UIcon
+                :name="firstLimitedRow ? 'i-heroicons-clipboard-document-check' : 'i-heroicons-adjustments-horizontal'"
+                class="text-warning-700 h-5 w-5"
+              />
             </div>
-            <UIcon name="i-heroicons-clipboard-document-check" class="text-warning-700 h-6 w-6" />
-          </div>
-          <p class="text-foreground-muted mt-2 text-sm">
-            Miesta s čakajúcou žiadosťou alebo režimom individuálneho schválenia.
-          </p>
-          <UButton :to="reservationTarget" class="mt-4 self-start" icon="i-heroicons-pencil-square" size="xs" variant="soft">
-            Poslať žiadosť
-          </UButton>
-        </div>
-        <div class="border-border bg-surface rounded-card flex h-full flex-col border p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-foreground-muted text-sm">Nedostupné miesta</p>
-              <p class="mt-2 text-3xl font-bold">{{ unavailableCount }}</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <UButton
+                :to="firstLimitedRow ? reservationTarget : undefined"
+                icon="i-heroicons-pencil-square"
+                size="xs"
+                variant="soft"
+                :disabled="!firstLimitedRow"
+              >
+                Poslať žiadosť
+              </UButton>
+              <UButton to="#termin" icon="i-heroicons-calendar" size="xs" variant="ghost">
+                Zmeniť termín
+              </UButton>
             </div>
-            <UIcon name="i-heroicons-lock-closed" class="text-foreground-muted h-6 w-6" />
+            <p v-if="firstUnavailableRow" class="text-foreground-muted mt-3 text-xs">
+              Prvé nedostupné miesto: {{ firstUnavailableRow.peg.label }}.
+            </p>
           </div>
-          <p class="text-foreground-muted mt-2 text-sm">Obsadené, blokované alebo zatvorené miesta v tomto termíne.</p>
-          <UButton to="#termin" class="mt-4 self-start" icon="i-heroicons-calendar" size="xs" variant="ghost">
-            Zmeniť termín
-          </UButton>
         </div>
       </div>
     </section>

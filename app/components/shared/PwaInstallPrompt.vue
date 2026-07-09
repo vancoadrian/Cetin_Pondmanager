@@ -10,6 +10,11 @@ const DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const deferred = ref<BeforeInstallPromptEvent | null>(null)
 const visible = ref(false)
 const installing = ref(false)
+const mode = ref<'native' | 'ios' | null>(null)
+
+interface StandaloneNavigator extends Navigator {
+  standalone?: boolean
+}
 
 function recentlyDismissed() {
   if (typeof window === 'undefined') return true
@@ -23,11 +28,13 @@ function onBeforeInstallPrompt(event: Event) {
   event.preventDefault()
   if (recentlyDismissed()) return
   deferred.value = event as BeforeInstallPromptEvent
+  mode.value = 'native'
   visible.value = true
 }
 
 function onAppInstalled() {
   deferred.value = null
+  mode.value = null
   visible.value = false
 }
 
@@ -42,6 +49,7 @@ async function install() {
       window.localStorage.setItem(STORAGE_KEY, String(Date.now()))
     }
     deferred.value = null
+    mode.value = null
     visible.value = false
   } finally {
     installing.value = false
@@ -52,12 +60,30 @@ function dismiss() {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, String(Date.now()))
   }
+  deferred.value = null
+  mode.value = null
   visible.value = false
+}
+
+function isIosDevice() {
+  const platform = window.navigator.platform || ''
+  const userAgent = window.navigator.userAgent || ''
+  return /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
+}
+
+function isStandaloneMode() {
+  const navigatorWithStandalone = window.navigator as StandaloneNavigator
+  return window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true
 }
 
 onMounted(() => {
   window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
   window.addEventListener('appinstalled', onAppInstalled)
+
+  if (isIosDevice() && !isStandaloneMode() && !recentlyDismissed()) {
+    mode.value = 'ios'
+    visible.value = true
+  }
 })
 
 onBeforeUnmount(() => {
@@ -65,7 +91,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('appinstalled', onAppInstalled)
 })
 
-const showing = computed(() => visible.value && deferred.value !== null)
+const showing = computed(() => visible.value && (deferred.value !== null || mode.value === 'ios'))
+const title = computed(() => (mode.value === 'ios' ? 'Pridať Rybolov Cetín na plochu' : 'Inštalovať Rybolov Cetín'))
+const body = computed(() =>
+  mode.value === 'ios'
+    ? 'Na iPhone alebo iPade použite Zdieľať a zvoľte Pridať na plochu.'
+    : 'Rezervácie, obsadenosť a výstrahy otvoríte rýchlo z plochy aj pri slabšom signále.',
+)
 </script>
 
 <template>
@@ -89,16 +121,24 @@ const showing = computed(() => visible.value && deferred.value !== null)
         </div>
         <div class="min-w-0 flex-1">
           <p id="pwa-install-title" class="text-foreground break-words text-sm font-semibold">
-            Inštalovať Rybolov Cetín
+            {{ title }}
           </p>
           <p class="text-foreground-muted mt-0.5 break-words text-xs">
-            Rezervácie, obsadenosť a výstrahy otvoríte rýchlo z plochy aj pri slabšom signále.
+            {{ body }}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <UButton size="xs" color="primary" :loading="installing" @click="install">
+            <UButton
+              v-if="mode === 'native'"
+              size="xs"
+              color="primary"
+              :loading="installing"
+              @click="install"
+            >
               Inštalovať
             </UButton>
-            <UButton size="xs" color="neutral" variant="ghost" @click="dismiss">Neskôr</UButton>
+            <UButton size="xs" color="neutral" variant="ghost" @click="dismiss">
+              {{ mode === 'ios' ? 'Rozumiem' : 'Neskôr' }}
+            </UButton>
           </div>
         </div>
         <button

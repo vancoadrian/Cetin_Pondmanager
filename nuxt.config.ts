@@ -50,7 +50,7 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'apple-touch-icon', href: '/icons/icon-192.svg' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/icons/apple-touch-icon.png' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
     },
@@ -81,15 +81,15 @@ export default defineNuxtConfig({
       scope: '/',
       icons: [
         {
-          src: '/icons/icon-192.svg',
+          src: '/icons/icon-192.png',
           sizes: '192x192',
-          type: 'image/svg+xml',
+          type: 'image/png',
           purpose: 'any',
         },
         {
-          src: '/icons/icon-512.svg',
+          src: '/icons/icon-512.png',
           sizes: '512x512',
-          type: 'image/svg+xml',
+          type: 'image/png',
           purpose: 'any maskable',
         },
       ],

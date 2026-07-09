@@ -57,6 +57,15 @@ interface QueueSection {
   to: string
 }
 
+interface OfflineItem {
+  actionLabel: string
+  description: string
+  icon: string
+  label: string
+  tag: string
+  to: string
+}
+
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 const {
@@ -79,29 +88,37 @@ const syncMessage = ref('')
 const { user } = useMockAuth()
 const currentRole = computed(() => user.value?.role ?? null)
 
-const offlineItems = [
+const offlineItems: OfflineItem[] = [
   {
+    actionLabel: 'Otvoriť mapu',
     description: 'Lovné miesta, chaty a orientácia pri vode ostávajú dostupné z poslednej načítanej verzie.',
     icon: 'i-heroicons-map',
     label: 'Mapa revíru',
+    tag: 'orientácia',
     to: '/mapa',
   },
   {
+    actionLabel: 'Skontrolovať termín',
     description: 'Rozpracovaný výber termínu si skontroluj po návrate signálu pred odoslaním žiadosti.',
     icon: 'i-heroicons-calendar-days',
     label: 'Rezervácie',
+    tag: 'termíny',
     to: '/rezervacie',
   },
   {
+    actionLabel: 'Pozrieť oznamy',
     description: 'Búrkové výstrahy a servisné oznamy sa obnovia pri najbližšom pripojení.',
     icon: 'i-heroicons-bell-alert',
     label: 'Výstrahy',
+    tag: 'bezpečnosť',
     to: '/notifikacie',
   },
   {
+    actionLabel: 'Kontaktovať správcu',
     description: 'Telefón na správcu je dobré mať poruke aj mimo dátového signálu.',
     icon: 'i-heroicons-phone',
     label: 'Kontakt',
+    tag: 'pomoc',
     to: '/kontakt',
   },
 ]
@@ -126,6 +143,7 @@ const totalQueued = computed(() =>
   visibleTournamentRequests.value.length +
   visibleTournamentAdminActions.value.length,
 )
+const hasQueuedItems = computed(() => totalQueued.value > 0)
 const issueCount = computed(() =>
   offlineReservations.value.filter((item) => item.lastError).length +
   offlineCatches.value.filter((item) => item.lastError).length +
@@ -167,6 +185,28 @@ const syncNoticeTone = computed<NoticeTone>(() => {
   if (syncStatus.value === 'syncing') return 'info'
   if (syncStatus.value === 'success') return 'success'
   return 'warning'
+})
+const queueOverviewTitle = computed(() => {
+  if (issueCount.value > 0) return 'Niečo čaká na kontrolu'
+  if (hasQueuedItems.value) return 'Čakajúce odoslania'
+
+  return 'Zariadenie je zosynchronizované'
+})
+const queueOverviewDescription = computed(() => {
+  if (issueCount.value > 0) {
+    return 'Otvorte príslušný formulár, skontrolujte údaje a odošlite položky znova po návrate signálu.'
+  }
+  if (hasQueuedItems.value) {
+    return 'Tieto položky sú uložené iba v tomto zariadení. Po pripojení ich odošlite správcovi alebo do súťažnej prevádzky.'
+  }
+
+  return 'V tomto zariadení nie sú žiadne neodoslané rezervácie, úlovky, hlásenia ani súťažné úkony.'
+})
+const queueOverviewTone = computed<NoticeTone>(() => {
+  if (issueCount.value > 0) return 'warning'
+  if (hasQueuedItems.value) return 'info'
+
+  return 'success'
 })
 
 const queueSections = computed<QueueSection[]>(() => {
@@ -566,34 +606,86 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Čaká v zariadení</p>
-          <p class="mt-2 text-3xl font-bold">{{ totalQueued }}</p>
+      <section class="mt-8">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-2xl font-black tracking-normal text-foreground">Dostupné aj bez signálu</h2>
+            <p class="text-foreground-muted mt-2 max-w-3xl text-sm leading-6">
+              Tieto časti aplikácie majú zmysel otvoriť aj pri slabom internete. Po návrate pripojenia sa údaje obnovia.
+            </p>
+          </div>
+          <StatusBadge
+            :icon="isOnline ? 'i-heroicons-signal' : 'i-heroicons-signal-slash'"
+            :label="isOnline ? 'online' : 'offline'"
+            :tone="isOnline ? 'success' : 'warning'"
+            size="xs"
+          />
         </div>
-        <div
-          class="rounded-card border p-4"
-          :class="issueCount > 0 ? 'border-error-500/25 bg-error-500/10' : 'border-border bg-surface'"
-        >
-          <p class="text-foreground-muted text-sm">Treba skontrolovať</p>
-          <p class="mt-2 text-3xl font-bold" :class="issueCount > 0 ? 'text-error-700' : ''">
-            {{ issueCount }}
-          </p>
-        </div>
-        <div
-          v-for="section in queueSections"
-          :key="section.label"
-          class="rounded-card border border-border bg-surface p-4"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-foreground-muted text-sm">{{ section.label }}</p>
-              <p class="mt-2 text-3xl font-bold">{{ section.count }}</p>
+
+        <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <NuxtLink
+            v-for="item in offlineItems"
+            :key="item.to"
+            :to="item.to"
+            class="rounded-card border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-sm"
+          >
+            <div class="flex items-start gap-3">
+              <div class="rounded-md bg-primary-50 p-2 text-primary-700">
+                <UIcon :name="item.icon" class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="font-bold text-foreground">{{ item.label }}</h3>
+                  <StatusBadge :label="item.tag" tone="neutral" size="xs" />
+                </div>
+                <p class="text-foreground-muted mt-2 text-sm leading-6">{{ item.description }}</p>
+                <p class="text-primary-700 mt-4 inline-flex items-center gap-1 text-sm font-semibold">
+                  {{ item.actionLabel }}
+                  <UIcon name="i-heroicons-arrow-right" class="h-4 w-4" />
+                </p>
+              </div>
             </div>
-            <UIcon :name="section.icon" class="text-primary-700 h-6 w-6" />
+          </NuxtLink>
+        </div>
+      </section>
+
+      <section class="mt-8 space-y-4">
+        <DataStatusNotice
+          :description="queueOverviewDescription"
+          icon="i-heroicons-inbox-stack"
+          :title="queueOverviewTitle"
+          :tone="queueOverviewTone"
+        />
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div class="rounded-card border border-border bg-surface p-4">
+            <p class="text-foreground-muted text-sm">Čaká v zariadení</p>
+            <p class="mt-2 text-3xl font-bold">{{ totalQueued }}</p>
+          </div>
+          <div
+            class="rounded-card border p-4"
+            :class="issueCount > 0 ? 'border-error-500/25 bg-error-500/10' : 'border-border bg-surface'"
+          >
+            <p class="text-foreground-muted text-sm">Treba skontrolovať</p>
+            <p class="mt-2 text-3xl font-bold" :class="issueCount > 0 ? 'text-error-700' : ''">
+              {{ issueCount }}
+            </p>
+          </div>
+          <div
+            v-for="section in queueSections"
+            :key="section.label"
+            class="rounded-card border border-border bg-surface p-4"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-foreground-muted text-sm">{{ section.label }}</p>
+                <p class="mt-2 text-3xl font-bold">{{ section.count }}</p>
+              </div>
+              <UIcon :name="section.icon" class="text-primary-700 h-6 w-6" />
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <DataStatusNotice
         v-if="queueLoadError || syncMessage"
@@ -980,25 +1072,6 @@ onBeforeUnmount(() => {
             description="V tomto zariadení nie sú uložené žiadne neodoslané kontrolórske úkony."
           />
         </section>
-      </div>
-
-      <div class="mt-8 grid gap-4 md:grid-cols-2">
-        <NuxtLink
-          v-for="item in offlineItems"
-          :key="item.to"
-          :to="item.to"
-          class="rounded-card border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-sm"
-        >
-          <div class="flex items-start gap-3">
-            <div class="rounded-full bg-primary-50 p-2 text-primary-700">
-              <UIcon :name="item.icon" class="h-5 w-5" />
-            </div>
-            <div>
-              <h3 class="font-bold">{{ item.label }}</h3>
-              <p class="text-foreground-muted mt-1 text-sm">{{ item.description }}</p>
-            </div>
-          </div>
-        </NuxtLink>
       </div>
     </section>
   </div>

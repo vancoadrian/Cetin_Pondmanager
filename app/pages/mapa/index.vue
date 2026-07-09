@@ -14,7 +14,7 @@ import {
 } from '~/services/offlinePlaceIssueQueueService'
 import type { PlaceIssueSubmissionSuccess } from '~/services/placeIssueService'
 import { getPegAvailability } from '~/utils/availability'
-import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
+import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 
 useHead({ title: 'Mapa lovných miest' })
 
@@ -140,6 +140,9 @@ const reservableCount = computed(() =>
   availabilityRows.value.filter((row) => row.availability.reservable).length,
 )
 const unavailableCount = computed(() => Math.max(availabilityRows.value.length - reservableCount.value, 0))
+const firstReservableRow = computed(() =>
+  availabilityRows.value.find((row) => row.availability.reservable),
+)
 const selectedPeg = computed(() => lakePegs.value.find((peg) => peg.id === selectedPegId.value))
 const selectedAvailability = computed(() =>
   selectedPeg.value
@@ -172,6 +175,31 @@ const reservationActionLabel = computed(() => {
   if (!selectedPegCanReserve.value) return 'Miesto nie je dostupné'
 
   return 'Rezervovať vybrané miesto'
+})
+const mapRangeLabel = computed(() => formatAvailabilityDateRange(dateFrom.value, dateTo.value))
+const selectedIssueContextLabel = computed(() => {
+  if (!selectedPeg.value) return currentLake.value.name
+
+  return `${selectedPeg.value.label} · ${mapRangeLabel.value}`
+})
+const mapVisibilityTitle = computed(() => {
+  if (showOnlyReservable.value) return 'Mapa ukazuje iba voľné miesta'
+  if (reservableCount.value === 0) return 'V tomto termíne nie je voľné miesto'
+
+  return 'Mapa ukazuje voľné aj obsadené miesta'
+})
+const mapVisibilityDescription = computed(() => {
+  if (availabilityRows.value.length === 0) return 'Pre toto jazero zatiaľ nie sú zverejnené lovné miesta.'
+  if (showOnlyReservable.value) {
+    return unavailableCount.value > 0
+      ? `Skryté sú ${unavailableCount.value} obsadené alebo blokované miesta. Zmeňte termín alebo zobrazte všetky miesta, ak chcete vidieť dôvod.`
+      : 'Všetky zverejnené miesta sú v tomto termíne rezervovateľné.'
+  }
+  if (reservableCount.value === 0) {
+    return 'Skúste iný termín alebo druhé jazero. Dôvod nedostupnosti vidíte pri každom mieste v zozname.'
+  }
+
+  return `Rezervovateľné miesta sú zvýraznené na mape aj v zozname. Najrýchlejšie môžete vybrať ${firstReservableRow.value?.peg.label ?? 'prvé voľné miesto'}.`
 })
 
 function formatMapDate(value: string) {
@@ -275,6 +303,10 @@ watch(selectedLake, () => {
   issueForm.targetKey = selectedPegId.value ? `peg:${selectedPegId.value}` : `lake:${selectedLake.value}`
 })
 
+watch(selectedPegId, (pegId) => {
+  issueForm.targetKey = pegId ? `peg:${pegId}` : `lake:${selectedLake.value}`
+})
+
 watch(visiblePegs, (points) => {
   if (!points.some((point) => point.id === selectedPegId.value)) {
     selectedPegId.value = points[0]?.id ?? ''
@@ -301,6 +333,18 @@ watch(
 function selectPeg(peg: Peg) {
   selectedPegId.value = peg.id
   issueForm.targetKey = `peg:${peg.id}`
+}
+
+function selectFirstReservablePlace() {
+  const row = firstReservableRow.value
+  if (!row) return
+
+  showOnlyReservable.value = true
+  selectPeg(row.peg)
+}
+
+function showAllPlaces() {
+  showOnlyReservable.value = false
 }
 
 function applyIssueTemplate(template: (typeof issueTemplateCards)[number]) {
@@ -532,6 +576,51 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <div class="mb-5 rounded-md border border-border bg-white p-4">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div class="flex items-start gap-3">
+            <UIcon
+              :name="showOnlyReservable ? 'i-heroicons-funnel' : 'i-heroicons-map'"
+              class="mt-0.5 h-5 w-5 shrink-0 text-primary-700"
+            />
+            <div>
+              <h2 class="text-sm font-bold">{{ mapVisibilityTitle }}</h2>
+              <p class="mt-1 text-sm text-foreground-muted">{{ mapVisibilityDescription }}</p>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center lg:shrink-0">
+            <UButton
+              v-if="firstReservableRow"
+              type="button"
+              icon="i-heroicons-check-circle"
+              variant="soft"
+              @click="selectFirstReservablePlace"
+            >
+              Vybrať prvé voľné
+            </UButton>
+            <UButton
+              v-if="showOnlyReservable"
+              type="button"
+              icon="i-heroicons-map-pin"
+              variant="ghost"
+              @click="showAllPlaces"
+            >
+              Ukázať všetky miesta
+            </UButton>
+            <UButton
+              v-else
+              type="button"
+              icon="i-heroicons-funnel"
+              variant="ghost"
+              :disabled="reservableCount === 0"
+              @click="showOnlyReservable = true"
+            >
+              Ukázať iba voľné
+            </UButton>
+          </div>
+        </div>
+      </div>
+
       <DataStatusNotice
         v-if="isMapStateLoading || hasMapStateError"
         class="mb-5"
@@ -561,36 +650,35 @@ onBeforeUnmount(() => {
 
       <div class="mt-8 grid gap-6 lg:grid-cols-[0.7fr_1.3fr]">
         <div class="border-border bg-surface rounded-card border p-5">
-          <h2 class="text-lg font-bold">Vybrané miesto</h2>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold">Nahlásiť nedostatok</h2>
+              <p class="text-foreground-muted mt-1 text-sm">
+                Hlásenie sa priradí k vybranému miestu, jazeru alebo servisnému bodu.
+              </p>
+            </div>
+            <UIcon name="i-heroicons-wrench-screwdriver" class="text-primary-700 h-5 w-5 shrink-0" />
+          </div>
           <div v-if="selectedPeg" class="mt-4 space-y-4">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-2xl font-bold">{{ selectedPeg.label }}</p>
-              <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
-            </div>
-            <p class="text-foreground-muted text-sm">{{ selectedPeg.notes }}</p>
-            <p v-if="selectedAvailabilityReason" class="text-primary-800 text-sm font-semibold">
-              {{ selectedAvailabilityReason }}
-            </p>
-            <div class="grid grid-cols-2 gap-3">
-              <div class="bg-muted rounded-md p-3">
-                <p class="text-foreground-muted text-xs">Kapacita</p>
-                <p class="font-semibold">{{ selectedPeg.capacity }} osoby</p>
+            <div class="rounded-md border border-border bg-muted/60 p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-foreground-muted text-xs">Aktuálny kontext</p>
+                  <p class="truncate font-bold">{{ selectedIssueContextLabel }}</p>
+                </div>
+                <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
               </div>
-              <div class="bg-muted rounded-md p-3">
-                <p class="text-foreground-muted text-xs">Typ</p>
-                <p class="font-semibold">{{ selectedPeg.type === 'cabin' ? 'chata' : 'breh' }}</p>
-              </div>
+              <p class="text-foreground-muted mt-2 text-sm">{{ selectedPeg.notes }}</p>
             </div>
-
             <form class="border-border space-y-3 border-t pt-4" @submit.prevent="submitPlaceIssue">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <h3 class="font-bold">Nahlásiť nedostatok</h3>
+                  <h3 class="font-bold">Čo treba vyriešiť</h3>
                   <p class="text-foreground-muted mt-1 text-sm">
                     Správca dostane miesto, kategóriu a popis. Kontakt vyplňte iba vtedy, ak má zavolať späť.
                   </p>
                 </div>
-                <UIcon name="i-heroicons-wrench-screwdriver" class="text-primary-700 h-5 w-5" />
+                <UIcon name="i-heroicons-paper-airplane" class="text-primary-700 h-5 w-5" />
               </div>
 
               <div class="rounded-md border border-border bg-muted/60 p-3">
@@ -715,6 +803,13 @@ onBeforeUnmount(() => {
               </div>
             </form>
           </div>
+          <AppState
+            v-else
+            class="mt-4"
+            title="Najprv vyberte miesto"
+            description="Kliknite na bod v mape alebo vypnite filter, ak chcete nahlásiť problém na obsadenom mieste."
+            icon="i-heroicons-map-pin"
+          />
         </div>
 
         <div class="border-border bg-surface rounded-card border p-5">

@@ -399,6 +399,12 @@ const activeLogbook = computed(() =>
   liveTripLogbooks.value.find((logbook) => logbook.status === 'active') ??
   liveTripLogbooks.value[0],
 )
+const activeLogbookCanAddCatch = computed(() =>
+  Boolean(activeLogbook.value && activeLogbook.value.status !== 'closed'),
+)
+const selectedCatchLogbook = computed(() =>
+  liveTripLogbooks.value.find((logbook) => logbook.id === selectedCatchLogbookId.value),
+)
 const activeEntries = computed(() =>
   activeLogbook.value
     ? liveTripLogbookEntries.value.filter((entry) => entry.logbookId === activeLogbook.value?.id)
@@ -849,10 +855,35 @@ const openLogbookByCode = async () => {
 
 async function openLogbookFromQuery() {
   const code = typeof route.query.zapisnik === 'string' ? route.query.zapisnik.trim() : ''
-  if (!code || logbookCodeForm.code === code && activeLogbook.value) return
+  if (!code) return
 
-  logbookCodeForm.code = code
-  await openLogbookByCode()
+  if (logbookCodeForm.code !== code || !activeLogbook.value) {
+    logbookCodeForm.code = code
+    await openLogbookByCode()
+  }
+
+  if (route.hash === '#pridat-ulovok') {
+    prepareCatchForActiveLogbook()
+  }
+}
+
+function prepareCatchForActiveLogbook() {
+  const logbook = activeLogbook.value
+  if (!logbook || logbook.status === 'closed') return
+
+  selectedCatchLogbookId.value = logbook.id
+  catchForm.lake = logbook.lake
+  catchForm.pegId = logbook.pegIds[0] ?? catchForm.pegId
+  if (!catchForm.angler.trim()) catchForm.angler = logbook.owner
+
+  if (!import.meta.client) return
+
+  void nextTick(() => {
+    document.getElementById('pridat-ulovok')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  })
 }
 
 const submitCatch = async () => {
@@ -881,7 +912,7 @@ const submitCatch = async () => {
       selectedLogbookId.value = result.logbookEntry.logbookId
     }
     catchSubmitStatus.value = 'success'
-    catchSubmitMessage.value = `${result.message} ID: ${result.catch.id}.`
+    catchSubmitMessage.value = result.message
     clearCatchPhoto()
     await refreshCatchState()
   }
@@ -949,7 +980,7 @@ watch(() => catchForm.lake, () => {
   catchForm.pegId = catchPegs.value[0]?.id ?? ''
 })
 
-watch(() => route.query.zapisnik, () => {
+watch(() => [route.query.zapisnik, route.hash], () => {
   if (import.meta.client) void openLogbookFromQuery()
 })
 
@@ -1114,8 +1145,15 @@ watch(catchValidation, () => {
               <div>
                 <div class="flex items-center justify-between gap-3">
                   <h3 class="font-bold">Tabuľka úlovkov</h3>
-                  <UButton size="sm" icon="i-heroicons-plus" variant="soft">
-                    Pridať riadok
+                  <UButton
+                    type="button"
+                    size="sm"
+                    icon="i-heroicons-plus"
+                    variant="soft"
+                    :disabled="!activeLogbookCanAddCatch"
+                    @click="prepareCatchForActiveLogbook"
+                  >
+                    {{ activeLogbookCanAddCatch ? 'Pridať riadok' : 'Zápisník je uzavretý' }}
                   </UButton>
                 </div>
                 <div v-if="activeEntries.length" class="mt-3 overflow-x-auto">
@@ -1391,8 +1429,23 @@ watch(catchValidation, () => {
             </form>
           </div>
 
-          <div v-if="isAnglerLoggedIn || activeLogbook" class="border-border bg-surface rounded-card border p-5">
+          <div
+            v-if="isAnglerLoggedIn || activeLogbook"
+            id="pridat-ulovok"
+            class="border-border bg-surface rounded-card scroll-mt-24 border p-5"
+          >
             <h2 class="text-lg font-bold">Pridať úlovok</h2>
+            <DataStatusNotice
+              class="mt-4"
+              :description="
+                selectedCatchLogbook
+                  ? `Riadok pribudne v tabuľke ${selectedCatchLogbook.shareCode}. Verejne sa úlovok zobrazí až po schválení správcom.`
+                  : 'Úlovok sa odošle ako samostatný záznam. Verejne sa zobrazí až po schválení správcom.'
+              "
+              :icon="selectedCatchLogbook ? 'i-heroicons-table-cells' : 'i-heroicons-clipboard-document-check'"
+              :title="selectedCatchLogbook ? `Zápis do: ${selectedCatchLogbook.title}` : 'Samostatný úlovok'"
+              tone="info"
+            />
             <div
               v-if="!isOnline || offlineCatchQueue.length > 0 || offlineSyncMessage"
               class="mt-4 space-y-3"
