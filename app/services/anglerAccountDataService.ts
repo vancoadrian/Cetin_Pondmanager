@@ -9,6 +9,7 @@ import type {
 import type { CatchWorkflowState } from '~/services/catchApiService'
 import {
   getMockAnglerAccountEmails,
+  getMockAnglerAccountNames,
   type MockAnglerAccount,
 } from '~/services/anglerAccountService'
 import type { AccountReservation } from '~/services/reservationApiService'
@@ -49,10 +50,12 @@ export interface AnglerAccountDataExport {
     emailAliases: string[]
     id: string
     name: string
+    nameAliases: string[]
+    phone?: string
   }
   catches: AccountDataExportCatch[]
   exportedAt: string
-  formatVersion: 1
+  formatVersion: 2
   photos: AccountDataExportPhoto[]
   rentalBookings: RentalBooking[]
   reservations: AccountReservation[]
@@ -72,7 +75,7 @@ function normalizeIdentity(value?: string | null) {
 }
 
 function isAccountIdentity(account: MockAnglerAccount, userId?: string, name?: string) {
-  return userId === account.id || normalizeIdentity(name) === normalizeIdentity(account.name)
+  return userId === account.id || getMockAnglerAccountNames(account).includes(normalizeIdentity(name))
 }
 
 function toAccountReservation(reservation: Reservation): AccountReservation {
@@ -185,10 +188,12 @@ export function createAnglerAccountDataExport(
       emailAliases: account.emailAliases ? [...account.emailAliases] : [],
       id: account.id,
       name: account.name,
+      nameAliases: account.nameAliases ? [...account.nameAliases] : [],
+      phone: account.phone,
     },
     catches,
     exportedAt,
-    formatVersion: 1,
+    formatVersion: 2,
     photos,
     rentalBookings: reservationSelection.rentalBookings,
     reservations: reservationSelection.reservations,

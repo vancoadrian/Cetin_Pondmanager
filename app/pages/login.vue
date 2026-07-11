@@ -72,6 +72,7 @@ const loginNotice = computed(() => requestedRedirect.value
 )
 const accountWasDeleted = computed(() => route.query.stav === 'ucet-zmazany')
 const passwordWasReset = computed(() => route.query.stav === 'heslo-obnovene')
+const passwordWasChanged = computed(() => route.query.stav === 'heslo-zmenene')
 const accountStatusNotice = computed(() => {
   if (accountWasDeleted.value) {
     return {
@@ -83,6 +84,12 @@ const accountStatusNotice = computed(() => {
     return {
       description: 'Heslo bolo úspešne obnovené. Teraz sa môžete prihlásiť novým heslom.',
       title: 'Heslo je obnovené',
+    }
+  }
+  if (passwordWasChanged.value) {
+    return {
+      description: 'Heslo bolo úspešne zmenené. Prihláste sa novým heslom.',
+      title: 'Heslo je zmenené',
     }
   }
   return undefined

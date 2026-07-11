@@ -22,6 +22,14 @@ export interface LocalCredentialOverride {
   updatedAt: string
 }
 
+export interface LocalAccountProfileOverride {
+  accountId: string
+  name: string
+  phone?: string
+  previousNames: string[]
+  updatedAt: string
+}
+
 export interface LocalPasswordResetRecord {
   accountId: string
   createdAt: string
@@ -34,6 +42,7 @@ export interface LocalAccountState {
   credentialOverrides: LocalCredentialOverride[]
   deletions: LocalAccountDeletionRecord[]
   passwordResets: LocalPasswordResetRecord[]
+  profileOverrides: LocalAccountProfileOverride[]
   registeredAccounts: LocalRegisteredAnglerAccount[]
   updatedAt: string
   version: 1
@@ -49,6 +58,7 @@ export function createSeedAccountState(updatedAt = new Date(0).toISOString()): L
     credentialOverrides: [],
     deletions: [],
     passwordResets: [],
+    profileOverrides: [],
     registeredAccounts: [],
     updatedAt,
     version: 1,
@@ -78,6 +88,12 @@ export async function readLocalAccountState(
         passwordResets: Array.isArray(parsed.passwordResets)
           ? parsed.passwordResets.map((reset) => ({ ...reset }))
           : [],
+        profileOverrides: Array.isArray(parsed.profileOverrides)
+          ? parsed.profileOverrides.map((profile) => ({
+              ...profile,
+              previousNames: Array.isArray(profile.previousNames) ? [...profile.previousNames] : [],
+            }))
+          : [],
         registeredAccounts: Array.isArray(parsed.registeredAccounts)
           ? parsed.registeredAccounts.map((account) => ({ ...account }))
           : [],
@@ -97,7 +113,7 @@ export async function readLocalAccountState(
 }
 
 export async function writeLocalAccountState(
-  state: Pick<LocalAccountState, 'credentialOverrides' | 'deletions' | 'passwordResets' | 'registeredAccounts'>,
+  state: Pick<LocalAccountState, 'credentialOverrides' | 'deletions' | 'passwordResets' | 'profileOverrides' | 'registeredAccounts'>,
   filePath = resolveLocalAccountStorePath(),
 ): Promise<LocalAccountState> {
   const nextState: LocalAccountState = {
@@ -107,6 +123,10 @@ export async function writeLocalAccountState(
       summary: { ...record.summary },
     })),
     passwordResets: state.passwordResets.map((reset) => ({ ...reset })),
+    profileOverrides: state.profileOverrides.map((profile) => ({
+      ...profile,
+      previousNames: [...profile.previousNames],
+    })),
     registeredAccounts: state.registeredAccounts.map((account) => ({ ...account })),
     updatedAt: new Date().toISOString(),
     version: 1,
@@ -147,6 +167,14 @@ export async function findLocalCredentialOverride(
   return state.credentialOverrides.find((credential) => credential.accountId === accountId)
 }
 
+export async function findLocalAccountProfileOverride(
+  accountId: string,
+  filePath = resolveLocalAccountStorePath(),
+) {
+  const state = await readLocalAccountState(filePath)
+  return state.profileOverrides.find((profile) => profile.accountId === accountId)
+}
+
 export async function addLocalRegisteredAccount(
   account: LocalRegisteredAnglerAccount,
   filePath = resolveLocalAccountStorePath(),
@@ -156,6 +184,7 @@ export async function addLocalRegisteredAccount(
     credentialOverrides: state.credentialOverrides,
     deletions: state.deletions,
     passwordResets: state.passwordResets,
+    profileOverrides: state.profileOverrides,
     registeredAccounts: [account, ...state.registeredAccounts],
   }, filePath)
 }
@@ -175,6 +204,7 @@ export async function saveLocalPasswordReset(
         item.accountId !== reset.accountId && new Date(item.expiresAt).getTime() > now,
       ),
     ],
+    profileOverrides: state.profileOverrides,
     registeredAccounts: state.registeredAccounts,
   }, filePath)
 }
@@ -202,6 +232,7 @@ export async function discardLocalPasswordReset(
     credentialOverrides: state.credentialOverrides,
     deletions: state.deletions,
     passwordResets: state.passwordResets.filter((reset) => reset.id !== resetId),
+    profileOverrides: state.profileOverrides,
     registeredAccounts: state.registeredAccounts,
   }, filePath)
 }
@@ -234,8 +265,9 @@ export async function completeLocalPasswordReset(
     credentialOverrides,
     deletions: state.deletions,
     passwordResets: state.passwordResets.filter((item) => item.id !== reset.id),
+    profileOverrides: state.profileOverrides,
     registeredAccounts: state.registeredAccounts.map((item) =>
-      item.id === account.id ? { ...item, passwordHash } : item,
+      item.id === reset.accountId ? { ...item, passwordHash } : item,
     ),
   }, filePath)
 
@@ -263,9 +295,44 @@ export async function updateLocalAccountPassword(
         ],
     deletions: state.deletions,
     passwordResets: state.passwordResets.filter((reset) => reset.accountId !== accountId),
+    profileOverrides: state.profileOverrides,
     registeredAccounts: state.registeredAccounts.map((account) =>
       account.id === accountId ? { ...account, passwordHash } : account,
     ),
+  }, filePath)
+}
+
+export async function updateLocalAccountProfile(
+  accountId: string,
+  currentName: string,
+  profile: { name: string, phone?: string },
+  now = new Date(),
+  filePath = resolveLocalAccountStorePath(),
+) {
+  const state = await readLocalAccountState(filePath)
+  const existing = state.profileOverrides.find((item) => item.accountId === accountId)
+  const previousNames = [
+    ...(existing?.previousNames ?? []),
+    ...(currentName !== profile.name ? [currentName] : []),
+  ]
+    .map((name) => name.trim())
+    .filter((name, index, names) => Boolean(name) && name !== profile.name && names.indexOf(name) === index)
+
+  return writeLocalAccountState({
+    credentialOverrides: state.credentialOverrides,
+    deletions: state.deletions,
+    passwordResets: state.passwordResets,
+    profileOverrides: [
+      {
+        accountId,
+        name: profile.name,
+        phone: profile.phone,
+        previousNames,
+        updatedAt: now.toISOString(),
+      },
+      ...state.profileOverrides.filter((item) => item.accountId !== accountId),
+    ],
+    registeredAccounts: state.registeredAccounts,
   }, filePath)
 }
 
@@ -283,6 +350,7 @@ export async function markLocalAccountDeleted(
     credentialOverrides: state.credentialOverrides.filter((credential) => credential.accountId !== record.accountId),
     deletions,
     passwordResets: state.passwordResets.filter((reset) => reset.accountId !== record.accountId),
+    profileOverrides: state.profileOverrides.filter((profile) => profile.accountId !== record.accountId),
     registeredAccounts: state.registeredAccounts.filter((account) => account.id !== record.accountId),
   }, filePath)
 }

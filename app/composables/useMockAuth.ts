@@ -25,6 +25,7 @@ export interface MockUser {
   tournamentId?: string
   description: string
   permissions: string[]
+  phone?: string
 }
 
 export type PublicMockUser = Omit<MockUser, 'password'>
@@ -207,6 +208,16 @@ export function useMockAuth() {
     sessionUser.value = authenticatedUser
   }
 
+  function updateAuthenticatedProfile(profile: { id: string, name: string, phone?: string }) {
+    if (!user.value || user.value.id !== profile.id || user.value.role !== 'angler') return
+
+    sessionUser.value = {
+      ...user.value,
+      name: profile.name,
+      phone: profile.phone,
+    }
+  }
+
   function getAuthErrorMessage(error: unknown, fallback: string) {
     const fetchError = error as {
       data?: {
@@ -269,6 +280,7 @@ export function useMockAuth() {
     login,
     logout,
     register,
+    updateAuthenticatedProfile,
     user,
   }
 }

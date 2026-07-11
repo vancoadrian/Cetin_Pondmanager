@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountPasswordChangePayloadSchema,
+  accountProfilePayloadSchema,
   accountRegistrationPayloadSchema,
   catchCorrectionInputSchema,
   catchModerationInputSchema,
@@ -73,6 +75,59 @@ describe('password reset schemas', () => {
     expect(getValidationMessages(result)).toEqual(expect.arrayContaining([
       'Heslo musí mať aspoň 10 znakov.',
       'Odkaz na obnovu hesla nie je platný.',
+    ]))
+  })
+})
+
+describe('accountPasswordChangePayloadSchema', () => {
+  it('accepts a strong replacement that differs from the current password', () => {
+    expect(accountPasswordChangePayloadSchema.safeParse({
+      currentPassword: 'PovodneHeslo2026',
+      password: 'NoveHeslo2026',
+    }).success).toBe(true)
+  })
+
+  it('rejects a missing current password, weak replacement and unchanged password', () => {
+    const invalid = accountPasswordChangePayloadSchema.safeParse({
+      currentPassword: '',
+      password: 'slabe',
+    })
+    expect(invalid.success).toBe(false)
+    if (invalid.success) throw new Error('Weak password change should be invalid.')
+    expect(getValidationMessages(invalid)).toEqual(expect.arrayContaining([
+      'Doplňte aktuálne heslo.',
+      'Heslo musí mať aspoň 10 znakov.',
+    ]))
+
+    const unchanged = accountPasswordChangePayloadSchema.safeParse({
+      currentPassword: 'RovnakeHeslo2026',
+      password: 'RovnakeHeslo2026',
+    })
+    expect(unchanged.success).toBe(false)
+    if (unchanged.success) throw new Error('Unchanged password should be invalid.')
+    expect(getValidationMessages(unchanged)).toContain('Nové heslo musí byť odlišné od aktuálneho hesla.')
+  })
+})
+
+describe('accountProfilePayloadSchema', () => {
+  it('trims a valid profile and allows an empty optional phone', () => {
+    const result = accountProfilePayloadSchema.safeParse({
+      name: '  Marek Novák  ',
+      phone: '  +421 900 123 456  ',
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Valid account profile should pass.')
+    expect(result.data).toEqual({ name: 'Marek Novák', phone: '+421 900 123 456' })
+    expect(accountProfilePayloadSchema.safeParse({ name: 'Marek Novák', phone: '' }).success).toBe(true)
+  })
+
+  it('rejects an incomplete name and malformed phone', () => {
+    const result = accountProfilePayloadSchema.safeParse({ name: 'M', phone: 'telefón' })
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Invalid account profile should fail.')
+    expect(getValidationMessages(result)).toEqual(expect.arrayContaining([
+      'Doplňte meno.',
+      'Telefón môže obsahovať iba čísla, medzery a znak +.',
     ]))
   })
 })

@@ -7,10 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type { PublicMockUser } from '~/app/composables/useMockAuth'
 import type { AccountDeletionResponse } from '~/app/services/accountDeletionService'
+import type { AccountProfileUpdateResponse } from '~/app/services/accountProfileService'
 import type { AnglerAccountDataExport } from '~/app/services/anglerAccountDataService'
 import accountDeleteHandler from '~/server/api/account/delete.post'
 import accountExportHandler from '~/server/api/account/export.get'
 import accountLogbooksHandler from '~/server/api/account/logbooks.get'
+import accountProfileHandler from '~/server/api/account/profile.put'
 import loginHandler from '~/server/api/auth/login.post'
 import { readLocalAccountState } from '~/server/utils/localAccountStore'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
@@ -62,6 +64,7 @@ function createRouteApp() {
   router.post('/api/account/delete', accountDeleteHandler)
   router.get('/api/account/export', accountExportHandler)
   router.get('/api/account/logbooks', accountLogbooksHandler)
+  router.put('/api/account/profile', accountProfileHandler)
   app.use(router.handler)
   return app
 }
@@ -134,6 +137,82 @@ describe('account deletion routes', () => {
       })
       expect(wrongPassword.response.status).toBe(422)
       expect(wrongPassword.body.statusMessage).toBe('Aktuálne heslo nie je správne.')
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('updates the seeded angler profile while preserving old-name history and private audit data', async () => {
+    const server = await startRouteServer()
+    try {
+      const anonymous = await requestJson<{ statusMessage: string }>(server, '/api/account/profile', {
+        body: { name: 'Marek Novák', phone: '+421 900 123 456' },
+        method: 'PUT',
+      })
+      expect(anonymous.response.status).toBe(401)
+
+      const invalid = await requestJson<{ data: { messages: string[] } }>(server, '/api/account/profile', {
+        body: { name: 'M', phone: 'nesprávny telefón' },
+        cookie: MAREK_COOKIE,
+        method: 'PUT',
+      })
+      expect(invalid.response.status).toBe(422)
+
+      const updated = await requestJson<AccountProfileUpdateResponse>(server, '/api/account/profile', {
+        body: { name: '  Marek Novák  ', phone: ' +421 900 123 456 ' },
+        cookie: MAREK_COOKIE,
+        method: 'PUT',
+      })
+      expect(updated.response.status).toBe(200)
+      expect(updated.body.account).toEqual({
+        email: 'marek.horvath@example.test',
+        id: 'angler-marek',
+        name: 'Marek Novák',
+        phone: '+421 900 123 456',
+      })
+
+      const accountState = await readLocalAccountState()
+      expect(accountState.profileOverrides).toContainEqual(expect.objectContaining({
+        accountId: 'angler-marek',
+        name: 'Marek Novák',
+        phone: '+421 900 123 456',
+        previousNames: ['Marek H.'],
+      }))
+
+      const login = await requestJson<{ ok: true, user: PublicMockUser }>(server, '/api/auth/login', {
+        body: { email: 'marek.h@example.com', password: 'Cetin2026!' },
+        method: 'POST',
+      })
+      expect(login.body.user).toMatchObject({ name: 'Marek Novák', phone: '+421 900 123 456' })
+
+      const exportResult = await requestJson<AnglerAccountDataExport>(server, '/api/account/export', {
+        cookie: MAREK_COOKIE,
+      })
+      expect(exportResult.body.formatVersion).toBe(2)
+      expect(exportResult.body.account).toMatchObject({
+        name: 'Marek Novák',
+        nameAliases: ['Marek H.'],
+        phone: '+421 900 123 456',
+      })
+      expect(exportResult.body.catches.some((catchItem) => catchItem.angler === 'Marek H.')).toBe(true)
+
+      const auditState = await readLocalAuditLogState()
+      expect(auditState.events).toContainEqual(expect.objectContaining({
+        action: 'account.profile_updated',
+        details: { changedName: true, changedPhone: true },
+      }))
+      expect(JSON.stringify(auditState)).not.toContain('Marek Novák')
+      expect(JSON.stringify(auditState)).not.toContain('+421 900 123 456')
+
+      const deleted = await requestJson<AccountDeletionResponse>(server, '/api/account/delete', {
+        body: { confirmation: 'ZMAZAŤ', password: 'Cetin2026!' },
+        cookie: MAREK_COOKIE,
+        method: 'POST',
+      })
+      expect(deleted.response.status).toBe(200)
+      expect(deleted.body.summary).toEqual({ catches: 1, logbookEntries: 1, logbooks: 1, reservations: 1 })
+      expect((await readLocalAccountState()).profileOverrides).toEqual([])
     }
     finally {
       await server.close()

@@ -49,6 +49,8 @@ export const auditActionLabels: Record<string, string> = {
   'account.created': 'Účet vytvorený',
   'account.data_export.downloaded': 'Údaje účtu stiahnuté',
   'account.deleted': 'Účet zmazaný',
+  'account.password_changed': 'Heslo zmenené',
+  'account.profile_updated': 'Profil upravený',
   'account.password_reset.completed': 'Heslo obnovené',
   'account.password_reset.requested': 'Obnova hesla vyžiadaná',
   'catch.record.created': 'Nový úlovok',

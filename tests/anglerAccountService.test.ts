@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   findMockAnglerAccountByEmail,
+  getMockAnglerAccountNames,
   getMockAnglerAccountEmails,
   mockAnglerAccounts,
 } from '~/app/services/anglerAccountService'
@@ -16,5 +17,10 @@ describe('angler account service', () => {
     expect(getMockAnglerAccountEmails(marek)).toContain('marek.h@example.com')
     expect(findMockAnglerAccountByEmail('  MAREK.H@EXAMPLE.COM  ')?.id).toBe('angler-marek')
     expect(findMockAnglerAccountByEmail('marek.horvath@example.test')?.id).toBe('angler-marek')
+    expect(getMockAnglerAccountNames({
+      ...marek,
+      name: 'Marek Novák',
+      nameAliases: ['Marek H.'],
+    })).toEqual(['marek novák', 'marek h.'])
   })
 })

@@ -4,6 +4,8 @@ import {
   ACCOUNT_DELETION_CONFIRMATION,
   type AccountDeletionResponse,
 } from '~/services/accountDeletionService'
+import type { AccountProfileUpdateResponse } from '~/services/accountProfileService'
+import type { AccountPasswordChangeResponse } from '~/services/accountSecurityService'
 import type { AnglerLogbooksResponse } from '~/services/catchApiService'
 import type { AccountReservation, AnglerReservationsResponse } from '~/services/reservationApiService'
 
@@ -16,7 +18,7 @@ const {
   permitProducts,
 } = usePondData()
 const { account } = useMockAnglerAuth()
-const { logout } = useMockAuth()
+const { logout, updateAuthenticatedProfile } = useMockAuth()
 const requestFetch = useRequestFetch()
 const { liveCabinProducts } = await useCabinCatalogState({ key: 'angler-account-cabin-catalog-state' })
 const { livePaymentMethods } = await usePaymentMethodState({ key: 'angler-account-payment-method-state' })
@@ -116,6 +118,18 @@ const hasAnyAccountData = computed(() =>
 )
 const accountExportStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const accountExportMessage = ref('')
+const showProfileEditor = ref(false)
+const profileName = ref(account.value?.name ?? '')
+const profilePhone = ref(account.value?.phone ?? '')
+const profileStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const profileMessage = ref('')
+const showPasswordChange = ref(false)
+const showPasswordChangeValues = ref(false)
+const currentPassword = ref('')
+const newPassword = ref('')
+const newPasswordConfirmation = ref('')
+const passwordChangeStatus = ref<'idle' | 'submitting' | 'error'>('idle')
+const passwordChangeMessage = ref('')
 const showAccountDeletion = ref(false)
 const accountDeletionPassword = ref('')
 const accountDeletionConfirmation = ref('')
@@ -125,6 +139,32 @@ const canDeleteAccount = computed(() =>
   Boolean(account.value)
   && accountDeletionPassword.value.length > 0
   && accountDeletionConfirmation.value === ACCOUNT_DELETION_CONFIRMATION,
+)
+const canChangePassword = computed(() =>
+  Boolean(account.value)
+  && currentPassword.value.length > 0
+  && newPassword.value.length >= 10
+  && newPassword.value === newPasswordConfirmation.value,
+)
+const normalizedProfileName = computed(() => profileName.value.trim())
+const normalizedProfilePhone = computed(() => profilePhone.value.trim())
+const profilePhoneIsValid = computed(() =>
+  normalizedProfilePhone.value.length === 0
+  || (
+    normalizedProfilePhone.value.length >= 7
+    && /^\+?[0-9\s./-]+$/.test(normalizedProfilePhone.value)
+  ),
+)
+const profileIsDirty = computed(() =>
+  normalizedProfileName.value !== account.value?.name
+  || normalizedProfilePhone.value !== (account.value?.phone ?? ''),
+)
+const canSaveProfile = computed(() =>
+  Boolean(account.value)
+  && normalizedProfileName.value.length >= 2
+  && normalizedProfileName.value.length <= 80
+  && profilePhoneIsValid.value
+  && profileIsDirty.value,
 )
 const sortedEntries = computed(() =>
   [...accountState.value.tripLogbookEntries].sort((first, second) =>
@@ -178,6 +218,17 @@ const accountSummaryCards = computed(() => [
     value: largestEntry.value ? `${formatWeight(largestEntry.value.weightKg)} kg` : '—',
   },
 ])
+
+watch(
+  account,
+  (currentAccount) => {
+    if (!currentAccount || showProfileEditor.value) return
+
+    profileName.value = currentAccount.name
+    profilePhone.value = currentAccount.phone ?? ''
+  },
+  { immediate: true },
+)
 
 function entriesFor(logbookId: string) {
   return accountState.value.tripLogbookEntries.filter((entry) => entry.logbookId === logbookId)
@@ -409,15 +460,33 @@ async function downloadAccountData() {
   }
 }
 
-function closeAccountDeletion() {
-  showAccountDeletion.value = false
-  accountDeletionPassword.value = ''
-  accountDeletionConfirmation.value = ''
-  accountDeletionStatus.value = 'idle'
-  accountDeletionMessage.value = ''
+function openProfileEditor() {
+  profileName.value = account.value?.name ?? ''
+  profilePhone.value = account.value?.phone ?? ''
+  profileStatus.value = 'idle'
+  profileMessage.value = ''
+  showProfileEditor.value = true
 }
 
-function getAccountDeletionErrorMessage(error: unknown) {
+function closeProfileEditor() {
+  showProfileEditor.value = false
+  profileName.value = account.value?.name ?? ''
+  profilePhone.value = account.value?.phone ?? ''
+  profileStatus.value = 'idle'
+  profileMessage.value = ''
+}
+
+function closePasswordChange() {
+  showPasswordChange.value = false
+  showPasswordChangeValues.value = false
+  currentPassword.value = ''
+  newPassword.value = ''
+  newPasswordConfirmation.value = ''
+  passwordChangeStatus.value = 'idle'
+  passwordChangeMessage.value = ''
+}
+
+function getAccountActionErrorMessage(error: unknown, fallback: string) {
   const fetchError = error as {
     data?: {
       data?: { messages?: string[] }
@@ -429,7 +498,74 @@ function getAccountDeletionErrorMessage(error: unknown) {
   return fetchError.data?.data?.messages?.join(' ')
     || fetchError.data?.message
     || fetchError.data?.statusMessage
-    || 'Účet sa nepodarilo zmazať.'
+    || fallback
+}
+
+async function submitProfile() {
+  if (!canSaveProfile.value || profileStatus.value === 'submitting') return
+
+  profileStatus.value = 'submitting'
+  profileMessage.value = ''
+  try {
+    const response = await $fetch<AccountProfileUpdateResponse>('/api/account/profile', {
+      body: {
+        name: normalizedProfileName.value,
+        phone: normalizedProfilePhone.value,
+      },
+      method: 'PUT',
+    })
+    updateAuthenticatedProfile(response.account)
+    profileName.value = response.account.name
+    profilePhone.value = response.account.phone ?? ''
+    showProfileEditor.value = false
+    profileStatus.value = 'success'
+    profileMessage.value = response.message
+  }
+  catch (error) {
+    profileStatus.value = 'error'
+    profileMessage.value = getAccountActionErrorMessage(error, 'Osobné údaje sa nepodarilo uložiť.')
+  }
+}
+
+async function submitPasswordChange() {
+  passwordChangeMessage.value = ''
+  if (newPassword.value !== newPasswordConfirmation.value) {
+    passwordChangeStatus.value = 'error'
+    passwordChangeMessage.value = 'Zadané nové heslá sa nezhodujú.'
+    return
+  }
+  if (!canChangePassword.value || passwordChangeStatus.value === 'submitting') return
+
+  passwordChangeStatus.value = 'submitting'
+  try {
+    await $fetch<AccountPasswordChangeResponse>('/api/account/password', {
+      body: {
+        currentPassword: currentPassword.value,
+        password: newPassword.value,
+      },
+      method: 'POST',
+    })
+    logout()
+    accountState.value = emptyState()
+    reservationState.value = emptyReservationState()
+    await navigateTo('/login?stav=heslo-zmenene')
+  }
+  catch (error) {
+    passwordChangeStatus.value = 'error'
+    passwordChangeMessage.value = getAccountActionErrorMessage(error, 'Heslo sa nepodarilo zmeniť.')
+  }
+}
+
+function closeAccountDeletion() {
+  showAccountDeletion.value = false
+  accountDeletionPassword.value = ''
+  accountDeletionConfirmation.value = ''
+  accountDeletionStatus.value = 'idle'
+  accountDeletionMessage.value = ''
+}
+
+function getAccountDeletionErrorMessage(error: unknown) {
+  return getAccountActionErrorMessage(error, 'Účet sa nepodarilo zmazať.')
 }
 
 async function submitAccountDeletion() {
@@ -478,7 +614,16 @@ async function submitAccountDeletion() {
                 <h2 class="text-2xl font-bold">{{ account?.name }}</h2>
                 <StatusBadge icon="i-heroicons-identification" label="rybársky účet" tone="primary" size="xs" />
               </div>
-              <p class="mt-1 text-sm text-foreground-muted">{{ account?.email }}</p>
+              <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground-muted">
+                <span class="inline-flex items-center gap-1.5">
+                  <UIcon name="i-heroicons-envelope" class="h-4 w-4" />
+                  {{ account?.email }}
+                </span>
+                <span v-if="account?.phone" class="inline-flex items-center gap-1.5">
+                  <UIcon name="i-heroicons-phone" class="h-4 w-4" />
+                  {{ account.phone }}
+                </span>
+              </div>
               <p class="mt-3 max-w-2xl text-sm text-foreground-muted">
                 Rezervácie a zápisníky vytvorené po prihlásení sa ukladajú k tomuto účtu.
                 Členovia výpravy môžu ďalej zapisovať úlovky cez kód zápisníka bez vlastného účtu.
@@ -950,9 +1095,116 @@ async function submitAccountDeletion() {
           <div>
             <h2 class="text-xl font-bold">Nastavenia účtu</h2>
             <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
-              Spravujte svoju kópiu údajov alebo natrvalo odstráňte používateľský účet.
+              Spravujte osobné údaje, heslo, vlastnú kópiu dát alebo odstránenie účtu.
             </p>
           </div>
+
+          <div class="mt-6 border-y border-border py-5">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                  <UIcon name="i-heroicons-identification" class="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 class="font-bold">Osobné údaje</h3>
+                  <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
+                    Meno používame v nových rezerváciách a zápisníkoch, telefón na kontakt k rezervácii.
+                  </p>
+                </div>
+              </div>
+              <UButton
+                v-if="!showProfileEditor"
+                type="button"
+                icon="i-heroicons-pencil-square"
+                variant="soft"
+                @click="openProfileEditor"
+              >
+                Upraviť profil
+              </UButton>
+            </div>
+
+            <form
+              v-if="showProfileEditor"
+              class="mt-5 rounded-md border border-border bg-muted/50 p-4 sm:p-5"
+              @submit.prevent="submitProfile"
+            >
+              <div class="grid gap-4 md:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-semibold">Meno</span>
+                  <input
+                    v-model="profileName"
+                    type="text"
+                    autocomplete="name"
+                    required
+                    minlength="2"
+                    maxlength="80"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="Meno rybára"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Telefón</span>
+                  <input
+                    v-model="profilePhone"
+                    type="tel"
+                    autocomplete="tel"
+                    :aria-invalid="!profilePhoneIsValid"
+                    class="mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    :class="profilePhoneIsValid ? 'border-border' : 'border-error-500'"
+                    placeholder="+421 900 123 456"
+                  >
+                  <span v-if="!profilePhoneIsValid" class="mt-1 block text-xs font-medium text-error-700">
+                    Skontrolujte formát telefónneho čísla.
+                  </span>
+                </label>
+              </div>
+
+              <div class="mt-4 flex items-center gap-2 rounded-md border border-border bg-white px-3 py-2.5">
+                <UIcon name="i-heroicons-lock-closed" class="h-4 w-4 shrink-0 text-foreground-muted" />
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold text-foreground-muted">Prihlasovací e-mail</p>
+                  <p class="truncate text-sm font-medium">{{ account?.email }}</p>
+                </div>
+              </div>
+
+              <DataStatusNotice
+                v-if="profileStatus === 'error' && profileMessage"
+                class="mt-4"
+                :description="profileMessage"
+                icon="i-heroicons-exclamation-triangle"
+                title="Profil sa nepodarilo uložiť"
+                tone="error"
+              />
+
+              <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <UButton
+                  type="button"
+                  variant="ghost"
+                  :disabled="profileStatus === 'submitting'"
+                  @click="closeProfileEditor"
+                >
+                  Zrušiť
+                </UButton>
+                <UButton
+                  type="submit"
+                  icon="i-heroicons-check"
+                  :disabled="!canSaveProfile || profileStatus === 'submitting'"
+                  :loading="profileStatus === 'submitting'"
+                >
+                  Uložiť údaje
+                </UButton>
+              </div>
+            </form>
+          </div>
+
+          <DataStatusNotice
+            v-if="profileStatus === 'success' && profileMessage"
+            class="mt-4"
+            :description="profileMessage"
+            icon="i-heroicons-check-circle"
+            title="Profil je uložený"
+            tone="success"
+          />
 
           <div class="mt-6 flex flex-col gap-4 border-y border-border py-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-start gap-3">
@@ -984,6 +1236,125 @@ async function submitAccountDeletion() {
             :title="accountExportStatus === 'success' ? 'Údaje sú pripravené' : 'Stiahnutie sa nepodarilo'"
             :tone="accountExportStatus === 'success' ? 'success' : 'error'"
           />
+
+          <div class="mt-6 border-b border-border pb-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                  <UIcon name="i-heroicons-key" class="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 class="font-bold">Zmena hesla</h3>
+                  <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
+                    Po zmene hesla vás odhlásime a prihlásite sa už novým heslom.
+                  </p>
+                </div>
+              </div>
+              <UButton
+                v-if="!showPasswordChange"
+                type="button"
+                icon="i-heroicons-key"
+                variant="soft"
+                @click="showPasswordChange = true"
+              >
+                Zmeniť heslo
+              </UButton>
+            </div>
+
+            <form
+              v-if="showPasswordChange"
+              class="mt-5 rounded-md border border-border bg-muted/50 p-4 sm:p-5"
+              @submit.prevent="submitPasswordChange"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-semibold">Bezpečnostné overenie</p>
+                <button
+                  type="button"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-white hover:text-foreground"
+                  :aria-label="showPasswordChangeValues ? 'Skryť heslá' : 'Zobraziť heslá'"
+                  :title="showPasswordChangeValues ? 'Skryť heslá' : 'Zobraziť heslá'"
+                  @click="showPasswordChangeValues = !showPasswordChangeValues"
+                >
+                  <UIcon
+                    :name="showPasswordChangeValues ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'"
+                    class="h-5 w-5"
+                  />
+                </button>
+              </div>
+
+              <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                <label class="block">
+                  <span class="text-sm font-semibold">Aktuálne heslo</span>
+                  <input
+                    v-model="currentPassword"
+                    :type="showPasswordChangeValues ? 'text' : 'password'"
+                    autocomplete="current-password"
+                    required
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="Vaše heslo"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Nové heslo</span>
+                  <input
+                    v-model="newPassword"
+                    :type="showPasswordChangeValues ? 'text' : 'password'"
+                    autocomplete="new-password"
+                    required
+                    minlength="10"
+                    maxlength="128"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="Aspoň 10 znakov"
+                  >
+                </label>
+                <label class="block">
+                  <span class="text-sm font-semibold">Zopakujte nové heslo</span>
+                  <input
+                    v-model="newPasswordConfirmation"
+                    :type="showPasswordChangeValues ? 'text' : 'password'"
+                    autocomplete="new-password"
+                    required
+                    minlength="10"
+                    maxlength="128"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    placeholder="Rovnaké heslo"
+                  >
+                </label>
+              </div>
+
+              <p class="mt-3 text-xs leading-5 text-foreground-muted">
+                Aspoň 10 znakov, malé a veľké písmeno a číslo.
+              </p>
+
+              <DataStatusNotice
+                v-if="passwordChangeMessage"
+                class="mt-4"
+                :description="passwordChangeMessage"
+                icon="i-heroicons-exclamation-triangle"
+                title="Heslo sa nepodarilo zmeniť"
+                tone="error"
+              />
+
+              <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <UButton
+                  type="button"
+                  variant="ghost"
+                  :disabled="passwordChangeStatus === 'submitting'"
+                  @click="closePasswordChange"
+                >
+                  Zrušiť
+                </UButton>
+                <UButton
+                  type="submit"
+                  icon="i-heroicons-check"
+                  :disabled="!canChangePassword || passwordChangeStatus === 'submitting'"
+                  :loading="passwordChangeStatus === 'submitting'"
+                >
+                  Uložiť nové heslo
+                </UButton>
+              </div>
+            </form>
+          </div>
 
           <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

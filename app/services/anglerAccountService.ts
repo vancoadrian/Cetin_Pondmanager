@@ -5,6 +5,8 @@ export interface MockAnglerAccount {
   emailAliases?: string[]
   id: string
   name: string
+  nameAliases?: string[]
+  phone?: string
 }
 
 export const mockAnglerAccounts: MockAnglerAccount[] = [
@@ -28,6 +30,12 @@ export function findMockAnglerAccountById(accountId?: string | null) {
 export function getMockAnglerAccountEmails(account: MockAnglerAccount) {
   return [account.email, ...(account.emailAliases ?? [])]
     .map((email) => email.trim().toLocaleLowerCase('sk'))
+    .filter(Boolean)
+}
+
+export function getMockAnglerAccountNames(account: MockAnglerAccount) {
+  return [account.name, ...(account.nameAliases ?? [])]
+    .map((name) => name.trim().toLocaleLowerCase('sk'))
     .filter(Boolean)
 }
 

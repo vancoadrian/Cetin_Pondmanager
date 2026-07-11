@@ -32,11 +32,11 @@ export default defineEventHandler(async (event): Promise<PasswordResetConfirmRes
 
   await appendLocalAuditEvent({
     action: 'account.password_reset.completed',
-    actorId: completed.account.id,
+    actorId: completed.accountId,
     actorLabel: 'Rybársky účet',
     actorRole: 'angler',
     area: 'accounts',
-    entityId: completed.account.id,
+    entityId: completed.accountId,
     entityLabel: 'Rybársky účet',
     entityType: 'user_account',
     severity: 'info',

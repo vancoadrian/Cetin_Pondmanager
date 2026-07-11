@@ -15,7 +15,12 @@ import { mockAnglerAccounts } from '~/app/services/anglerAccountService'
 
 describe('angler account data export', () => {
   it('exports only account-facing data and anonymizes other trip members', () => {
-    const account = mockAnglerAccounts[0]!
+    const account = {
+      ...mockAnglerAccounts[0]!,
+      name: 'Marek Novák',
+      nameAliases: ['Marek H.'],
+      phone: '+421 900 123 456',
+    }
     const payload = createAnglerAccountDataExport(
       account,
       { rentalBookings, reservations },
@@ -23,13 +28,19 @@ describe('angler account data export', () => {
       '2026-07-11T10:00:00.000Z',
     )
 
-    expect(payload.account).toMatchObject({ id: 'angler-marek', name: 'Marek H.' })
+    expect(payload.account).toMatchObject({
+      id: 'angler-marek',
+      name: 'Marek Novák',
+      nameAliases: ['Marek H.'],
+      phone: '+421 900 123 456',
+    })
+    expect(payload.formatVersion).toBe(2)
     expect(payload.summary).toMatchObject({ logbooks: 1, reservations: 1 })
     expect(payload.reservations[0]).not.toHaveProperty('internalNote')
     expect(payload.tripLogbooks[0]).not.toHaveProperty('ownerUserId')
     expect(payload.tripLogbooks[0]?.members).toContainEqual(expect.objectContaining({
       isCurrentUser: true,
-      name: 'Marek H.',
+      name: 'Marek Novák',
     }))
     expect(payload.tripLogbooks[0]?.members).toContainEqual(expect.objectContaining({
       isCurrentUser: false,

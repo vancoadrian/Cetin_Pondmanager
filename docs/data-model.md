@@ -19,6 +19,9 @@
 | `map_shapes` | polygonové plochy na mape: vodná plocha, ostrov, zóna, súťažný sektor, servisná zóna; sektorový tvar môže byť naviazaný na súťaž a sektor |
 | `users` | používateľské účty |
 | `user_roles` | roly a väzba na venue, jazero, súťaž alebo tím |
+| `account_credentials` | prihlasovacie údaje spravované identity providerom; lokálny prototyp drží iba `scrypt` hash a prípadný prepis predpripraveného rybárskeho účtu |
+| `account_profiles` | zobrazované meno, voliteľný telefón a interné historické mená potrebné na zachovanie väzieb starších záznamov |
+| `account_password_resets` | časovo obmedzené jednorazové obnovy hesla uložené iba ako hash tokenu |
 | `account_deletions` | stopa zmazania identity a anonymizačného spracovania bez obnovenia prihlasovacieho účtu |
 | `audit_events` | append-only stopa dôležitých mutácií a rozhodnutí |
 

@@ -19,7 +19,7 @@ Po prihlásení používajú rezervácie a zápisníky rovnaké ID a e-mail úč
 
 ## Obnova hesla
 
-Prihlasovacia obrazovka odkazuje na `/zabudnute-heslo`. `POST /api/auth/password-reset/request` vždy vracia rovnakú verejnú odpoveď bez ohľadu na to, či e-mail existuje. Pre lokálne registrovaný účet:
+Prihlasovacia obrazovka odkazuje na `/zabudnute-heslo`. `POST /api/auth/password-reset/request` vždy vracia rovnakú verejnú odpoveď bez ohľadu na to, či e-mail existuje. Obnova je dostupná novo registrovaným aj predpripraveným účtom s rolou `angler`; interné a súťažné roly sa cez verejný formulár resetovať nedajú. Pre oprávnený rybársky účet endpoint:
 
 - vytvorí kryptografický jednorazový token s platnosťou 30 minút,
 - do `account-state.json` uloží iba SHA-256 hash tokenu,
@@ -31,9 +31,31 @@ Prihlasovacia obrazovka odkazuje na `/zabudnute-heslo`. `POST /api/auth/password
 
 Provider sa nastavuje cez `RYBOLOV_AUTH_DELIVERY_PROVIDER=mock|resend|disabled`, odosielateľ cez `RYBOLOV_AUTH_EMAIL_FROM` a používa spoločný `RYBOLOV_RESEND_API_KEY`.
 
+## Zmena hesla
+
+Prihlásený rybár otvorí `Nastavenia účtu` v `/konto`, zadá aktuálne heslo a nové heslo dvakrát. `POST /api/account/password`:
+
+- vyžaduje aktívnu rybársku session,
+- serverovo overí aktuálne heslo a silu nového hesla,
+- odmietne rovnaké staré a nové heslo,
+- uloží iba nový `scrypt` hash,
+- odstráni rozpracované reset tokeny daného účtu,
+- zruší hlavnú aj kompatibilnú rybársku cookie session,
+- zapíše auditnú udalosť `account.password_changed` bez hesla, hashov alebo e-mailu.
+
+Novo registrovaný účet dostane aktualizovaný hash priamo vo svojom prihlasovacom zázname. Predpripravený rybársky účet používa oddelený `credentialOverrides` záznam, ktorý má prednosť pred pôvodným vývojovým heslom a pri zmazaní účtu sa odstráni.
+
+## Osobné údaje
+
+Prihlásený rybár môže v `/konto` upraviť zobrazované meno a voliteľný kontaktný telefón. `PUT /api/account/profile` serverovo validuje obe hodnoty, uloží profilový prepis do `account-state.json` a zapíše neosobnú udalosť `account.profile_updated` iba s informáciou, ktoré polia sa zmenili.
+
+Pri zmene mena sa pôvodné meno zachová ako interný identitný alias. Vďaka tomu zostanú staršie úlovky a zápisníky priradené k rovnakému účtu a pri zmazaní sa anonymizujú aj záznamy pod starším menom. Alias sa nezobrazuje ako aktuálne meno. Uložený telefón sa predvyplní v novej rezervácii.
+
+Prihlasovací e-mail sa v lokálnom prototype nedá meniť. Zmena adresy bude produkčne vyžadovať potvrdenie novej adresy cez identity provider; rozhranie preto teraz neponúka neoverenú zmenu, ktorá by mohla oddeliť históriu alebo zablokovať prihlásenie.
+
 ## Export vlastných údajov
 
-Prihlásený rybár môže v `/konto` stiahnuť `GET /api/account/export` ako verzovaný JSON súbor. Export obsahuje profil, rezervácie bez interných poznámok, priradené výpravy, záznamy výprav, vlastné úlovky a bezpečné metadata vlastných fotografií.
+Prihlásený rybár môže v `/konto` stiahnuť `GET /api/account/export` ako verzovaný JSON súbor. Formát verzie 2 obsahuje aktuálne meno, prihlasovací e-mail, telefón, vlastné historické mená, rezervácie bez interných poznámok, priradené výpravy, záznamy výprav, vlastné úlovky a bezpečné metadata vlastných fotografií.
 
 Pri skupinovej výprave sa zachová obsah dostupný účtu, ale mená ostatných členov sa nahradia označením `Člen výpravy`. Export neobsahuje heslo ani jeho hash, reset tokeny, interné cesty súborov, moderátorské poznámky alebo identitu moderátora. Odpoveď používa `Cache-Control: private, no-store`, názov súboru s dátumom a neosobnú auditnú udalosť `account.data_export.downloaded`.
 
@@ -46,6 +68,8 @@ Rybár otvorí nastavenia v `/konto`, zvolí `Zmazať účet`, zadá aktuálne h
 - odstráni `ownerUserId` a členské `userId` väzby v zápisníkoch,
 - nahradí meno pri zachovaných úlovkoch a zápisoch anonymným označením,
 - uloží tombstone do `.data/rybolov-cetin/account-state.json`,
+- odstráni registrovaný hash, rozpracované reset tokeny aj prípadný lokálny prepis hesla,
+- odstráni profilový prepis, telefón aj interné aliasy predchádzajúcich mien,
 - zruší hlavnú aj kompatibilnú rybársku cookie session,
 - vytvorí auditnú udalosť `account.deleted` bez uloženia hesla alebo e-mailu.
 
@@ -53,4 +77,4 @@ Rezervácie, úlovky, merania a fotografie zostávajú pri anonymizovaných prev
 
 ## Produkčný prechod
 
-Pri zapojení Supabase Auth nahradí lokálny hash registrácia s potvrdením e-mailu, serverovým session registrom a natívnou obnovou hesla. Zmena hesla potom musí zrušiť aj ostatné aktívne sessions používateľa. Mazacia serverová mutácia musí zmazať alebo zablokovať `auth.users` identitu, odstrániť osobné profilové údaje a vykonať anonymizáciu v jednej riadenej operácii. Klient nesmie dostať service-role kľúč ani právo mazať cudzie účty.
+Pri zapojení Supabase Auth nahradí lokálny hash registrácia s potvrdením e-mailu, serverovým session registrom a natívnou obnovou hesla. Produkčná zmena hesla musí popri aktuálnej session zrušiť aj ostatné aktívne sessions používateľa. Mazacia serverová mutácia musí zmazať alebo zablokovať `auth.users` identitu, odstrániť osobné profilové údaje a vykonať anonymizáciu v jednej riadenej operácii. Klient nesmie dostať service-role kľúč ani právo mazať cudzie účty.

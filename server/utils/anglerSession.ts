@@ -6,8 +6,12 @@ import {
   type MockAnglerAccount,
 } from '~/services/anglerAccountService'
 import { resolveAppSessionUser } from './appSession'
-import { toRegisteredAnglerAccount } from './accountAuthentication'
 import {
+  applyLocalProfileToAnglerAccount,
+  toRegisteredAnglerAccount,
+} from './accountAuthentication'
+import {
+  findLocalAccountProfileOverride,
   findLocalRegisteredAccountById,
   isLocalAccountDeleted,
 } from './localAccountStore'
@@ -21,9 +25,13 @@ export async function resolveMockAnglerAccount(event: H3Event): Promise<MockAngl
   let account: MockAnglerAccount | undefined
   if (sessionAccountId) {
     account = findMockAnglerAccountById(sessionAccountId)
+    const profile = await findLocalAccountProfileOverride(sessionAccountId)
     if (!account) {
       const registeredAccount = await findLocalRegisteredAccountById(sessionAccountId)
-      account = registeredAccount ? toRegisteredAnglerAccount(registeredAccount) : undefined
+      account = registeredAccount ? toRegisteredAnglerAccount(registeredAccount, profile) : undefined
+    }
+    else {
+      account = applyLocalProfileToAnglerAccount(account, profile)
     }
   }
 

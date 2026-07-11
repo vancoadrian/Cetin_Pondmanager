@@ -50,6 +50,8 @@ describe('auditLogService', () => {
   })
 
   it('labels local backup audit actions', () => {
+    expect(auditActionLabels['account.password_changed']).toBe('Heslo zmenené')
+    expect(auditActionLabels['account.profile_updated']).toBe('Profil upravený')
     expect(auditActionLabels['system.data_backup.downloaded']).toBe('Ochranná záloha stiahnutá')
     expect(auditActionLabels['system.data_backup.loaded']).toBe('Ochranná záloha načítaná')
     expect(auditActionLabels['system.data_export.downloaded']).toBe('Záloha stiahnutá')

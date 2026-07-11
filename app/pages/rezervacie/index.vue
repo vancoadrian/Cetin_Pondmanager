@@ -143,7 +143,7 @@ const reservationFrom = ref(initialDateRange.dateFrom)
 const reservationTo = ref(initialDateRange.dateTo)
 const reservationContactName = ref(anglerAccount.value?.name ?? '')
 const reservationContactEmail = ref(anglerAccount.value?.email ?? '')
-const reservationContactPhone = ref('')
+const reservationContactPhone = ref(anglerAccount.value?.phone ?? '')
 const selectedPaymentMethodId = ref(enabledPaymentMethods.value[0]?.id ?? '')
 const selectedRentalIds = ref<string[]>(
   routeRentalIds.filter((id) => activeRentalItems.value.some((item) => item.id === id)),
@@ -976,6 +976,10 @@ watch(
 
     if (!reservationContactEmail.value || reservationContactEmail.value === previousAccount?.email) {
       reservationContactEmail.value = account.email
+    }
+
+    if (!reservationContactPhone.value || reservationContactPhone.value === previousAccount?.phone) {
+      reservationContactPhone.value = account.phone ?? ''
     }
   },
   { immediate: true },

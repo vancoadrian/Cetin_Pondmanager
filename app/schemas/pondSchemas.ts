@@ -124,11 +124,17 @@ const accountPasswordSchema = z.string()
   .regex(/[a-záäčďéíĺľňóôŕšťúýž]/u, 'Heslo musí obsahovať malé písmeno.')
   .regex(/[A-ZÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽ]/u, 'Heslo musí obsahovať veľké písmeno.')
   .regex(/[0-9]/, 'Heslo musí obsahovať číslo.')
+const accountNameSchema = z.string().trim().min(2, 'Doplňte meno.').max(80, 'Meno môže mať najviac 80 znakov.')
 
 export const accountRegistrationPayloadSchema = z.object({
   email: z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.'),
-  name: z.string().trim().min(2, 'Doplňte meno.').max(80, 'Meno môže mať najviac 80 znakov.'),
+  name: accountNameSchema,
   password: accountPasswordSchema,
+})
+
+export const accountProfilePayloadSchema = z.object({
+  name: accountNameSchema,
+  phone: z.union([z.literal(''), phoneSchema]),
 })
 
 export const passwordResetRequestPayloadSchema = z.object({
@@ -138,6 +144,14 @@ export const passwordResetRequestPayloadSchema = z.object({
 export const passwordResetConfirmPayloadSchema = z.object({
   password: accountPasswordSchema,
   token: z.string().trim().min(32, 'Odkaz na obnovu hesla nie je platný.').max(256, 'Odkaz na obnovu hesla nie je platný.'),
+})
+
+export const accountPasswordChangePayloadSchema = z.object({
+  currentPassword: z.string().min(1, 'Doplňte aktuálne heslo.'),
+  password: accountPasswordSchema,
+}).refine((value) => value.currentPassword !== value.password, {
+  message: 'Nové heslo musí byť odlišné od aktuálneho hesla.',
+  path: ['password'],
 })
 
 export const accountDeletionPayloadSchema = z.object({

@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type { MockRegistrationResponse, PublicMockUser } from '~/app/composables/useMockAuth'
 import type { AccountDeletionResponse } from '~/app/services/accountDeletionService'
+import type { AccountProfileUpdateResponse } from '~/app/services/accountProfileService'
 import type {
   PasswordResetConfirmResponse,
   PasswordResetRequestResponse,
 } from '~/app/services/accountPasswordResetService'
 import accountDeleteHandler from '~/server/api/account/delete.post'
 import accountLogbooksHandler from '~/server/api/account/logbooks.get'
+import accountProfileHandler from '~/server/api/account/profile.put'
 import loginHandler from '~/server/api/auth/login.post'
 import passwordResetConfirmHandler from '~/server/api/auth/password-reset/confirm.post'
 import passwordResetRequestHandler from '~/server/api/auth/password-reset/request.post'
@@ -69,6 +71,7 @@ function createRouteApp() {
   router.post('/api/auth/password-reset/confirm', passwordResetConfirmHandler)
   router.post('/api/account/delete', accountDeleteHandler)
   router.get('/api/account/logbooks', accountLogbooksHandler)
+  router.put('/api/account/profile', accountProfileHandler)
   app.use(router.handler)
   return app
 }
@@ -224,6 +227,42 @@ describe('account registration routes', () => {
     }
   })
 
+  it('persists profile changes for a registered angler across login', async () => {
+    const server = await startRouteServer()
+    try {
+      const registered = await requestJson<MockRegistrationResponse>(server, '/api/auth/register', {
+        body: validRegistration,
+        method: 'POST',
+      })
+      const cookie = `rybolov_cetin_mock_session=${registered.body.user.id}`
+
+      const updated = await requestJson<AccountProfileUpdateResponse>(server, '/api/account/profile', {
+        body: { name: 'Rybár Po Úprave', phone: '+421 911 222 333' },
+        cookie,
+        method: 'PUT',
+      })
+      expect(updated.response.status).toBe(200)
+
+      const state = await readLocalAccountState()
+      expect(state.profileOverrides).toContainEqual(expect.objectContaining({
+        accountId: registered.body.user.id,
+        previousNames: ['Nový Rybár'],
+      }))
+
+      const login = await requestJson<{ ok: true, user: PublicMockUser }>(server, '/api/auth/login', {
+        body: { email: 'novy.rybar@example.sk', password: validRegistration.password },
+        method: 'POST',
+      })
+      expect(login.body.user).toMatchObject({
+        name: 'Rybár Po Úprave',
+        phone: '+421 911 222 333',
+      })
+    }
+    finally {
+      await server.close()
+    }
+  })
+
   it('returns the same password reset response for known and unknown emails', async () => {
     const server = await startRouteServer()
     try {
@@ -240,10 +279,20 @@ describe('account registration routes', () => {
         body: { email: 'neznamy@example.sk' },
         method: 'POST',
       })
+      const seededAngler = await requestJson<PasswordResetRequestResponse>(server, '/api/auth/password-reset/request', {
+        body: { email: 'marek.h@example.com' },
+        method: 'POST',
+      })
+      const internalAccount = await requestJson<PasswordResetRequestResponse>(server, '/api/auth/password-reset/request', {
+        body: { email: 'spravca@rybolovcetin.sk' },
+        method: 'POST',
+      })
 
       expect(known.response.status).toBe(200)
       expect(unknown.response.status).toBe(200)
       expect(known.body).toEqual(unknown.body)
+      expect(seededAngler.body).toEqual(unknown.body)
+      expect(internalAccount.body).toEqual(unknown.body)
       expect(known.body.message).toContain('Ak účet s týmto e-mailom existuje')
 
       const state = await readLocalAccountState()
@@ -253,6 +302,7 @@ describe('account registration routes', () => {
         action: 'account.password_reset.requested',
         details: expect.objectContaining({ deliveryProvider: 'mock', deliveryStatus: 'prepared' }),
       }))
+      expect(auditState.events.filter((event) => event.action === 'account.password_reset.requested')).toHaveLength(2)
       expect(JSON.stringify(auditState)).not.toContain('novy.rybar@example.sk')
     }
     finally {
@@ -303,6 +353,42 @@ describe('account registration routes', () => {
       expect(stateAfter.passwordResets).toEqual([])
       const auditState = await readLocalAuditLogState()
       expect(auditState.events).toContainEqual(expect.objectContaining({ action: 'account.password_reset.completed' }))
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('resets the password of the seeded angler through a hashed credential override', async () => {
+    const server = await startRouteServer()
+    try {
+      const token = createPasswordResetToken('angler-marek', new Date('2026-07-11T08:00:00.000Z'), 10_000)
+      await saveLocalPasswordReset(token.reset)
+
+      const completed = await requestJson<PasswordResetConfirmResponse>(server, '/api/auth/password-reset/confirm', {
+        body: { password: 'MarekNove2026', token: token.token },
+        method: 'POST',
+      })
+      expect(completed.response.status).toBe(200)
+
+      const state = await readLocalAccountState()
+      expect(state.credentialOverrides).toHaveLength(1)
+      expect(state.credentialOverrides[0]).toMatchObject({ accountId: 'angler-marek' })
+      expect(state.credentialOverrides[0]?.passwordHash).toMatch(/^scrypt:/)
+      expect(JSON.stringify(state)).not.toContain('MarekNove2026')
+
+      const oldLogin = await requestJson<{ statusMessage: string }>(server, '/api/auth/login', {
+        body: { email: 'marek.horvath@example.test', password: 'Cetin2026!' },
+        method: 'POST',
+      })
+      expect(oldLogin.response.status).toBe(401)
+
+      const newLogin = await requestJson<{ ok: true, user: PublicMockUser }>(server, '/api/auth/login', {
+        body: { email: 'marek.h@example.com', password: 'MarekNove2026' },
+        method: 'POST',
+      })
+      expect(newLogin.response.status).toBe(200)
+      expect(newLogin.body.user.id).toBe('angler-marek')
     }
     finally {
       await server.close()

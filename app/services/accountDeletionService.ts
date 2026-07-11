@@ -1,4 +1,8 @@
-import type { MockAnglerAccount } from '~/services/anglerAccountService'
+import {
+  getMockAnglerAccountEmails,
+  getMockAnglerAccountNames,
+  type MockAnglerAccount,
+} from '~/services/anglerAccountService'
 import type { CatchWorkflowState } from '~/services/catchApiService'
 import type { ReservationWorkflowState } from '~/services/reservationWorkflowService'
 
@@ -34,10 +38,9 @@ export function anonymizeAccountData(
   reservationState: ReservationWorkflowState,
   catchState: CatchWorkflowState,
 ): AccountAnonymizationResult {
-  const accountEmails = new Set(
-    [account.email, ...(account.emailAliases ?? [])].map(normalizeIdentity),
-  )
-  const accountName = normalizeIdentity(account.name)
+  const accountEmails = new Set(getMockAnglerAccountEmails(account))
+  const accountNames = new Set(getMockAnglerAccountNames(account))
+  const matchesAccountName = (name?: string | null) => accountNames.has(normalizeIdentity(name))
   let reservationCount = 0
   let catchCount = 0
   let logbookCount = 0
@@ -47,7 +50,7 @@ export function anonymizeAccountData(
     const reservationEmail = normalizeIdentity(reservation.contactEmail)
     const matchesAccount = reservationEmail
       ? accountEmails.has(reservationEmail)
-      : normalizeIdentity(reservation.guest) === accountName
+      : matchesAccountName(reservation.guest)
 
     if (!matchesAccount) return reservation
 
@@ -62,7 +65,7 @@ export function anonymizeAccountData(
   })
 
   const catches = catchState.catches.map((catchItem) => {
-    if (normalizeIdentity(catchItem.angler) !== accountName) return catchItem
+    if (!matchesAccountName(catchItem.angler)) return catchItem
 
     catchCount += 1
     return {
@@ -73,11 +76,11 @@ export function anonymizeAccountData(
 
   const tripLogbooks = catchState.tripLogbooks.map((logbook) => {
     const ownerMatches = logbook.ownerUserId === account.id
-      || normalizeIdentity(logbook.owner) === accountName
+      || matchesAccountName(logbook.owner)
     let memberChanged = false
     const members = logbook.members.map((member) => {
       const memberMatches = member.userId === account.id
-        || normalizeIdentity(member.name) === accountName
+        || matchesAccountName(member.name)
       if (!memberMatches) return member
 
       memberChanged = true
@@ -100,7 +103,7 @@ export function anonymizeAccountData(
   })
 
   const tripLogbookEntries = catchState.tripLogbookEntries.map((entry) => {
-    if (normalizeIdentity(entry.angler) !== accountName) return entry
+    if (!matchesAccountName(entry.angler)) return entry
 
     logbookEntryCount += 1
     return {

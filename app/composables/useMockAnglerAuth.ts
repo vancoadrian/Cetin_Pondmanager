@@ -5,10 +5,13 @@ export function useMockAnglerAuth() {
   const account = computed(() => {
     if (user.value?.role !== 'angler') return null
 
-    return findMockAnglerAccountById(user.value.id) ?? {
+    const seedAccount = findMockAnglerAccountById(user.value.id)
+    return {
+      ...seedAccount,
       email: user.value.email,
       id: user.value.id,
       name: user.value.name,
+      phone: user.value.phone,
     }
   })
   const isLoggedIn = computed(() => account.value !== null)

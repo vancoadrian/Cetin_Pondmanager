@@ -1,4 +1,5 @@
 import { createError, defineEventHandler, getRequestURL, readBody } from 'h3'
+import { findMockUserByEmail } from '~/composables/useMockAuth'
 import { getValidationMessages, passwordResetRequestPayloadSchema } from '~/schemas/pondSchemas'
 import {
   PASSWORD_RESET_REQUEST_MESSAGE,
@@ -33,7 +34,9 @@ export default defineEventHandler(async (event): Promise<PasswordResetRequestRes
     })
   }
 
-  const account = await findLocalRegisteredAccountByEmail(payload.data.email)
+  const registeredAccount = await findLocalRegisteredAccountByEmail(payload.data.email)
+  const mockUser = registeredAccount ? undefined : findMockUserByEmail(payload.data.email)
+  const account = registeredAccount ?? (mockUser?.role === 'angler' ? mockUser : undefined)
   if (!account || await hasRecentLocalPasswordReset(account.id)) return genericResponse
 
   const providerConfig = readPasswordResetProviderConfig()

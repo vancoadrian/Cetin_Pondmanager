@@ -98,7 +98,7 @@ Obrazovka `/admin/rezervacie` ju používa cez `useAdminReservationWorkflow()`. 
 Rezervačný admin používa samostatný čítací endpoint `GET /api/admin/reservations/notifications`, ktorý z notifikačného store vracia iba súhrny broadcastov s `targetAudience.requestId`. Vďaka tomu vie detail rezervácie ukázať stav interného upozornenia bez prístupu do celého modulu notifikácií.
 Uzávierky, sezóny a servisné blokácie majú vlastný prechodový store `.data/rybolov-cetin/closure-state.json`. Admin `/admin/uzavierky` zapisuje cez `/api/admin/closures`, public rezervácia a mapa čítajú sanitizované blokácie cez `/api/closures` a serverové vytvorenie rezervácie vždy validuje termín proti aktuálnemu closure store. Shared `useClosureState()` drží public/admin obrazovky na rovnakom zdroji uzávierok.
 Audit udalosti sa zapisujú do samostatného lokálneho store `.data/rybolov-cetin/audit-log.json`, aby každá mutácia mala stopu mimo doménového stavu.
-Registrované a zmazané mock rybárske účty majú samostatný store `.data/rybolov-cetin/account-state.json`. Registrácia ukladá verejnú identitu a `scrypt` hash hesla. Aktívna obnova hesla drží iba hash jednorazového tokenu a expiráciu; po úspechu sa odstráni. Pri zmazaní sa prihlasovací záznam aj reset tokeny odstránia, rezervácie a úlovkové dáta anonymizujú a ID sa presunie do tombstone zoznamu. Store je súčasťou systémového exportu a obnovy lokálnych dát.
+Registrované a zmazané mock rybárske účty majú samostatný store `.data/rybolov-cetin/account-state.json`. Registrácia ukladá verejnú identitu a `scrypt` hash hesla. Predpripravený rybársky účet môže dostať oddelený hash v `credentialOverrides`, ktorý pri overení nahradí pôvodné vývojové heslo. `profileOverrides` drží aktuálne meno, voliteľný telefón a staršie mená potrebné na bezpečné priradenie a anonymizáciu historických záznamov. Aktívna obnova hesla drží iba hash jednorazového tokenu a expiráciu; po úspechu sa odstráni. Pri zmazaní sa prihlasovací záznam, credential override, profilový prepis aj reset tokeny odstránia, rezervácie a úlovkové dáta anonymizujú a ID sa presunie do tombstone zoznamu. Store je súčasťou systémového exportu a obnovy lokálnych dát.
 
 Prvá API vrstva je pripravená nad rovnakými službami:
 
@@ -108,6 +108,8 @@ Prvá API vrstva je pripravená nad rovnakými službami:
 - `POST /api/auth/register` vytvorí unikátny lokálny rybársky účet, odmietne kolíziu e-mailu a nikdy nevracia ani neukladá čitateľné heslo.
 - `POST /api/auth/password-reset/request` vracia generickú odpoveď a pri Resend providerovi odošle jednorazový odkaz bez uloženia čitateľného tokenu.
 - `POST /api/auth/password-reset/confirm` prijme platný neexpirovaný token iba raz a nahradí hash hesla.
+- `POST /api/account/password` vyžaduje rybársku session a aktuálne heslo, uloží nový hash, zruší session cookies a zapíše neosobný audit.
+- `PUT /api/account/profile` vyžaduje rybársku session, upraví meno a voliteľný telefón a zachová staršie mená pre väzbu histórie.
 - `GET /api/account/export` vyžaduje rybársku session a vracia súkromný JSON export iba údajov priradených k účtu; interné polia a mená ostatných členov výpravy filtruje spoločná service vrstva.
 - `POST /api/account/delete` vyžaduje rybársku session, aktuálne heslo a potvrdzovaciu frázu; zruší session, uloží tombstone a anonymizuje osobné väzby v prevádzkových záznamoch.
 - `GET /api/admin/system` vracia interný health detail, lokálnu dátovú cestu a posledné error log záznamy.

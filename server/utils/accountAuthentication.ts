@@ -1,11 +1,14 @@
 import { randomBytes, scrypt as nodeScrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 import {
-  authenticateMockUser,
+  findMockUserByEmail,
   type PublicMockUser,
 } from '~/composables/useMockAuth'
 import type { MockAnglerAccount } from '~/services/anglerAccountService'
 import {
+  type LocalAccountProfileOverride,
+  findLocalCredentialOverride,
+  findLocalAccountProfileOverride,
   findLocalRegisteredAccountByEmail,
   findLocalRegisteredAccountById,
   type LocalRegisteredAnglerAccount,
@@ -14,23 +17,46 @@ import {
 const scrypt = promisify(nodeScrypt)
 const HASH_BYTES = 64
 
-export function toPublicRegisteredUser(account: LocalRegisteredAnglerAccount): PublicMockUser {
+export function toPublicRegisteredUser(
+  account: LocalRegisteredAnglerAccount,
+  profile?: LocalAccountProfileOverride,
+): PublicMockUser {
   return {
     description: 'Osobný účet pre rezervácie, výpravy, zápisníky a históriu úlovkov.',
     email: account.email,
     id: account.id,
-    name: account.name,
+    name: profile?.name ?? account.name,
     permissions: ['moje výpravy', 'zápisníky', 'úlovky'],
+    phone: profile?.phone,
     role: 'angler',
     roleLabel: 'rybár',
   }
 }
 
-export function toRegisteredAnglerAccount(account: LocalRegisteredAnglerAccount): MockAnglerAccount {
+export function toRegisteredAnglerAccount(
+  account: LocalRegisteredAnglerAccount,
+  profile?: LocalAccountProfileOverride,
+): MockAnglerAccount {
   return {
     email: account.email,
     id: account.id,
-    name: account.name,
+    name: profile?.name ?? account.name,
+    nameAliases: profile?.previousNames,
+    phone: profile?.phone,
+  }
+}
+
+export function applyLocalProfileToAnglerAccount(
+  account: MockAnglerAccount,
+  profile?: LocalAccountProfileOverride,
+): MockAnglerAccount {
+  if (!profile) return account
+
+  return {
+    ...account,
+    name: profile.name,
+    nameAliases: profile.previousNames,
+    phone: profile.phone,
   }
 }
 
@@ -52,10 +78,21 @@ export async function verifyPasswordHash(password: string, encodedHash: string) 
 }
 
 export async function authenticateAppUser(email: string, password: string): Promise<PublicMockUser | undefined> {
-  const mockUser = authenticateMockUser(email, password)
+  const mockUser = findMockUserByEmail(email)
   if (mockUser) {
+    const credentialOverride = await findLocalCredentialOverride(mockUser.id)
+    const passwordMatches = credentialOverride
+      ? await verifyPasswordHash(password, credentialOverride.passwordHash)
+      : mockUser.password === password
+    if (!passwordMatches) return undefined
+
+    const profile = await findLocalAccountProfileOverride(mockUser.id)
     const { password: _password, ...publicUser } = mockUser
-    return publicUser
+    return {
+      ...publicUser,
+      name: profile?.name ?? publicUser.name,
+      phone: profile?.phone,
+    }
   }
 
   const registeredAccount = await findLocalRegisteredAccountByEmail(email)
@@ -63,12 +100,18 @@ export async function authenticateAppUser(email: string, password: string): Prom
     return undefined
   }
 
-  return toPublicRegisteredUser(registeredAccount)
+  const profile = await findLocalAccountProfileOverride(registeredAccount.id)
+  return toPublicRegisteredUser(registeredAccount, profile)
 }
 
 export async function verifyAppUserPassword(accountId: string, email: string, password: string) {
-  const mockUser = authenticateMockUser(email, password)
-  if (mockUser?.id === accountId) return true
+  const mockUser = findMockUserByEmail(email)
+  if (mockUser?.id === accountId) {
+    const credentialOverride = await findLocalCredentialOverride(accountId)
+    return credentialOverride
+      ? verifyPasswordHash(password, credentialOverride.passwordHash)
+      : mockUser.password === password
+  }
 
   const registeredAccount = await findLocalRegisteredAccountById(accountId)
   return Boolean(
