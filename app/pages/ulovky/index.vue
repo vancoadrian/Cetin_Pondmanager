@@ -1033,13 +1033,23 @@ watch(catchValidation, () => {
             </p>
           </div>
         </div>
-        <UButton
-          to="/konto"
-          :icon="isAnglerLoggedIn ? 'i-heroicons-book-open' : 'i-heroicons-arrow-right-on-rectangle'"
-          variant="soft"
-        >
-          {{ isAnglerLoggedIn ? 'Moje zápisníky' : 'Prihlásiť sa' }}
-        </UButton>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <UButton
+            :to="isAnglerLoggedIn ? '/konto' : '/login?redirect=/ulovky'"
+            :icon="isAnglerLoggedIn ? 'i-heroicons-book-open' : 'i-heroicons-arrow-right-on-rectangle'"
+            variant="soft"
+          >
+            {{ isAnglerLoggedIn ? 'Moje zápisníky' : 'Prihlásiť sa' }}
+          </UButton>
+          <UButton
+            :to="isAnglerLoggedIn ? '#pridat-ulovok' : '#zapisnik-vypravy'"
+            :icon="isAnglerLoggedIn ? 'i-heroicons-plus' : 'i-heroicons-key'"
+            color="neutral"
+            variant="outline"
+          >
+            {{ isAnglerLoggedIn ? 'Pridať úlovok' : 'Mám kód zápisníka' }}
+          </UButton>
+        </div>
       </div>
 
       <DataStatusNotice
@@ -1054,27 +1064,27 @@ watch(catchValidation, () => {
         @action="retryCatchData"
       />
 
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="border-border bg-surface rounded-card border p-4">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Verejné úlovky</p>
-          <p class="mt-2 text-3xl font-bold">{{ publicCatches.length }}</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ publicCatches.length }}</p>
         </div>
-        <div class="border-border bg-surface rounded-card border p-4">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Spolu zdolané</p>
-          <p class="mt-2 text-3xl font-bold">{{ totalWeight }} kg</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ totalWeight }} kg</p>
         </div>
-        <div class="border-border bg-surface rounded-card border p-4">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Najväčšia ryba</p>
-          <p class="mt-2 text-3xl font-bold">{{ biggestCatch?.weightKg ?? 0 }} kg</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ biggestCatch?.weightKg ?? 0 }} kg</p>
         </div>
-        <div class="border-border bg-surface rounded-card border p-4">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-4">
           <p class="text-foreground-muted text-sm">Druhy rýb</p>
-          <p class="mt-2 text-3xl font-bold">{{ publicSpeciesCount }}</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ publicSpeciesCount }}</p>
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <div class="space-y-4">
+      <div class="mt-8 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div class="order-2 space-y-4 lg:order-1">
           <section v-if="activeLogbook" class="border-border bg-surface rounded-card border p-5">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -1196,72 +1206,87 @@ watch(catchValidation, () => {
             </div>
           </section>
 
-          <AppState
-            v-if="publicCatches.length === 0"
-            title="Zatiaľ bez úlovkov"
-            description="Verejný denník ukazuje iba úlovky schválené správcom."
-          />
-
-          <article
-            v-for="catchItem in publicCatches"
-            :key="catchItem.id"
-            class="border-border bg-surface grid overflow-hidden rounded-card border md:grid-cols-[180px_1fr]"
-          >
-            <div class="bg-water-100 pond-grid flex min-h-40 items-center justify-center">
-              <img
-                v-if="getCatchPhoto(catchItem.id)?.publicUrl"
-                :src="getCatchPhoto(catchItem.id)?.publicUrl"
-                :alt="`Fotka úlovku ${catchItem.species}`"
-                class="h-full min-h-40 w-full object-cover"
-              >
-              <div v-else class="bg-white/80 text-water-900 flex h-20 w-20 items-center justify-center rounded-full">
-                <UIcon name="i-heroicons-camera" class="h-9 w-9" />
+          <section aria-labelledby="verejne-ulovky" class="space-y-4">
+            <div class="flex items-end justify-between gap-4">
+              <div>
+                <p class="text-primary-800 text-sm font-bold">Verejný denník</p>
+                <h2 id="verejne-ulovky" class="mt-1 text-2xl font-bold">Posledné úlovky</h2>
               </div>
+              <StatusBadge
+                icon="i-heroicons-check-badge"
+                :label="`Schválené: ${publicCatches.length}`"
+                tone="success"
+                size="xs"
+              />
             </div>
-            <div class="p-5">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p class="text-foreground-muted text-sm">
-                    {{ getLakeName(catchItem.lake) }} · {{ getPegLabel(catchItem.pegId) }}
-                  </p>
-                  <h2 class="mt-1 text-2xl font-bold">
-                    {{ catchItem.species }} {{ catchItem.weightKg }} kg
-                  </h2>
+
+            <AppState
+              v-if="publicCatches.length === 0"
+              title="Žiadne schválené úlovky"
+              description="Po kontrole správcom sa prvé záznamy zobrazia na tomto mieste."
+            />
+
+            <article
+              v-for="catchItem in publicCatches"
+              :key="catchItem.id"
+              class="border-border bg-surface grid overflow-hidden rounded-card border md:grid-cols-[180px_1fr]"
+            >
+              <div class="bg-water-100 pond-grid flex min-h-40 items-center justify-center">
+                <img
+                  v-if="getCatchPhoto(catchItem.id)?.publicUrl"
+                  :src="getCatchPhoto(catchItem.id)?.publicUrl"
+                  :alt="`Fotka úlovku ${catchItem.species}`"
+                  class="h-full min-h-40 w-full object-cover"
+                >
+                <div v-else class="bg-white/80 text-water-900 flex h-20 w-20 items-center justify-center rounded-full">
+                  <UIcon name="i-heroicons-camera" class="h-9 w-9" />
                 </div>
-                <StatusBadge
-                  class="shrink-0"
-                  :icon="catchItem.released ? 'i-heroicons-arrow-uturn-left' : 'i-heroicons-clipboard-document-check'"
-                  :label="catchItem.released ? 'pustená späť' : 'ponechaná podľa pravidiel'"
-                  :tone="catchItem.released ? 'success' : 'neutral'"
-                  size="xs"
-                />
               </div>
+              <div class="p-5">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p class="text-foreground-muted text-sm">
+                      {{ getLakeName(catchItem.lake) }} · {{ getPegLabel(catchItem.pegId) }}
+                    </p>
+                    <h3 class="mt-1 text-2xl font-bold">
+                      {{ catchItem.species }} {{ catchItem.weightKg }} kg
+                    </h3>
+                  </div>
+                  <StatusBadge
+                    class="shrink-0"
+                    :icon="catchItem.released ? 'i-heroicons-arrow-uturn-left' : 'i-heroicons-clipboard-document-check'"
+                    :label="catchItem.released ? 'pustená späť' : 'ponechaná podľa pravidiel'"
+                    :tone="catchItem.released ? 'success' : 'neutral'"
+                    size="xs"
+                  />
+                </div>
 
-              <dl class="mt-5 grid gap-3 text-sm sm:grid-cols-4">
-                <div class="bg-muted rounded-md p-3">
-                  <dt class="text-foreground-muted text-xs">Miera</dt>
-                  <dd class="font-semibold">{{ catchItem.lengthCm }} cm</dd>
-                </div>
-                <div class="bg-muted rounded-md p-3">
-                  <dt class="text-foreground-muted text-xs">Nástraha</dt>
-                  <dd class="font-semibold">{{ catchItem.bait }}</dd>
-                </div>
-                <div class="bg-muted rounded-md p-3">
-                  <dt class="text-foreground-muted text-xs">Čas</dt>
-                  <dd class="font-semibold">{{ formatCatchTime(catchItem.caughtAt) }}</dd>
-                </div>
-                <div class="bg-muted rounded-md p-3">
-                  <dt class="text-foreground-muted text-xs">Foto</dt>
-                  <dd class="font-semibold">{{ getCatchPhoto(catchItem.id)?.label ?? catchItem.photoLabel }}</dd>
-                </div>
-              </dl>
+                <dl class="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div class="bg-muted min-w-0 rounded-md p-3">
+                    <dt class="text-foreground-muted text-xs">Miera</dt>
+                    <dd class="font-semibold">{{ catchItem.lengthCm }} cm</dd>
+                  </div>
+                  <div class="bg-muted min-w-0 rounded-md p-3">
+                    <dt class="text-foreground-muted text-xs">Nástraha</dt>
+                    <dd class="break-words font-semibold">{{ catchItem.bait }}</dd>
+                  </div>
+                  <div class="bg-muted min-w-0 rounded-md p-3">
+                    <dt class="text-foreground-muted text-xs">Čas</dt>
+                    <dd class="font-semibold">{{ formatCatchTime(catchItem.caughtAt) }}</dd>
+                  </div>
+                  <div class="bg-muted min-w-0 rounded-md p-3">
+                    <dt class="text-foreground-muted text-xs">Foto</dt>
+                    <dd class="break-words font-semibold">{{ getCatchPhoto(catchItem.id)?.label ?? catchItem.photoLabel }}</dd>
+                  </div>
+                </dl>
 
-              <p class="text-foreground-muted mt-4 text-sm">{{ catchItem.notes }}</p>
-            </div>
-          </article>
+                <p class="text-foreground-muted mt-4 text-sm">{{ catchItem.notes }}</p>
+              </div>
+            </article>
+          </section>
         </div>
 
-        <aside class="space-y-6">
+        <aside id="zapisnik-vypravy" class="order-1 scroll-mt-24 space-y-6 lg:order-2">
           <div class="border-border bg-surface rounded-card border p-5">
             <div class="flex items-start justify-between gap-3">
               <div>

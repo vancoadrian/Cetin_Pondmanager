@@ -98,4 +98,4 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - Neskôr nahradiť lokálny JSON store produkčnou repository/Supabase mutáciou.
 - Konfliktné pravidlá a vysvetlenie dostupnosti.
 - Doriešiť SMS/push potvrdenia; e-mail má provider `mock`, `resend` alebo `disabled` cez `RYBOLOV_RESERVATION_DELIVERY_PROVIDER`.
-- Doriešiť notifikáciu používateľovi, ak offline rezervácia po návrate internetu narazí na konflikt dostupnosti.
+- Čakajúca offline rezervácia, ktorá po návrate internetu narazí na konflikt dostupnosti, sa dá otvoriť priamo z offline centra alebo rezervačného formulára. Pôvodné údaje sa načítajú na opravu a ďalší výpadok aktualizuje ten istý lokálny záznam namiesto vytvorenia duplikátu.

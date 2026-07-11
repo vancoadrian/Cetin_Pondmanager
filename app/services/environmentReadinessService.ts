@@ -1,5 +1,5 @@
 export type DeploymentEnvironment = 'development' | 'production' | 'staging'
-export type EnvironmentReadinessCategory = 'core' | 'notifications' | 'reports' | 'reservations' | 'storage' | 'weather'
+export type EnvironmentReadinessCategory = 'accounts' | 'core' | 'notifications' | 'reports' | 'reservations' | 'storage' | 'weather'
 export type EnvironmentReadinessSeverity = 'optional' | 'recommended' | 'required'
 export type EnvironmentReadinessStatus = 'configured' | 'missing' | 'mock' | 'not-applicable'
 export type EnvironmentReadinessSummaryStatus = 'attention' | 'blocked' | 'ready'
@@ -44,6 +44,7 @@ export const deploymentEnvironmentLabels: Record<DeploymentEnvironment, string> 
 }
 
 export const environmentReadinessCategoryLabels: Record<EnvironmentReadinessCategory, string> = {
+  accounts: 'Používateľské účty',
   core: 'Jadro',
   notifications: 'Notifikácie',
   reports: 'Reporty',
@@ -166,6 +167,7 @@ export function createEnvironmentReadinessReport(
   const environment = resolveDeploymentEnvironment(env)
   const isProduction = environment === 'production'
   const isProductionLike = environment === 'production' || environment === 'staging'
+  const authProvider = envValue(env, 'RYBOLOV_AUTH_DELIVERY_PROVIDER') || 'mock'
   const pushProvider = envValue(env, 'RYBOLOV_PUSH_PROVIDER') || 'mock'
   const reportProvider = envValue(env, 'RYBOLOV_REPORT_DELIVERY_PROVIDER') || 'mock'
   const reservationProvider = envValue(env, 'RYBOLOV_RESERVATION_DELIVERY_PROVIDER') || 'mock'
@@ -195,6 +197,31 @@ export function createEnvironmentReadinessReport(
       key: 'NUXT_PUBLIC_REZERVACIE_PHONE',
       label: 'Rezervačný telefón',
       recommended: true,
+    }),
+    createMockProviderItem({
+      category: 'accounts',
+      description: 'Provider jednorazových e-mailov na obnovu hesla.',
+      environment,
+      key: 'RYBOLOV_AUTH_DELIVERY_PROVIDER',
+      label: 'Obnova hesla provider',
+      provider: authProvider,
+      recommendedProvider: 'resend',
+    }),
+    createRequirement(env, {
+      category: 'accounts',
+      description: 'Resend API kľúč pre odoslanie odkazu na obnovu hesla.',
+      key: 'RYBOLOV_RESEND_API_KEY',
+      label: 'Resend API key',
+      required: authProvider === 'resend',
+      sensitive: true,
+    }),
+    createRequirement(env, {
+      category: 'accounts',
+      description: 'Odosielateľ bezpečnostných e-mailov používateľského účtu.',
+      key: 'RYBOLOV_AUTH_EMAIL_FROM',
+      label: 'Účtový e-mail odosielateľ',
+      recommended: isProductionLike,
+      required: authProvider === 'resend',
     }),
     createRequirement(env, {
       category: 'storage',

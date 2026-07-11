@@ -60,6 +60,7 @@ export default defineEventHandler(async (event) => {
       from: result.reservation.from,
       notificationRecipientCount: notification?.broadcast.recipientCount ?? 0,
       notificationStatus: notification?.broadcast.status ?? null,
+      paymentMethodId: result.reservation.paymentMethodId ?? null,
       pegId: result.reservation.pegId,
       rentalCount: result.reservation.rentalIds.length,
       to: result.reservation.to,

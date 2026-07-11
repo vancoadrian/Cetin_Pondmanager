@@ -755,7 +755,12 @@ onBeforeUnmount(() => {
                 tone="error"
               />
               <div class="mt-3 flex flex-wrap gap-2">
-                <UButton to="/rezervacie" icon="i-heroicons-pencil-square" size="xs" variant="soft">
+                <UButton
+                  :to="{ path: '/rezervacie', query: { cakajuca: item.id } }"
+                  icon="i-heroicons-pencil-square"
+                  size="xs"
+                  variant="soft"
+                >
                   Skontrolovať
                 </UButton>
                 <UButton

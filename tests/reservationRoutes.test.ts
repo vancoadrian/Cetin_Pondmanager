@@ -28,6 +28,7 @@ const MAREK_APP_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
 const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
 
 const localEnvKeys = [
+  'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CABIN_CATALOG_STORE',
   'RYBOLOV_LOCAL_CLOSURE_STORE',
@@ -51,6 +52,7 @@ const validPayload = {
   dateTo: '2026-06-12',
   extraIds: ['wood-crate'],
   lake: 'velky-cetin',
+  paymentMethodId: 'cash-on-site',
   pegId: 'vc-03',
   permitId: 'permit-48h',
   rentalIds: ['landing-net-rental', 'fish-cradle-rental'],
@@ -81,6 +83,7 @@ beforeEach(async () => {
   }
 
   const dataDir = join(tempDir, 'data')
+  process.env.RYBOLOV_LOCAL_ACCOUNT_STORE = join(dataDir, 'account-state.json')
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CABIN_CATALOG_STORE = join(dataDir, 'cabin-catalog.json')
   process.env.RYBOLOV_LOCAL_CLOSURE_STORE = join(dataDir, 'closure-state.json')

@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
       }),
     ),
   )
-  const account = resolveMockAnglerAccount(event)
+  const account = await resolveMockAnglerAccount(event)
   const result = submitTripLogbook(
     await readBody(event),
     catchState,

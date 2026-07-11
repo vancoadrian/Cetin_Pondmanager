@@ -637,7 +637,7 @@ export interface Sponsor {
   active: boolean
 }
 
-export type AuditArea = 'reservations' | 'rentals' | 'catches' | 'fish' | 'issues' | 'logbooks' | 'tournaments' | 'map' | 'sponsors' | 'system'
+export type AuditArea = 'accounts' | 'reservations' | 'rentals' | 'catches' | 'fish' | 'issues' | 'logbooks' | 'tournaments' | 'map' | 'sponsors' | 'system'
 export type AuditActorRole =
   | 'owner'
   | 'manager'

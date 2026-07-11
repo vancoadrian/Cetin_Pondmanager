@@ -2,9 +2,15 @@ import { findMockAnglerAccountById, mockAnglerAccounts } from '~/services/angler
 
 export function useMockAnglerAuth() {
   const { logout: logoutUser, user } = useMockAuth()
-  const account = computed(() =>
-    findMockAnglerAccountById(user.value?.role === 'angler' ? user.value.id : null) ?? null,
-  )
+  const account = computed(() => {
+    if (user.value?.role !== 'angler') return null
+
+    return findMockAnglerAccountById(user.value.id) ?? {
+      email: user.value.email,
+      id: user.value.id,
+      name: user.value.name,
+    }
+  })
   const isLoggedIn = computed(() => account.value !== null)
 
   function logout() {

@@ -1,6 +1,7 @@
 import { ANGLER_SESSION_COOKIE, findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
 
 export const AUTH_SESSION_COOKIE = 'rybolov_cetin_mock_session'
+export const AUTH_USER_COOKIE = 'rybolov_cetin_mock_user'
 
 export type MockRole =
   | 'angler'
@@ -24,6 +25,18 @@ export interface MockUser {
   tournamentId?: string
   description: string
   permissions: string[]
+}
+
+export type PublicMockUser = Omit<MockUser, 'password'>
+
+export interface MockLoginResult {
+  message?: string
+  ok: boolean
+}
+
+export interface MockRegistrationResponse {
+  ok: true
+  user: PublicMockUser
 }
 
 export const mockUsers: MockUser[] = [
@@ -140,6 +153,16 @@ export function authenticateMockUser(email: string, password: string) {
   return matchedUser?.password === password ? matchedUser : undefined
 }
 
+export function findMockUserByEmail(email: string) {
+  const normalizedEmail = email.trim().toLocaleLowerCase('sk')
+  const directMatch = mockUsers.find((item) => item.email.toLocaleLowerCase('sk') === normalizedEmail)
+  const aliasAccount = directMatch ? undefined : findMockAnglerAccountByEmail(normalizedEmail)
+
+  return directMatch ?? (aliasAccount
+    ? mockUsers.find((item) => item.role === 'angler' && item.id === aliasAccount.id)
+    : undefined)
+}
+
 export function findMockUserById(userId?: string | null) {
   return mockUsers.find((item) => item.id === userId)
 }
@@ -150,7 +173,7 @@ export function findMockUserBySessionValue(value?: string | null) {
 }
 
 export function canUseTournamentTeamScope(
-  user: MockUser | null | undefined,
+  user: PublicMockUser | null | undefined,
   tournamentId: unknown,
   sectorId: unknown,
 ) {
@@ -170,28 +193,82 @@ export function useMockAuth() {
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 30,
   })
+  const sessionUser = useCookie<PublicMockUser | null>(AUTH_USER_COOKIE, {
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  })
 
-  const user = computed(() => findMockUserById(session.value) ?? null)
+  const user = computed(() => sessionUser.value ?? findMockUserById(session.value) ?? null)
   const isLoggedIn = computed(() => user.value !== null)
 
-  function login(email: string, password: string) {
-    const matchedUser = authenticateMockUser(email, password)
-    if (!matchedUser) return false
+  function applyAuthenticatedUser(authenticatedUser: PublicMockUser) {
+    session.value = authenticatedUser.id
+    anglerSession.value = authenticatedUser.role === 'angler' ? authenticatedUser.id : null
+    sessionUser.value = authenticatedUser
+  }
 
-    session.value = matchedUser.id
-    anglerSession.value = matchedUser.role === 'angler' ? matchedUser.id : null
-    return true
+  function getAuthErrorMessage(error: unknown, fallback: string) {
+    const fetchError = error as {
+      data?: {
+        data?: { messages?: string[] }
+        message?: string
+        statusMessage?: string
+      }
+    }
+
+    return fetchError.data?.data?.messages?.join(' ')
+      || fetchError.data?.message
+      || fetchError.data?.statusMessage
+      || fallback
+  }
+
+  async function login(email: string, password: string): Promise<MockLoginResult> {
+    try {
+      const result = await $fetch<{ ok: true, user: PublicMockUser }>('/api/auth/login', {
+        body: { email, password },
+        method: 'POST',
+      })
+
+      applyAuthenticatedUser(result.user)
+      return { ok: true }
+    }
+    catch (error) {
+      return {
+        message: getAuthErrorMessage(error, 'Prihlásenie sa nepodarilo.'),
+        ok: false,
+      }
+    }
+  }
+
+  async function register(name: string, email: string, password: string): Promise<MockLoginResult> {
+    try {
+      const result = await $fetch<MockRegistrationResponse>('/api/auth/register', {
+        body: { email, name, password },
+        method: 'POST',
+      })
+
+      applyAuthenticatedUser(result.user)
+      return { ok: true }
+    }
+    catch (error) {
+      return {
+        message: getAuthErrorMessage(error, 'Účet sa nepodarilo vytvoriť.'),
+        ok: false,
+      }
+    }
   }
 
   function logout() {
     session.value = null
     anglerSession.value = null
+    sessionUser.value = null
   }
 
   return {
     isLoggedIn,
     login,
     logout,
+    register,
     user,
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createOfflineReservationQueueItem,
+  createUpdatedOfflineReservationQueueItem,
   getOfflineReservationQueueErrorMessage,
   getReservationFetchErrorStatusCode,
   sanitizeOfflineReservationQueueItems,
@@ -17,6 +18,7 @@ const payload: OfflineReservationPayload = {
   dateTo: '2026-05-22',
   extraIds: ['firewood-crate'],
   lake: 'velky-cetin',
+  paymentMethodId: 'bank-transfer',
   pegId: 'vc-03',
   permitId: 'permit-48h',
   rentalIds: ['landing-net'],
@@ -58,6 +60,38 @@ describe('offlineReservationQueueService', () => {
       first,
       false,
     ])).toEqual([first, second])
+  })
+
+  it('replaces edited reservation data without creating a new queue identity', () => {
+    const original = createOfflineReservationQueueItem(payload, {
+      id: 'offline-reservation-edit',
+      now: '2026-05-20T10:00:00.000Z',
+    })
+    const failed = {
+      ...original,
+      attempts: 2,
+      lastError: 'Miesto už nie je dostupné.',
+      updatedAt: '2026-05-20T11:00:00.000Z',
+    }
+    const updated = createUpdatedOfflineReservationQueueItem(failed, {
+      ...payload,
+      dateFrom: '2026-05-23',
+      dateTo: '2026-05-25',
+      pegId: 'vc-04',
+    }, '2026-05-20T12:00:00.000Z')
+
+    expect(updated).toMatchObject({
+      attempts: 0,
+      createdAt: original.createdAt,
+      id: original.id,
+      payload: {
+        dateFrom: '2026-05-23',
+        dateTo: '2026-05-25',
+        pegId: 'vc-04',
+      },
+      updatedAt: '2026-05-20T12:00:00.000Z',
+    })
+    expect(updated).not.toHaveProperty('lastError')
   })
 
   it('queues reservation submissions only for network-like failures or offline state', () => {

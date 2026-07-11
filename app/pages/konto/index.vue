@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import type { TripLogbook, TripLogbookEntry } from '~/data/pond'
+import {
+  ACCOUNT_DELETION_CONFIRMATION,
+  type AccountDeletionResponse,
+} from '~/services/accountDeletionService'
 import type { AnglerLogbooksResponse } from '~/services/catchApiService'
 import type { AccountReservation, AnglerReservationsResponse } from '~/services/reservationApiService'
 
@@ -109,6 +113,18 @@ const hasAnyAccountData = computed(() =>
   accountReservations.value.length > 0
   || accountState.value.tripLogbooks.length > 0
   || accountState.value.tripLogbookEntries.length > 0,
+)
+const accountExportStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const accountExportMessage = ref('')
+const showAccountDeletion = ref(false)
+const accountDeletionPassword = ref('')
+const accountDeletionConfirmation = ref('')
+const accountDeletionStatus = ref<'idle' | 'submitting' | 'error'>('idle')
+const accountDeletionMessage = ref('')
+const canDeleteAccount = computed(() =>
+  Boolean(account.value)
+  && accountDeletionPassword.value.length > 0
+  && accountDeletionConfirmation.value === ACCOUNT_DELETION_CONFIRMATION,
 )
 const sortedEntries = computed(() =>
   [...accountState.value.tripLogbookEntries].sort((first, second) =>
@@ -360,6 +376,85 @@ async function submitLogout() {
   accountState.value = emptyState()
   reservationState.value = emptyReservationState()
   await navigateTo('/')
+}
+
+async function downloadAccountData() {
+  if (accountExportStatus.value === 'submitting') return
+
+  accountExportStatus.value = 'submitting'
+  accountExportMessage.value = ''
+  try {
+    const response = await fetch('/api/account/export', {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error('Account export failed')
+
+    const blob = await response.blob()
+    const disposition = response.headers.get('content-disposition') ?? ''
+    const fileName = disposition.match(/filename="([^"]+)"/)?.[1]
+      ?? `rybolov-cetin-moje-udaje-${new Date().toISOString().slice(0, 10)}.json`
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(objectUrl)
+
+    accountExportStatus.value = 'success'
+    accountExportMessage.value = 'Kópia vašich údajov bola stiahnutá.'
+  }
+  catch {
+    accountExportStatus.value = 'error'
+    accountExportMessage.value = 'Údaje sa nepodarilo stiahnuť. Skontrolujte pripojenie a skúste to znova.'
+  }
+}
+
+function closeAccountDeletion() {
+  showAccountDeletion.value = false
+  accountDeletionPassword.value = ''
+  accountDeletionConfirmation.value = ''
+  accountDeletionStatus.value = 'idle'
+  accountDeletionMessage.value = ''
+}
+
+function getAccountDeletionErrorMessage(error: unknown) {
+  const fetchError = error as {
+    data?: {
+      data?: { messages?: string[] }
+      message?: string
+      statusMessage?: string
+    }
+  }
+
+  return fetchError.data?.data?.messages?.join(' ')
+    || fetchError.data?.message
+    || fetchError.data?.statusMessage
+    || 'Účet sa nepodarilo zmazať.'
+}
+
+async function submitAccountDeletion() {
+  if (!canDeleteAccount.value || accountDeletionStatus.value === 'submitting') return
+
+  accountDeletionStatus.value = 'submitting'
+  accountDeletionMessage.value = 'Zmazávam účet a anonymizujem osobné väzby.'
+
+  try {
+    await $fetch<AccountDeletionResponse>('/api/account/delete', {
+      body: {
+        confirmation: accountDeletionConfirmation.value,
+        password: accountDeletionPassword.value,
+      },
+      method: 'POST',
+    })
+    logout()
+    accountState.value = emptyState()
+    reservationState.value = emptyReservationState()
+    await navigateTo('/login?stav=ucet-zmazany')
+  }
+  catch (error) {
+    accountDeletionStatus.value = 'error'
+    accountDeletionMessage.value = getAccountDeletionErrorMessage(error)
+  }
 }
 </script>
 
@@ -846,6 +941,130 @@ async function submitLogout() {
               </div>
               <UButton :to="tripLogbookTarget(logbook)" variant="ghost">
                 História
+              </UButton>
+            </div>
+          </div>
+        </section>
+
+        <section class="mt-12 border-t border-border pt-8">
+          <div>
+            <h2 class="text-xl font-bold">Nastavenia účtu</h2>
+            <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
+              Spravujte svoju kópiu údajov alebo natrvalo odstráňte používateľský účet.
+            </p>
+          </div>
+
+          <div class="mt-6 flex flex-col gap-4 border-y border-border py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                <UIcon name="i-heroicons-arrow-down-tray" class="h-5 w-5" />
+              </div>
+              <div>
+                <h3 class="font-bold">Kópia mojich údajov</h3>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
+                  Stiahnite si profil, rezervácie, výpravy a vlastné úlovky v jednom JSON súbore.
+                </p>
+              </div>
+            </div>
+            <UButton
+              icon="i-heroicons-arrow-down-tray"
+              variant="soft"
+              :loading="accountExportStatus === 'submitting'"
+              @click="downloadAccountData"
+            >
+              Stiahnuť údaje
+            </UButton>
+          </div>
+
+          <DataStatusNotice
+            v-if="accountExportMessage"
+            class="mt-4"
+            :description="accountExportMessage"
+            :icon="accountExportStatus === 'success' ? 'i-heroicons-check-circle' : 'i-heroicons-exclamation-triangle'"
+            :title="accountExportStatus === 'success' ? 'Údaje sú pripravené' : 'Stiahnutie sa nepodarilo'"
+            :tone="accountExportStatus === 'success' ? 'success' : 'error'"
+          />
+
+          <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="font-bold">Zmazanie účtu</h3>
+              <p class="mt-1 max-w-2xl text-sm leading-6 text-foreground-muted">
+                Prihlásenie a osobné kontaktné údaje sa odstránia; prevádzkové záznamy revíru zostanú anonymizované.
+              </p>
+            </div>
+            <UButton
+              v-if="!showAccountDeletion"
+              icon="i-heroicons-trash"
+              color="error"
+              variant="soft"
+              @click="showAccountDeletion = true"
+            >
+              Zmazať účet
+            </UButton>
+          </div>
+
+          <div
+            v-if="showAccountDeletion"
+            class="mt-5 rounded-card border border-error-500/30 bg-error-500/5 p-5"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-error-500/10 text-error-700">
+                <UIcon name="i-heroicons-exclamation-triangle" class="h-5 w-5" />
+              </div>
+              <div>
+                <h3 class="font-bold text-error-800">Trvalé zmazanie účtu</h3>
+                <p class="mt-1 text-sm leading-6 text-foreground-muted">
+                  Po zmazaní sa už týmto e-mailom neprihlásite. Vaše meno, e-mail, telefón a väzba
+                  na zápisníky sa odstránia. Rezervácie, úlovky, merania a fotografie zostanú pri
+                  anonymizovaných prevádzkových záznamoch revíru.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-sm font-semibold">Aktuálne heslo</span>
+                <input
+                  v-model="accountDeletionPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  placeholder="Vaše heslo"
+                >
+              </label>
+              <label class="block">
+                <span class="text-sm font-semibold">Napíšte {{ ACCOUNT_DELETION_CONFIRMATION }}</span>
+                <input
+                  v-model="accountDeletionConfirmation"
+                  type="text"
+                  autocomplete="off"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  :placeholder="ACCOUNT_DELETION_CONFIRMATION"
+                >
+              </label>
+            </div>
+
+            <DataStatusNotice
+              v-if="accountDeletionMessage"
+              class="mt-4"
+              :description="accountDeletionMessage"
+              :loading="accountDeletionStatus === 'submitting'"
+              :title="accountDeletionStatus === 'error' ? 'Účet sa nepodarilo zmazať' : 'Zmazávam účet'"
+              :tone="accountDeletionStatus === 'error' ? 'error' : 'info'"
+            />
+
+            <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <UButton variant="ghost" :disabled="accountDeletionStatus === 'submitting'" @click="closeAccountDeletion">
+                Ponechať účet
+              </UButton>
+              <UButton
+                icon="i-heroicons-trash"
+                color="error"
+                :disabled="!canDeleteAccount || accountDeletionStatus === 'submitting'"
+                :loading="accountDeletionStatus === 'submitting'"
+                @click="submitAccountDeletion"
+              >
+                Natrvalo zmazať účet
               </UButton>
             </div>
           </div>

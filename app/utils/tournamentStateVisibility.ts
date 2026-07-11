@@ -1,4 +1,4 @@
-import type { MockUser } from '~/composables/useMockAuth'
+import type { PublicMockUser } from '~/composables/useMockAuth'
 import type { TournamentWorkflowState, TournamentStateResponse } from '~/services/tournamentApiService'
 
 function cloneTournamentState(state: TournamentWorkflowState): TournamentWorkflowState {
@@ -68,7 +68,7 @@ export function createPublicTournamentStateResponse(
 
 export function createTournamentAccountStateResponse(
   state: TournamentWorkflowState,
-  user: MockUser | null | undefined,
+  user: PublicMockUser | null | undefined,
   updatedAt: string,
 ): TournamentStateResponse | undefined {
   if (user?.role !== 'team' && user?.role !== 'marshal') return undefined

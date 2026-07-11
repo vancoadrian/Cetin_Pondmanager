@@ -26,6 +26,7 @@ export interface AuditLogResponse extends AuditLogState {
 }
 
 export const auditAreaLabels: Record<AuditArea, string> = {
+  accounts: 'Účty',
   catches: 'Úlovky',
   fish: 'Čipované ryby',
   issues: 'Hlásenia nedostatkov',
@@ -45,6 +46,11 @@ export const auditSeverityLabels: Record<AuditSeverity, string> = {
 }
 
 export const auditActionLabels: Record<string, string> = {
+  'account.created': 'Účet vytvorený',
+  'account.data_export.downloaded': 'Údaje účtu stiahnuté',
+  'account.deleted': 'Účet zmazaný',
+  'account.password_reset.completed': 'Heslo obnovené',
+  'account.password_reset.requested': 'Obnova hesla vyžiadaná',
   'catch.record.created': 'Nový úlovok',
   'catch.record.corrected': 'Úlovok opravený',
   'catch.record.approved': 'Úlovok schválený',

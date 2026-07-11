@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountRegistrationPayloadSchema,
   catchCorrectionInputSchema,
   catchModerationInputSchema,
   catchRecordInputSchema,
@@ -9,6 +10,8 @@ import {
   mapLayerImageSettingsSchema,
   mapPointDraftSchema,
   mapShapeInputSchema,
+  passwordResetConfirmPayloadSchema,
+  passwordResetRequestPayloadSchema,
   reservationRequestSchema,
   sponsorSettingsInputSchema,
   tournamentPenaltyInputSchema,
@@ -20,6 +23,60 @@ import {
   tripLogbookInputSchema,
 } from '~/app/schemas/pondSchemas'
 
+describe('accountRegistrationPayloadSchema', () => {
+  it('accepts a strong password and trims account identity fields', () => {
+    const result = accountRegistrationPayloadSchema.safeParse({
+      email: '  novy.rybar@example.sk  ',
+      name: '  Nový Rybár  ',
+      password: 'Bezpecne2026',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error('Account registration should be valid.')
+    expect(result.data.email).toBe('novy.rybar@example.sk')
+    expect(result.data.name).toBe('Nový Rybár')
+  })
+
+  it('rejects a short password without uppercase letters and numbers', () => {
+    const result = accountRegistrationPayloadSchema.safeParse({
+      email: 'novy.rybar@example.sk',
+      name: 'Nový Rybár',
+      password: 'slabe',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Weak account password should be invalid.')
+    expect(getValidationMessages(result)).toEqual(expect.arrayContaining([
+      'Heslo musí mať aspoň 10 znakov.',
+      'Heslo musí obsahovať veľké písmeno.',
+      'Heslo musí obsahovať číslo.',
+    ]))
+  })
+})
+
+describe('password reset schemas', () => {
+  it('accepts a valid reset request and strong replacement password', () => {
+    expect(passwordResetRequestPayloadSchema.safeParse({ email: ' rybar@example.sk ' }).success).toBe(true)
+    expect(passwordResetConfirmPayloadSchema.safeParse({
+      password: 'NoveHeslo2026',
+      token: 'a'.repeat(43),
+    }).success).toBe(true)
+  })
+
+  it('rejects malformed reset links and weak replacement passwords', () => {
+    const result = passwordResetConfirmPayloadSchema.safeParse({
+      password: 'slabe',
+      token: 'kratky-token',
+    })
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('Weak password reset should be invalid.')
+    expect(getValidationMessages(result)).toEqual(expect.arrayContaining([
+      'Heslo musí mať aspoň 10 znakov.',
+      'Odkaz na obnovu hesla nie je platný.',
+    ]))
+  })
+})
+
 const validReservationRequest = {
   cabinProductId: 'small-cabin',
   contactEmail: '  jan.rybar@example.com  ',
@@ -29,6 +86,7 @@ const validReservationRequest = {
   dateTo: '2026-06-12',
   extraIds: ['wood-crate'],
   lake: 'velky-cetin',
+  paymentMethodId: 'cash-on-site',
   pegId: 'vc-03',
   permitId: 'permit-48h',
   rentalIds: ['landing-net-rental'],
@@ -47,6 +105,7 @@ describe('reservationRequestSchema', () => {
     expect(result.data.contactName).toBe('Ján Rybár')
     expect(result.data.contactEmail).toBe('jan.rybar@example.com')
     expect(result.data.contactPhone).toBe('+421 900 111 222')
+    expect(result.data.paymentMethodId).toBe('cash-on-site')
   })
 
   it('allows reservation requests without email contact', () => {

@@ -16,6 +16,7 @@ const validPayload = {
   dateTo: '2026-06-12',
   extraIds: ['wood-crate'],
   lake: 'velky-cetin',
+  paymentMethodId: 'cash-on-site',
   pegId: 'vc-03',
   permitId: 'permit-48h',
   rentalIds: ['landing-net-rental', 'fish-cradle-rental'],
@@ -34,6 +35,8 @@ describe('submitReservationRequest', () => {
     expect(result.reservation.guest).toBe('Ján API')
     expect(result.reservation.contactEmail).toBe('jan.api@example.com')
     expect(result.reservation.cabinProductId).toBe('large-cabin')
+    expect(result.reservation.paymentMethodId).toBe('cash-on-site')
+    expect(result.reservation.paymentStatus).toBe('unpaid')
     expect(result.reservation.type).toBe('weekend')
     expect(result.rentalBookings).toHaveLength(2)
     expect(result.rentalBookings.every((booking) => booking.status === 'requested')).toBe(true)
@@ -117,6 +120,18 @@ describe('submitReservationRequest', () => {
 
     expect(result.messages).toContain('Vybraná výbava nie je zapnutá v požičovni: Podberák 1 m+.')
     expect(result.messages).toContain('Vybraný doplnok nie je dostupný pre túto rezerváciu: wood-crate.')
+  })
+
+  it('rejects a disabled payment method for public reservation requests', () => {
+    const result = submitReservationRequest({
+      ...validPayload,
+      paymentMethodId: 'card-gateway',
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('Disabled payment method should be invalid.')
+
+    expect(result.messages).toContain('Vybraná platobná metóda nie je zapnutá: Platobná brána.')
   })
 })
 

@@ -113,6 +113,40 @@ const optionalEmailSchema = z.preprocess(
   z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.').optional(),
 )
 
+export const loginPayloadSchema = z.object({
+  email: z.string().trim().email('E-mail nemá platný formát.'),
+  password: z.string().min(1, 'Doplňte heslo.'),
+})
+
+const accountPasswordSchema = z.string()
+  .min(10, 'Heslo musí mať aspoň 10 znakov.')
+  .max(128, 'Heslo môže mať najviac 128 znakov.')
+  .regex(/[a-záäčďéíĺľňóôŕšťúýž]/u, 'Heslo musí obsahovať malé písmeno.')
+  .regex(/[A-ZÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽ]/u, 'Heslo musí obsahovať veľké písmeno.')
+  .regex(/[0-9]/, 'Heslo musí obsahovať číslo.')
+
+export const accountRegistrationPayloadSchema = z.object({
+  email: z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.'),
+  name: z.string().trim().min(2, 'Doplňte meno.').max(80, 'Meno môže mať najviac 80 znakov.'),
+  password: accountPasswordSchema,
+})
+
+export const passwordResetRequestPayloadSchema = z.object({
+  email: z.string().trim().email('E-mail nemá platný formát.').max(120, 'E-mail môže mať najviac 120 znakov.'),
+})
+
+export const passwordResetConfirmPayloadSchema = z.object({
+  password: accountPasswordSchema,
+  token: z.string().trim().min(32, 'Odkaz na obnovu hesla nie je platný.').max(256, 'Odkaz na obnovu hesla nie je platný.'),
+})
+
+export const accountDeletionPayloadSchema = z.object({
+  confirmation: z.literal('ZMAZAŤ', {
+    errorMap: () => ({ message: 'Pre potvrdenie napíšte ZMAZAŤ.' }),
+  }),
+  password: z.string().min(1, 'Doplňte aktuálne heslo.'),
+})
+
 export const reservationRequestPayloadSchema = z.object({
   cabinProductId: z.string().optional(),
   contactEmail: optionalEmailSchema,
@@ -122,6 +156,7 @@ export const reservationRequestPayloadSchema = z.object({
   dateTo: isoDateSchema,
   extraIds: z.array(z.string()),
   lake: lakeSlugSchema,
+  paymentMethodId: z.string().trim().optional(),
   pegId: z.string().min(1, 'Vyberte lovné miesto.'),
   permitId: z.string().min(1, 'Vyberte povolenku.'),
   rentalIds: z.array(z.string()),

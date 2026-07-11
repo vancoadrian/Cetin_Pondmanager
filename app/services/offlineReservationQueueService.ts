@@ -54,6 +54,20 @@ export function createOfflineReservationQueueItem(
   })
 }
 
+export function createUpdatedOfflineReservationQueueItem(
+  item: OfflineReservationQueueItem,
+  payload: OfflineReservationPayload,
+  now = new Date().toISOString(),
+): OfflineReservationQueueItem {
+  return offlineReservationQueueItemSchema.parse({
+    attempts: 0,
+    createdAt: item.createdAt,
+    id: item.id,
+    payload,
+    updatedAt: now,
+  })
+}
+
 export function sanitizeOfflineReservationQueueItems(rawItems: unknown[]) {
   return rawItems
     .map((item) => offlineReservationQueueItemSchema.safeParse(item))
@@ -119,6 +133,36 @@ export async function removeOfflineReservation(id: string) {
     transaction.objectStore(RESERVATION_STORE_NAME).delete(id)
     await transactionDone(transaction)
     notifyOfflineQueueChanged()
+  }
+  finally {
+    database.close()
+  }
+}
+
+export async function updateOfflineReservation(
+  id: string,
+  payload: OfflineReservationPayload,
+  now = new Date().toISOString(),
+) {
+  const database = await openOfflineQueueDb()
+
+  try {
+    const transaction = database.transaction(RESERVATION_STORE_NAME, 'readwrite')
+    const store = transaction.objectStore(RESERVATION_STORE_NAME)
+    const rawItem = await requestToPromise<unknown>(store.get(id))
+    const item = offlineReservationQueueItemSchema.safeParse(rawItem)
+
+    if (!item.success) {
+      transaction.abort()
+      throw new Error('Čakajúca rezervácia už v tomto zariadení neexistuje.')
+    }
+
+    const updatedItem = createUpdatedOfflineReservationQueueItem(item.data, payload, now)
+    store.put(updatedItem)
+    await transactionDone(transaction)
+    notifyOfflineQueueChanged()
+
+    return updatedItem
   }
   finally {
     database.close()

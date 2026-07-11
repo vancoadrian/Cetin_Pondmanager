@@ -273,6 +273,7 @@ export function submitReservationRequest(
   return createReservationSubmission(payloadResult.data, service, {
     internalNote: 'Webová žiadosť prijatá z rezervačného formulára. Správca ju má potvrdiť telefonicky.',
     message: 'Žiadosť je prijatá a čaká na telefonické potvrdenie správcom.',
+    paymentMethodId: payloadResult.data.paymentMethodId,
     rentalBookingNote: 'Žiadosť z verejného formulára čaká na potvrdenie správcom.',
     rentalBookingStatus: 'requested',
     source: 'web',

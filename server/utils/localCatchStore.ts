@@ -44,10 +44,13 @@ function cloneTripLogbooks(items: TripLogbook[]) {
 
       return {
         ...member,
-        userId: member.userId ?? seedMember?.userId,
+        userId: member.userId ?? (member.name === seedMember?.name ? seedMember.userId : undefined),
       }
     }),
-    ownerUserId: item.ownerUserId ?? seedLogbookById.get(item.id)?.ownerUserId,
+    ownerUserId: item.ownerUserId
+      ?? (item.owner === seedLogbookById.get(item.id)?.owner
+        ? seedLogbookById.get(item.id)?.ownerUserId
+        : undefined),
     pegIds: [...item.pegIds],
   }))
 }

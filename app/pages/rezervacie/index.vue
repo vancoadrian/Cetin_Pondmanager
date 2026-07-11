@@ -13,6 +13,7 @@ import {
   readOfflineReservationQueue,
   removeOfflineReservation,
   shouldQueueReservationSubmission,
+  updateOfflineReservation,
   type OfflineReservationPayload,
   type OfflineReservationQueueItem,
 } from '~/services/offlineReservationQueueService'
@@ -21,7 +22,11 @@ import { resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 import { buildCalendarDays } from '~/utils/calendar'
 import { getRentalAvailability } from '~/utils/rentals'
 
-useHead({ title: 'Rezervácie' })
+useHead({
+  bodyAttrs: { class: 'overflow-x-hidden' },
+  htmlAttrs: { class: 'overflow-x-hidden' },
+  title: 'Rezervácie',
+})
 
 const {
   cabinProducts: seedCabinProducts,
@@ -88,6 +93,9 @@ const {
 const route = useRoute()
 const router = useRouter()
 const { account: anglerAccount } = useMockAnglerAuth()
+const requestedQueuedReservationId = computed(() =>
+  typeof route.query.cakajuca === 'string' ? route.query.cakajuca : '',
+)
 
 const normalizeRouteIdList = (value: unknown) => {
   const values = Array.isArray(value) ? value : [value]
@@ -136,6 +144,7 @@ const reservationTo = ref(initialDateRange.dateTo)
 const reservationContactName = ref(anglerAccount.value?.name ?? '')
 const reservationContactEmail = ref(anglerAccount.value?.email ?? '')
 const reservationContactPhone = ref('')
+const selectedPaymentMethodId = ref(enabledPaymentMethods.value[0]?.id ?? '')
 const selectedRentalIds = ref<string[]>(
   routeRentalIds.filter((id) => activeRentalItems.value.some((item) => item.id === id)),
 )
@@ -145,11 +154,42 @@ const selectedExtraIds = ref<string[]>(
 let rentalDefaultSelectionApplied = false
 const reservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reservationSubmitMessage = ref('')
+const reservationSubmitOutcome = ref<'none' | 'queued' | 'sent'>('none')
 const offlineReservationQueue = ref<OfflineReservationQueueItem[]>([])
 const offlineSyncStatus = ref<'idle' | 'syncing' | 'success' | 'error'>('idle')
 const offlineSyncMessage = ref('')
+const editingOfflineReservationId = ref('')
+const offlineReservationEditWarnings = ref<string[]>([])
 const isOnline = ref(true)
 let offlineSyncInProgress = false
+
+const editingOfflineReservation = computed(() =>
+  offlineReservationQueue.value.find((item) => item.id === editingOfflineReservationId.value),
+)
+const syncableOfflineReservations = computed(() =>
+  offlineReservationQueue.value.filter((item) => item.id !== editingOfflineReservationId.value),
+)
+const offlineReservationEditDescription = computed(() => {
+  const parts = [
+    editingOfflineReservation.value?.lastError
+      ? `Posledné odoslanie: ${editingOfflineReservation.value.lastError}`
+      : 'Údaje z čakajúcej žiadosti sú načítané vo formulári.',
+    ...offlineReservationEditWarnings.value,
+  ]
+
+  return parts.join(' ')
+})
+const reservationSubmitNoticeTitle = computed(() => {
+  if (reservationSubmitStatus.value === 'error') return 'Žiadosť sa nepodarilo odoslať'
+  if (reservationSubmitStatus.value === 'submitting') return 'Odosielam žiadosť'
+  if (reservationSubmitOutcome.value === 'queued') {
+    return editingOfflineReservationId.value
+      ? 'Zmeny sú uložené v zariadení'
+      : 'Žiadosť je uložená v zariadení'
+  }
+
+  return 'Žiadosť je odoslaná'
+})
 
 const isReservationDataLoading = computed(() =>
   reservationStateStatus.value === 'pending' || mapStateStatus.value === 'pending',
@@ -321,6 +361,9 @@ const unavailableSelectedRentalLabels = computed(() =>
 const selectedExtras = computed(() =>
   availableExtras.value.filter((item) => selectedExtraIds.value.includes(item.id)),
 )
+const selectedPaymentMethod = computed(() =>
+  enabledPaymentMethods.value.find((method) => method.id === selectedPaymentMethodId.value),
+)
 const reservationDraft = computed(() => ({
   cabinProductId: selectedCabin.value?.id,
   contactEmail: reservationContactEmail.value,
@@ -330,6 +373,7 @@ const reservationDraft = computed(() => ({
   dateTo: reservationTo.value,
   extraIds: selectedExtraIds.value,
   lake: selectedLake.value,
+  paymentMethodId: selectedPaymentMethodId.value || undefined,
   pegId: selectedPegId.value,
   permitId: selectedPermitId.value,
   rentalIds: selectedRentalIds.value,
@@ -338,7 +382,13 @@ const reservationDraft = computed(() => ({
   unavailableRentalLabels: unavailableSelectedRentalLabels.value,
 }))
 const reservationValidation = computed(() => reservationRequestSchema.safeParse(reservationDraft.value))
-const reservationValidationMessages = computed(() => getValidationMessages(reservationValidation.value))
+const reservationValidationMessages = computed(() => [
+  ...getValidationMessages(reservationValidation.value),
+  ...(!selectedPaymentMethod.value ? ['Vyberte spôsob platby.'] : []),
+])
+const reservationCanSubmit = computed(() =>
+  reservationValidation.value.success && Boolean(selectedPaymentMethod.value),
+)
 const reservationAccountHint = computed(() =>
   anglerAccount.value
     ? `${anglerAccount.value.name} · ${anglerAccount.value.email}`
@@ -399,7 +449,7 @@ const reservationChecklist = computed(() => {
   const placeReady = Boolean(selectedPeg.value && selectedAvailability.value?.reservable)
   const equipmentReady = unavailableSelectedRentalLabels.value.length === 0
   const contactReady = reservationContactName.value.trim().length >= 2 && reservationContactPhone.value.trim().length >= 7
-  const paymentReady = enabledPaymentMethods.value.length > 0
+  const paymentReady = Boolean(selectedPaymentMethod.value)
 
   return [
     {
@@ -439,8 +489,8 @@ const reservationChecklist = computed(() => {
     {
       id: 'payment',
       description: paymentReady
-        ? 'Platba hotovosťou alebo prevodom po potvrdení.'
-        : 'Spôsob platby doplní správca.',
+        ? `${selectedPaymentMethod.value?.label}. Pokyny dostanete po potvrdení.`
+        : 'Vyberte jeden z dostupných spôsobov platby.',
       icon: 'i-heroicons-banknotes',
       ready: paymentReady,
       title: 'Platba',
@@ -472,6 +522,7 @@ const createReservationPayload = (data: OfflineReservationPayload): OfflineReser
   dateTo: data.dateTo,
   extraIds: data.extraIds,
   lake: data.lake,
+  paymentMethodId: data.paymentMethodId,
   pegId: data.pegId,
   permitId: data.permitId,
   rentalIds: data.rentalIds,
@@ -524,6 +575,21 @@ function selectRecommendedAvailablePlace() {
   if (!row) return
 
   selectedPegId.value = row.peg.id
+}
+
+function scrollToReservationRequest() {
+  if (!import.meta.client) return
+
+  void nextTick(() => {
+    const target = document.getElementById('ziadost-rezervacie')
+    if (!target) return
+
+    const top = target.getBoundingClientRect().top + window.scrollY - 88
+    window.scrollTo({
+      behavior: 'smooth',
+      top: Math.max(top, 0),
+    })
+  })
 }
 
 function csvCell(value: string | number | undefined) {
@@ -579,18 +645,107 @@ async function refreshOfflineReservationQueue() {
   }
 }
 
+async function clearOfflineReservationEdit() {
+  editingOfflineReservationId.value = ''
+  offlineReservationEditWarnings.value = []
+
+  if (route.query.cakajuca) {
+    await router.replace({
+      query: {
+        ...route.query,
+        cakajuca: undefined,
+      },
+    })
+  }
+}
+
+async function editOfflineReservation(item: OfflineReservationQueueItem) {
+  const payload = item.payload
+  const warnings: string[] = []
+
+  editingOfflineReservationId.value = item.id
+  reservationFrom.value = payload.dateFrom
+  reservationTo.value = payload.dateTo
+  selectedLake.value = payload.lake
+  reservationContactName.value = payload.contactName
+  reservationContactEmail.value = payload.contactEmail ?? ''
+  reservationContactPhone.value = payload.contactPhone
+  selectedPermitId.value = permitProducts.some((permit) => permit.id === payload.permitId)
+    ? payload.permitId
+    : permitProducts[0]?.id ?? ''
+  rentalDefaultSelectionApplied = true
+
+  await nextTick()
+
+  if (livePegs.value.some((peg) => peg.id === payload.pegId && peg.lake === payload.lake)) {
+    selectedPegId.value = payload.pegId
+  }
+  else {
+    selectedPegId.value = lakePegs.value[0]?.id ?? ''
+    warnings.push('Pôvodné lovné miesto už nie je dostupné, preto vyberte náhradné miesto.')
+  }
+
+  await nextTick()
+
+  const reservableRentalIds = new Set(
+    rentalAvailabilityRows.value
+      .filter((row) => row.availability.reservable)
+      .map((row) => row.item.id),
+  )
+  selectedRentalIds.value = payload.rentalIds.filter((id) => reservableRentalIds.has(id))
+  if (selectedRentalIds.value.length !== payload.rentalIds.length) {
+    warnings.push('Nedostupná výbava bola z výberu odstránená.')
+  }
+
+  const availableExtraIds = new Set(availableExtras.value.map((extra) => extra.id))
+  selectedExtraIds.value = payload.extraIds.filter((id) => availableExtraIds.has(id))
+  if (selectedExtraIds.value.length !== payload.extraIds.length) {
+    warnings.push('Nedostupné doplnky boli z výberu odstránené.')
+  }
+
+  const paymentMethod = enabledPaymentMethods.value.find((method) => method.id === payload.paymentMethodId)
+  selectedPaymentMethodId.value = paymentMethod?.id ?? enabledPaymentMethods.value[0]?.id ?? ''
+  if (payload.paymentMethodId && !paymentMethod) {
+    warnings.push('Pôvodný spôsob platby už nie je zapnutý, preto skontrolujte nový výber.')
+  }
+
+  offlineReservationEditWarnings.value = warnings
+  reservationSubmitStatus.value = 'idle'
+  reservationSubmitMessage.value = ''
+
+  if (requestedQueuedReservationId.value !== item.id) {
+    await router.replace({
+      query: {
+        ...route.query,
+        cakajuca: item.id,
+      },
+    })
+  }
+
+  scrollToReservationRequest()
+}
+
 async function queueOfflineReservation(payload: OfflineReservationPayload) {
   try {
-    await enqueueOfflineReservation(payload)
+    if (editingOfflineReservationId.value) {
+      await updateOfflineReservation(editingOfflineReservationId.value, payload)
+    }
+    else {
+      await enqueueOfflineReservation(payload)
+    }
 
     await refreshOfflineReservationQueue()
     reservationSubmitStatus.value = 'success'
-    reservationSubmitMessage.value = 'Slabý signál: žiadosť je uložená v tomto zariadení a odošle sa automaticky po obnovení pripojenia.'
+    reservationSubmitOutcome.value = 'queued'
+    reservationSubmitMessage.value = editingOfflineReservationId.value
+      ? 'Slabý signál: zmeny sú uložené v pôvodnej čakajúcej žiadosti. Nevytvorili sme jej druhú kópiu.'
+      : 'Slabý signál: žiadosť je uložená v tomto zariadení a odošle sa automaticky po obnovení pripojenia.'
     offlineSyncStatus.value = 'success'
     offlineSyncMessage.value = `Na odoslanie čaká ${formatReservationCount(offlineReservationQueue.value.length)}.`
   }
   catch (error) {
     reservationSubmitStatus.value = 'error'
+    reservationSubmitOutcome.value = 'none'
     reservationSubmitMessage.value = getQueueFallbackErrorMessage(error)
   }
 }
@@ -598,6 +753,9 @@ async function queueOfflineReservation(payload: OfflineReservationPayload) {
 async function discardOfflineReservation(id: string) {
   try {
     await removeOfflineReservation(id)
+    if (editingOfflineReservationId.value === id) {
+      await clearOfflineReservationEdit()
+    }
     await refreshOfflineReservationQueue()
     offlineSyncStatus.value = 'success'
     offlineSyncMessage.value = 'Čakajúca žiadosť bola odstránená zo zariadenia.'
@@ -619,22 +777,24 @@ async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
   }
 
   await refreshOfflineReservationQueue()
-  if (offlineReservationQueue.value.length === 0) {
+  if (syncableOfflineReservations.value.length === 0) {
     if (!options.silent) {
       offlineSyncStatus.value = 'success'
-      offlineSyncMessage.value = 'V tomto zariadení nečaká žiadna rezervácia na odoslanie.'
+      offlineSyncMessage.value = editingOfflineReservationId.value
+        ? 'Upravovanú žiadosť odošlite tlačidlom na konci formulára.'
+        : 'V tomto zariadení nečaká žiadna rezervácia na odoslanie.'
     }
     return
   }
 
   offlineSyncInProgress = true
   offlineSyncStatus.value = 'syncing'
-  offlineSyncMessage.value = `Odosielam ${formatReservationCount(offlineReservationQueue.value.length)}.`
+  offlineSyncMessage.value = `Odosielam ${formatReservationCount(syncableOfflineReservations.value.length)}.`
 
   let syncedCount = 0
 
   try {
-    for (const queuedReservation of [...offlineReservationQueue.value]) {
+    for (const queuedReservation of [...syncableOfflineReservations.value]) {
       try {
         await $fetch<ReservationSubmissionSuccess>('/api/reservations', {
           body: queuedReservation.payload,
@@ -656,10 +816,13 @@ async function syncOfflineReservationQueue(options: { silent?: boolean } = {}) {
       await refreshReservationState()
     }
 
-    offlineSyncStatus.value = offlineReservationQueue.value.length > 0 ? 'error' : 'success'
-    offlineSyncMessage.value = offlineReservationQueue.value.length > 0
-      ? `${formatReservationCount(syncedCount)} odoslaných, ${formatReservationCount(offlineReservationQueue.value.length)} čaká na ďalší pokus.`
-      : `${formatReservationCount(syncedCount)} bolo odoslaných správcovi.`
+    const remainingReservations = syncableOfflineReservations.value.length
+    offlineSyncStatus.value = remainingReservations > 0 ? 'error' : 'success'
+    offlineSyncMessage.value = remainingReservations > 0
+      ? `${formatReservationCount(syncedCount)} odoslaných, ${formatReservationCount(remainingReservations)} čaká na ďalší pokus.`
+      : editingOfflineReservationId.value
+        ? `${formatReservationCount(syncedCount)} bolo odoslaných. Upravovaná žiadosť zostáva otvorená vo formulári.`
+        : `${formatReservationCount(syncedCount)} bolo odoslaných správcovi.`
   }
   finally {
     offlineSyncInProgress = false
@@ -673,37 +836,72 @@ const cleanSelectedExtras = () => {
 
 const submitReservation = async () => {
   const validation = reservationValidation.value
-  if (!validation.success) {
+  if (!validation.success || !selectedPaymentMethod.value) {
     reservationSubmitStatus.value = 'error'
+    reservationSubmitOutcome.value = 'none'
     reservationSubmitMessage.value = reservationValidationMessages.value[0] ?? 'Skontrolujte údaje v žiadosti.'
     return
   }
 
   reservationSubmitStatus.value = 'submitting'
+  reservationSubmitOutcome.value = 'none'
   reservationSubmitMessage.value = 'Odosielam žiadosť správcovi.'
+  const payload = createReservationPayload(validation.data)
+  const queuedReservationId = editingOfflineReservationId.value
 
+  if (queuedReservationId) {
+    try {
+      await updateOfflineReservation(queuedReservationId, payload)
+      await refreshOfflineReservationQueue()
+    }
+    catch (error) {
+      reservationSubmitStatus.value = 'error'
+      reservationSubmitOutcome.value = 'none'
+      reservationSubmitMessage.value = getQueueFallbackErrorMessage(error)
+      return
+    }
+  }
+
+  let result: ReservationSubmissionSuccess
   try {
-    const payload = createReservationPayload(validation.data)
-    const result = await $fetch<ReservationSubmissionSuccess>('/api/reservations', {
+    result = await $fetch<ReservationSubmissionSuccess>('/api/reservations', {
       body: payload,
       method: 'POST',
     })
-
-    reservationSubmitStatus.value = 'success'
-    reservationSubmitMessage.value = `${result.message} Správca termín potvrdí v aplikácii, telefonicky alebo e-mailom.`
-    await refreshReservationState()
   }
   catch (error) {
-    const payload = createReservationPayload(validation.data)
-
     if (import.meta.client && shouldQueueReservationSubmission(error, navigator.onLine)) {
       await queueOfflineReservation(payload)
       return
     }
 
+    const errorMessage = getApiErrorMessage(error)
+    if (queuedReservationId) {
+      await markOfflineReservationAttempt(queuedReservationId, errorMessage)
+      await refreshOfflineReservationQueue()
+    }
     reservationSubmitStatus.value = 'error'
-    reservationSubmitMessage.value = getApiErrorMessage(error)
+    reservationSubmitOutcome.value = 'none'
+    reservationSubmitMessage.value = errorMessage
+    return
   }
+
+  if (queuedReservationId) {
+    try {
+      await removeOfflineReservation(queuedReservationId)
+      await clearOfflineReservationEdit()
+      await refreshOfflineReservationQueue()
+    }
+    catch (error) {
+      offlineSyncStatus.value = 'error'
+      offlineSyncMessage.value = `Žiadosť bola odoslaná, ale jej lokálnu kópiu sa nepodarilo odstrániť. ${getQueueFallbackErrorMessage(error)}`
+    }
+  }
+
+  await refreshReservationState()
+  reservationSubmitStatus.value = 'success'
+  reservationSubmitOutcome.value = 'sent'
+  reservationSubmitMessage.value = `${result.message} Správca termín potvrdí v aplikácii, telefonicky alebo e-mailom.`
 }
 
 function handleOnline() {
@@ -722,6 +920,21 @@ onMounted(() => {
 
   isOnline.value = navigator.onLine
   void refreshOfflineReservationQueue().then(() => {
+    const requestedItem = offlineReservationQueue.value.find(
+      (item) => item.id === requestedQueuedReservationId.value,
+    )
+    if (requestedItem) {
+      void editOfflineReservation(requestedItem)
+      return
+    }
+
+    if (requestedQueuedReservationId.value) {
+      offlineSyncStatus.value = 'error'
+      offlineSyncMessage.value = 'Vybraná čakajúca rezervácia už v tomto zariadení nie je uložená.'
+      void clearOfflineReservationEdit()
+      return
+    }
+
     if (navigator.onLine && offlineReservationQueue.value.length > 0) {
       void syncOfflineReservationQueue({ silent: true })
     }
@@ -772,6 +985,7 @@ watch(reservationDraft, () => {
   if (reservationSubmitStatus.value !== 'submitting') {
     reservationSubmitStatus.value = 'idle'
     reservationSubmitMessage.value = ''
+    reservationSubmitOutcome.value = 'none'
   }
 })
 
@@ -844,10 +1058,20 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  enabledPaymentMethods,
+  (methods) => {
+    if (methods.some((method) => method.id === selectedPaymentMethodId.value)) return
+
+    selectedPaymentMethodId.value = methods[0]?.id ?? ''
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <div>
+  <div class="overflow-x-clip">
     <PageHeader
       eyebrow="Rezervácie"
       title="Vyberte si miesto a služby"
@@ -856,9 +1080,10 @@ watch(
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <AvailabilityRangePicker
+        id="vyber-rezervacie"
         v-model:date-from="reservationFrom"
         v-model:date-to="reservationTo"
-        class="mb-5"
+        class="mb-5 scroll-mt-24"
       />
 
       <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -879,9 +1104,9 @@ watch(
           </button>
         </div>
 
-        <div class="grid gap-2 text-sm sm:grid-cols-3">
+        <div class="grid grid-cols-3 gap-2 text-sm">
           <div class="rounded-md border border-border bg-white px-3 py-2">
-            <p class="text-foreground-muted text-xs">Rezervovateľné</p>
+            <p class="text-foreground-muted text-xs">Voľné miesta</p>
             <p class="font-bold">{{ actionablePegs.length }} miest</p>
           </div>
           <div class="rounded-md border border-border bg-white px-3 py-2">
@@ -889,7 +1114,7 @@ watch(
             <p class="font-bold">{{ freeCabins.length }}</p>
           </div>
           <div class="rounded-md border border-border bg-white px-3 py-2">
-            <p class="text-foreground-muted text-xs">Blokované</p>
+            <p class="text-foreground-muted text-xs">Nedostupné</p>
             <p class="font-bold">{{ blockedPegs.length }} miest</p>
           </div>
         </div>
@@ -918,9 +1143,9 @@ watch(
         @action="selectRecommendedAvailablePlace"
       />
 
-      <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div class="space-y-6">
-          <div class="border-border bg-surface rounded-card border p-5">
+      <div class="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div class="contents">
+          <div class="border-border bg-surface order-1 min-w-0 rounded-card border p-5 lg:col-start-1 lg:row-start-1">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Lovné miesta a chaty</h2>
@@ -931,14 +1156,22 @@ watch(
               </div>
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <UButton
-                  v-if="recommendedAvailableRow"
+                  v-if="selectedAvailability?.reservable"
+                  data-testid="reservation-continue"
+                  type="button"
+                  icon="i-heroicons-arrow-right"
+                  @click="scrollToReservationRequest"
+                >
+                  Pokračovať k žiadosti
+                </UButton>
+                <UButton
+                  v-else-if="recommendedAvailableRow"
                   type="button"
                   icon="i-heroicons-check-circle"
                   variant="soft"
-                  :disabled="selectedPegId === recommendedAvailableRow.peg.id"
                   @click="selectRecommendedAvailablePlace"
                 >
-                  {{ selectedPegId === recommendedAvailableRow.peg.id ? 'Voľné miesto vybrané' : 'Vybrať voľné miesto' }}
+                  Vybrať {{ recommendedAvailableRow.peg.label }}
                 </UButton>
                 <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
               </div>
@@ -978,7 +1211,7 @@ watch(
             />
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div class="border-border bg-surface order-3 min-w-0 rounded-card border p-5 lg:col-start-1 lg:row-start-2">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Povinná výbava pri vode</h2>
@@ -1014,7 +1247,7 @@ watch(
             </div>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div class="border-border bg-surface order-4 min-w-0 overflow-hidden rounded-card border p-5 lg:col-start-1 lg:row-start-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Dostupnosť po dňoch</h2>
@@ -1059,7 +1292,7 @@ watch(
               </span>
             </div>
 
-            <div class="mt-5 overflow-x-auto rounded-md border border-border bg-white">
+            <div class="mt-5 max-w-full overflow-x-auto rounded-md border border-border bg-white [contain:layout_paint]">
               <table class="w-full min-w-[860px] border-collapse text-sm">
                 <thead>
                   <tr class="bg-muted text-left">
@@ -1119,9 +1352,30 @@ watch(
           </div>
         </div>
 
-        <aside class="space-y-6 lg:sticky lg:top-24 lg:self-start">
-          <div class="border-border bg-surface rounded-card border p-5">
-            <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
+        <aside class="order-2 min-w-0 space-y-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-start">
+          <div id="ziadost-rezervacie" class="border-border bg-surface scroll-mt-24 rounded-card border p-5">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
+              <UButton
+                to="#vyber-rezervacie"
+                icon="i-heroicons-pencil-square"
+                size="sm"
+                variant="ghost"
+              >
+                Upraviť výber
+              </UButton>
+            </div>
+
+            <DataStatusNotice
+              v-if="editingOfflineReservationId"
+              class="mt-4"
+              action-label="Ukončiť úpravu"
+              :description="offlineReservationEditDescription"
+              icon="i-heroicons-pencil-square"
+              title="Upravujete čakajúcu žiadosť"
+              tone="warning"
+              @action="clearOfflineReservationEdit"
+            />
 
             <div class="border-border mt-4 border-y py-4">
               <p class="text-foreground-muted text-xs font-semibold uppercase">Aktuálny výber</p>
@@ -1165,7 +1419,7 @@ watch(
               class="mt-4 space-y-3"
             >
               <DataStatusNotice
-                :action-label="offlineReservationQueue.length > 0 && isOnline ? 'Odoslať' : ''"
+                :action-label="syncableOfflineReservations.length > 0 && isOnline ? 'Odoslať ostatné' : ''"
                 :action-loading="offlineSyncStatus === 'syncing'"
                 :description="offlineSyncMessage || 'Pri výpadku signálu podržíme žiadosť v zariadení a odošleme ju hneď po návrate internetu.'"
                 :icon="isOnline ? 'i-heroicons-cloud-arrow-up' : 'i-heroicons-signal-slash'"
@@ -1194,7 +1448,8 @@ watch(
                 <div
                   v-for="item in offlineReservationQueue"
                   :key="item.id"
-                  class="flex items-start justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-sm text-foreground"
+                  class="flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm text-foreground"
+                  :class="editingOfflineReservationId === item.id ? 'border-warning-300 bg-warning-50' : 'border-transparent bg-white/70'"
                 >
                   <div class="min-w-0">
                     <p class="truncate font-bold">
@@ -1208,42 +1463,31 @@ watch(
                       {{ item.lastError }}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    class="text-foreground-muted hover:text-error-700 shrink-0 rounded-md p-1"
-                    aria-label="Odstrániť čakajúcu rezerváciu"
-                    @click="discardOfflineReservation(item.id)"
-                  >
-                    <UIcon name="i-heroicons-trash" class="h-4 w-4" />
-                  </button>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      class="rounded-md p-1.5"
+                      :class="editingOfflineReservationId === item.id ? 'text-warning-800' : 'text-foreground-muted hover:text-primary-800'"
+                      :aria-label="editingOfflineReservationId === item.id ? 'Táto čakajúca rezervácia sa upravuje' : 'Upraviť čakajúcu rezerváciu'"
+                      :title="editingOfflineReservationId === item.id ? 'Práve upravujete' : 'Upraviť žiadosť'"
+                      @click="editOfflineReservation(item)"
+                    >
+                      <UIcon name="i-heroicons-pencil-square" class="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="text-foreground-muted hover:text-error-700 rounded-md p-1.5"
+                      aria-label="Odstrániť čakajúcu rezerváciu"
+                      title="Odstrániť zo zariadenia"
+                      @click="discardOfflineReservation(item.id)"
+                    >
+                      <UIcon name="i-heroicons-trash" class="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
             <form class="mt-5 space-y-5">
-              <label class="block">
-                <span class="text-sm font-semibold">Jazero</span>
-                <select
-                  v-model="selectedLake"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                  <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">
-                    {{ lake.name }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="block">
-                <span class="text-sm font-semibold">Miesto</span>
-                <select
-                  v-model="selectedPegId"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                  <option v-for="peg in lakePegs" :key="peg.id" :value="peg.id">
-                    {{ peg.label }}
-                  </option>
-                </select>
-              </label>
-
               <div
                 v-if="selectedAvailability"
                 class="rounded-md border p-4"
@@ -1311,25 +1555,6 @@ watch(
                     </span>
                   </label>
                 </div>
-              </div>
-
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="block">
-                <span class="text-sm font-semibold">Od</span>
-                <input
-                  v-model="reservationFrom"
-                  type="date"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                </label>
-                <label class="block">
-                <span class="text-sm font-semibold">Do</span>
-                <input
-                  v-model="reservationTo"
-                  type="date"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                </label>
               </div>
 
               <div>
@@ -1411,52 +1636,55 @@ watch(
                 </div>
               </div>
 
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div
-                  v-if="reservationAccountHint"
-                  class="rounded-md border border-primary-200 bg-primary-50 p-3 text-sm text-primary-950 sm:col-span-2"
-                >
-                  <div class="flex items-start gap-2">
-                    <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
-                    <div>
-                      <p class="font-bold">Rezervácia sa uloží k vášmu účtu</p>
-                      <p class="mt-1 text-primary-800">{{ reservationAccountHint }}</p>
+              <div>
+                <p class="text-sm font-semibold">Kontaktné údaje</p>
+                <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div
+                    v-if="reservationAccountHint"
+                    class="rounded-md border border-primary-200 bg-primary-50 p-3 text-sm text-primary-950 sm:col-span-2"
+                  >
+                    <div class="flex items-start gap-2">
+                      <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
+                      <div>
+                        <p class="font-bold">Rezervácia sa uloží k vášmu účtu</p>
+                        <p class="mt-1 text-primary-800">{{ reservationAccountHint }}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <label class="block">
-                  <span class="text-sm font-semibold">Meno</span>
-                  <input
-                    v-model="reservationContactName"
-                    type="text"
-                    autocomplete="name"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                    placeholder="Meno a priezvisko"
-                    required
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">E-mail</span>
-                  <input
-                    v-model="reservationContactEmail"
-                    type="email"
-                    autocomplete="email"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                    placeholder="meno@example.com"
-                  >
-                </label>
-                <label class="block">
-                  <span class="text-sm font-semibold">Telefón</span>
-                  <input
-                    v-model="reservationContactPhone"
-                    type="tel"
-                    autocomplete="tel"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
-                    placeholder="+421 ..."
-                    required
-                  >
-                </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Meno</span>
+                    <input
+                      v-model="reservationContactName"
+                      type="text"
+                      autocomplete="name"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      placeholder="Meno a priezvisko"
+                      required
+                    >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">E-mail</span>
+                    <input
+                      v-model="reservationContactEmail"
+                      type="email"
+                      autocomplete="email"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      placeholder="meno@example.com"
+                    >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Telefón</span>
+                    <input
+                      v-model="reservationContactPhone"
+                      type="tel"
+                      autocomplete="tel"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      placeholder="+421 ..."
+                      required
+                    >
+                  </label>
+                </div>
               </div>
 
               <div class="rounded-md bg-muted p-4 text-sm">
@@ -1467,11 +1695,7 @@ watch(
                       {{ formatReservationItemCount(reservationServiceLines.length) }} v žiadosti.
                     </p>
                   </div>
-                  <StatusBadge
-                    :label="formatReservationItemCount(reservationServiceLines.length)"
-                    tone="primary"
-                    size="xs"
-                  />
+                  <UIcon name="i-heroicons-clipboard-document-check" class="text-primary-800 h-5 w-5 shrink-0" />
                 </div>
                 <div class="border-border divide-border mt-3 divide-y border-y">
                   <div
@@ -1489,19 +1713,41 @@ watch(
               </div>
 
               <div class="rounded-md border border-border bg-white p-4 text-sm">
-                <p class="font-bold">Platba po potvrdení</p>
-                <div class="mt-3 space-y-2">
-                  <div v-for="method in enabledPaymentMethods" :key="method.id" class="flex items-start gap-2">
+                <p class="font-bold">Spôsob platby</p>
+                <p class="text-foreground-muted mt-1">
+                  Platobné pokyny dostanete až po potvrdení rezervácie správcom.
+                </p>
+                <div v-if="enabledPaymentMethods.length" class="mt-3 grid gap-2">
+                  <label
+                    v-for="method in enabledPaymentMethods"
+                    :key="method.id"
+                    class="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+                    :class="selectedPaymentMethodId === method.id ? 'border-primary-600 bg-primary-50' : 'border-border bg-white hover:bg-muted'"
+                  >
+                    <input
+                      v-model="selectedPaymentMethodId"
+                      :data-testid="`payment-method-${method.id}`"
+                      type="radio"
+                      name="payment-method"
+                      :value="method.id"
+                      class="mt-1 h-4 w-4 accent-primary-700"
+                    >
                     <UIcon
-                      :name="method.kind === 'cash' ? 'i-heroicons-banknotes' : 'i-heroicons-building-library'"
-                      class="text-primary-800 mt-0.5 h-4 w-4 shrink-0"
+                      :name="method.kind === 'cash' ? 'i-heroicons-banknotes' : method.kind === 'bank-transfer' ? 'i-heroicons-building-library' : 'i-heroicons-credit-card'"
+                      class="text-primary-800 mt-0.5 h-5 w-5 shrink-0"
                     />
-                    <div>
+                    <div class="min-w-0">
                       <p class="font-semibold">{{ method.label }}</p>
                       <p class="text-foreground-muted">{{ method.instructions }}</p>
                     </div>
-                  </div>
+                  </label>
                 </div>
+                <AppState
+                  v-else
+                  class="mt-3"
+                  title="Platba sa dohodne so správcom"
+                  description="Momentálne nie je zapnutý žiadny spôsob platby v aplikácii."
+                />
               </div>
 
               <ValidationSummary
@@ -1514,13 +1760,7 @@ watch(
                 v-if="reservationSubmitMessage"
                 :description="reservationSubmitMessage"
                 :loading="reservationSubmitStatus === 'submitting'"
-                :title="
-                  reservationSubmitStatus === 'error'
-                    ? 'Žiadosť sa nepodarilo odoslať'
-                    : reservationSubmitStatus === 'submitting'
-                      ? 'Odosielam žiadosť'
-                      : 'Žiadosť je odoslaná'
-                "
+                :title="reservationSubmitNoticeTitle"
                 :tone="
                   reservationSubmitStatus === 'error'
                     ? 'error'
@@ -1534,11 +1774,11 @@ watch(
                 type="button"
                 icon="i-heroicons-paper-airplane"
                 block
-                :disabled="!reservationValidation.success || reservationSubmitStatus === 'submitting'"
+                :disabled="!reservationCanSubmit || reservationSubmitStatus === 'submitting'"
                 :loading="reservationSubmitStatus === 'submitting'"
                 @click="submitReservation"
               >
-                Odoslať žiadosť
+                {{ editingOfflineReservationId ? 'Odoslať opravenú žiadosť' : 'Odoslať žiadosť' }}
               </UButton>
             </form>
           </div>
@@ -1560,7 +1800,7 @@ watch(
             </div>
           </div>
 
-          <div class="border-border bg-surface rounded-card border p-5">
+          <div class="border-border bg-surface hidden rounded-card border p-5 lg:block">
             <h2 class="text-lg font-bold">Aktuálne rezervácie</h2>
             <div class="mt-4 space-y-3">
               <div v-for="reservation in liveReservations" :key="reservation.id" class="bg-muted rounded-md p-3">

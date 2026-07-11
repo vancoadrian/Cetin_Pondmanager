@@ -6,7 +6,7 @@ export default defineNuxtRouteMiddleware((to) => {
     || to.path.startsWith('/sutaze/tim/')
     || to.path.startsWith('/admin')
 
-  if (to.path === '/login' && isLoggedIn.value) {
+  if ((to.path === '/login' || to.path === '/registracia') && isLoggedIn.value) {
     const redirect = isSafeAppRedirect(to.query.redirect)
       ? to.query.redirect
       : getAuthenticatedHome(user.value?.role)

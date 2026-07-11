@@ -70,14 +70,32 @@ const loginNotice = computed(() => requestedRedirect.value
   ? 'Po prihlásení vás vrátime na požadovanú internú stránku.'
   : 'Po prihlásení sa otvorí priestor podľa pridelenej role.',
 )
+const accountWasDeleted = computed(() => route.query.stav === 'ucet-zmazany')
+const passwordWasReset = computed(() => route.query.stav === 'heslo-obnovene')
+const accountStatusNotice = computed(() => {
+  if (accountWasDeleted.value) {
+    return {
+      description: 'Účet bol zmazaný, osobné väzby boli anonymizované a prihlásenie už nie je aktívne.',
+      title: 'Účet je zmazaný',
+    }
+  }
+  if (passwordWasReset.value) {
+    return {
+      description: 'Heslo bolo úspešne obnovené. Teraz sa môžete prihlásiť novým heslom.',
+      title: 'Heslo je obnovené',
+    }
+  }
+  return undefined
+})
 
 async function submit() {
   submitStatus.value = 'submitting'
   submitMessage.value = ''
 
-  if (!login(email.value, password.value)) {
+  const result = await login(email.value, password.value)
+  if (!result.ok) {
     submitStatus.value = 'error'
-    submitMessage.value = 'E-mail alebo heslo nie sú správne.'
+    submitMessage.value = result.message ?? 'E-mail alebo heslo nie sú správne.'
     return
   }
 
@@ -156,7 +174,16 @@ async function submit() {
         </div>
 
         <DataStatusNotice
+          v-if="accountStatusNotice"
           class="mt-5"
+          :description="accountStatusNotice.description"
+          icon="i-heroicons-check-circle"
+          :title="accountStatusNotice.title"
+          tone="success"
+        />
+
+        <DataStatusNotice
+          :class="accountStatusNotice ? 'mt-3' : 'mt-5'"
           :description="loginNotice"
           icon="i-heroicons-information-circle"
           title="Bezpečný prístup"
@@ -208,8 +235,8 @@ async function submit() {
         </label>
 
         <div class="mt-4 flex items-center justify-end">
-          <NuxtLink to="/kontakt" class="text-sm font-semibold text-primary-700 hover:text-primary-900">
-            Problém s prihlásením?
+          <NuxtLink to="/zabudnute-heslo" class="text-sm font-semibold text-primary-700 hover:text-primary-900">
+            Zabudli ste heslo?
           </NuxtLink>
         </div>
 
@@ -235,8 +262,8 @@ async function submit() {
 
         <p class="mt-5 text-center text-sm text-foreground-muted">
           Nemáte účet?
-          <NuxtLink to="/kontakt" class="font-semibold text-primary-700 hover:text-primary-900">
-            Kontaktujte správcu revíru
+          <NuxtLink to="/registracia" class="font-semibold text-primary-700 hover:text-primary-900">
+            Vytvoriť rybársky účet
           </NuxtLink>
         </p>
       </form>

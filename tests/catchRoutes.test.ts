@@ -39,6 +39,7 @@ const MAREK_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-marek'
 const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
 
 const localEnvKeys = [
+  'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_PHOTO_DIR',
   'RYBOLOV_LOCAL_CATCH_STORE',
@@ -93,6 +94,7 @@ beforeEach(async () => {
   }
 
   const dataDir = join(tempDir, 'data')
+  process.env.RYBOLOV_LOCAL_ACCOUNT_STORE = join(dataDir, 'account-state.json')
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CATCH_PHOTO_DIR = join(dataDir, 'catch-photos')
   process.env.RYBOLOV_LOCAL_CATCH_STORE = join(dataDir, 'catch-state.json')

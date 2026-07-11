@@ -38,7 +38,11 @@ function normalizeLocalReservationState(state: LocalReservationState): LocalRese
     ...state,
     reservations: state.reservations.map((reservation) => {
       const seedReservation = seedReservationById.get(reservation.id)
-      if (reservation.contactEmail || !seedReservation?.contactEmail) return reservation
+      if (
+        reservation.contactEmail !== undefined
+        || !seedReservation?.contactEmail
+        || reservation.guest !== seedReservation.guest
+      ) return reservation
 
       return {
         ...reservation,

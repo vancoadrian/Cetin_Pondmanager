@@ -26,6 +26,7 @@ import {
   LOCAL_DATA_BACKUP_CLEANUP_MIN_KEEP_RECENT,
   LOCAL_DATA_RESTORE_CONFIRMATION,
 } from '~/services/localDataExportService'
+import { readLocalAccountState, resolveLocalAccountStorePath } from './localAccountStore'
 import { readLocalAuditLogState, resolveLocalAuditLogStorePath } from './localAuditLogStore'
 import { readLocalCabinCatalogState, resolveLocalCabinCatalogStorePath } from './localCabinCatalogStore'
 import { resolveLocalCatchPhotoDir } from './localCatchPhotoStore'
@@ -121,6 +122,7 @@ const defaultCountLabels: Record<string, string> = {
   catchPhotos: 'Fotky v databáze',
   catches: 'Úlovky',
   deliveryLogs: 'Doručenia',
+  deletions: 'Zmazané účty',
   errors: 'Chyby',
   events: 'Audit udalosti',
   fish: 'Čipované ryby',
@@ -131,10 +133,12 @@ const defaultCountLabels: Record<string, string> = {
   mapLayers: 'Vrstvy mapy',
   mapShapes: 'Polygony mapy',
   paymentMethods: 'Platobné metódy',
+  passwordResets: 'Aktívne obnovy hesla',
   pegs: 'Lovné miesta',
   placeIssues: 'Hlásenia nedostatkov',
   rentalBookings: 'Rezervácie výbavy',
   rentalItems: 'Požičovňa',
+  registeredAccounts: 'Rybárske účty',
   reservationExtras: 'Doplnky',
   reservations: 'Rezervácie',
   savedReports: 'Uložené reporty',
@@ -153,6 +157,12 @@ const defaultCountLabels: Record<string, string> = {
 
 export function getDefaultLocalDataStoreDefinitions(): LocalDataStoreDefinition[] {
   return [
+    {
+      id: 'accounts',
+      label: 'Stav používateľských účtov',
+      path: resolveLocalAccountStorePath(),
+      read: () => toExportState(readLocalAccountState()),
+    },
     {
       id: 'reservations',
       label: 'Rezervácie a obsadenosť',

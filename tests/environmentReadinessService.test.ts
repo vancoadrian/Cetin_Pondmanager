@@ -52,6 +52,8 @@ describe('environmentReadinessService', () => {
         NUXT_PUBLIC_REZERVACIE_PHONE: '+421 911 298 702',
         NUXT_PUBLIC_SITE_URL: 'https://rybolov-cetin.sk',
         NUXT_PUBLIC_VAPID_PUBLIC_KEY: 'public-key',
+        RYBOLOV_AUTH_DELIVERY_PROVIDER: 'resend',
+        RYBOLOV_AUTH_EMAIL_FROM: 'Rybolov Cetín <ucet@rybolov-cetin.sk>',
         RYBOLOV_ENVIRONMENT: 'production',
         RYBOLOV_LOCAL_DATA_DIR: '/var/lib/rybolov-cetin',
         RYBOLOV_PUSH_PROVIDER: 'web-push',

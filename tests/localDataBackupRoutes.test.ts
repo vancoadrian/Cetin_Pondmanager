@@ -24,6 +24,7 @@ import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 const ADMIN_COOKIE = 'rybolov_cetin_mock_session=owner'
 
 const localDataEnvKeys = [
+  'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CABIN_CATALOG_STORE',
   'RYBOLOV_LOCAL_CATCH_PHOTO_DIR',
@@ -63,6 +64,7 @@ beforeEach(async () => {
 
   const dataDir = join(tempDir, 'data')
   process.env.RYBOLOV_LOCAL_DATA_DIR = dataDir
+  process.env.RYBOLOV_LOCAL_ACCOUNT_STORE = join(dataDir, 'account-state.json')
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CABIN_CATALOG_STORE = join(dataDir, 'cabin-catalog.json')
   process.env.RYBOLOV_LOCAL_CATCH_PHOTO_DIR = join(dataDir, 'catch-photos')
