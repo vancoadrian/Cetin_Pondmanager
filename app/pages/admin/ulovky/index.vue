@@ -57,6 +57,7 @@ type CatchReportScheduleRunSummary = Pick<
   CatchReportScheduleRunSuccess,
   'deliveryProvider' | 'dueCount' | 'failedCount' | 'preparedCount' | 'processedCount' | 'sentCount' | 'skippedCount'
 >
+type CatchAdminView = 'analytika' | 'moderacia' | 'reporty'
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 const {
@@ -97,6 +98,8 @@ const fallbackFishCandidateState = (): FishCatchCandidateResponse => ({
 
 const requestFetch = useRequestFetch()
 const route = useRoute()
+const router = useRouter()
+const activeCatchAdminView = ref<CatchAdminView>(parseCatchAdminView(route.query.sekcia))
 const { data: catchState, refresh: refreshCatchState } = await useAsyncData<CatchStateResponse>(
   'admin-catch-state',
   () => requestFetch<CatchStateResponse>('/api/admin/catches'),
@@ -317,6 +320,26 @@ const catchStats = computed(() => ({
 const approvedCatchCount = computed(() =>
   liveCatches.value.filter((catchItem) => catchItem.status === 'approved').length,
 )
+const catchAdminViewTabs = computed(() => [
+  {
+    count: catchStats.value.pending,
+    icon: 'i-heroicons-clipboard-document-check',
+    label: 'Moderácia',
+    value: 'moderacia' as const,
+  },
+  {
+    count: approvedCatchCount.value,
+    icon: 'i-heroicons-chart-bar-square',
+    label: 'Analytika',
+    value: 'analytika' as const,
+  },
+  {
+    count: savedCatchReports.value.length,
+    icon: 'i-heroicons-document-chart-bar',
+    label: 'Reporty',
+    value: 'reporty' as const,
+  },
+])
 const analyticsSpeciesOptions = computed(() =>
   [...new Set(
     liveCatches.value
@@ -545,6 +568,63 @@ const statusMeta: Record<CatchRecordStatus, { icon: string, label: string, tone:
   },
 }
 
+function parseCatchAdminView(value: unknown): CatchAdminView {
+  const normalizedValue = Array.isArray(value) ? value[0] : value
+
+  if (normalizedValue === 'analytika' || normalizedValue === 'reporty') return normalizedValue
+
+  return 'moderacia'
+}
+
+function catchAdminTabClass(isActive: boolean) {
+  return isActive
+    ? 'border-primary-700 text-primary-900'
+    : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
+}
+
+function selectCatchAdminView(view: CatchAdminView) {
+  activeCatchAdminView.value = view
+  const query = { ...route.query }
+
+  if (view === 'moderacia') delete query.sekcia
+  else {
+    query.sekcia = view
+    delete query.catchId
+  }
+
+  void router.replace({ query })
+}
+
+function handleCatchAdminTabKeydown(event: KeyboardEvent, index: number) {
+  let targetIndex: number | undefined
+
+  if (event.key === 'ArrowLeft') {
+    targetIndex = (index - 1 + catchAdminViewTabs.value.length) % catchAdminViewTabs.value.length
+  }
+  else if (event.key === 'ArrowRight') {
+    targetIndex = (index + 1) % catchAdminViewTabs.value.length
+  }
+  else if (event.key === 'Home') {
+    targetIndex = 0
+  }
+  else if (event.key === 'End') {
+    targetIndex = catchAdminViewTabs.value.length - 1
+  }
+
+  if (targetIndex === undefined) return
+
+  event.preventDefault()
+  const tabList = (event.currentTarget as HTMLElement).closest('[role="tablist"]')
+  const targetView = catchAdminViewTabs.value[targetIndex]?.value
+  if (!targetView) return
+
+  selectCatchAdminView(targetView)
+  void nextTick(() => {
+    const tabs = tabList?.querySelectorAll<HTMLElement>('[role="tab"]')
+    tabs?.[targetIndex]?.focus()
+  })
+}
+
 watch(
   filteredCatches,
   (rows) => {
@@ -580,17 +660,33 @@ watch(
   [() => route.query.catchId, liveCatches],
   ([queryCatchId, catches]) => {
     const catchId = typeof queryCatchId === 'string' ? queryCatchId : ''
-    if (!catchId || openedQueryCatchId.value === catchId) return
+    if (!catchId) {
+      openedQueryCatchId.value = ''
+      return
+    }
+    if (openedQueryCatchId.value === catchId) {
+      activeCatchAdminView.value = 'moderacia'
+      return
+    }
 
     const catchItem = catches.find((item) => item.id === catchId)
     if (!catchItem) return
 
+    activeCatchAdminView.value = 'moderacia'
     openedQueryCatchId.value = catchId
     scrolledQueryCatchId.value = ''
     statusFilter.value = catchItem.status
     selectedCatchId.value = catchItem.id
   },
   { immediate: true },
+)
+
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    if (route.query.catchId) return
+    activeCatchAdminView.value = parseCatchAdminView(view)
+  },
 )
 
 watch(
@@ -1202,9 +1298,9 @@ async function saveCorrection() {
 <template>
   <div>
     <PageHeader
-      eyebrow="Admin"
-      title="Schvaľovanie úlovkov"
-      description="Pracovisko správcu pre kontrolu verejných úlovkov pred zverejnením, spätnú väzbu a audit rozhodnutí."
+      eyebrow="Správa revíru"
+      title="Úlovky"
+      description="Kontrola nových záznamov, analytika schválených úlovkov a pravidelné reporty."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -1219,36 +1315,72 @@ async function saveCorrection() {
         tone="info"
       />
 
-      <div class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-card border border-border bg-surface p-4">
+      <nav aria-label="Pracovné pohľady úlovkov" class="mt-6 overflow-x-auto border-b border-border">
+        <div role="tablist" aria-label="Úlovky" class="flex min-w-max gap-1">
+          <button
+            v-for="(view, index) in catchAdminViewTabs"
+            :id="`catch-admin-tab-${view.value}`"
+            :key="view.value"
+            type="button"
+            role="tab"
+            :aria-controls="'catch-admin-panel'"
+            :aria-label="`${view.label}: ${view.count}`"
+            :aria-selected="activeCatchAdminView === view.value"
+            :tabindex="activeCatchAdminView === view.value ? 0 : -1"
+            class="flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-bold transition-colors"
+            :class="catchAdminTabClass(activeCatchAdminView === view.value)"
+            @click="selectCatchAdminView(view.value)"
+            @keydown="handleCatchAdminTabKeydown($event, index)"
+          >
+            <UIcon :name="view.icon" class="h-4 w-4 shrink-0" />
+            <span>{{ view.label }}</span>
+            <span class="text-xs font-semibold text-foreground-muted">{{ view.count }}</span>
+          </button>
+        </div>
+      </nav>
+
+      <div
+        id="catch-admin-panel"
+        role="tabpanel"
+        :aria-labelledby="`catch-admin-tab-${activeCatchAdminView}`"
+      >
+      <div v-show="activeCatchAdminView === 'moderacia'" class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Na schválenie</p>
-          <p class="mt-2 text-3xl font-bold">{{ catchStats.pending }}</p>
+          <p class="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">{{ catchStats.pending }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Schválené</p>
-          <p class="mt-2 text-3xl font-bold">{{ catchStats.approved }}</p>
+          <p class="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">{{ catchStats.approved }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Zamietnuté</p>
-          <p class="mt-2 text-3xl font-bold">{{ catchStats.rejected }}</p>
+          <p class="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">{{ catchStats.rejected }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Spolu</p>
-          <p class="mt-2 text-3xl font-bold">{{ catchStats.total }}</p>
+          <p class="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">{{ catchStats.total }}</p>
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div v-show="activeCatchAdminView !== 'moderacia'" class="mt-5 rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 class="text-lg font-bold">Filtre reportu</h2>
+            <h2 class="text-lg font-bold">
+              {{ activeCatchAdminView === 'analytika' ? 'Filtre analytiky' : 'Zdroj dát reportu' }}
+            </h2>
             <p class="text-foreground-muted mt-1 text-sm">
               {{ catchAnalytics.catchCount }} z {{ approvedCatchCount }} schválených ·
-              {{ catchTrendSignalRows.length }} signálov · {{ analyticsFilterLabel }}
+              <template v-if="activeCatchAdminView === 'analytika'">
+                {{ catchTrendSignalRows.length }} signálov ·
+              </template>
+              {{ analyticsFilterLabel }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <UButton
+              v-if="activeCatchAdminView === 'analytika'"
+              class="min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
               icon="i-heroicons-arrow-down-tray"
               variant="soft"
               :disabled="analyticsFilteredCatches.length === 0"
@@ -1257,6 +1389,8 @@ async function saveCorrection() {
               Stiahnuť report
             </UButton>
             <UButton
+              v-if="activeCatchAdminView === 'analytika'"
+              class="min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
               icon="i-heroicons-chart-bar-square"
               variant="soft"
               :disabled="catchTrendSignalRows.length === 0"
@@ -1266,6 +1400,7 @@ async function saveCorrection() {
             </UButton>
             <UButton
               v-if="analyticsFilterActive"
+              class="min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
               icon="i-heroicons-x-mark"
               variant="ghost"
               @click="resetAnalyticsFilter"
@@ -1280,7 +1415,7 @@ async function saveCorrection() {
             <span class="text-sm font-semibold">Sezónne okno</span>
             <select
               v-model="analyticsFilter.seasonWindowId"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
               @change="applySeasonWindow"
             >
               <option value="custom">Vlastný rozsah</option>
@@ -1298,7 +1433,7 @@ async function saveCorrection() {
             <input
               v-model="analyticsFilter.dateFrom"
               type="date"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
               @change="markCustomSeasonWindow"
             >
           </label>
@@ -1307,7 +1442,7 @@ async function saveCorrection() {
             <input
               v-model="analyticsFilter.dateTo"
               type="date"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
               @change="markCustomSeasonWindow"
             >
           </label>
@@ -1315,7 +1450,7 @@ async function saveCorrection() {
             <span class="text-sm font-semibold">Jazero</span>
             <select
               v-model="analyticsFilter.lake"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
             >
               <option value="all">Všetky jazerá</option>
               <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
@@ -1325,7 +1460,7 @@ async function saveCorrection() {
             <span class="text-sm font-semibold">Druh</span>
             <select
               v-model="analyticsFilter.species"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
             >
               <option value="all">Všetky druhy</option>
               <option v-for="species in analyticsSpeciesOptions" :key="species" :value="species">{{ species }}</option>
@@ -1336,7 +1471,7 @@ async function saveCorrection() {
           {{ selectedSeasonWindow.description }}
         </p>
 
-        <div class="mt-5 grid gap-5 border-t border-border pt-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <div v-show="activeCatchAdminView === 'reporty'" class="mt-5 grid gap-5 border-t border-border pt-5 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1357,7 +1492,7 @@ async function saveCorrection() {
                   <input
                     v-model="reportForm.title"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                   >
                 </label>
                 <label class="block">
@@ -1365,7 +1500,7 @@ async function saveCorrection() {
                   <input
                     v-model="reportForm.recipients"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     placeholder="emaily oddelené čiarkou"
                   >
                 </label>
@@ -1373,7 +1508,7 @@ async function saveCorrection() {
                   <span class="text-sm font-semibold">Pre koho</span>
                   <select
                     v-model="reportForm.audience"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                   >
                     <option value="manager">{{ catchReportAudienceLabels.manager }}</option>
                     <option value="owner">{{ catchReportAudienceLabels.owner }}</option>
@@ -1384,7 +1519,7 @@ async function saveCorrection() {
                   <span class="text-sm font-semibold">Periodicita</span>
                   <select
                     v-model="reportForm.cadence"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                   >
                     <option value="manual">{{ catchReportCadenceLabels.manual }}</option>
                     <option value="weekly">{{ catchReportCadenceLabels.weekly }}</option>
@@ -1395,7 +1530,7 @@ async function saveCorrection() {
                   <span class="text-sm font-semibold">Doručenie</span>
                   <select
                     v-model="reportForm.delivery"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                   >
                     <option value="in-app">{{ catchReportDeliveryLabels['in-app'] }}</option>
                     <option value="email-ready">{{ catchReportDeliveryLabels['email-ready'] }}</option>
@@ -1406,23 +1541,23 @@ async function saveCorrection() {
                   <input
                     v-model="reportForm.description"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     placeholder="voliteľná poznámka"
                   >
                 </label>
               </div>
 
               <div class="mt-3 flex flex-wrap gap-4 text-sm">
-                <label class="flex items-center gap-2">
-                  <input v-model="reportForm.includeRawCsv" type="checkbox" class="h-4 w-4 accent-primary-700">
+                <label class="flex min-h-11 items-center gap-2">
+                  <input v-model="reportForm.includeRawCsv" type="checkbox" class="h-5 w-5 accent-primary-700">
                   Zoznam úlovkov
                 </label>
-                <label class="flex items-center gap-2">
-                  <input v-model="reportForm.includeTrendSignals" type="checkbox" class="h-4 w-4 accent-primary-700">
+                <label class="flex min-h-11 items-center gap-2">
+                  <input v-model="reportForm.includeTrendSignals" type="checkbox" class="h-5 w-5 accent-primary-700">
                   Trendové signály
                 </label>
-                <label class="flex items-center gap-2">
-                  <input v-model="reportForm.enabled" type="checkbox" class="h-4 w-4 accent-primary-700">
+                <label class="flex min-h-11 items-center gap-2">
+                  <input v-model="reportForm.enabled" type="checkbox" class="h-5 w-5 accent-primary-700">
                   Aktívny report
                 </label>
               </div>
@@ -1430,6 +1565,7 @@ async function saveCorrection() {
 
             <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <UButton
+                class="min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 icon="i-heroicons-bookmark-square"
                 :disabled="!canManageCatches"
                 :loading="reportSubmitStatus === 'submitting'"
@@ -1460,6 +1596,7 @@ async function saveCorrection() {
                   {{ savedCatchReports.length }}
                 </span>
                 <UButton
+                  class="min-h-11 sm:min-h-7"
                   icon="i-heroicons-clock"
                   size="xs"
                   variant="soft"
@@ -1576,6 +1713,7 @@ async function saveCorrection() {
                   </p>
                   <div class="flex flex-wrap gap-2">
                     <UButton
+                      class="min-h-11 sm:min-h-7"
                       icon="i-heroicons-play"
                       size="xs"
                       variant="soft"
@@ -1586,6 +1724,7 @@ async function saveCorrection() {
                       Vygenerovať
                     </UButton>
                     <UButton
+                      class="min-h-11 sm:min-h-7"
                       icon="i-heroicons-envelope"
                       size="xs"
                       variant="soft"
@@ -1648,6 +1787,7 @@ async function saveCorrection() {
         </div>
       </div>
 
+      <div v-show="activeCatchAdminView === 'analytika'" class="contents">
       <div class="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr]">
         <div class="rounded-card bg-primary-950 p-5 text-white">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2022,8 +2162,9 @@ async function saveCorrection() {
           </div>
         </div>
       </div>
+      </div>
 
-      <div class="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <div v-show="activeCatchAdminView === 'moderacia'" class="mt-5 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div class="rounded-card border border-border bg-surface p-5">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2033,7 +2174,7 @@ async function saveCorrection() {
             <select
               v-model="statusFilterModel"
               aria-label="Filtrovať úlovky podľa stavu"
-              class="h-10 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-white px-3 text-sm sm:h-10"
             >
               <option v-for="filter in statusFilters" :key="filter.value" :value="filter.value">
                 {{ filter.label }}
@@ -2203,7 +2344,7 @@ async function saveCorrection() {
               </div>
               <UButton
                 v-if="selectedCatchFishCandidate"
-                class="mt-4"
+                class="mt-4 min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 :to="{ path: '/admin/ryby', query: { catchId: selectedCatch.id } }"
                 icon="i-heroicons-arrow-top-right-on-square"
                 color="warning"
@@ -2212,7 +2353,7 @@ async function saveCorrection() {
               </UButton>
               <UButton
                 v-else
-                class="mt-4"
+                class="mt-4 min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 to="/admin/ryby"
                 icon="i-heroicons-tag"
                 variant="soft"
@@ -2240,21 +2381,21 @@ async function saveCorrection() {
                     <span class="text-sm font-semibold">Rybár</span>
                     <input
                       v-model="correctionForm.angler"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Druh</span>
                     <input
                       v-model="correctionForm.species"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Jazero</span>
                     <select
                       v-model="correctionForm.lake"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                       <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                     </select>
@@ -2263,7 +2404,7 @@ async function saveCorrection() {
                     <span class="text-sm font-semibold">Miesto</span>
                     <select
                       v-model="correctionForm.pegId"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                       <option v-for="peg in correctionPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
                     </select>
@@ -2275,7 +2416,7 @@ async function saveCorrection() {
                       type="number"
                       min="0"
                       step="0.1"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
@@ -2285,14 +2426,14 @@ async function saveCorrection() {
                       type="number"
                       min="0"
                       step="1"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block sm:col-span-2">
                     <span class="text-sm font-semibold">Nástraha</span>
                     <input
                       v-model="correctionForm.bait"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
@@ -2300,7 +2441,7 @@ async function saveCorrection() {
                     <input
                       v-model="correctionForm.caughtAt"
                       type="datetime-local"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="flex items-center gap-2 self-end rounded-md bg-muted p-3 text-sm font-semibold">
@@ -2359,7 +2500,7 @@ async function saveCorrection() {
                       <span class="text-sm font-semibold">Cieľový zápisník</span>
                       <select
                         v-model="correctionForm.targetLogbookId"
-                        class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                        class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
                         :disabled="!canManageCatches || compatibleCorrectionLogbooks.length === 0"
                       >
                         <option v-if="compatibleCorrectionLogbooks.length === 0" value="">
@@ -2397,7 +2538,7 @@ async function saveCorrection() {
               />
 
               <UButton
-                class="mt-4"
+                class="mt-4 min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 type="submit"
                 icon="i-heroicons-pencil-square"
                 variant="soft"
@@ -2425,7 +2566,7 @@ async function saveCorrection() {
               <div class="mt-3 grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
                   :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-white'"
                   @click="decisionMode = 'approve'"
@@ -2434,7 +2575,7 @@ async function saveCorrection() {
                 </button>
                 <button
                   type="button"
-                  class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
                   :class="decisionMode === 'pending' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-white'"
                   @click="decisionMode = 'pending'"
@@ -2443,7 +2584,7 @@ async function saveCorrection() {
                 </button>
                 <button
                   type="button"
-                  class="rounded-md border px-3 py-2 text-sm font-semibold"
+                  class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
                   :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-white'"
                   @click="decisionMode = 'reject'"
@@ -2461,7 +2602,7 @@ async function saveCorrection() {
                 />
               </label>
               <UButton
-                class="mt-4"
+                class="mt-4 min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 icon="i-heroicons-check"
                 variant="soft"
                 :disabled="!canManageCatches || decisionSubmitStatus === 'submitting'"
@@ -2487,6 +2628,7 @@ async function saveCorrection() {
             description="Detail schvaľovania sa zobrazí po výbere úlovku zo zoznamu."
           />
         </aside>
+      </div>
       </div>
     </section>
   </div>

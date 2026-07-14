@@ -64,6 +64,7 @@ export default defineEventHandler(async (event) => {
   const notification = await tryAppendTournamentNotificationBroadcast({
     body: notificationBody(`${result.request.team} · sektor ${result.request.sectorId.toUpperCase()}: ${tournamentRequestTypeLabels[result.request.type]}. ${result.request.description}`),
     createdBy: 'Súťažný dispečing',
+    lake: state.tournaments.find((tournament) => tournament.id === result.request.tournamentId)?.lake,
     marshalIds: marshalIdsForSector(state, result.request.sectorId),
     reason: result.request.type === 'catch-measurement'
       ? 'privolanie kontrolóra'

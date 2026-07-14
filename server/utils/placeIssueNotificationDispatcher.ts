@@ -12,7 +12,7 @@ import { resolveNotificationDeliveryOptions } from './notificationDeliveryProvid
 
 interface PlaceIssueNotificationInput {
   createdBy?: string
-  issue: Pick<PlaceIssue, 'category' | 'description' | 'id' | 'priority' | 'targetLabel' | 'title'>
+  issue: Pick<PlaceIssue, 'category' | 'description' | 'id' | 'lake' | 'priority' | 'targetLabel' | 'title'>
   now?: string
   roles?: NotificationAudienceRole[]
   validUntil?: string
@@ -64,6 +64,7 @@ export async function appendPlaceIssueNotificationBroadcast(
       body: createPlaceIssueNotificationBody(input.issue),
       severity: createPlaceIssueNotificationSeverity(input.issue),
       targetAudience: createPlaceIssueNotificationAudience(input),
+      targetLakeIds: [input.issue.lake],
       targetTopics: ['service'],
       title: createPlaceIssueNotificationTitle(input.issue),
       validUntil: input.validUntil ?? 'do vyriešenia',

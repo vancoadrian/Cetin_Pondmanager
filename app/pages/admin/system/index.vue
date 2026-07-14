@@ -44,7 +44,59 @@ import {
 } from '~/services/localDataExportService'
 import type { StatusBadgeTone } from '~/utils/ui'
 
+type SystemAdminView = 'chyby' | 'data' | 'prehlad'
+
 useHead({ title: 'Admin systém' })
+
+const route = useRoute()
+const router = useRouter()
+
+const systemAdminViewOptions: Array<{
+  description: string
+  icon: string
+  id: SystemAdminView
+  label: string
+}> = [
+  {
+    description: 'Stav služieb, konfigurácia prostredia a jednotlivé prevádzkové kontroly.',
+    icon: 'i-heroicons-command-line',
+    id: 'prehlad',
+    label: 'Prehľad',
+  },
+  {
+    description: 'Exporty, ochranné zálohy, kontrola importu, obnova a retencia dát.',
+    icon: 'i-heroicons-circle-stack',
+    id: 'data',
+    label: 'Dáta',
+  },
+  {
+    description: 'Zachytené klientské a serverové incidenty s prevádzkovým kontextom.',
+    icon: 'i-heroicons-exclamation-triangle',
+    id: 'chyby',
+    label: 'Chyby',
+  },
+]
+
+const getRouteQueryValue = (value: unknown) => {
+  const singleValue = Array.isArray(value) ? value[0] : value
+
+  return typeof singleValue === 'string' && singleValue.trim() ? singleValue : undefined
+}
+
+function normalizeSystemAdminView(value: unknown): SystemAdminView {
+  const requestedView = getRouteQueryValue(value)
+
+  return systemAdminViewOptions.some((option) => option.id === requestedView)
+    ? requestedView as SystemAdminView
+    : 'prehlad'
+}
+
+const activeSystemAdminView = ref<SystemAdminView>(normalizeSystemAdminView(route.query.sekcia))
+const systemAdminTabsRef = ref<HTMLElement | null>(null)
+const activeSystemAdminViewOption = computed(() =>
+  systemAdminViewOptions.find((option) => option.id === activeSystemAdminView.value)
+  ?? systemAdminViewOptions[0]!,
+)
 
 const fallbackSystemHealth = (): AdminSystemHealthResponse => ({
   checkedAt: 'seed',
@@ -980,6 +1032,76 @@ async function restoreImportedBackup() {
     restorePending.value = false
   }
 }
+
+async function centerActiveSystemAdminTab(smooth = true) {
+  await nextTick()
+
+  const container = systemAdminTabsRef.value
+  const activeTab = container?.querySelector<HTMLElement>(
+    `[data-system-admin-view="${activeSystemAdminView.value}"]`,
+  )
+  if (!container || !activeTab) return
+
+  container.scrollTo({
+    behavior: smooth ? 'smooth' : 'auto',
+    left: activeTab.offsetLeft - container.clientWidth / 2 + activeTab.clientWidth / 2,
+  })
+}
+
+async function selectSystemAdminView(
+  view: SystemAdminView,
+  options: { focus?: boolean } = {},
+) {
+  activeSystemAdminView.value = view
+
+  const query = { ...route.query }
+  if (view === 'prehlad') {
+    delete query.sekcia
+  }
+  else {
+    query.sekcia = view
+  }
+
+  await router.replace({ query })
+  await centerActiveSystemAdminTab()
+
+  if (options.focus) {
+    systemAdminTabsRef.value
+      ?.querySelector<HTMLElement>(`[data-system-admin-view="${view}"]`)
+      ?.focus()
+  }
+}
+
+function handleSystemAdminTabsKeydown(event: KeyboardEvent) {
+  const currentIndex = systemAdminViewOptions.findIndex(
+    (option) => option.id === activeSystemAdminView.value,
+  )
+  let nextIndex = currentIndex
+
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % systemAdminViewOptions.length
+  else if (event.key === 'ArrowLeft') {
+    nextIndex = (currentIndex - 1 + systemAdminViewOptions.length) % systemAdminViewOptions.length
+  }
+  else if (event.key === 'Home') nextIndex = 0
+  else if (event.key === 'End') nextIndex = systemAdminViewOptions.length - 1
+  else return
+
+  event.preventDefault()
+  const nextView = systemAdminViewOptions[nextIndex]?.id
+  if (nextView) void selectSystemAdminView(nextView, { focus: true })
+}
+
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    activeSystemAdminView.value = normalizeSystemAdminView(view)
+    void centerActiveSystemAdminTab(false)
+  },
+)
+
+onMounted(() => {
+  void centerActiveSystemAdminTab(false)
+})
 </script>
 
 <template>
@@ -1013,30 +1135,85 @@ async function restoreImportedBackup() {
         </UButton>
       </div>
 
-      <div class="mt-6 grid gap-4 md:grid-cols-4">
-        <div class="rounded-card border border-border bg-surface p-4">
+      <div class="mt-6 border-b border-border pb-5">
+        <div
+          ref="systemAdminTabsRef"
+          class="flex gap-1 overflow-x-auto rounded-md bg-muted p-1"
+          role="tablist"
+          aria-label="Sekcie systémovej administrácie"
+          @keydown="handleSystemAdminTabsKeydown"
+        >
+          <button
+            v-for="option in systemAdminViewOptions"
+            :key="option.id"
+            type="button"
+            role="tab"
+            class="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            :class="activeSystemAdminView === option.id
+              ? 'bg-white text-primary-900 shadow-sm'
+              : 'text-foreground-muted hover:bg-white/70 hover:text-foreground'"
+            :aria-selected="activeSystemAdminView === option.id"
+            :tabindex="activeSystemAdminView === option.id ? 0 : -1"
+            :data-system-admin-view="option.id"
+            @click="selectSystemAdminView(option.id)"
+          >
+            <UIcon :name="option.icon" class="h-4 w-4 shrink-0" />
+            {{ option.label }}
+          </button>
+        </div>
+        <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-foreground-muted text-sm" aria-live="polite">
+            {{ activeSystemAdminViewOption.description }}
+          </p>
+          <UButton
+            v-if="activeSystemAdminView !== 'chyby' && (systemHealth?.recentErrors.total24h ?? 0) > 0"
+            icon="i-heroicons-exclamation-triangle"
+            color="error"
+            size="sm"
+            variant="soft"
+            @click="selectSystemAdminView('chyby')"
+          >
+            Chyby za 24 h ({{ systemHealth?.recentErrors.total24h ?? 0 }})
+          </UButton>
+          <UButton
+            v-else-if="activeSystemAdminView !== 'prehlad' && readinessAttentionCount > 0"
+            icon="i-heroicons-wrench-screwdriver"
+            size="sm"
+            variant="soft"
+            @click="selectSystemAdminView('prehlad')"
+          >
+            Pripravenosť ({{ readinessAttentionCount }})
+          </UButton>
+        </div>
+      </div>
+
+      <div v-if="activeSystemAdminView === 'prehlad'" class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Kontroly</p>
-          <p class="mt-2 text-3xl font-bold">{{ checks.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ checks.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">server, dáta, notifikácie</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Na pozornosť</p>
-          <p class="mt-2 text-3xl font-bold">{{ degradedChecks.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ degradedChecks.length }}</p>
           <p class="text-foreground-muted mt-1 text-sm">obmedzené alebo výpadok</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Chyby 24h</p>
-          <p class="mt-2 text-3xl font-bold">{{ systemHealth?.recentErrors.total24h ?? 0 }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ systemHealth?.recentErrors.total24h ?? 0 }}</p>
           <p class="text-foreground-muted mt-1 text-sm">záznamy aplikácie a servera</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Kritické 24h</p>
-          <p class="mt-2 text-3xl font-bold">{{ systemHealth?.recentErrors.critical24h ?? 0 }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ systemHealth?.recentErrors.critical24h ?? 0 }}</p>
           <p class="text-foreground-muted mt-1 text-sm">zvyšujú stav na pozor</p>
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeSystemAdminView === 'prehlad'"
+        class="mt-6 min-w-0 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div class="flex flex-wrap items-center gap-2">
@@ -1071,7 +1248,7 @@ async function restoreImportedBackup() {
           <article
             v-for="item in highlightedReadinessItems"
             :key="readinessItemKey(item)"
-            class="rounded-md border border-border bg-white p-4"
+            class="min-w-0 rounded-md border border-border bg-white p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
@@ -1106,8 +1283,8 @@ async function restoreImportedBackup() {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <div class="space-y-6">
+      <div v-if="activeSystemAdminView === 'prehlad'" class="mt-6 min-w-0">
+        <div class="min-w-0">
           <div class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1121,14 +1298,14 @@ async function restoreImportedBackup() {
               </span>
             </div>
 
-            <div class="mt-5 space-y-3">
+            <div class="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
               <article
                 v-for="check in checks"
                 :key="check.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="min-w-0 rounded-md border border-border bg-white p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
+                  <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       <UIcon :name="statusIcon(check.status)" class="h-5 w-5" :class="check.status === 'ok' ? 'text-success-700' : 'text-warning-700'" />
                       <h3 class="font-bold">{{ check.label }}</h3>
@@ -1148,7 +1325,7 @@ async function restoreImportedBackup() {
                   <span
                     v-for="entry in metadataEntries(check)"
                     :key="`${check.id}-${entry.key}`"
-                    class="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-foreground-muted"
+                    class="max-w-full break-all rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-foreground-muted"
                   >
                     {{ entry.key }}: {{ entry.value }}
                   </span>
@@ -1157,9 +1334,16 @@ async function restoreImportedBackup() {
             </div>
           </div>
         </div>
+      </div>
 
-        <aside class="space-y-6">
-          <div class="rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeSystemAdminView === 'data' || activeSystemAdminView === 'chyby'"
+        class="mt-6 min-w-0"
+      >
+          <div
+            v-if="activeSystemAdminView === 'data'"
+            class="min-w-0 rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Lokálne dáta</h2>
@@ -1179,7 +1363,7 @@ async function restoreImportedBackup() {
             </p>
 
             <div class="mt-4 border-y border-border py-3">
-              <div class="grid gap-2 sm:grid-cols-2">
+              <div class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 <div
                   v-for="step in localDataOpsSteps"
                   :key="step.id"
@@ -1687,7 +1871,10 @@ async function restoreImportedBackup() {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeSystemAdminView === 'chyby'"
+            class="min-w-0 rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Posledné chyby</h2>
@@ -1698,11 +1885,11 @@ async function restoreImportedBackup() {
               </span>
             </div>
 
-            <div class="mt-5 space-y-3">
+            <div class="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
               <article
                 v-for="error in recentErrorEntries"
                 :key="error.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="min-w-0 rounded-md border border-border bg-white p-4"
               >
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">
@@ -1721,7 +1908,7 @@ async function restoreImportedBackup() {
                   <span
                     v-for="entry in errorContextEntries(error)"
                     :key="`${error.id}-${entry.key}`"
-                    class="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-foreground-muted"
+                    class="max-w-full break-all rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-foreground-muted"
                   >
                     {{ entry.key }}: {{ entry.value }}
                   </span>
@@ -1736,7 +1923,6 @@ async function restoreImportedBackup() {
               </p>
             </div>
           </div>
-        </aside>
       </div>
     </section>
   </div>

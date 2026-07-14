@@ -46,13 +46,42 @@ function normalizeLegacyNotificationMessage(message: string) {
     .replace(/^Mock doručenie\.$/u, 'Skúšobné doručenie.')
 }
 
+function normalizeLegacyValidUntil(validUntil: string) {
+  return validUntil === 'pondelok' ? 'pondelka' : validUntil
+}
+
+function inferLegacyBroadcastExpiry(broadcast: NotificationState['broadcasts'][number]) {
+  if (broadcast.expiresAt || !/^dnes\b/iu.test(broadcast.validUntil)) return broadcast.expiresAt
+
+  const createdAt = Date.parse(broadcast.createdAt)
+  if (!Number.isFinite(createdAt)) return undefined
+
+  return new Date(createdAt + 24 * 60 * 60 * 1000).toISOString()
+}
+
 function migrateLegacyNotificationCopy(state: NotificationState): NotificationState {
+  const broadcasts = state.broadcasts.map((broadcast) => ({
+    ...broadcast,
+    expiresAt: inferLegacyBroadcastExpiry(broadcast),
+    message: normalizeLegacyNotificationMessage(broadcast.message),
+    validUntil: normalizeLegacyValidUntil(broadcast.validUntil),
+  }))
+  const broadcastByAlertId = new Map(broadcasts.map((broadcast) => [broadcast.alertId, broadcast]))
+
   return {
     ...state,
-    broadcasts: state.broadcasts.map((broadcast) => ({
-      ...broadcast,
-      message: normalizeLegacyNotificationMessage(broadcast.message),
-    })),
+    alerts: state.alerts.map((alert) => {
+      const broadcast = broadcastByAlertId.get(alert.id)
+
+      return {
+        ...alert,
+        createdAt: alert.createdAt ?? broadcast?.createdAt,
+        endedAt: alert.endedAt ?? broadcast?.endedAt,
+        expiresAt: alert.expiresAt ?? broadcast?.expiresAt,
+        validUntil: normalizeLegacyValidUntil(alert.validUntil),
+      }
+    }),
+    broadcasts,
     deliveryLogs: state.deliveryLogs.map((delivery) => ({
       ...delivery,
       message: normalizeLegacyNotificationMessage(delivery.message),

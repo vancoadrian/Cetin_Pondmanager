@@ -6,11 +6,13 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type {
+  Alert,
   NotificationBroadcast,
   NotificationDeliveryLog,
   PushSubscriptionRecord,
 } from '~/app/data/pond'
 import type {
+  NotificationAlertEndSuccess,
   NotificationBroadcastSuccess,
   NotificationState,
   NotificationStateResponse,
@@ -19,6 +21,7 @@ import type {
   PushSubscriptionMutationSuccess,
 } from '~/app/services/notificationService'
 import notificationStateHandler from '~/server/api/admin/notifications.get'
+import notificationAlertEndHandler from '~/server/api/admin/notifications/alerts/[id]/end.post'
 import notificationBroadcastHandler from '~/server/api/admin/notifications/broadcast.post'
 import notificationSubscriptionHandler from '~/server/api/admin/notifications/subscriptions.post'
 import notificationDisableSubscriptionHandler from '~/server/api/admin/notifications/subscriptions/[id]/disable.post'
@@ -94,6 +97,7 @@ function createNotificationRouteServerApp() {
   const router = createRouter()
 
   router.get('/api/admin/notifications', notificationStateHandler)
+  router.post('/api/admin/notifications/alerts/:id/end', notificationAlertEndHandler)
   router.post('/api/admin/notifications/broadcast', notificationBroadcastHandler)
   router.post('/api/admin/notifications/subscriptions', notificationSubscriptionHandler)
   router.post('/api/admin/notifications/subscriptions/:id/disable', notificationDisableSubscriptionHandler)
@@ -181,6 +185,7 @@ function publicBroadcastFixture(overrides: Partial<NotificationBroadcast> = {}):
     body: 'O 18:30 sa očakáva prechod búrkového pásma.',
     createdAt: '2026-05-01T10:00:00.000Z',
     createdBy: 'Správca',
+    expiresAt: '2099-05-20T21:00:00.000Z',
     id: 'broadcast-public',
     message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
     recipientCount: 1,
@@ -188,7 +193,20 @@ function publicBroadcastFixture(overrides: Partial<NotificationBroadcast> = {}):
     status: 'sent',
     targetTopics: ['weather'],
     title: 'Verejná výstraha',
-    validUntil: 'dnes 21:00',
+    validUntil: '20. 5. 2099 21:00',
+    ...overrides,
+  }
+}
+
+function publicAlertFixture(overrides: Partial<Alert> = {}): Alert {
+  return {
+    body: 'O 18:30 sa očakáva prechod búrkového pásma.',
+    createdAt: '2026-05-20T12:00:00.000Z',
+    expiresAt: '2099-05-20T21:00:00.000Z',
+    id: 'alert-public',
+    severity: 'storm',
+    title: 'Verejná výstraha',
+    validUntil: '20. 5. 2099 21:00',
     ...overrides,
   }
 }
@@ -361,7 +379,9 @@ describe('admin notification API routes', () => {
         {
           body: JSON.stringify({
             body: 'O 18:30 sa očakáva prechod búrkového pásma, skontrolujte bivaky.',
+            expiresAt: '2099-05-20T21:00:00.000Z',
             severity: 'storm',
+            targetLakeIds: ['velky-cetin'],
             targetTopics: ['weather', 'service'],
             title: 'Výstraha pred búrkou',
             validUntil: 'dnes 21:00',
@@ -372,12 +392,17 @@ describe('admin notification API routes', () => {
 
       expect(response.status).toBe(201)
       expect(body?.broadcast).toMatchObject({
+        expiresAt: '2099-05-20T21:00:00.000Z',
         message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
         recipientCount: 1,
         severity: 'storm',
         status: 'sent',
+        targetLakeIds: ['velky-cetin'],
       })
-      expect(body?.alert.title).toBe('Výstraha pred búrkou')
+      expect(body?.alert).toMatchObject({
+        expiresAt: '2099-05-20T21:00:00.000Z',
+        title: 'Výstraha pred búrkou',
+      })
       expect(body?.deliveryLogs[0]).toMatchObject({
         provider: 'mock',
         status: 'sent',
@@ -386,6 +411,7 @@ describe('admin notification API routes', () => {
 
       const state = await readLocalNotificationState()
       expect(state.alerts[0]?.title).toBe('Výstraha pred búrkou')
+      expect(state.alerts[0]?.lakeIds).toEqual(['velky-cetin'])
       expect(state.broadcasts[0]?.status).toBe('sent')
       expect(state.deliveryLogs[0]?.status).toBe('sent')
 
@@ -395,11 +421,89 @@ describe('admin notification API routes', () => {
         actorId: 'manager',
         details: {
           deliveryProvider: 'mock',
+          expiresAt: '2099-05-20T21:00:00.000Z',
           recipientCount: 1,
           severity: 'storm',
           status: 'sent',
+          targetLakeIds: ['velky-cetin'],
         },
         severity: 'critical',
+      })
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('requires a structured expiry for manually created public alerts', async () => {
+    const server = await startRouteServer()
+
+    try {
+      const { body, response } = await requestJson<{ data?: { messages?: string[] } }>(
+        server,
+        '/api/admin/notifications/broadcast',
+        {
+          body: JSON.stringify({
+            body: 'Krátka prevádzková výstraha pre ľudí pri vode.',
+            severity: 'service',
+            targetTopics: ['service'],
+            title: 'Servisný oznam',
+            validUntil: 'dnes 21:00',
+          }),
+          method: 'POST',
+        },
+      )
+
+      expect(response.status).toBe(422)
+      expect(body?.data?.messages).toContain('Verejný oznam musí mať presný dátum a čas platnosti.')
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('ends a public alert, preserves broadcast history and writes an audit event', async () => {
+    await writeNotificationStateFixture({
+      alerts: [publicAlertFixture()],
+      broadcasts: [publicBroadcastFixture()],
+    })
+    const server = await startRouteServer()
+
+    try {
+      const { body, response } = await requestJson<NotificationAlertEndSuccess>(
+        server,
+        '/api/admin/notifications/alerts/alert-public/end',
+        { method: 'POST' },
+      )
+
+      expect(response.status).toBe(200)
+      expect(body?.alert).toMatchObject({
+        id: 'alert-public',
+        endedAt: expect.any(String),
+      })
+      expect(body?.broadcast).toMatchObject({
+        alertId: 'alert-public',
+        endedAt: body?.alert.endedAt,
+        endedBy: 'Správca pri vode',
+        id: 'broadcast-public',
+      })
+
+      const state = await readLocalNotificationState()
+      expect(state.alerts[0]?.endedAt).toBe(body?.alert.endedAt)
+      expect(state.broadcasts[0]).toMatchObject({
+        endedAt: body?.alert.endedAt,
+        endedBy: 'Správca pri vode',
+      })
+
+      const audit = await readLocalAuditLogState()
+      expect(audit.events[0]).toMatchObject({
+        action: 'notification.alert.ended',
+        actorId: 'manager',
+        details: {
+          broadcastId: 'broadcast-public',
+          expiresAt: '2099-05-20T21:00:00.000Z',
+        },
+        entityId: 'alert-public',
       })
     }
     finally {

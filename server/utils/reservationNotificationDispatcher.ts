@@ -12,7 +12,7 @@ interface ReservationNotificationInput {
   lakeName: string
   now?: string
   pegLabel: string
-  reservation: Pick<Reservation, 'contactPhone' | 'from' | 'guest' | 'id' | 'rentalIds' | 'extraIds' | 'to'>
+  reservation: Pick<Reservation, 'contactPhone' | 'extraIds' | 'from' | 'guest' | 'id' | 'lake' | 'rentalIds' | 'to'>
   roles?: NotificationAudienceRole[]
 }
 
@@ -45,6 +45,7 @@ export async function appendReservationRequestNotificationBroadcast(
         requestId: input.reservation.id,
         roles: [...new Set(input.roles ?? defaultReservationAudienceRoles)],
       },
+      targetLakeIds: [input.reservation.lake],
       targetTopics: ['reservations'],
       title: limitText(`Nová rezervácia: ${input.reservation.guest}`, 80),
       validUntil: 'do spracovania rezervácie',

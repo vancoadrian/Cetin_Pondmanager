@@ -17,6 +17,13 @@ useHead({ title: 'Admin hlásenia nedostatkov' })
 const { getLakeName, lakes, placeIssues } = usePondData()
 const { canOperate, isReadOnly, label: accessLabel, readOnlyMessage } = useAdminModuleAccess('issues')
 const requestFetch = useRequestFetch()
+const route = useRoute()
+const router = useRouter()
+
+const requestedIssueId = computed(() => {
+  const queryValue = Array.isArray(route.query.hlasenie) ? route.query.hlasenie[0] : route.query.hlasenie
+  return typeof queryValue === 'string' ? queryValue : ''
+})
 
 const fallbackIssueState = (): PlaceIssueStateResponse => ({
   ok: true,
@@ -33,7 +40,13 @@ const { data: issueState } = await useAsyncData<PlaceIssueStateResponse>(
 )
 
 const liveIssues = ref<PlaceIssue[]>([...issueState.value.placeIssues])
-const selectedIssueId = ref(liveIssues.value.find((issue) => issue.status !== 'resolved' && issue.status !== 'rejected')?.id ?? liveIssues.value[0]?.id ?? '')
+const selectedIssueId = ref(
+  liveIssues.value.find((issue) => issue.id === requestedIssueId.value)?.id
+  ?? liveIssues.value.find((issue) => issue.status !== 'resolved' && issue.status !== 'rejected')?.id
+  ?? liveIssues.value[0]?.id
+  ?? '',
+)
+const issueDetailElement = ref<HTMLElement | null>(null)
 const statusFilter = ref<PlaceIssueStatus | 'all' | 'open'>('open')
 const priorityFilter = ref<PlaceIssuePriority | 'all'>('all')
 const lakeFilter = ref<LakeScope>('all')
@@ -53,6 +66,26 @@ watch(issueState, (state) => {
 
 const selectedIssue = computed(() =>
   liveIssues.value.find((issue) => issue.id === selectedIssueId.value) ?? liveIssues.value[0],
+)
+
+watch(requestedIssueId, (issueId) => {
+  const issue = liveIssues.value.find((item) => item.id === issueId)
+  if (!issue) return
+
+  selectedIssueId.value = issue.id
+  lakeFilter.value = 'all'
+  priorityFilter.value = 'all'
+  statusFilter.value = issue.status === 'resolved' || issue.status === 'rejected' ? 'all' : 'open'
+}, { immediate: true })
+
+watch(
+  [requestedIssueId, issueDetailElement],
+  async ([issueId, detailElement]) => {
+    if (!import.meta.client || !issueId || !detailElement) return
+    await nextTick()
+    detailElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  },
+  { flush: 'post' },
 )
 
 watch(selectedIssue, (issue) => {
@@ -152,6 +185,12 @@ const issueMetrics = computed<Array<{
     value: resolvedIssues.value.length,
   },
 ])
+
+function selectIssue(issue: PlaceIssue) {
+  selectedIssueId.value = issue.id
+  const query = { ...route.query, hlasenie: issue.id }
+  void router.replace({ query })
+}
 
 const actionNoticeTitle = computed(() => {
   if (actionStatus.value === 'error') return 'Hlásenie sa nepodarilo uložiť'
@@ -433,7 +472,7 @@ async function submitIssueAction() {
                 selectedIssue?.id === issue.id ? 'border-primary-700 bg-primary-50 shadow-sm' : 'border-border bg-white',
                 issue.priority === 'urgent' && selectedIssue?.id !== issue.id ? 'border-l-error-500 border-l-4' : '',
               ]"
-              @click="selectedIssueId = issue.id"
+              @click="selectIssue(issue)"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -474,7 +513,7 @@ async function submitIssueAction() {
           </div>
         </div>
 
-        <div class="rounded-card border border-border bg-surface p-5">
+        <div ref="issueDetailElement" class="scroll-mt-28 rounded-card border border-border bg-surface p-5">
           <div v-if="selectedIssue" class="space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>

@@ -26,8 +26,8 @@ Aktuálna lokálna autentifikácia používa cookie `rybolov_cetin_mock_session`
 | `/ulovky` | iba úlovky schválené správcom; otvorenie zápisníka platným kódom |
 | `/sutaze` | verejný program, sektory, prihláška tímu a výsledkovka |
 | `/sutaze/vysledkovka` | verejná výsledkovka |
-| `/notifikacie` | verejné výstrahy a oznamy |
-| `/info` | pravidlá, cenník, výbava, chaty a priame prekliky do rezervácie s predvýberom služby |
+| `/notifikacie` | aktívne verejné výstrahy s automatickou platnosťou a nastavenie push okruhov podľa zariadenia a jazera |
+| `/info` | pravidlá, cenník, výbava, chaty a služby; rýchla navigácia, rozbaľovacie pravidlá a priame prekliky do rezervácie s predvýberom položky |
 | `/kontakt` | kontakt na správcu, telefonát a príprava SMS správy podľa typu požiadavky |
 | `/sponzori` | partneri revíru a súťaží |
 
@@ -84,4 +84,5 @@ Kontrolórske zápisy server overuje voči `marshalId`, súťaži a aktuálnemu 
 - Kontrolór vidí iba súťažné úlohy a sektory, ktoré potrebuje pre výkon svojej role.
 - Rozpracovaná mapa a interné servisné body sa zobrazujú iba oprávneným interným rolám.
 - Každé citlivé rozhodnutie správcu má auditnú stopu.
+- Prevádzkový dashboard zobrazuje iba úlohy a rýchle akcie dostupné aktuálnej internej role; odkazy na rezervácie, úlovky a nedostatky otvárajú konkrétny interný záznam bez sprístupnenia verejnosti.
 - Rybár môže zmazať iba vlastný účet po opätovnom zadaní hesla a potvrdzovacej frázy. Zmazaná identita sa už neprihlási ani cez starú session; rezervácie a rybárske záznamy ostanú bez osobných kontaktných väzieb.

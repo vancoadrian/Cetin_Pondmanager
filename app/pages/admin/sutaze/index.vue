@@ -65,10 +65,73 @@ import { createTournamentMarshalAccessUrl } from '~/utils/tournamentMarshalAcces
 import type { StatusBadgeTone } from '~/utils/ui'
 
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
+type TournamentAdminView = 'dispecing' | 'prehlad' | 'prihlasky' | 'pravidla' | 'sektory'
 
 useHead({ title: 'Admin súťaže' })
 
+const route = useRoute()
+const router = useRouter()
+
+const tournamentAdminViewOptions: Array<{
+  description: string
+  icon: string
+  id: TournamentAdminView
+  label: string
+}> = [
+  {
+    description: 'Režim súťaže, živé poradie, exporty a partnerské umiestnenia.',
+    icon: 'i-heroicons-chart-bar-square',
+    id: 'prehlad',
+    label: 'Prehľad',
+  },
+  {
+    description: 'Nové prihlášky tímov, rozhodnutia organizátora a mobilné prístupy.',
+    icon: 'i-heroicons-user-group',
+    id: 'prihlasky',
+    label: 'Prihlášky',
+  },
+  {
+    description: 'Mapové polygony, tímy, označenia a bodové pozície sektorov.',
+    icon: 'i-heroicons-map',
+    id: 'sektory',
+    label: 'Sektory',
+  },
+  {
+    description: 'Živé hlásenia tímov, čakajúce váženia a dostupnosť kontrolórov.',
+    icon: 'i-heroicons-radio',
+    id: 'dispecing',
+    label: 'Dispečing',
+  },
+  {
+    description: 'Udelenie trestu, zápis kontroly a história disciplinárnych úkonov.',
+    icon: 'i-heroicons-shield-check',
+    id: 'pravidla',
+    label: 'Pravidlá',
+  },
+]
+
+const tournamentStatusLabels: Record<Tournament['status'], string> = {
+  closed: 'ukončená',
+  live: 'prebieha',
+  planned: 'plánovaná',
+}
+
+const getRouteQueryValue = (value: unknown) => {
+  const singleValue = Array.isArray(value) ? value[0] : value
+
+  return typeof singleValue === 'string' && singleValue.trim() ? singleValue : undefined
+}
+
+function normalizeTournamentAdminView(value: unknown): TournamentAdminView {
+  const requestedView = getRouteQueryValue(value)
+
+  return tournamentAdminViewOptions.some((option) => option.id === requestedView)
+    ? requestedView as TournamentAdminView
+    : 'prehlad'
+}
+
 const {
+  getLakeName,
   mapFacilities,
   mapLayers,
   mapShapes,
@@ -146,7 +209,23 @@ const liveTournamentTeamRegistrations = computed(() =>
   tournamentState.value?.tournamentTeamRegistrations ?? seedTournamentTeamRegistrations,
 )
 const liveMapShapes = computed(() => mapState.value.mapShapes)
-const activeTournament = computed(() => liveTournaments.value[0] ?? seedTournaments[0]!)
+const requestedTournamentId = computed(() => getRouteQueryValue(route.query.turnaj))
+const activeTournamentId = ref(
+  liveTournaments.value.some((tournament) => tournament.id === requestedTournamentId.value)
+    ? requestedTournamentId.value!
+    : (liveTournaments.value[0]?.id ?? seedTournaments[0]!.id),
+)
+const activeTournament = computed(() =>
+  liveTournaments.value.find((tournament) => tournament.id === activeTournamentId.value)
+  ?? liveTournaments.value[0]
+  ?? seedTournaments[0]!,
+)
+const activeTournamentAdminView = ref<TournamentAdminView>(normalizeTournamentAdminView(route.query.sekcia))
+const tournamentAdminTabsRef = ref<HTMLElement | null>(null)
+const activeTournamentAdminViewOption = computed(() =>
+  tournamentAdminViewOptions.find((option) => option.id === activeTournamentAdminView.value)
+  ?? tournamentAdminViewOptions[0]!,
+)
 const tournamentCapabilities = computed(() => getTournamentOperationalCapabilities(activeTournament.value))
 const canUseTournamentDispatch = computed(() => tournamentCapabilities.value.allowsMarshalWorkflow)
 const actionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
@@ -192,16 +271,29 @@ const ruleCheckResultOptions = Object.entries(ruleCheckResultLabels) as [
 ][]
 const cloneTournamentSector = (sector: Tournament['sectors'][number]) => ({ ...sector })
 
+const tournamentRequests = computed(() =>
+  liveTournamentRequests.value.filter((request) => request.tournamentId === activeTournament.value.id),
+)
 const activeRequests = computed(() =>
-  liveTournamentRequests.value.filter(
-    (request) => request.tournamentId === activeTournament.value.id && request.status !== 'resolved',
-  ),
+  tournamentRequests.value.filter((request) => request.status !== 'resolved'),
+)
+const tournamentCatches = computed(() =>
+  liveTournamentCatches.value.filter((catchItem) => catchItem.tournamentId === activeTournament.value.id),
 )
 const waitingCatches = computed(() =>
-  liveTournamentCatches.value.filter((catchItem) => catchItem.status === 'waiting'),
+  tournamentCatches.value.filter((catchItem) => catchItem.status === 'waiting'),
+)
+const tournamentPenalties = computed(() =>
+  liveTournamentPenalties.value.filter((penalty) => penalty.tournamentId === activeTournament.value.id),
 )
 const activePenalties = computed(() =>
-  liveTournamentPenalties.value.filter((penalty) => penalty.status === 'active'),
+  tournamentPenalties.value.filter((penalty) => penalty.status === 'active'),
+)
+const tournamentRuleChecks = computed(() =>
+  liveTournamentRuleChecks.value.filter((ruleCheck) => ruleCheck.tournamentId === activeTournament.value.id),
+)
+const tournamentDispatchAttentionCount = computed(() =>
+  activeRequests.value.length + waitingCatches.value.length,
 )
 const tournamentTeamRegistrations = computed(() =>
   liveTournamentTeamRegistrations.value.filter((registration) => registration.tournamentId === activeTournament.value.id),
@@ -244,6 +336,7 @@ const sectorMapRows = computed(() =>
 const sectorMapCoverage = computed(() => getTournamentMapCoverage(sectorMapRows.value))
 const mapSourceSummary = computed(() => getTournamentMapSourceSummary(mapState.value))
 const sectorDraft = ref<Tournament['sectors']>(activeTournament.value.sectors.map(cloneTournamentSector))
+const expandedTournamentSectorId = ref(activeTournament.value.sectors[0]?.id ?? '')
 const sectorSettingsStatus = ref<'idle' | 'saving' | 'success' | 'error'>('idle')
 const sectorSettingsMessage = ref('')
 const teamAccessShareStatus = ref<'idle' | 'success' | 'error'>('idle')
@@ -1158,12 +1251,125 @@ const syncMarshalForSector = (kind: 'penalty' | 'rule-check') => {
   }
 }
 
+async function centerActiveTournamentAdminTab(smooth = true) {
+  await nextTick()
+
+  const container = tournamentAdminTabsRef.value
+  const activeTab = container?.querySelector<HTMLElement>(
+    `[data-tournament-admin-view="${activeTournamentAdminView.value}"]`,
+  )
+  if (!container || !activeTab) return
+
+  container.scrollTo({
+    behavior: smooth ? 'smooth' : 'auto',
+    left: activeTab.offsetLeft - container.clientWidth / 2 + activeTab.clientWidth / 2,
+  })
+}
+
+async function selectTournamentAdminView(
+  view: TournamentAdminView,
+  options: { focus?: boolean } = {},
+) {
+  activeTournamentAdminView.value = view
+
+  const query = { ...route.query }
+  if (view === 'prehlad') {
+    delete query.sekcia
+  }
+  else {
+    query.sekcia = view
+  }
+
+  await router.replace({ query })
+  await centerActiveTournamentAdminTab()
+
+  if (options.focus) {
+    tournamentAdminTabsRef.value
+      ?.querySelector<HTMLElement>(`[data-tournament-admin-view="${view}"]`)
+      ?.focus()
+  }
+}
+
+function handleTournamentAdminTabsKeydown(event: KeyboardEvent) {
+  const currentIndex = tournamentAdminViewOptions.findIndex(
+    (option) => option.id === activeTournamentAdminView.value,
+  )
+  let nextIndex = currentIndex
+
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tournamentAdminViewOptions.length
+  else if (event.key === 'ArrowLeft') {
+    nextIndex = (currentIndex - 1 + tournamentAdminViewOptions.length) % tournamentAdminViewOptions.length
+  }
+  else if (event.key === 'Home') nextIndex = 0
+  else if (event.key === 'End') nextIndex = tournamentAdminViewOptions.length - 1
+  else return
+
+  event.preventDefault()
+  const nextView = tournamentAdminViewOptions[nextIndex]?.id
+  if (nextView) void selectTournamentAdminView(nextView, { focus: true })
+}
+
+async function selectTournament(tournamentId: string) {
+  if (!liveTournaments.value.some((tournament) => tournament.id === tournamentId)) return
+
+  activeTournamentId.value = tournamentId
+  await router.replace({
+    query: {
+      ...route.query,
+      turnaj: tournamentId,
+    },
+  })
+}
+
+function updateActiveTournament(event: Event) {
+  void selectTournament((event.target as HTMLSelectElement).value)
+}
+
+function toggleTournamentSector(sectorId: string) {
+  expandedTournamentSectorId.value = expandedTournamentSectorId.value === sectorId ? '' : sectorId
+}
+
 watch(() => penaltyForm.sectorId, () => syncMarshalForSector('penalty'), { immediate: true })
 watch(() => ruleCheckForm.sectorId, () => syncMarshalForSector('rule-check'), { immediate: true })
+watch(
+  [liveTournaments, requestedTournamentId],
+  ([tournaments, tournamentId]) => {
+    const nextTournament = tournaments.find((tournament) => tournament.id === tournamentId)
+      ?? tournaments[0]
+      ?? seedTournaments[0]
+
+    if (nextTournament) activeTournamentId.value = nextTournament.id
+  },
+  { immediate: true },
+)
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    activeTournamentAdminView.value = normalizeTournamentAdminView(view)
+    void centerActiveTournamentAdminTab(false)
+  },
+)
 watch(
   activeTournament,
   (tournament) => {
     sectorDraft.value = tournament.sectors.map(cloneTournamentSector)
+    const firstSectorId = tournament.sectors[0]?.id ?? ''
+
+    if (!tournament.sectors.some((sector) => sector.id === expandedTournamentSectorId.value)) {
+      expandedTournamentSectorId.value = firstSectorId
+    }
+
+    if (!tournament.sectors.some((sector) => sector.id === penaltyForm.sectorId)) {
+      penaltyForm.sectorId = firstSectorId
+    }
+    if (!tournament.sectors.some((sector) => sector.id === ruleCheckForm.sectorId)) {
+      ruleCheckForm.sectorId = firstSectorId
+    }
+
+    actionMessage.value = ''
+    operationsModeMessage.value = ''
+    sectorSettingsMessage.value = ''
+    teamAccessShareMessage.value = ''
   },
   { immediate: true },
 )
@@ -1195,6 +1401,7 @@ onMounted(() => {
   if (!import.meta.client) return
 
   isOnline.value = navigator.onLine
+  void centerActiveTournamentAdminTab(false)
   void refreshOfflineAdminActionQueue().then(() => {
     if (navigator.onLine && offlineAdminActionQueue.value.length > 0) {
       void syncOfflineAdminActionQueue({ silent: true })
@@ -1216,8 +1423,8 @@ onBeforeUnmount(() => {
   <div>
     <PageHeader
       eyebrow="Admin"
-      title="Súťažný dispečing"
-      description="Interný prehľad pre organizátora: hlásenia tímov, kontrolóri, váženia, tresty a kontroly sektorov."
+      title="Správa súťaží"
+      description="Tímy, sektory, výsledky a živá prevádzka pretekov na jednom mieste."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -1291,7 +1498,91 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mb-5 rounded-card border border-border bg-surface p-5">
+      <div class="mb-6 border-b border-border pb-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <label for="active-tournament" class="text-xs font-bold uppercase text-foreground-muted">
+              Aktívna súťaž
+            </label>
+            <select
+              id="active-tournament"
+              :value="activeTournament.id"
+              class="mt-1 h-11 w-full max-w-xl rounded-md border border-border bg-white px-3 text-sm font-bold"
+              @change="updateActiveTournament"
+            >
+              <option v-for="tournament in liveTournaments" :key="tournament.id" :value="tournament.id">
+                {{ tournament.name }}
+              </option>
+            </select>
+            <div class="text-foreground-muted mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon name="i-heroicons-map-pin" class="h-4 w-4" />
+                {{ getLakeName(activeTournament.lake) }}
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon name="i-heroicons-calendar-days" class="h-4 w-4" />
+                {{ activeTournament.dateRange }}
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon name="i-heroicons-signal" class="h-4 w-4" />
+                {{ tournamentStatusLabels[activeTournament.status] }}
+              </span>
+            </div>
+          </div>
+          <UButton
+            v-if="activeTournamentAdminView !== 'dispecing' && tournamentDispatchAttentionCount > 0"
+            icon="i-heroicons-radio"
+            size="sm"
+            variant="soft"
+            @click="selectTournamentAdminView('dispecing')"
+          >
+            Otvoriť dispečing ({{ tournamentDispatchAttentionCount }})
+          </UButton>
+          <UButton
+            v-else-if="activeTournamentAdminView !== 'prihlasky' && submittedTeamRegistrations.length > 0"
+            icon="i-heroicons-inbox-arrow-down"
+            size="sm"
+            variant="soft"
+            @click="selectTournamentAdminView('prihlasky')"
+          >
+            Nové prihlášky ({{ submittedTeamRegistrations.length }})
+          </UButton>
+        </div>
+
+        <div
+          ref="tournamentAdminTabsRef"
+          class="mt-5 flex snap-x gap-1 overflow-x-auto rounded-md bg-muted p-1"
+          role="tablist"
+          aria-label="Sekcie správy súťaže"
+          @keydown="handleTournamentAdminTabsKeydown"
+        >
+          <button
+            v-for="option in tournamentAdminViewOptions"
+            :key="option.id"
+            type="button"
+            role="tab"
+            class="flex h-10 shrink-0 snap-center items-center justify-center gap-2 rounded px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            :class="activeTournamentAdminView === option.id
+              ? 'bg-white text-primary-900 shadow-sm'
+              : 'text-foreground-muted hover:bg-white/70 hover:text-foreground'"
+            :aria-selected="activeTournamentAdminView === option.id"
+            :tabindex="activeTournamentAdminView === option.id ? 0 : -1"
+            :data-tournament-admin-view="option.id"
+            @click="selectTournamentAdminView(option.id)"
+          >
+            <UIcon :name="option.icon" class="h-4 w-4" />
+            {{ option.label }}
+          </button>
+        </div>
+        <p class="text-foreground-muted mt-2 text-sm" aria-live="polite">
+          {{ activeTournamentAdminViewOption.description }}
+        </p>
+      </div>
+
+      <div
+        v-if="activeTournamentAdminView === 'prehlad'"
+        class="mb-5 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Režim používania súťaže</h2>
@@ -1331,30 +1622,30 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div class="grid gap-4 md:grid-cols-5">
-        <div class="rounded-card border border-border bg-surface p-4">
+      <div v-if="activeTournamentAdminView === 'prehlad'" class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Aktívne hlásenia</p>
-          <p class="mt-2 text-3xl font-bold">{{ activeRequests.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ activeRequests.length }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Nové prihlášky</p>
-          <p class="mt-2 text-3xl font-bold">{{ submittedTeamRegistrations.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ submittedTeamRegistrations.length }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Čaká na váženie</p>
-          <p class="mt-2 text-3xl font-bold">{{ waitingCatches.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ waitingCatches.length }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-foreground-muted text-sm">Aktívne tresty</p>
-          <p class="mt-2 text-3xl font-bold">{{ activePenalties.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ activePenalties.length }}</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="col-span-2 rounded-card border border-border bg-surface p-3 sm:p-4 lg:col-span-1">
           <p class="text-foreground-muted text-sm">Kontrolóri</p>
-          <p class="mt-2 text-3xl font-bold">{{ liveTournamentMarshals.length }}</p>
+          <p class="mt-2 text-2xl font-bold">{{ liveTournamentMarshals.length }}</p>
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div v-if="activeTournamentAdminView === 'prehlad'" class="mt-6 rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Live výsledkovka</h2>
@@ -1416,7 +1707,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="mt-4 overflow-hidden rounded-md border border-border">
+        <p
+          v-if="tournamentLeaderboard.length === 0"
+          class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+        >
+          Poradie sa zobrazí po pridaní sektorov a prvých súťažných výsledkov.
+        </p>
+        <div v-else class="mt-4 overflow-hidden rounded-md border border-border">
           <div
             v-for="row in tournamentLeaderboard"
             :key="row.sectorId"
@@ -1457,7 +1754,10 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeTournamentAdminView === 'prihlasky'"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Prihlášky tímov</h2>
@@ -1481,7 +1781,16 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="mt-4 grid gap-3 xl:grid-cols-2">
+        <DataStatusNotice
+          v-if="tournamentTeamRegistrations.length === 0"
+          class="mt-4"
+          description="Keď tím odošle prihlášku, objaví sa tu na posúdenie organizátorom."
+          icon="i-heroicons-inbox"
+          title="Zatiaľ bez prihlášok"
+          tone="info"
+        />
+
+        <div v-else class="mt-4 grid gap-3 xl:grid-cols-2">
           <div
             v-for="registration in tournamentTeamRegistrations"
             :key="registration.id"
@@ -1593,12 +1902,15 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeTournamentAdminView === 'sektory'"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 class="text-lg font-bold">Mapové pokrytie sektorov</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Súťažné sektory čítajú SVG polygony z admin mapy, aby organizátor videl aj pripravené drafty.
+              Sektorové plochy sú prepojené s mapou revíru. Nepublikované úpravy vidí iba organizátor.
             </p>
             <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
               <StatusBadge
@@ -1620,7 +1932,13 @@ onBeforeUnmount(() => {
             </UButton>
           </div>
         </div>
-        <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <p
+          v-if="sectorMapRows.length === 0"
+          class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+        >
+          Súťaž zatiaľ nemá vytvorené sektory. Pridajte ich pred kreslením polygonov v mape.
+        </p>
+        <div v-else class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <div
             v-for="row in sectorMapRows"
             :key="row.sector.id"
@@ -1653,12 +1971,15 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeTournamentAdminView === 'prihlasky'"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Tímové odkazy a kódy</h2>
             <p class="text-foreground-muted mt-1 text-sm">
-              Pošli tímu link alebo kód. Panel sa otvorí v mobile bez tlačenia podkladov.
+              Pošli tímu odkaz alebo krátky kód na otvorenie mobilného panelu.
             </p>
           </div>
           <div class="flex flex-wrap gap-2 lg:justify-end">
@@ -1687,7 +2008,13 @@ onBeforeUnmount(() => {
           :tone="teamAccessShareNoticeTone"
         />
 
-        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+        <p
+          v-if="teamAccessRows.length === 0"
+          class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+        >
+          Tímové odkazy vzniknú automaticky po vytvorení súťažných sektorov.
+        </p>
+        <div v-else class="mt-4 grid gap-3 lg:grid-cols-2">
           <div
             v-for="row in teamAccessRows"
             :key="row.sectorId"
@@ -1717,7 +2044,10 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeTournamentAdminView === 'sektory'"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Sektory a tímy</h2>
@@ -1750,7 +2080,13 @@ onBeforeUnmount(() => {
           :tone="sectorSettingsNoticeTone"
         />
 
-        <div class="mt-4 grid gap-3 xl:grid-cols-2">
+        <p
+          v-if="sectorDraft.length === 0"
+          class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+        >
+          Táto súťaž zatiaľ nemá žiadne sektory.
+        </p>
+        <div v-else class="mt-4 grid gap-3 xl:grid-cols-2">
           <div
             v-for="sector in sectorDraft"
             :key="sector.id"
@@ -1771,6 +2107,19 @@ onBeforeUnmount(() => {
                 <span class="text-foreground-muted text-xs font-semibold uppercase tracking-wide">
                   {{ sector.id }}
                 </span>
+                <button
+                  type="button"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted px-2.5 text-xs font-bold text-foreground transition-colors hover:bg-border lg:hidden"
+                  :aria-controls="`tournament-sector-fields-${sector.id}`"
+                  :aria-expanded="expandedTournamentSectorId === sector.id"
+                  @click="toggleTournamentSector(sector.id)"
+                >
+                  <UIcon
+                    :name="expandedTournamentSectorId === sector.id ? 'i-heroicons-chevron-up' : 'i-heroicons-pencil-square'"
+                    class="h-4 w-4"
+                  />
+                  {{ expandedTournamentSectorId === sector.id ? 'Zavrieť' : 'Upraviť' }}
+                </button>
                 <NuxtLink
                   :to="tournamentTeamAccessUrl(sector.id)"
                   class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
@@ -1788,7 +2137,11 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div
+              :id="`tournament-sector-fields-${sector.id}`"
+              class="mt-4 gap-3 sm:grid-cols-2 lg:grid lg:grid-cols-5"
+              :class="expandedTournamentSectorId === sector.id ? 'grid' : 'hidden'"
+            >
               <label class="block lg:col-span-1">
                 <span class="text-xs font-semibold uppercase text-foreground-muted">Označenie</span>
                 <input
@@ -1858,7 +2211,7 @@ onBeforeUnmount(() => {
         :tone="actionNoticeTone"
       />
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-3">
+      <div v-if="activeTournamentAdminView === 'prehlad'" class="mt-6 grid gap-4 lg:grid-cols-3">
         <div
           v-for="slot in tournamentSponsorSlots"
           :key="slot.placementType"
@@ -1905,12 +2258,22 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <div class="space-y-6">
+      <div
+        v-if="activeTournamentAdminView === 'dispecing' || activeTournamentAdminView === 'pravidla'"
+        class="mt-6"
+        :class="activeTournamentAdminView === 'dispecing' ? 'grid gap-6 lg:grid-cols-[1fr_0.9fr]' : ''"
+      >
+        <div v-if="activeTournamentAdminView === 'dispecing'" class="space-y-6">
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Front hlásení</h2>
-            <div class="mt-4 space-y-3">
-              <div v-for="request in liveTournamentRequests" :key="request.id" class="rounded-md border border-border bg-white p-4">
+            <p
+              v-if="tournamentRequests.length === 0"
+              class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+            >
+              Tímy zatiaľ neposlali žiadne hlásenie ani požiadavku na kontrolóra.
+            </p>
+            <div v-else class="mt-4 space-y-3">
+              <div v-for="request in tournamentRequests" :key="request.id" class="rounded-md border border-border bg-white p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-bold">{{ request.team }} · {{ sectorLabel(request.sectorId) }}</p>
@@ -1953,8 +2316,14 @@ onBeforeUnmount(() => {
 
           <div class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Váženia úlovkov</h2>
-            <div class="mt-4 overflow-hidden rounded-md border border-border">
-              <div v-for="catchItem in liveTournamentCatches" :key="catchItem.id" class="border-b border-border bg-white p-4 last:border-b-0">
+            <p
+              v-if="tournamentCatches.length === 0"
+              class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+            >
+              K tejto súťaži zatiaľ nie je evidované žiadne váženie.
+            </p>
+            <div v-else class="mt-4 overflow-hidden rounded-md border border-border">
+              <div v-for="catchItem in tournamentCatches" :key="catchItem.id" class="border-b border-border bg-white p-4 last:border-b-0">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-bold">{{ catchItem.team }} · {{ sectorLabel(catchItem.sectorId) }}</p>
@@ -1989,8 +2358,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <aside class="space-y-6">
-          <div class="rounded-card border border-border bg-surface p-5">
+        <div :class="activeTournamentAdminView === 'pravidla' ? 'grid gap-6 lg:grid-cols-2' : 'space-y-6'">
+          <div
+            v-if="activeTournamentAdminView === 'dispecing'"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Kontrolóri</h2>
@@ -1999,7 +2371,13 @@ onBeforeUnmount(() => {
                 </p>
               </div>
             </div>
-            <div class="mt-4 space-y-3">
+            <p
+              v-if="liveTournamentMarshals.length === 0"
+              class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+            >
+              Pred spustením dispečingu priraďte súťaži kontrolórov.
+            </p>
+            <div v-else class="mt-4 space-y-3">
               <div v-for="marshal in liveTournamentMarshals" :key="marshal.id" class="rounded-md bg-muted p-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
@@ -2029,7 +2407,10 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeTournamentAdminView === 'pravidla'"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <h2 class="text-lg font-bold">Zapísať trest</h2>
             <form class="mt-4 space-y-4" @submit.prevent="submitPenalty">
               <div class="grid gap-3 sm:grid-cols-2">
@@ -2128,7 +2509,10 @@ onBeforeUnmount(() => {
             </form>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeTournamentAdminView === 'pravidla'"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <h2 class="text-lg font-bold">Zapísať kontrolu</h2>
             <form class="mt-4 space-y-4" @submit.prevent="submitRuleCheck">
               <div class="grid gap-3 sm:grid-cols-2">
@@ -2199,10 +2583,19 @@ onBeforeUnmount(() => {
             </form>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeTournamentAdminView === 'pravidla'"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <h2 class="text-lg font-bold">Tresty</h2>
-            <div class="mt-4 space-y-3">
-              <div v-for="penalty in liveTournamentPenalties" :key="penalty.id" class="rounded-md border border-border bg-white p-4">
+            <p
+              v-if="tournamentPenalties.length === 0"
+              class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+            >
+              V tejto súťaži zatiaľ nebol uložený žiadny trest.
+            </p>
+            <div v-else class="mt-4 space-y-3">
+              <div v-for="penalty in tournamentPenalties" :key="penalty.id" class="rounded-md border border-border bg-white p-4">
                 <p class="font-bold">{{ penalty.team }} · {{ sectorLabel(penalty.sectorId) }}</p>
                 <StatusBadge
                   class="mt-1"
@@ -2216,16 +2609,25 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeTournamentAdminView === 'pravidla'"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <h2 class="text-lg font-bold">Kontroly sektorov</h2>
-            <div class="mt-4 space-y-3">
-              <div v-for="check in liveTournamentRuleChecks" :key="check.id" class="rounded-md bg-muted p-4">
+            <p
+              v-if="tournamentRuleChecks.length === 0"
+              class="text-foreground-muted mt-4 rounded-md bg-muted p-4 text-sm"
+            >
+              Prvá vykonaná kontrola sektora sa zobrazí v tejto histórii.
+            </p>
+            <div v-else class="mt-4 space-y-3">
+              <div v-for="check in tournamentRuleChecks" :key="check.id" class="rounded-md bg-muted p-4">
                 <p class="font-semibold">{{ sectorLabel(check.sectorId) }} · {{ marshalName(check.marshalId) }}</p>
                 <p class="text-foreground-muted mt-1 text-sm">{{ check.note }}</p>
               </div>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
     </section>
   </div>

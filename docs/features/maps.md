@@ -61,9 +61,14 @@ Admin má vedieť:
 ## Stav v prototype
 
 - `/mapa` používa SVG canvas s obrázkovým alebo generovaným podkladom.
+- `/mapa` drží na mobile výber termínu v kompaktnom súhrne s akciou `Zmeniť`; rýchle rozsahy a presné dátumy sa rozbalia na požiadanie. Mapové plátno nasleduje hneď po jazere a filtri, kým odvodené súhrny a vysvetlenia sú až pod mapou.
 - `/mapa` má verejné nahlásenie nedostatku pre aktuálne jazero, lovné miesto alebo verejný servisný bod vrátane offline fronty v zariadení pri slabom signáli.
 - Lovné miesta, chaty a verejné servisné body sú kreslené ako SVG body z percentuálnych súradníc.
 - `/admin/mapa` má drag editor lovných miest, chát, servisných bodov, polygonových plôch, vrstvy, náhľad exportu modelu a lokálne uloženie zmien.
+- Pracovná plocha `/admin/mapa` je rozdelená na URL pohľady `Prvky`, `Vrstvy`, `Publikovanie` a `Export` cez query `sekcia`. SVG mapa ostáva pri všetkých pohľadoch viditeľná a na desktope sa pri dlhšom paneli drží pri hornej hrane; prepínač podporuje šípky, `Home` a `End`.
+- Kliknutie na lovné miesto, chatu, servisný bod alebo polygon vždy otvorí pohľad `Prvky`. Súťažný deep-link s `turnaj` a `sektor` zachová svoj kontext a otvorí vybraný polygon v rovnakom pohľade.
+- Nález kontroly pred publikovaním otvorí priamo príslušný pracovný pohľad: objekty a polygony v `Prvky`, vrstvy a podkladový obrázok vo `Vrstvy`. Výsledná správa zostane viditeľná nad mapou aj po odchode z kontroly.
+- Uloženie draftu, zahodenie draftu a publikovanie sú sústredené v pohľade `Publikovanie`; `Export` drží legendu vrcholov a prehľad pripravených dát bez prevádzkových formulárov.
 - Admin vie pridať nové lovné miesto, miesto s chatou, WC/servisný bod, rozvodňu, zákaz/režim a súťažný sektor.
 - Karta `Pridať do mapy` má samostatnú paletu servisných bodov pre WC, sprchy, sklad, drevo, elektrickú rozvodňu, vjazd, recepciu, parkovanie, odpad a prvú pomoc.
 - Karta `Pridať do mapy` ukazuje pripravenosť vrstiev pre nové brehové miesto, miesto s chatou, servisný bod a aktuálne zvolený typ kreslenej plochy: `aktívna`, `zapne sa` alebo `vytvorí sa`.

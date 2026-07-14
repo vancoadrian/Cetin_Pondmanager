@@ -1,5 +1,6 @@
 import type {
   Alert,
+  LakeSlug,
   NotificationAudience,
   NotificationAudienceRole,
   NotificationBroadcast,
@@ -13,6 +14,7 @@ import {
 } from '~/data/pond'
 import {
   getValidationMessages,
+  notificationAlertEndInputSchema,
   notificationBroadcastInputSchema,
   notificationTestCleanupInputSchema,
   notificationTestBroadcastInputSchema,
@@ -89,6 +91,16 @@ export interface NotificationBroadcastSuccess {
   subscriptions: PushSubscriptionRecord[]
 }
 
+export interface NotificationAlertEndSuccess {
+  alert: Alert
+  alerts: Alert[]
+  broadcast?: NotificationBroadcast
+  broadcasts: NotificationBroadcast[]
+  message: string
+  ok: true
+  statusCode: 200
+}
+
 export interface NotificationTestBroadcastSuccess {
   broadcast: NotificationBroadcast
   broadcasts: NotificationBroadcast[]
@@ -118,6 +130,7 @@ export interface NotificationTestCleanupSuccess {
 export type PushSubscriptionMutationResult = PushSubscriptionMutationSuccess | NotificationValidationFailure
 export type PushUnsubscribeResult = PushUnsubscribeSuccess | NotificationValidationFailure
 export type NotificationBroadcastResult = NotificationBroadcastSuccess | NotificationValidationFailure
+export type NotificationAlertEndResult = NotificationAlertEndSuccess | NotificationValidationFailure
 export type NotificationTestBroadcastResult = NotificationTestBroadcastSuccess | NotificationValidationFailure
 export type NotificationTestCleanupResult = NotificationTestCleanupSuccess | NotificationValidationFailure
 
@@ -137,6 +150,11 @@ export const pushSubscriptionTopicLabels: Record<PushSubscriptionTopic, string> 
   service: 'prevádzka',
   tournaments: 'súťaže',
   weather: 'počasie',
+}
+
+export const notificationLakeLabels: Record<LakeSlug, string> = {
+  'strkovisko-kocka': 'Štrkovisko Kocka',
+  'velky-cetin': 'Veľký Cetín',
 }
 
 export const notificationAudienceRoleLabels: Record<NotificationAudienceRole, string> = {
@@ -190,6 +208,26 @@ function timestampOrZero(value: string) {
   const timestamp = Date.parse(value)
 
   return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+export function isNotificationAlertActive(
+  alert: Pick<Alert, 'endedAt' | 'expiresAt'>,
+  now = new Date().toISOString(),
+) {
+  if (alert.endedAt) return false
+
+  const expiresAt = alert.expiresAt ? timestampOrZero(alert.expiresAt) : 0
+  if (!expiresAt) return true
+
+  const nowTimestamp = timestampOrZero(now) || Date.now()
+  return expiresAt > nowTimestamp
+}
+
+export function getActiveNotificationAlerts(
+  alerts: Alert[],
+  now = new Date().toISOString(),
+) {
+  return alerts.filter((alert) => isNotificationAlertActive(alert, now))
 }
 
 function uniqueId(baseId: string, existingIds: Set<string>) {
@@ -247,7 +285,10 @@ function createDeliveryLogId(
 
 export function cloneNotificationState(state: NotificationState): NotificationState {
   return {
-    alerts: state.alerts.map((alert) => ({ ...alert })),
+    alerts: state.alerts.map((alert) => ({
+      ...alert,
+      lakeIds: alert.lakeIds ? [...alert.lakeIds] : undefined,
+    })),
     broadcasts: state.broadcasts.map((broadcast) => ({
       ...broadcast,
       targetAudience: broadcast.targetAudience
@@ -256,13 +297,15 @@ export function cloneNotificationState(state: NotificationState): NotificationSt
             marshalIds: [...(broadcast.targetAudience.marshalIds ?? [])],
             roles: [...(broadcast.targetAudience.roles ?? [])],
             sectorIds: [...(broadcast.targetAudience.sectorIds ?? [])],
-          }
+        }
         : undefined,
+      targetLakeIds: broadcast.targetLakeIds ? [...broadcast.targetLakeIds] : undefined,
       targetTopics: [...broadcast.targetTopics],
     })),
     deliveryLogs: state.deliveryLogs.map((log) => ({ ...log })),
     subscriptions: state.subscriptions.map((subscription) => ({
       ...subscription,
+      lakeIds: subscription.lakeIds ? [...subscription.lakeIds] : undefined,
       sectorIds: [...(subscription.sectorIds ?? [])],
       topics: [...subscription.topics],
       tournamentIds: [...(subscription.tournamentIds ?? [])],
@@ -312,16 +355,27 @@ function subscriptionMatchesAudience(
   return true
 }
 
+function subscriptionMatchesLakes(
+  subscription: PushSubscriptionRecord,
+  targetLakeIds?: LakeSlug[],
+) {
+  if (!targetLakeIds?.length || !subscription.lakeIds?.length) return true
+
+  return subscription.lakeIds.some((lakeId) => targetLakeIds.includes(lakeId))
+}
+
 export function getBroadcastTargetSubscriptions(
   subscriptions: PushSubscriptionRecord[],
   targetTopics: PushSubscriptionTopic[],
   targetAudience?: NotificationAudience,
+  targetLakeIds?: LakeSlug[],
 ) {
   return subscriptions.filter((subscription) =>
     subscription.enabled &&
     subscription.permission === 'granted' &&
     subscription.topics.some((topic) => targetTopics.includes(topic)) &&
-    subscriptionMatchesAudience(subscription, targetAudience),
+    subscriptionMatchesAudience(subscription, targetAudience) &&
+    subscriptionMatchesLakes(subscription, targetLakeIds),
   )
 }
 
@@ -329,8 +383,9 @@ function getBroadcastRecipientCount(
   subscriptions: PushSubscriptionRecord[],
   targetTopics: PushSubscriptionTopic[],
   targetAudience?: NotificationAudience,
+  targetLakeIds?: LakeSlug[],
 ) {
-  return getBroadcastTargetSubscriptions(subscriptions, targetTopics, targetAudience).length
+  return getBroadcastTargetSubscriptions(subscriptions, targetTopics, targetAudience, targetLakeIds).length
 }
 
 export function formatNotificationAudience(audience?: NotificationAudience) {
@@ -382,9 +437,10 @@ export function stripPushSubscriptionAudienceScope(rawInput: unknown) {
 export function createPublicNotificationStateResponse(
   state: NotificationState,
   updatedAt: string,
+  now = new Date().toISOString(),
 ): PublicNotificationStateResponse {
   return {
-    alerts: state.alerts,
+    alerts: getActiveNotificationAlerts(state.alerts, now),
     ok: true,
     subscriptionCount: state.subscriptions.filter((subscription) => subscription.enabled).length,
     updatedAt,
@@ -411,6 +467,9 @@ export function savePushSubscription(
     enabled: input.permission === 'granted',
     endpoint: input.endpoint,
     id: existingSubscription?.id ?? createSubscriptionId(input.endpoint, state, now),
+    lakeIds: input.lakeIds === undefined
+      ? existingSubscription?.lakeIds ?? []
+      : unique(input.lakeIds),
     lastSeenAt: now,
     marshalId: input.marshalId ?? existingSubscription?.marshalId,
     p256dh: input.p256dh || existingSubscription?.p256dh,
@@ -518,6 +577,11 @@ export function createNotificationBroadcast(
   }
 
   const input = inputResult.data
+  const nowTimestamp = timestampOrZero(now) || Date.now()
+  const expiresAtTimestamp = input.expiresAt ? timestampOrZero(input.expiresAt) : 0
+  if (input.expiresAt && expiresAtTimestamp <= nowTimestamp) {
+    return failure(['Platnosť verejného oznamu musí byť v budúcnosti.'])
+  }
   const targetAudience = input.targetAudience
     ? {
         ...input.targetAudience,
@@ -526,20 +590,30 @@ export function createNotificationBroadcast(
         sectorIds: uniqueNonEmpty(input.targetAudience.sectorIds),
       }
     : undefined
+  const targetLakeIds = unique(input.targetLakeIds)
   const alert: Alert = {
     body: input.body,
+    createdAt: now,
+    expiresAt: input.expiresAt,
     id: createAlertId(input.title, state, now),
+    lakeIds: targetLakeIds.length > 0 ? targetLakeIds : undefined,
     severity: input.severity,
     title: input.title,
     validUntil: input.validUntil,
   }
   const targetTopics = unique(input.targetTopics)
-  const recipientCount = getBroadcastRecipientCount(state.subscriptions, targetTopics, targetAudience)
+  const recipientCount = getBroadcastRecipientCount(
+    state.subscriptions,
+    targetTopics,
+    targetAudience,
+    targetLakeIds,
+  )
   const broadcast: NotificationBroadcast = {
     alertId: alert.id,
     body: alert.body,
     createdAt: now,
     createdBy,
+    expiresAt: input.expiresAt,
     id: createBroadcastId(alert.id, state, now),
     message: recipientCount > 0
       ? `Skúšobné doručovanie pripravilo notifikáciu pre ${recipientCount} odberov.`
@@ -548,6 +622,7 @@ export function createNotificationBroadcast(
     severity: alert.severity,
     status: recipientCount > 0 ? 'prepared' : 'skipped',
     targetAudience,
+    targetLakeIds: targetLakeIds.length > 0 ? targetLakeIds : undefined,
     targetTopics,
     title: alert.title,
     validUntil: alert.validUntil,
@@ -563,6 +638,53 @@ export function createNotificationBroadcast(
     ok: true,
     statusCode: 201,
     subscriptions: state.subscriptions,
+  }
+}
+
+export function endNotificationAlert(
+  rawInput: unknown,
+  state: NotificationState = createEmptyNotificationState(),
+  endedBy = 'Správca',
+  now = new Date().toISOString(),
+): NotificationAlertEndResult {
+  const inputResult = notificationAlertEndInputSchema.safeParse(rawInput)
+  if (!inputResult.success) {
+    return failure(getValidationMessages(inputResult))
+  }
+
+  const existingAlert = state.alerts.find((alert) => alert.id === inputResult.data.alertId)
+  if (!existingAlert) {
+    return failure(['Verejný oznam sa nenašiel.'], 404)
+  }
+
+  const endedAt = existingAlert.endedAt ?? now
+  const alert: Alert = {
+    ...existingAlert,
+    endedAt,
+  }
+  const alerts = state.alerts.map((item) => item.id === alert.id ? alert : item)
+  const existingBroadcast = state.broadcasts.find((broadcast) => broadcast.alertId === alert.id)
+  const broadcast = existingBroadcast
+    ? {
+        ...existingBroadcast,
+        endedAt: existingBroadcast.endedAt ?? endedAt,
+        endedBy: existingBroadcast.endedBy ?? endedBy,
+      }
+    : undefined
+  const broadcasts = broadcast
+    ? state.broadcasts.map((item) => item.id === broadcast.id ? broadcast : item)
+    : state.broadcasts
+
+  return {
+    alert,
+    alerts,
+    broadcast,
+    broadcasts,
+    message: existingAlert.endedAt
+      ? 'Verejný oznam už bol ukončený.'
+      : 'Verejný oznam je ukončený a už sa rybárom nezobrazuje.',
+    ok: true,
+    statusCode: 200,
   }
 }
 
@@ -761,6 +883,7 @@ export function runNotificationDelivery(
     state.subscriptions,
     broadcast.targetTopics,
     broadcast.targetAudience,
+    broadcast.targetLakeIds,
   )
   const deliveryLogs = recipients.map((subscription) => {
     const delivery = createDeliveryLogMessage(

@@ -5,10 +5,13 @@ import {
   type AvailabilityRangePreset,
 } from '~/utils/availabilityDateRange'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
+  compactOnMobile?: boolean
   dateFrom: string
   dateTo: string
-}>()
+}>(), {
+  compactOnMobile: false,
+})
 
 const emit = defineEmits<{
   'update:dateFrom': [value: string]
@@ -21,6 +24,8 @@ const presets: Array<{ label: string, value: AvailabilityRangePreset }> = [
   { label: '7 dní', value: 'week' },
 ]
 
+const controlsId = useId()
+const isMobileExpanded = ref(false)
 const rangeLabel = computed(() => formatAvailabilityDateRange(props.dateFrom, props.dateTo))
 const activePreset = computed(() =>
   presets.find((preset) => {
@@ -47,20 +52,48 @@ function applyPreset(preset: AvailabilityRangePreset) {
 </script>
 
 <template>
-  <div class="rounded-md border border-primary-200 bg-primary-50/90 px-4 py-4">
+  <div
+    class="rounded-md border border-primary-200 bg-primary-50/90 px-4"
+    :class="compactOnMobile ? 'py-3 sm:py-4' : 'py-4'"
+  >
     <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          <UIcon name="i-heroicons-calendar-days" class="h-5 w-5 text-primary-800" />
-          <p class="font-bold">Termín dostupnosti</p>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-heroicons-calendar-days" class="h-5 w-5 text-primary-800" />
+              <p class="font-bold">Termín dostupnosti</p>
+            </div>
+            <p class="mt-1 truncate text-sm text-foreground-muted">{{ rangeLabel }}</p>
+          </div>
+          <button
+            v-if="compactOnMobile"
+            type="button"
+            class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-primary-200 bg-white px-3 text-sm font-semibold text-primary-900 shadow-sm sm:hidden"
+            :aria-controls="controlsId"
+            :aria-expanded="isMobileExpanded"
+            @click="isMobileExpanded = !isMobileExpanded"
+          >
+            <UIcon
+              :name="isMobileExpanded ? 'i-heroicons-chevron-up' : 'i-heroicons-pencil-square'"
+              class="h-4 w-4"
+            />
+            {{ isMobileExpanded ? 'Skryť' : 'Zmeniť' }}
+          </button>
         </div>
-        <p class="mt-1 text-sm text-foreground-muted">{{ rangeLabel }}</p>
-        <p class="mt-1 text-xs font-semibold text-primary-800">
+        <p
+          class="mt-1 text-xs font-semibold text-primary-800"
+          :class="compactOnMobile && !isMobileExpanded ? 'hidden sm:block' : ''"
+        >
           Tento rozsah sa použije v mape, prehľade voľných miest aj v rezervácii.
         </p>
       </div>
 
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <div
+        :id="controlsId"
+        class="flex-col gap-3 sm:flex sm:flex-row sm:items-end"
+        :class="compactOnMobile && !isMobileExpanded ? 'hidden' : 'flex'"
+      >
         <div class="grid grid-cols-3 rounded-md border border-border bg-white p-1 shadow-sm">
           <button
             v-for="preset in presets"
@@ -100,6 +133,16 @@ function applyPreset(preset: AvailabilityRangePreset) {
             >
           </label>
         </div>
+
+        <button
+          v-if="compactOnMobile"
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary-900 px-4 text-sm font-semibold text-white sm:hidden"
+          @click="isMobileExpanded = false"
+        >
+          <UIcon name="i-heroicons-check" class="h-4 w-4" />
+          Hotovo
+        </button>
       </div>
     </div>
   </div>

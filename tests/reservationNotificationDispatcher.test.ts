@@ -79,6 +79,7 @@ describe('reservationNotificationDispatcher', () => {
         from: '2026-06-10',
         guest: 'Ján Route',
         id: 'req-20260610-vc-03-3999',
+        lake: 'velky-cetin',
         rentalIds: ['landing-net-rental', 'fish-cradle-rental'],
         to: '2026-06-12',
       },
@@ -93,6 +94,7 @@ describe('reservationNotificationDispatcher', () => {
         requestId: 'req-20260610-vc-03-3999',
         roles: ['owner', 'manager', 'worker'],
       },
+      targetLakeIds: ['velky-cetin'],
       targetTopics: ['reservations'],
       title: 'Nová rezervácia: Ján Route',
     })

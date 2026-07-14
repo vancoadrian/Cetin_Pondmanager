@@ -3,9 +3,12 @@ import {
   cleanupNotificationTestBroadcasts,
   createEmptyNotificationState,
   createNotificationBroadcast,
+  createPublicNotificationStateResponse,
   createNotificationTestBroadcast,
   disablePushSubscription,
   disablePushSubscriptionById,
+  endNotificationAlert,
+  getActiveNotificationAlerts,
   isInternalNotificationBroadcast,
   runNotificationDelivery,
   savePushSubscription,
@@ -218,6 +221,163 @@ describe('notificationService', () => {
     })
     expect(result.alerts).toHaveLength(1)
     expect(result.broadcasts).toHaveLength(1)
+  })
+
+  it('targets a lake while keeping legacy all-lake subscriptions compatible', () => {
+    const baseState = createEmptyNotificationState()
+    const velkyCetin = savePushSubscription({
+      endpoint: 'mock://rybolov-cetin/velky-cetin-device',
+      lakeIds: ['velky-cetin'],
+      permission: 'granted',
+      topics: ['weather'],
+    }, baseState, now)
+    if (!velkyCetin.ok) throw new Error('Veľký Cetín subscription should be valid.')
+
+    const kocka = savePushSubscription({
+      endpoint: 'mock://rybolov-cetin/kocka-device',
+      lakeIds: ['strkovisko-kocka'],
+      permission: 'granted',
+      topics: ['weather'],
+    }, {
+      ...baseState,
+      subscriptions: velkyCetin.subscriptions,
+    }, now)
+    if (!kocka.ok) throw new Error('Kocka subscription should be valid.')
+
+    const legacy = savePushSubscription({
+      endpoint: 'mock://rybolov-cetin/legacy-device',
+      permission: 'granted',
+      topics: ['weather'],
+    }, {
+      ...baseState,
+      subscriptions: kocka.subscriptions,
+    }, now)
+    if (!legacy.ok) throw new Error('Legacy subscription should be valid.')
+
+    const result = createNotificationBroadcast({
+      body: 'Búrkové pásmo zasiahne iba oblasť Veľkého Cetína.',
+      severity: 'storm',
+      targetLakeIds: ['velky-cetin'],
+      targetTopics: ['weather'],
+      title: 'Výstraha pre Veľký Cetín',
+      validUntil: 'dnes 21:00',
+    }, {
+      ...baseState,
+      subscriptions: legacy.subscriptions,
+    }, 'Správca', now)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Lake-targeted broadcast should be valid.')
+
+    expect(result.alert.lakeIds).toEqual(['velky-cetin'])
+    expect(result.broadcast.targetLakeIds).toEqual(['velky-cetin'])
+    expect(result.broadcast.recipientCount).toBe(2)
+
+    const delivery = runNotificationDelivery(result.broadcast, {
+      ...baseState,
+      subscriptions: legacy.subscriptions,
+    }, {
+      now,
+      provider: 'mock',
+    })
+
+    expect(delivery.deliveryLogs.map((log) => log.endpoint).sort()).toEqual([
+      'mock://rybolov-cetin/legacy-device',
+      'mock://rybolov-cetin/velky-cetin-device',
+    ])
+  })
+
+  it('stores a structured expiry and hides the alert after its deadline', () => {
+    const result = createNotificationBroadcast({
+      body: 'Búrkové pásmo prejde ponad jazero v popoludňajších hodinách.',
+      expiresAt: '2026-05-20T16:00:00.000Z',
+      severity: 'storm',
+      targetTopics: ['weather'],
+      title: 'Časovo obmedzená výstraha',
+      validUntil: '20. 5. 2026 18:00',
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }, 'Správca', now)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Expiring broadcast should be valid.')
+
+    expect(result.alert).toMatchObject({
+      createdAt: now,
+      expiresAt: '2026-05-20T16:00:00.000Z',
+    })
+    expect(result.broadcast.expiresAt).toBe('2026-05-20T16:00:00.000Z')
+    expect(getActiveNotificationAlerts(result.alerts, '2026-05-20T15:59:59.000Z')).toHaveLength(1)
+    expect(getActiveNotificationAlerts(result.alerts, '2026-05-20T16:00:00.000Z')).toEqual([])
+
+    const publicState = createPublicNotificationStateResponse({
+      alerts: result.alerts,
+      broadcasts: result.broadcasts,
+      deliveryLogs: [],
+      subscriptions: [],
+    }, now, '2026-05-20T16:00:00.000Z')
+    expect(publicState.alerts).toEqual([])
+  })
+
+  it('rejects a public alert expiry that is not in the future', () => {
+    const result = createNotificationBroadcast({
+      body: 'Táto výstraha má neplatný termín ukončenia.',
+      expiresAt: now,
+      severity: 'service',
+      targetTopics: ['service'],
+      title: 'Neplatná platnosť',
+      validUntil: 'už skončilo',
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }, 'Správca', now)
+
+    expect(result).toMatchObject({
+      messages: ['Platnosť verejného oznamu musí byť v budúcnosti.'],
+      ok: false,
+      statusCode: 422,
+    })
+  })
+
+  it('ends a public alert while preserving its broadcast history', () => {
+    const created = createNotificationBroadcast({
+      body: 'Dočasné obmedzenie vjazdu k jazeru počas údržby cesty.',
+      expiresAt: '2026-05-21T12:00:00.000Z',
+      severity: 'service',
+      targetTopics: ['service'],
+      title: 'Obmedzenie vjazdu',
+      validUntil: '21. 5. 2026 14:00',
+    }, {
+      alerts: [],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    }, 'Správca', now)
+    if (!created.ok) throw new Error('Broadcast should be valid.')
+
+    const ended = endNotificationAlert({ alertId: created.alert.id }, {
+      alerts: created.alerts,
+      broadcasts: created.broadcasts,
+      deliveryLogs: [],
+      subscriptions: [],
+    }, 'Majiteľ revíru', '2026-05-20T13:00:00.000Z')
+
+    expect(ended.ok).toBe(true)
+    if (!ended.ok) throw new Error('Alert end should be valid.')
+
+    expect(ended.alert.endedAt).toBe('2026-05-20T13:00:00.000Z')
+    expect(ended.broadcast).toMatchObject({
+      endedAt: '2026-05-20T13:00:00.000Z',
+      endedBy: 'Majiteľ revíru',
+      id: created.broadcast.id,
+    })
+    expect(ended.broadcasts).toHaveLength(1)
+    expect(getActiveNotificationAlerts(ended.alerts, '2026-05-20T13:00:01.000Z')).toEqual([])
   })
 
   it('creates an internal test broadcast without adding a public alert', () => {

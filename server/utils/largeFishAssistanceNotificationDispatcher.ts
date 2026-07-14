@@ -22,6 +22,7 @@ export async function appendLargeFishAssistanceNotification(
         requestId: request.id,
         roles: ['owner', 'manager'],
       },
+      targetLakeIds: [request.lake],
       targetTopics: ['service'],
       title: 'Veľká ryba: správca potrebný',
       validUntil: 'do odpovede správcu',

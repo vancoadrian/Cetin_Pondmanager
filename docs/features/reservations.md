@@ -20,7 +20,7 @@ Verejné odkazy z informačnej stránky môžu predvybrať službu priamo v reze
 - `vybava=<rental-id>` predvyberie položku požičovne,
 - `doplnok=<extra-id>` predvyberie doplnok,
 - `chata=<cabin-product-id>&typ=chata` otvorí rezerváciu na prvom mieste viazanom na danú chatu.
-- Povinná výbava na informačnej stránke má pri požičateľných položkách priamu akciu `Pridať k rezervácii`, napríklad podberák, podložka alebo základný fish-care kit.
+- Povinná výbava na informačnej stránke má pri požičateľných položkách priamu akciu `Požičať k rezervácii`, napríklad podberák, podložka alebo základný fish-care kit. Samostatný katalóg prepína požičovňu a doplnky bez opakovania rovnakých položiek na začiatku stránky.
 
 ## Interný tok
 
@@ -69,8 +69,9 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - Prihlásený rybár má v public formulári predvyplnené meno a e-mail účtu. Polia môže prepísať, ale aplikácia mu rozpracovaný kontakt neprepisuje automaticky.
 - `/konto` zobrazuje vlastné rezervácie bez interných poznámok, s platobným stavom, pokynmi k zvolenej platobnej metóde a rýchlym telefonátom alebo SMS správcovi s predvyplneným ID rezervácie.
 - `/admin` ukazuje súhrn rezervácií na spracovanie.
-- `/admin/rezervacie` má mock schvaľovací detail vybranej rezervácie s kontaktom, povolenkou, chatou, požičovňou, doplnkami, konfliktmi a internou poznámkou.
-- `/admin/rezervacie` má týždenný aj mesačný kalendár po miestach a chatách, kde každá bunka ukazuje stav z availability engine a obsadená bunka otvorí detail rezervácie. Na mobile sa kalendár mení na denný súhrn obsadenosti.
+- `/admin/rezervacie` je rozdelené na URL pohľady Žiadosti, Kalendár, Nová rezervácia a Nastavenia. Predvolený pohľad uprednostní čakajúce žiadosti, kým `sekcia=kalendar`, `sekcia=nova` a `sekcia=nastavenia` otvoria konkrétnu pracovnú úlohu. Taby podporujú šípky, Home a End.
+- Schvaľovací detail vybranej rezervácie obsahuje kontakt, povolenku, chatu, požičovňu, doplnky, konflikty a internú poznámku. Deep link `rezervacia=<id>` má prednosť pred otvorenou sekciou, vyberie správne jazero a posunie správcu priamo na detail.
+- Kalendár má samostatný výber jazera, otvára sa na aktuálnom dátume a ponúka týždenný aj mesačný pohľad po miestach a chatách. Každá bunka používa availability engine; obsadená bunka prepne na detail rezervácie. Na mobile sa kalendár mení na denný súhrn obsadenosti a prevádzkové obmedzenia zostávajú v samostatnom rozbaľovacom kontexte.
 - Uloženie rozhodnutia v `/admin/rezervacie` mení lokálny stav rezervácie a výpožičiek, takže sa prepočítajú štatistiky aj kalendár bez reloadu. Výsledok zároveň pripraví správu pre hosťa: e-mailový draft, ak má rezervácia e-mail, alebo SMS/telefonický text, ak je dostupný len telefón. Pri e-maili API vracia aj delivery stav `prepared`, `sent`, `skipped` alebo `failed`.
 - Rozhodovacia logika schváliť/telefonát/zamietnuť je presunutá do `reservationWorkflowService` a composable `useAdminReservationWorkflow`.
 - Verejná žiadosť používa `reservationRequestSchema` zo Zod validácií, nesie povinný telefón a voliteľný e-mail pre potvrdenie rezervácie a odosiela sa na `POST /api/reservations`.

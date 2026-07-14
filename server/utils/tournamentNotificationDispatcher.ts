@@ -1,4 +1,4 @@
-import type { NotificationAudience, NotificationAudienceRole } from '~/data/pond'
+import type { LakeSlug, NotificationAudience, NotificationAudienceRole } from '~/data/pond'
 import type { NotificationBroadcastSuccess } from '~/services/notificationService'
 import { createNotificationBroadcast } from '~/services/notificationService'
 import {
@@ -12,6 +12,7 @@ import { resolveNotificationDeliveryOptions } from './notificationDeliveryProvid
 interface TournamentNotificationInput {
   body: string
   createdBy?: string
+  lake?: LakeSlug
   marshalIds?: string[]
   now?: string
   reason?: string
@@ -52,6 +53,7 @@ export async function appendTournamentNotificationBroadcast(
       body: input.body,
       severity: 'info',
       targetAudience: createTournamentNotificationAudience(input),
+      targetLakeIds: input.lake ? [input.lake] : [],
       targetTopics: ['tournaments'],
       title: input.title,
       validUntil: input.validUntil ?? 'dnes 23:59',

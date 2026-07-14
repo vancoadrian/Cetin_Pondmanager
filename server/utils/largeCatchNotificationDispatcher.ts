@@ -83,6 +83,7 @@ export async function appendLargeCatchNotificationBroadcast(
         requestId: input.catchRecord.id,
         roles: ['owner', 'manager'],
       },
+      targetLakeIds: [input.catchRecord.lake],
       targetTopics: ['service'],
       title: 'Veľký úlovok čaká na kontrolu',
       validUntil: 'do spracovania úlovku',

@@ -32,12 +32,22 @@ import type {
 } from '~/services/largeFishAssistanceService'
 import { largeFishAssistanceStatusLabels } from '~/services/largeFishAssistanceService'
 
-useHead({ title: 'Register čipovaných rýb' })
+useHead({ title: 'Čipované ryby' })
+
+type FishAdminView = 'dostupnost' | 'kontrola' | 'privolania' | 'register'
 
 const { getLakeName, getPegLabel, lakes, pegs } = usePondData()
 const { canManage, canOperate, isReadOnly, label: accessLabel, readOnlyMessage } = useAdminModuleAccess('fish')
 const requestFetch = useRequestFetch()
 const route = useRoute()
+const router = useRouter()
+const activeFishAdminView = ref<FishAdminView>(
+  route.query.privolanie
+    ? 'privolania'
+    : route.query.catchId
+      ? 'kontrola'
+      : parseFishAdminView(route.query.sekcia),
+)
 const defaultSettings = createDefaultFishRegistrySettings()
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
@@ -94,6 +104,7 @@ const chipScanStatus = ref<'error' | 'found' | 'idle' | 'new'>('idle')
 const lastScannedChipCode = ref('')
 const activeCandidateId = ref('')
 const openedQueryCandidateId = ref('')
+const openedQueryAssistanceId = ref('')
 const candidateFishId = ref('')
 const candidateNeedsObservationPeg = ref(false)
 const candidateNeedsRegistrationPeg = ref(false)
@@ -114,10 +125,14 @@ const selectedPresenceLakes = ref<LakeSlug[]>(lakes.map((lake) => lake.slug))
 const presenceSubmitKey = ref<string>('')
 const assistanceSubmitId = ref('')
 const assistanceEtaMinutes = reactive<Record<string, number>>({})
+const assistanceRequestsElement = ref<HTMLElement | null>(null)
 const assistancePanelElement = ref<HTMLElement | null>(null)
+const candidatePanelElement = ref<HTMLElement | null>(null)
+const fishAdminTabScrollerElement = ref<HTMLElement | null>(null)
 const editFormElement = ref<HTMLElement | null>(null)
 const measurementFormElement = ref<HTMLElement | null>(null)
 const registrationFormElement = ref<HTMLElement | null>(null)
+const hasResolvedInitialFishAdminView = ref(false)
 let availabilityTimer: ReturnType<typeof setInterval> | undefined
 let assistanceTimer: ReturnType<typeof setInterval> | undefined
 
@@ -256,6 +271,33 @@ const latestObservationAt = computed(() =>
     .sort((first, second) => second.observedAt.localeCompare(first.observedAt))[0]?.observedAt,
 )
 
+const fishAdminViewTabs = computed(() => [
+  {
+    count: openAssistanceRequests.value.length,
+    icon: 'i-heroicons-bell-alert',
+    label: 'Privolania',
+    value: 'privolania' as const,
+  },
+  {
+    count: candidateState.value.candidates.length,
+    icon: 'i-heroicons-identification',
+    label: 'Kontrola čipu',
+    value: 'kontrola' as const,
+  },
+  {
+    count: registryState.value.fish.length,
+    icon: 'i-heroicons-tag',
+    label: 'Register',
+    value: 'register' as const,
+  },
+  {
+    count: activeLargeCatchRules.value.length,
+    icon: 'i-heroicons-map-pin',
+    label: 'Dostupnosť',
+    value: 'dostupnost' as const,
+  },
+])
+
 const registrationPegs = computed(() =>
   pegs.filter((peg) => peg.lake === registrationForm.lake),
 )
@@ -270,6 +312,7 @@ onMounted(() => {
   assistanceTimer = setInterval(() => {
     void refreshAssistance()
   }, 10_000)
+  void revealActiveFishAdminTab()
 })
 
 onBeforeUnmount(() => {
@@ -286,6 +329,12 @@ watch(filteredFish, (items) => {
 watch(openAssistanceRequests, (requests) => {
   for (const request of requests) {
     assistanceEtaMinutes[request.id] ??= 15
+  }
+
+  if (hasResolvedInitialFishAdminView.value) return
+  hasResolvedInitialFishAdminView.value = true
+  if (!route.query.catchId && !route.query.privolanie && !route.query.sekcia && requests.length) {
+    activeFishAdminView.value = 'privolania'
   }
 }, { immediate: true })
 
@@ -337,6 +386,10 @@ watch(
   [() => route.query.catchId, () => candidateState.value.candidates],
   ([catchId, candidates]) => {
     const normalizedCatchId = typeof catchId === 'string' ? catchId : ''
+    if (!normalizedCatchId) {
+      openedQueryCandidateId.value = ''
+      return
+    }
     if (!normalizedCatchId || openedQueryCandidateId.value === normalizedCatchId) return
 
     const candidate = candidates.find((item) => item.catchId === normalizedCatchId)
@@ -346,6 +399,148 @@ watch(
     openCandidate(candidate)
   },
   { immediate: true },
+)
+
+watch(
+  [() => route.query.privolanie, () => assistanceState.value.requests],
+  ([assistanceId, requests]) => {
+    const normalizedAssistanceId = typeof assistanceId === 'string' ? assistanceId : ''
+    if (!normalizedAssistanceId) {
+      openedQueryAssistanceId.value = ''
+      return
+    }
+
+    activeFishAdminView.value = 'privolania'
+    if (openedQueryAssistanceId.value === normalizedAssistanceId) return
+
+    const request = requests.find((item) => item.id === normalizedAssistanceId)
+    if (!request) return
+
+    openedQueryAssistanceId.value = normalizedAssistanceId
+    if (request.status === 'on-route') void openAssistanceProcessing(request)
+    else void revealAssistanceRequest(request.id)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    if (route.query.catchId || route.query.privolanie) return
+    activeFishAdminView.value = parseFishAdminView(view)
+  },
+)
+
+function parseFishAdminView(value: unknown): FishAdminView {
+  const normalizedValue = Array.isArray(value) ? value[0] : value
+
+  if (normalizedValue === 'dostupnost' || normalizedValue === 'privolania' || normalizedValue === 'register') {
+    return normalizedValue
+  }
+
+  return 'kontrola'
+}
+
+function fishAdminTabClass(isActive: boolean) {
+  return isActive
+    ? 'border-primary-700 text-primary-900'
+    : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
+}
+
+function selectFishAdminView(view: FishAdminView) {
+  activeFishAdminView.value = view
+  const query = { ...route.query }
+
+  if (view === 'kontrola') delete query.sekcia
+  else query.sekcia = view
+
+  if (view !== 'kontrola') delete query.catchId
+  if (view !== 'privolania') delete query.privolanie
+
+  void router.replace({ query })
+}
+
+function handleFishAdminTabKeydown(event: KeyboardEvent, index: number) {
+  let targetIndex: number | undefined
+
+  if (event.key === 'ArrowLeft') {
+    targetIndex = (index - 1 + fishAdminViewTabs.value.length) % fishAdminViewTabs.value.length
+  }
+  else if (event.key === 'ArrowRight') {
+    targetIndex = (index + 1) % fishAdminViewTabs.value.length
+  }
+  else if (event.key === 'Home') {
+    targetIndex = 0
+  }
+  else if (event.key === 'End') {
+    targetIndex = fishAdminViewTabs.value.length - 1
+  }
+
+  if (targetIndex === undefined) return
+
+  event.preventDefault()
+  const tabList = (event.currentTarget as HTMLElement).closest('[role="tablist"]')
+  const targetView = fishAdminViewTabs.value[targetIndex]?.value
+  if (!targetView) return
+
+  selectFishAdminView(targetView)
+  void nextTick(() => {
+    const tabs = tabList?.querySelectorAll<HTMLElement>('[role="tab"]')
+    tabs?.[targetIndex]?.focus()
+  })
+}
+
+async function revealActiveFishAdminTab(behavior: ScrollBehavior = 'auto') {
+  if (!import.meta.client) return
+
+  await nextTick()
+  const scroller = fishAdminTabScrollerElement.value
+  const activeTab = scroller?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+  if (!scroller || !activeTab) return
+
+  const centeredLeft = activeTab.offsetLeft - (scroller.clientWidth - activeTab.offsetWidth) / 2
+  scroller.scrollTo({ behavior, left: Math.max(0, centeredLeft) })
+}
+
+async function revealAssistanceRequest(requestId: string) {
+  if (!import.meta.client) return
+
+  await nextTick()
+  const requestCard = [...(assistanceRequestsElement.value?.querySelectorAll<HTMLElement>('[data-assistance-id]') ?? [])]
+    .find((item) => item.dataset.assistanceId === requestId)
+  requestCard?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+watch(
+  activeFishAdminView,
+  () => void revealActiveFishAdminTab('smooth'),
+  { flush: 'post' },
+)
+
+watch(
+  [candidatePanelElement, () => route.query.catchId],
+  async ([panel, catchId]) => {
+    if (!import.meta.client || !panel || typeof catchId !== 'string') return
+    await nextTick()
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  { flush: 'post' },
+)
+
+watch(
+  [assistanceRequestsElement, assistancePanelElement, () => route.query.privolanie],
+  async ([requestsElement, panelElement, assistanceId]) => {
+    if (!import.meta.client || typeof assistanceId !== 'string') return
+    await nextTick()
+
+    if (panelElement) {
+      panelElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    if (requestsElement) await revealAssistanceRequest(assistanceId)
+  },
+  { flush: 'post' },
 )
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -692,6 +887,7 @@ async function openScannedFishMeasurement() {
   observationForm.lake = fishRecord.lake
   observationForm.observedAt = toDateTimeInput(new Date().toISOString())
   activePanel.value = 'measurement'
+  selectFishAdminView('register')
   await nextTick()
   measurementFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -732,6 +928,7 @@ async function openScannedFishRegistration() {
   registrationForm.taggingContext = 'capture'
   registrationForm.tournamentCatchId = ''
   activePanel.value = 'register'
+  selectFishAdminView('register')
   await nextTick()
   registrationForm.taggedPegId = registrationPegs.value[0]?.id ?? ''
   registrationFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -745,6 +942,7 @@ async function openFishEdit() {
   resetAssistanceContext()
   populateEditForm(selectedFish.value)
   activePanel.value = 'edit'
+  selectFishAdminView('register')
   await nextTick()
   editFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -759,6 +957,7 @@ function assistanceNotes(request: LargeFishAssistanceRequest) {
 async function openAssistanceProcessing(request: LargeFishAssistanceRequest) {
   resetMessage()
   resetCandidateContext()
+  activeFishAdminView.value = 'privolania'
   activeAssistanceId.value = request.id
   assistanceFishId.value = ''
   activePanel.value = 'assistance'
@@ -769,10 +968,12 @@ async function openAssistanceProcessing(request: LargeFishAssistanceRequest) {
 async function openCandidate(candidate: FishCatchCandidate) {
   resetMessage()
   resetAssistanceContext()
+  activeFishAdminView.value = 'kontrola'
   activeCandidateId.value = candidate.id
   candidateFishId.value = ''
   activePanel.value = 'candidate'
   await nextTick()
+  candidatePanelElement.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 async function prepareCandidateObservation() {
@@ -797,6 +998,9 @@ async function prepareCandidateObservation() {
   await nextTick()
   if (!candidate.pegId) observationForm.pegId = ''
   activePanel.value = 'measurement'
+  selectFishAdminView('register')
+  await nextTick()
+  measurementFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 async function prepareCandidateRegistration() {
@@ -824,6 +1028,7 @@ async function prepareCandidateRegistration() {
   await nextTick()
   if (!candidate.pegId) registrationForm.taggedPegId = ''
   activePanel.value = 'register'
+  selectFishAdminView('register')
   await nextTick()
   registrationFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -847,6 +1052,7 @@ async function prepareAssistanceObservation() {
   observationForm.tournamentCatchId = ''
   observationForm.weightKg = request.weightKg
   activePanel.value = 'measurement'
+  selectFishAdminView('register')
   await nextTick()
   measurementFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -873,6 +1079,7 @@ async function prepareAssistanceRegistration() {
   registrationForm.taggingContext = 'capture'
   registrationForm.tournamentCatchId = ''
   activePanel.value = 'register'
+  selectFishAdminView('register')
   await nextTick()
   registrationFormElement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -1067,6 +1274,8 @@ function openPanel(panel: typeof activePanel.value) {
     candidateNeedsObservationPeg.value = false
   }
   activePanel.value = activePanel.value === panel ? '' : panel
+  if (panel === 'settings') selectFishAdminView('dostupnost')
+  else if (panel) selectFishAdminView('register')
 }
 
 async function refreshRegistryWorkspace() {
@@ -1077,9 +1286,9 @@ async function refreshRegistryWorkspace() {
 <template>
   <div>
     <PageHeader
-      eyebrow="Admin"
-      title="Register čipovaných rýb"
-      description="Identita ryby, história meraní, miesta opakovaných úlovkov a vývoj váhy či dĺžky v čase."
+      eyebrow="Správa revíru"
+      title="Čipované ryby"
+      description="Privolania k veľkým rybám, kontrola čipov, história meraní a dostupnosť správcu."
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -1087,16 +1296,60 @@ async function refreshRegistryWorkspace() {
 
       <DataStatusNotice
         v-if="isReadOnly"
-        class="mb-6"
+        class="mb-5"
         :description="readOnlyMessage"
         icon="i-heroicons-lock-closed"
         :title="`Režim prístupu: ${accessLabel}`"
         tone="warning"
       />
 
+      <nav
+        ref="fishAdminTabScrollerElement"
+        aria-label="Pracovné pohľady čipovaných rýb"
+        class="mt-6 overflow-x-auto border-b border-border"
+      >
+        <div role="tablist" aria-label="Čipované ryby" class="flex min-w-max gap-1">
+          <button
+            v-for="(view, index) in fishAdminViewTabs"
+            :id="`fish-admin-tab-${view.value}`"
+            :key="view.value"
+            type="button"
+            role="tab"
+            aria-controls="fish-admin-panel"
+            :aria-label="`${view.label}: ${view.count}`"
+            :aria-selected="activeFishAdminView === view.value"
+            :tabindex="activeFishAdminView === view.value ? 0 : -1"
+            class="flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-bold transition-colors"
+            :class="fishAdminTabClass(activeFishAdminView === view.value)"
+            @click="selectFishAdminView(view.value)"
+            @keydown="handleFishAdminTabKeydown($event, index)"
+          >
+            <UIcon :name="view.icon" class="h-4 w-4 shrink-0" />
+            <span>{{ view.label }}</span>
+            <span class="text-xs font-semibold text-foreground-muted">{{ view.count }}</span>
+          </button>
+        </div>
+      </nav>
+
+      <DataStatusNotice
+        v-if="mutationMessage"
+        class="mt-5"
+        :description="mutationMessage"
+        :loading="mutationStatus === 'submitting'"
+        :title="mutationNoticeTitle"
+        :tone="mutationNoticeTone"
+      />
+
+      <div
+        id="fish-admin-panel"
+        role="tabpanel"
+        :aria-labelledby="`fish-admin-tab-${activeFishAdminView}`"
+      >
+
       <section
-        v-if="openAssistanceRequests.length"
-        class="mb-6 rounded-card border border-border bg-surface p-5"
+        v-if="activeFishAdminView === 'privolania' && openAssistanceRequests.length"
+        ref="assistanceRequestsElement"
+        class="mt-5 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -1116,6 +1369,7 @@ async function refreshRegistryWorkspace() {
           <article
             v-for="request in openAssistanceRequests"
             :key="request.id"
+            :data-assistance-id="request.id"
             class="rounded-md border bg-white p-4 shadow-sm"
             :class="route.query.privolanie === request.id
               ? 'border-warning-500 ring-2 ring-warning-500/20'
@@ -1242,9 +1496,9 @@ async function refreshRegistryWorkspace() {
       </section>
 
       <section
-        v-if="activePanel === 'assistance' && activeAssistance"
+        v-if="activeFishAdminView === 'privolania' && activePanel === 'assistance' && activeAssistance"
         ref="assistancePanelElement"
-        class="mb-6 rounded-card border border-border bg-surface p-5"
+        class="mt-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1353,9 +1607,18 @@ async function refreshRegistryWorkspace() {
         </div>
       </section>
 
+      <AppState
+        v-if="activeFishAdminView === 'privolania' && openAssistanceRequests.length === 0"
+        class="mt-5"
+        compact
+        title="Bez otvorených privolaní"
+        description="Pri novej požiadavke sa tu zobrazí rybár, miesto, úlovok aj odpoveď správcu."
+        icon="i-heroicons-check-circle"
+      />
+
       <section
-        v-if="canManage && activeLargeCatchRules.length > 1"
-        class="mb-6 border-y border-border bg-surface px-4 py-5 sm:px-5"
+        v-if="activeFishAdminView === 'dostupnost' && canManage && activeLargeCatchRules.length > 1"
+        class="mt-5 border-y border-border bg-surface px-4 py-5 sm:px-5"
       >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1387,7 +1650,7 @@ async function refreshRegistryWorkspace() {
             <select
               v-model.number="bulkPresenceDurationHours"
               aria-label="Spoločné trvanie dostupnosti"
-              class="h-10 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
             >
               <option :value="2">na 2 hodiny</option>
               <option :value="4">na 4 hodiny</option>
@@ -1396,6 +1659,7 @@ async function refreshRegistryWorkspace() {
             </select>
             <UButton
               data-testid="manager-presence-bulk-start"
+              class="min-h-11"
               icon="i-heroicons-map-pin"
               color="success"
               :disabled="selectedPresenceLakes.length === 0"
@@ -1406,6 +1670,7 @@ async function refreshRegistryWorkspace() {
             </UButton>
             <UButton
               data-testid="manager-presence-bulk-stop"
+              class="min-h-11"
               icon="i-heroicons-stop-circle"
               variant="soft"
               :disabled="selectedPresenceLakes.length === 0"
@@ -1418,7 +1683,7 @@ async function refreshRegistryWorkspace() {
         </div>
       </section>
 
-      <div class="mb-6 grid gap-3 lg:grid-cols-2">
+      <div v-show="activeFishAdminView === 'dostupnost'" class="mt-6 grid gap-3 lg:grid-cols-2">
         <div
           v-for="rule in activeLargeCatchRules"
           :key="rule.lake"
@@ -1458,7 +1723,7 @@ async function refreshRegistryWorkspace() {
                   v-if="liveManagerAvailability(rule).source !== 'presence'"
                   v-model.number="presenceDurationHours[rule.lake]"
                   :aria-label="`Trvanie dostupnosti ${getLakeName(rule.lake)}`"
-                  class="h-9 rounded-md border border-border bg-white px-3 text-sm text-foreground"
+                  class="h-11 rounded-md border border-border bg-white px-3 text-sm text-foreground"
                 >
                   <option :value="2">na 2 hodiny</option>
                   <option :value="4">na 4 hodiny</option>
@@ -1467,7 +1732,7 @@ async function refreshRegistryWorkspace() {
                 </select>
                 <UButton
                   :data-testid="`manager-presence-toggle-${rule.lake}`"
-                  size="sm"
+                  class="min-h-11"
                   :icon="liveManagerAvailability(rule).source === 'presence'
                     ? 'i-heroicons-stop-circle'
                     : 'i-heroicons-map-pin'"
@@ -1492,28 +1757,52 @@ async function refreshRegistryWorkspace() {
         />
       </div>
 
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <div class="rounded-card border border-border bg-surface p-4">
+      <div
+        v-show="activeFishAdminView === 'dostupnost'"
+        class="mt-6 flex flex-col gap-4 rounded-card border border-border bg-surface p-5 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div>
+          <h2 class="font-bold">Pravidlá veľkých rýb</h2>
+          <p class="mt-1 text-sm text-foreground-muted">
+            Limity, kontakty a pravidelná služba sa nastavujú samostatne pre každé jazero.
+          </p>
+        </div>
+        <UButton
+          v-if="canManage"
+          class="min-h-11 shrink-0"
+          :icon="activePanel === 'settings' ? 'i-heroicons-x-mark' : 'i-heroicons-adjustments-horizontal'"
+          variant="soft"
+          @click="openPanel('settings')"
+        >
+          {{ activePanel === 'settings' ? 'Zavrieť editor' : 'Upraviť pravidlá' }}
+        </UButton>
+      </div>
+
+      <div
+        v-show="activeFishAdminView === 'register'"
+        class="mt-5 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-5"
+      >
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-sm text-foreground-muted">Označené ryby</p>
           <p class="mt-2 text-3xl font-bold">{{ registryState.fish.length }}</p>
           <p class="mt-1 text-sm text-foreground-muted">unikátne čísla čipov</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-sm text-foreground-muted">Opakované úlovky</p>
           <p class="mt-2 text-3xl font-bold">{{ fishWithRepeatedCaptureCount }}</p>
           <p class="mt-1 text-sm text-foreground-muted">ryby s viac než jedným meraním</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-sm text-foreground-muted">Merania spolu</p>
           <p class="mt-2 text-3xl font-bold">{{ registryState.observations.length }}</p>
           <p class="mt-1 text-sm text-foreground-muted">časová história rastu</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
           <p class="text-sm text-foreground-muted">Posledný záznam</p>
           <p class="mt-2 text-lg font-bold">{{ formatDateTime(latestObservationAt) }}</p>
           <p class="mt-1 text-sm text-foreground-muted">posledné načítanie čipu</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
+        <div class="col-span-2 rounded-card border border-border bg-surface p-3 sm:p-4 xl:col-span-1">
           <p class="text-sm text-foreground-muted">Čaká na čip</p>
           <p class="mt-2 text-3xl font-bold" :class="candidateState.candidates.length ? 'text-warning-700' : ''">
             {{ candidateState.candidates.length }}
@@ -1522,7 +1811,10 @@ async function refreshRegistryWorkspace() {
         </div>
       </div>
 
-      <section class="mt-6 border-y border-primary-200 bg-primary-50 px-4 py-5 sm:px-5">
+      <section
+        v-show="activeFishAdminView === 'kontrola'"
+        class="mt-5 border-y border-primary-200 bg-primary-50 px-4 py-5 sm:px-5"
+      >
         <div class="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(18rem,1.1fr)] lg:items-end">
           <div>
             <p class="text-sm font-bold text-primary-800">Čítačka čipu</p>
@@ -1613,7 +1905,7 @@ async function refreshRegistryWorkspace() {
       </section>
 
       <section
-        v-if="candidateState.candidates.length"
+        v-if="activeFishAdminView === 'kontrola' && candidateState.candidates.length"
         class="mt-6 rounded-card border border-border bg-surface p-5"
       >
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1676,7 +1968,10 @@ async function refreshRegistryWorkspace() {
         </div>
       </section>
 
-      <div class="mt-6 flex flex-col gap-3 rounded-card border border-border bg-surface p-4 lg:flex-row lg:items-end lg:justify-between">
+      <div
+        v-show="activeFishAdminView === 'register'"
+        class="mt-6 flex flex-col gap-3 rounded-card border border-border bg-surface p-4 lg:flex-row lg:items-end lg:justify-between"
+      >
         <div class="grid flex-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem_12rem]">
           <label class="space-y-1 text-sm font-semibold">
             <span>Čip, meno alebo druh</span>
@@ -1684,21 +1979,21 @@ async function refreshRegistryWorkspace() {
               <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-2.5 h-5 w-5 text-foreground-muted" />
               <input
                 v-model="searchQuery"
-                class="w-full rounded-md border border-border bg-white py-2 pl-10 pr-3 text-sm"
+                class="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm"
                 placeholder="napr. 985141... alebo Aurora"
               >
             </div>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Jazero</span>
-            <select v-model="lakeFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm">
+            <select v-model="lakeFilter" class="h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
               <option value="all">Všetky jazerá</option>
               <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
             </select>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Stav</span>
-            <select v-model="statusFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm">
+            <select v-model="statusFilter" class="h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
               <option value="all">Všetky stavy</option>
               <option v-for="(label, value) in fishRegistryStatusLabels" :key="value" :value="value">
                 {{ label }}
@@ -1711,6 +2006,7 @@ async function refreshRegistryWorkspace() {
           <UButton
             to="/api/admin/fish-registry/export"
             external
+            class="min-h-11"
             icon="i-heroicons-arrow-down-tray"
             variant="soft"
           >
@@ -1718,6 +2014,7 @@ async function refreshRegistryWorkspace() {
           </UButton>
           <UButton
             v-if="canManage"
+            class="min-h-11"
             icon="i-heroicons-arrow-up-tray"
             variant="soft"
             @click="openPanel('import')"
@@ -1725,15 +2022,8 @@ async function refreshRegistryWorkspace() {
             Hromadný import
           </UButton>
           <UButton
-            v-if="canManage"
-            icon="i-heroicons-adjustments-horizontal"
-            variant="soft"
-            @click="openPanel('settings')"
-          >
-            Pravidlá
-          </UButton>
-          <UButton
             v-if="canOperate"
+            class="min-h-11"
             icon="i-heroicons-plus"
             color="warning"
             @click="openPanel('register')"
@@ -1743,17 +2033,9 @@ async function refreshRegistryWorkspace() {
         </div>
       </div>
 
-      <DataStatusNotice
-        v-if="mutationMessage"
-        class="mt-4"
-        :description="mutationMessage"
-        :loading="mutationStatus === 'submitting'"
-        :title="mutationNoticeTitle"
-        :tone="mutationNoticeTone"
-      />
-
       <section
-        v-if="activePanel === 'candidate' && activeCandidate"
+        v-if="activeFishAdminView === 'kontrola' && activePanel === 'candidate' && activeCandidate"
+        ref="candidatePanelElement"
         class="mt-6 rounded-card border border-primary-200 bg-primary-50 p-5"
       >
         <div class="flex items-start justify-between gap-3">
@@ -1800,7 +2082,7 @@ async function refreshRegistryWorkspace() {
       </section>
 
       <form
-        v-if="activePanel === 'settings'"
+        v-if="activeFishAdminView === 'dostupnost' && canManage && activePanel === 'settings'"
         class="mt-6 rounded-card border border-border bg-surface p-5"
         @submit.prevent="submitSettings"
       >
@@ -1811,7 +2093,12 @@ async function refreshRegistryWorkspace() {
               Každé jazero môže mať vlastný limit, kontaktný postup aj týždenný rozpis služby.
             </p>
           </div>
-          <UButton icon="i-heroicons-x-mark" variant="ghost" aria-label="Zavrieť pravidlá" @click="activePanel = ''" />
+          <UButton
+            icon="i-heroicons-x-mark"
+            variant="ghost"
+            aria-label="Zavrieť pravidlá"
+            @click="activePanel = ''"
+          />
         </div>
 
         <fieldset class="mt-5 space-y-4" :disabled="mutationStatus === 'submitting'">
@@ -1944,7 +2231,7 @@ async function refreshRegistryWorkspace() {
       </form>
 
       <form
-        v-if="activePanel === 'register'"
+        v-if="activeFishAdminView === 'register' && activePanel === 'register'"
         ref="registrationFormElement"
         class="mt-6 rounded-card border border-border bg-surface p-5"
         @submit.prevent="submitRegistration"
@@ -2042,7 +2329,7 @@ async function refreshRegistryWorkspace() {
       </form>
 
       <form
-        v-if="activePanel === 'import'"
+        v-if="activeFishAdminView === 'register' && activePanel === 'import'"
         class="mt-6 rounded-card border border-border bg-surface p-5"
         @submit.prevent="submitImport"
       >
@@ -2068,7 +2355,10 @@ async function refreshRegistryWorkspace() {
         </div>
       </form>
 
-      <div class="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+      <div
+        v-show="activeFishAdminView === 'register'"
+        class="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]"
+      >
         <section class="min-w-0 rounded-card border border-border bg-surface p-5">
           <div class="flex items-center justify-between gap-3">
             <div>
@@ -2405,6 +2695,7 @@ async function refreshRegistryWorkspace() {
           description="Detail, história a graf sa zobrazia po výbere ryby zo zoznamu."
           icon="i-heroicons-tag"
         />
+      </div>
       </div>
     </section>
   </div>

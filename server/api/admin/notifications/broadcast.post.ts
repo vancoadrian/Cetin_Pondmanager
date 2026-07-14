@@ -24,6 +24,13 @@ export default defineEventHandler(async (event): Promise<NotificationBroadcastSu
       statusMessage: 'Notification broadcast validation failed',
     })
   }
+  if (!result.broadcast.expiresAt) {
+    throw createError({
+      data: { messages: ['Verejný oznam musí mať presný dátum a čas platnosti.'] },
+      statusCode: 422,
+      statusMessage: 'Notification alert expiry required',
+    })
+  }
 
   const deliveryOptions = resolveNotificationDeliveryOptions()
   const deliveryRun = await runServerNotificationDelivery(result.broadcast, state, deliveryOptions)
@@ -44,9 +51,11 @@ export default defineEventHandler(async (event): Promise<NotificationBroadcastSu
     area: 'system',
     details: {
       deliveryProvider: deliveryOptions.provider,
+      expiresAt: deliveryRun.broadcast.expiresAt ?? null,
       recipientCount: deliveryRun.broadcast.recipientCount,
       severity: deliveryRun.broadcast.severity,
       status: deliveryRun.broadcast.status,
+      targetLakeIds: deliveryRun.broadcast.targetLakeIds ?? [],
       targetTopics: deliveryRun.broadcast.targetTopics,
       validUntil: deliveryRun.broadcast.validUntil,
     },

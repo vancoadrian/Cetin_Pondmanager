@@ -89,7 +89,12 @@ describe('localNotificationStore', () => {
     const reread = await readLocalNotificationState(filePath)
 
     expect(reread.alerts[0]?.id).toBe('alert-test')
+    expect(reread.alerts[0]).toMatchObject({
+      createdAt: '2026-05-20T12:00:00.000Z',
+      expiresAt: '2026-05-21T12:00:00.000Z',
+    })
     expect(reread.broadcasts[0]?.id).toBe('broadcast-test')
+    expect(reread.broadcasts[0]?.expiresAt).toBe('2026-05-21T12:00:00.000Z')
     expect(reread.deliveryLogs[0]).toMatchObject({
       broadcastId: 'broadcast-test',
       status: 'sent',
@@ -143,5 +148,42 @@ describe('localNotificationStore', () => {
     expect(reread.broadcasts[0]?.message).toContain('Skúšobné doručovanie')
     expect(reread.deliveryLogs[0]?.message).toContain('Skúšobné doručovanie')
     expect(`${reread.broadcasts[0]?.message} ${reread.deliveryLogs[0]?.message}`).not.toContain('Mock')
+  })
+
+  it('normalizes legacy weekday copy without changing stored history', async () => {
+    const filePath = await createTempStorePath()
+    await writeFile(filePath, JSON.stringify({
+      alerts: [{
+        body: 'Chata je dočasne blokovaná.',
+        id: 'alert-service',
+        severity: 'service',
+        title: 'Údržba chaty',
+        validUntil: 'pondelok',
+      }],
+      broadcasts: [{
+        alertId: 'alert-service',
+        body: 'Chata je dočasne blokovaná.',
+        createdAt: '2026-05-20T12:00:00.000Z',
+        createdBy: 'Správca',
+        id: 'broadcast-service',
+        message: 'Oznam bol pripravený.',
+        recipientCount: 0,
+        severity: 'service',
+        status: 'skipped',
+        targetTopics: ['service'],
+        title: 'Údržba chaty',
+        validUntil: 'pondelok',
+      }],
+      deliveryLogs: [],
+      subscriptions: [],
+      updatedAt: '2026-05-20T12:00:00.000Z',
+      version: 1,
+    }), 'utf8')
+
+    const reread = await readLocalNotificationState(filePath)
+
+    expect(reread.alerts[0]?.validUntil).toBe('pondelka')
+    expect(reread.broadcasts[0]?.validUntil).toBe('pondelka')
+    expect(reread.broadcasts[0]?.id).toBe('broadcast-service')
   })
 })

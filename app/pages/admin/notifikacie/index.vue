@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  NotificationAlertEndSuccess,
   NotificationBroadcastSuccess,
   NotificationStateResponse,
   NotificationTestBroadcastSuccess,
@@ -8,12 +9,15 @@ import type {
 } from '~/services/notificationService'
 import {
   formatNotificationAudience,
+  getActiveNotificationAlerts,
   isInternalNotificationBroadcast,
   notificationAudienceRoleLabels,
+  notificationLakeLabels,
   pushSubscriptionTopicLabels,
 } from '~/services/notificationService'
 import type {
   AlertSeverity,
+  LakeSlug,
   NotificationBroadcastStatus,
   NotificationAudienceRole,
   NotificationDeliveryProvider,
@@ -25,12 +29,17 @@ import type { StatusBadgeTone } from '~/utils/ui'
 useHead({ title: 'Admin notifikácie' })
 
 type NotificationTimelineFilter = 'all' | 'public' | 'test'
+type NotificationLifecycle = 'active' | 'ended' | 'expired'
+type NotificationAdminView = 'dorucovanie' | 'oznamy' | 'zariadenia'
 type NotificationSubscriptionScopeFilter = 'all' | 'internal' | 'public'
 type NotificationSubscriptionStatusFilter = 'active' | 'all' | 'disabled'
 type NotificationSubscriptionTopicFilter = PushSubscriptionTopic | 'all'
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
-const { tournaments, tournamentMarshals } = usePondData()
+const { lakes, tournaments, tournamentMarshals } = usePondData()
+const route = useRoute()
+const router = useRouter()
+const activeNotificationView = ref<NotificationAdminView>(parseNotificationAdminView(route.query.sekcia))
 const fallbackDeliveryDiagnostics: NotificationStateResponse['deliveryDiagnostics'] = {
   hasVapidConfig: false,
   missingConfigKeys: [
@@ -70,13 +79,15 @@ const {
 } = useAdminModuleAccess('notifications')
 const broadcastForm = reactive({
   body: 'O 18:30 sa očakáva prechod búrkového pásma. Skontrolujte bivaky a počas bleskov nemanipulujte s prútmi.',
+  expiresAt: defaultNotificationExpiryInput(),
   severity: 'storm' as AlertSeverity,
+  targetLakeIds: [] as LakeSlug[],
   targetTopics: ['weather', 'service'] as PushSubscriptionTopic[],
   title: 'Výstraha pred búrkou',
-  validUntil: 'dnes 21:00',
 })
 const broadcastSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const broadcastSubmitMessage = ref('')
+const broadcastLakeScope = ref<LakeSlug | 'all'>('all')
 const broadcastFilter = ref<NotificationTimelineFilter>('all')
 const testBroadcastForm = reactive({
   body: 'Kontrolné interné rozoslanie pre overenie doručenia notifikácií Rybolov Cetín.',
@@ -112,14 +123,39 @@ const subscriptionActionMessage = ref('')
 const subscriptionScopeFilter = ref<NotificationSubscriptionScopeFilter>('all')
 const subscriptionStatusFilter = ref<NotificationSubscriptionStatusFilter>('active')
 const subscriptionTopicFilter = ref<NotificationSubscriptionTopicFilter>('all')
+const alertActionId = ref('')
+const alertActionStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const alertActionMessage = ref('')
 
 const alerts = computed(() => notificationState.value?.alerts ?? [])
+const activeAlerts = computed(() => getActiveNotificationAlerts(alerts.value))
+const inactiveAlertCount = computed(() => alerts.value.length - activeAlerts.value.length)
 const broadcasts = computed(() => notificationState.value?.broadcasts ?? [])
 const deliveryDiagnostics = computed(() => notificationState.value?.deliveryDiagnostics ?? fallbackDeliveryDiagnostics)
 const deliveryLogs = computed(() => notificationState.value?.deliveryLogs ?? [])
 const subscriptions = computed(() => notificationState.value?.subscriptions ?? [])
 const enabledSubscriptions = computed(() => subscriptions.value.filter((subscription) => subscription.enabled))
 const disabledSubscriptions = computed(() => subscriptions.value.filter((subscription) => !subscription.enabled))
+const notificationViewTabs = computed(() => [
+  {
+    count: activeAlerts.value.length,
+    icon: 'i-heroicons-megaphone',
+    label: 'Oznamy',
+    value: 'oznamy' as const,
+  },
+  {
+    count: deliveryLogs.value.length,
+    icon: 'i-heroicons-signal',
+    label: 'Doručovanie',
+    value: 'dorucovanie' as const,
+  },
+  {
+    count: enabledSubscriptions.value.length,
+    icon: 'i-heroicons-device-phone-mobile',
+    label: 'Zariadenia',
+    value: 'zariadenia' as const,
+  },
+])
 const availableTopics: PushSubscriptionTopic[] = ['weather', 'service', 'reservations', 'tournaments']
 const internalAudienceRoles: NotificationAudienceRole[] = [
   'owner',
@@ -197,6 +233,7 @@ const subscriptionTopicFilters: { label: string, value: NotificationSubscription
   })),
 ]
 const broadcastById = computed(() => new Map(broadcasts.value.map((broadcast) => [broadcast.id, broadcast])))
+const alertById = computed(() => new Map(alerts.value.map((alert) => [alert.id, alert])))
 const publicBroadcasts = computed(() => broadcasts.value.filter((broadcast) => !isTestBroadcast(broadcast)))
 const testBroadcasts = computed(() => broadcasts.value.filter((broadcast) => isTestBroadcast(broadcast)))
 const internalSubscriptions = computed(() => subscriptions.value.filter((subscription) => isInternalSubscription(subscription)))
@@ -333,6 +370,18 @@ const subscriptionActionNoticeTone = computed<NoticeTone>(() =>
     ? 'error'
     : subscriptionActionStatus.value === 'submitting' ? 'info' : 'success',
 )
+const alertActionNoticeTitle = computed(() =>
+  alertActionStatus.value === 'error'
+    ? 'Oznam sa nepodarilo ukončiť'
+    : alertActionStatus.value === 'submitting'
+      ? 'Ukončujem verejný oznam'
+      : 'Verejný oznam je ukončený',
+)
+const alertActionNoticeTone = computed<NoticeTone>(() =>
+  alertActionStatus.value === 'error'
+    ? 'error'
+    : alertActionStatus.value === 'submitting' ? 'info' : 'success',
+)
 const largeFishReadinessTone = computed(() => {
   if (deliveryDiagnostics.value.provider === 'disabled') return 'neutral'
   if (largeFishServiceSubscriptions.value.length === 0) return 'warning'
@@ -348,6 +397,30 @@ const largeFishReadinessLabel = computed(() => {
 
   return 'potrebné doplniť kľúče'
 })
+
+function parseNotificationAdminView(value: unknown): NotificationAdminView {
+  const normalizedValue = Array.isArray(value) ? value[0] : value
+
+  if (normalizedValue === 'dorucovanie' || normalizedValue === 'zariadenia') return normalizedValue
+
+  return 'oznamy'
+}
+
+function notificationViewTabClass(isActive: boolean) {
+  return isActive
+    ? 'border-primary-700 text-primary-900'
+    : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
+}
+
+function selectNotificationView(view: NotificationAdminView) {
+  activeNotificationView.value = view
+  const query = { ...route.query }
+
+  if (view === 'oznamy') delete query.sekcia
+  else query.sekcia = view
+
+  void router.replace({ query })
+}
 
 function severityTone(severity: AlertSeverity): StatusBadgeTone {
   if (severity === 'storm') return 'error'
@@ -446,8 +519,35 @@ function formatDeliveryUrgency(urgency: string) {
   return labels[urgency] ?? urgency
 }
 
+function toDateTimeInput(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function defaultNotificationExpiryInput() {
+  const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000)
+  expiresAt.setSeconds(0, 0)
+  expiresAt.setMinutes(Math.ceil(expiresAt.getMinutes() / 15) * 15)
+
+  return toDateTimeInput(expiresAt)
+}
+
+function minimumNotificationExpiryInput() {
+  return toDateTimeInput(new Date(Date.now() + 5 * 60 * 1000))
+}
+
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return value
+
+  return date.toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function formatNotificationValidity(value: string) {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return value
+
+  return date.toLocaleString('sk-SK', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function formatDurationSeconds(value: number) {
@@ -459,6 +559,12 @@ function formatDurationSeconds(value: number) {
 
 function formatTopics(topics: PushSubscriptionTopic[]) {
   return topics.map((topic) => pushSubscriptionTopicLabels[topic]).join(', ')
+}
+
+function formatLakes(lakeIds?: LakeSlug[]) {
+  if (!lakeIds?.length) return 'všetky jazerá'
+
+  return lakeIds.map((lakeId) => notificationLakeLabels[lakeId]).join(', ')
 }
 
 function formatStoredNotificationMessage(message: string) {
@@ -510,6 +616,63 @@ function formatDeliverySummary(broadcastId: string) {
 
 function isTestBroadcast(broadcast: NotificationStateResponse['broadcasts'][number]) {
   return isInternalNotificationBroadcast(broadcast)
+}
+
+function getBroadcastLifecycle(
+  broadcast: NotificationStateResponse['broadcasts'][number],
+): NotificationLifecycle | undefined {
+  const alert = alertById.value.get(broadcast.alertId)
+  if (!alert) return undefined
+  if (alert.endedAt || broadcast.endedAt) return 'ended'
+
+  const expiresAt = alert.expiresAt ?? broadcast.expiresAt
+  if (expiresAt && Date.parse(expiresAt) <= Date.now()) return 'expired'
+
+  return 'active'
+}
+
+function lifecycleLabel(lifecycle: NotificationLifecycle) {
+  if (lifecycle === 'ended') return 'ukončené'
+  if (lifecycle === 'expired') return 'po platnosti'
+
+  return 'aktívne'
+}
+
+function lifecycleIcon(lifecycle: NotificationLifecycle) {
+  if (lifecycle === 'ended') return 'i-heroicons-stop-circle'
+  if (lifecycle === 'expired') return 'i-heroicons-clock'
+
+  return 'i-heroicons-eye'
+}
+
+function lifecycleTone(lifecycle: NotificationLifecycle): StatusBadgeTone {
+  if (lifecycle === 'active') return 'success'
+  if (lifecycle === 'ended') return 'muted'
+
+  return 'neutral'
+}
+
+function broadcastLifecycleLabel(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  return lifecycleLabel(getBroadcastLifecycle(broadcast) ?? 'active')
+}
+
+function broadcastLifecycleIcon(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  return lifecycleIcon(getBroadcastLifecycle(broadcast) ?? 'active')
+}
+
+function broadcastLifecycleTone(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  return lifecycleTone(getBroadcastLifecycle(broadcast) ?? 'active')
+}
+
+function formatBroadcastLifecycleDetail(broadcast: NotificationStateResponse['broadcasts'][number]) {
+  const alert = alertById.value.get(broadcast.alertId)
+  const endedAt = alert?.endedAt ?? broadcast.endedAt
+  if (endedAt) {
+    return `ukončené ${formatDateTime(endedAt)}${broadcast.endedBy ? ` · ${broadcast.endedBy}` : ''}`
+  }
+
+  const expiresAt = alert?.expiresAt ?? broadcast.expiresAt
+  return expiresAt ? `platnosť do ${formatDateTime(expiresAt)}` : 'bez automatického ukončenia'
 }
 
 function getBroadcastTimelineKind(broadcast: NotificationStateResponse['broadcasts'][number]) {
@@ -686,22 +849,63 @@ async function submitBroadcast() {
     return
   }
 
+  const expiresAt = new Date(broadcastForm.expiresAt)
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    broadcastSubmitStatus.value = 'error'
+    broadcastSubmitMessage.value = 'Vyberte platnosť verejného oznamu v budúcnosti.'
+    return
+  }
+
   broadcastSubmitStatus.value = 'submitting'
   broadcastSubmitMessage.value = 'Pripravujem rozoslanie pre zvolené okruhy.'
 
   try {
     const result = await $fetch<NotificationBroadcastSuccess>('/api/admin/notifications/broadcast', {
-      body: broadcastForm,
+      body: {
+        ...broadcastForm,
+        expiresAt: expiresAt.toISOString(),
+        targetLakeIds: broadcastLakeScope.value === 'all' ? [] : [broadcastLakeScope.value],
+        validUntil: formatNotificationValidity(expiresAt.toISOString()),
+      },
       method: 'POST',
     })
 
     broadcastSubmitStatus.value = 'success'
     broadcastSubmitMessage.value = result.message
+    broadcastForm.expiresAt = defaultNotificationExpiryInput()
     await refreshNotifications()
   }
   catch (error) {
     broadcastSubmitStatus.value = 'error'
     broadcastSubmitMessage.value = getApiErrorMessage(error)
+  }
+}
+
+async function endPublicAlert(alert: NotificationStateResponse['alerts'][number]) {
+  if (!canOperateNotifications.value) {
+    alertActionId.value = alert.id
+    alertActionStatus.value = 'error'
+    alertActionMessage.value = notificationReadOnlyMessage.value
+    return
+  }
+
+  alertActionId.value = alert.id
+  alertActionStatus.value = 'submitting'
+  alertActionMessage.value = 'Ukončujem oznam na verejnej stránke.'
+
+  try {
+    const result = await $fetch<NotificationAlertEndSuccess>(
+      `/api/admin/notifications/alerts/${alert.id}/end`,
+      { method: 'POST' },
+    )
+
+    alertActionStatus.value = 'success'
+    alertActionMessage.value = result.message
+    await refreshNotifications()
+  }
+  catch (error) {
+    alertActionStatus.value = 'error'
+    alertActionMessage.value = getApiErrorMessage(error, 'Verejný oznam sa nepodarilo ukončiť.')
   }
 }
 
@@ -880,6 +1084,10 @@ async function disableAdminSubscription(subscription: NotificationStateResponse[
   }
 }
 
+watch(() => route.query.sekcia, (view) => {
+  activeNotificationView.value = parseNotificationAdminView(view)
+})
+
 watch(() => mockSubscriptionForm.audienceRole, (role) => {
   if (role === 'marshal') {
     mockSubscriptionForm.marshalId ||= tournamentMarshals[0]?.id ?? ''
@@ -940,34 +1148,64 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
         tone="info"
       />
 
-      <div class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Aktívne odbery</p>
-          <p class="mt-2 text-3xl font-bold">{{ enabledSubscriptions.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">zariadenia s povolenými notifikáciami</p>
+      <nav class="mb-5 overflow-x-auto border-b border-border" aria-label="Pracovné pohľady notifikácií">
+        <div class="flex min-w-max gap-6" role="tablist" aria-label="Notifikácie">
+          <button
+            v-for="tab in notificationViewTabs"
+            :id="`notification-tab-${tab.value}`"
+            :key="tab.value"
+            type="button"
+            role="tab"
+            class="inline-flex min-h-11 items-center gap-2 border-b-2 px-1 py-3 text-sm font-bold transition-colors"
+            :class="notificationViewTabClass(activeNotificationView === tab.value)"
+            aria-controls="notification-panel"
+            :aria-label="`${tab.label}: ${tab.count}`"
+            :aria-selected="activeNotificationView === tab.value"
+            @click="selectNotificationView(tab.value)"
+          >
+            <UIcon :name="tab.icon" class="h-4 w-4 shrink-0" />
+            <span>{{ tab.label }}</span>
+            <span class="text-xs tabular-nums opacity-70" aria-hidden="true">{{ tab.count }}</span>
+          </button>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Verejné oznamy</p>
-          <p class="mt-2 text-3xl font-bold">{{ alerts.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">zobrazené na stránke výstrah</p>
+      </nav>
+
+      <div class="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
+          <p class="text-foreground-muted text-xs sm:text-sm">Aktívne odbery</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ enabledSubscriptions.length }}</p>
+          <p class="text-foreground-muted mt-1 text-xs sm:text-sm">zariadenia s povolenými notifikáciami</p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Rozoslania</p>
-          <p class="mt-2 text-3xl font-bold">{{ broadcasts.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
+          <p class="text-foreground-muted text-xs sm:text-sm">Verejné oznamy</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ activeAlerts.length }}</p>
+          <p class="text-foreground-muted mt-1 text-xs sm:text-sm">
+            aktuálne zobrazené · v histórii: {{ inactiveAlertCount }}
+          </p>
+        </div>
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
+          <p class="text-foreground-muted text-xs sm:text-sm">Rozoslania</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ broadcasts.length }}</p>
+          <p class="text-foreground-muted mt-1 text-xs sm:text-sm">
             {{ publicBroadcasts.length }} verejné · {{ testBroadcasts.length }} kontrolné
           </p>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Záznamy doručenia</p>
-          <p class="mt-2 text-3xl font-bold">{{ deliveryLogs.length }}</p>
-          <p class="text-foreground-muted mt-1 text-sm">
+        <div class="rounded-card border border-border bg-surface p-3 sm:p-4">
+          <p class="text-foreground-muted text-xs sm:text-sm">Záznamy doručenia</p>
+          <p class="mt-2 text-2xl font-bold sm:text-3xl">{{ deliveryLogs.length }}</p>
+          <p class="text-foreground-muted mt-1 text-xs sm:text-sm">
             {{ publicDeliveryLogs.length }} verejné · {{ testDeliveryLogs.length }} kontrolné
           </p>
         </div>
       </div>
 
-      <div class="mt-5 rounded-card border border-border bg-surface p-5">
+      <div
+        id="notification-panel"
+        class="mt-5"
+        role="tabpanel"
+        :aria-labelledby="`notification-tab-${activeNotificationView}`"
+      >
+      <div v-show="activeNotificationView === 'dorucovanie'" class="rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 class="text-lg font-bold">Stav doručovania</h2>
@@ -1020,7 +1258,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
         />
       </div>
 
-      <section class="mt-5 rounded-card border border-border bg-surface p-5">
+      <section v-show="activeNotificationView === 'dorucovanie'" class="mt-5 rounded-card border border-border bg-surface p-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Servisné notifikácie</h2>
@@ -1180,8 +1418,8 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
       </section>
 
       <div class="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div class="space-y-6">
-          <div class="rounded-card border border-border bg-surface p-5">
+        <div class="grid content-start gap-6">
+          <div v-show="activeNotificationView === 'dorucovanie'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Kontrola doručenia</h2>
@@ -1249,7 +1487,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-show="activeNotificationView === 'dorucovanie'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Údržba kontrolných rozoslaní</h2>
@@ -1313,7 +1551,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-show="activeNotificationView === 'oznamy'" class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Nová notifikácia</h2>
             <p class="text-foreground-muted mt-1 text-sm">
               Vytvorí verejný oznam a pripraví odoslanie notifikácie pre zvolené okruhy.
@@ -1337,7 +1575,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
                   />
                 </label>
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div class="grid gap-3 md:grid-cols-3">
                   <label class="block">
                     <span class="text-sm font-semibold">Typ</span>
                     <select
@@ -1353,10 +1591,24 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   <label class="block">
                     <span class="text-sm font-semibold">Platné do</span>
                     <input
-                      v-model="broadcastForm.validUntil"
-                      type="text"
+                      v-model="broadcastForm.expiresAt"
+                      type="datetime-local"
+                      :min="minimumNotificationExpiryInput()"
+                      required
                       class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
                     >
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-semibold">Jazero</span>
+                    <select
+                      v-model="broadcastLakeScope"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    >
+                      <option value="all">všetky jazerá</option>
+                      <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">
+                        {{ lake.name }}
+                      </option>
+                    </select>
                   </label>
                 </div>
                 <div>
@@ -1396,7 +1648,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-show="activeNotificationView === 'zariadenia'" class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Interné zariadenie</h2>
             <p class="text-foreground-muted mt-1 text-sm">
               Odber pre interné role, súťažné sektory a kontrolórov.
@@ -1488,6 +1740,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
 
             <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
               <UButton
+                class="min-h-11 w-full justify-center sm:min-h-8 sm:w-auto"
                 icon="i-heroicons-device-phone-mobile"
                 :disabled="!canOperateNotifications"
                 :loading="mockSubscriptionSubmitStatus === 'submitting'"
@@ -1507,8 +1760,70 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
           </div>
         </div>
 
-        <div class="space-y-6">
-          <div class="rounded-card border border-border bg-surface p-5">
+        <div class="grid content-start gap-6">
+          <section v-show="activeNotificationView === 'oznamy'" class="border-y border-border py-5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold">Aktívne verejné oznamy</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Na verejnej stránke zostávajú iba do skončenia platnosti alebo ručného ukončenia.
+                </p>
+              </div>
+              <StatusBadge
+                class="w-fit shrink-0"
+                icon="i-heroicons-eye"
+                :label="`aktívne: ${activeAlerts.length}`"
+                tone="success"
+              />
+            </div>
+
+            <div v-if="activeAlerts.length > 0" class="mt-4 divide-y divide-border border-y border-border">
+              <article v-for="alert in activeAlerts.slice(0, 6)" :key="alert.id" class="py-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h3 class="font-bold">{{ alert.title }}</h3>
+                      <StatusBadge
+                        :icon="severityIcon(alert.severity)"
+                        :label="alert.severity === 'storm' ? 'búrka' : alert.severity === 'water' ? 'voda' : alert.severity === 'service' ? 'servis' : 'oznam'"
+                        size="xs"
+                        :tone="severityTone(alert.severity)"
+                      />
+                    </div>
+                    <p class="text-foreground-muted mt-1 text-sm">{{ alert.body }}</p>
+                    <p class="text-foreground-muted mt-2 text-xs">
+                      {{ formatLakes(alert.lakeIds) }} · platné do {{ alert.expiresAt ? formatDateTime(alert.expiresAt) : alert.validUntil }}
+                    </p>
+                    <DataStatusNotice
+                      v-if="alertActionId === alert.id && alertActionMessage"
+                      class="mt-3"
+                      :description="alertActionMessage"
+                      :loading="alertActionStatus === 'submitting'"
+                      :title="alertActionNoticeTitle"
+                      :tone="alertActionNoticeTone"
+                    />
+                  </div>
+                  <UButton
+                    class="min-h-11 w-full shrink-0 justify-center sm:min-h-7 sm:w-auto"
+                    icon="i-heroicons-stop-circle"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    :disabled="!canOperateNotifications"
+                    :loading="alertActionId === alert.id && alertActionStatus === 'submitting'"
+                    @click="endPublicAlert(alert)"
+                  >
+                    Ukončiť oznam
+                  </UButton>
+                </div>
+              </article>
+            </div>
+            <p v-else class="text-foreground-muted mt-4 border-y border-dashed border-border py-4 text-sm">
+              Na verejnej stránke momentálne nie je aktívny žiadny oznam.
+            </p>
+          </section>
+
+          <div v-show="activeNotificationView === 'oznamy'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Posledné rozoslania</h2>
@@ -1521,7 +1836,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   v-for="filter in timelineFilters"
                   :key="`broadcast-${filter.value}`"
                   type="button"
-                  class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                  class="min-h-11 rounded-md border px-2.5 py-1 text-xs font-bold transition sm:min-h-7"
                   :class="timelineFilterButtonClass(broadcastFilter === filter.value)"
                   @click="broadcastFilter = filter.value"
                 >
@@ -1545,13 +1860,23 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     </div>
                     <p class="text-foreground-muted mt-1 text-sm">{{ formatStoredNotificationMessage(broadcast.message) }}</p>
                     <p class="text-foreground-muted mt-2 text-xs">
-                      {{ formatTopics(broadcast.targetTopics) }} · {{ broadcast.recipientCount }} odberov
+                      {{ formatTopics(broadcast.targetTopics) }} · {{ formatLakes(broadcast.targetLakeIds) }} · {{ broadcast.recipientCount }} odberov
                     </p>
                     <p v-if="broadcast.targetAudience" class="text-foreground-muted mt-1 text-xs">
                       {{ formatNotificationAudience(broadcast.targetAudience) }}
                     </p>
+                    <p v-if="alertById.has(broadcast.alertId)" class="text-foreground-muted mt-1 text-xs">
+                      {{ formatBroadcastLifecycleDetail(broadcast) }}
+                    </p>
                   </div>
                   <div class="flex w-fit flex-wrap justify-start gap-2 sm:justify-end">
+                    <StatusBadge
+                      v-if="alertById.has(broadcast.alertId)"
+                      :icon="broadcastLifecycleIcon(broadcast)"
+                      :label="broadcastLifecycleLabel(broadcast)"
+                      size="xs"
+                      :tone="broadcastLifecycleTone(broadcast)"
+                    />
                     <StatusBadge
                       :icon="broadcastStatusIcon(broadcast.status)"
                       :label="formatNotificationBroadcastStatus(broadcast.status)"
@@ -1573,7 +1898,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-show="activeNotificationView === 'dorucovanie'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Záznamy doručenia</h2>
@@ -1586,7 +1911,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   v-for="filter in timelineFilters"
                   :key="`delivery-${filter.value}`"
                   type="button"
-                  class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                  class="min-h-11 rounded-md border px-2.5 py-1 text-xs font-bold transition sm:min-h-7"
                   :class="timelineFilterButtonClass(deliveryFilter === filter.value)"
                   @click="deliveryFilter = filter.value"
                 >
@@ -1619,7 +1944,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-show="activeNotificationView === 'zariadenia'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Odbery zariadení</h2>
@@ -1640,7 +1965,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     v-for="filter in subscriptionStatusFilters"
                     :key="`subscription-status-${filter.value}`"
                     type="button"
-                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    class="min-h-11 rounded-md border px-2.5 py-1 text-xs font-bold transition sm:min-h-7"
                     :class="timelineFilterButtonClass(subscriptionStatusFilter === filter.value)"
                     @click="subscriptionStatusFilter = filter.value"
                   >
@@ -1655,7 +1980,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     v-for="filter in subscriptionScopeFilters"
                     :key="`subscription-scope-${filter.value}`"
                     type="button"
-                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    class="min-h-11 rounded-md border px-2.5 py-1 text-xs font-bold transition sm:min-h-7"
                     :class="timelineFilterButtonClass(subscriptionScopeFilter === filter.value)"
                     @click="subscriptionScopeFilter = filter.value"
                   >
@@ -1670,7 +1995,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     v-for="filter in subscriptionTopicFilters"
                     :key="`subscription-topic-${filter.value}`"
                     type="button"
-                    class="rounded-md border px-2.5 py-1 text-xs font-bold transition"
+                    class="min-h-11 rounded-md border px-2.5 py-1 text-xs font-bold transition sm:min-h-7"
                     :class="timelineFilterButtonClass(subscriptionTopicFilter === filter.value)"
                     @click="subscriptionTopicFilter = filter.value"
                   >
@@ -1686,7 +2011,9 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                   <div>
                     <p class="font-semibold">{{ subscription.deviceLabel }}</p>
                     <p class="text-foreground-muted mt-1 text-xs">{{ formatPushEndpoint(subscription.endpoint) }}</p>
-                    <p class="text-foreground-muted mt-2 text-xs">{{ formatTopics(subscription.topics) }}</p>
+                    <p class="text-foreground-muted mt-2 text-xs">
+                      {{ formatTopics(subscription.topics) }} · {{ formatLakes(subscription.lakeIds) }}
+                    </p>
                     <p v-if="formatSubscriptionAudience(subscription)" class="text-foreground-muted mt-1 text-xs">
                       {{ formatSubscriptionAudience(subscription) }}
                     </p>
@@ -1708,6 +2035,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
                     />
                     <UButton
                       v-if="subscription.enabled"
+                      class="min-h-11 sm:min-h-7"
                       icon="i-heroicons-bell-slash"
                       size="xs"
                       color="neutral"
@@ -1733,6 +2061,7 @@ watch(() => mockSubscriptionForm.tournamentId, () => {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </section>
   </div>

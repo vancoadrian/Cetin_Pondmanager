@@ -59,8 +59,10 @@ import type { StatusBadgeTone } from '~/utils/ui'
 useHead({ title: 'Admin mapa' })
 
 const route = useRoute()
+const router = useRouter()
 
 type MapEditorSelectionKind = 'facility' | 'peg' | 'shape'
+type MapAdminView = 'export' | 'prvky' | 'publikovanie' | 'vrstvy'
 type MapBackgroundUploadSuccess = {
   draftChanges?: MapDraftChangeSummary
   draftUpdatedAt?: string
@@ -92,6 +94,38 @@ type FacilityQuickAddOption = {
 }
 type LayerReadinessStatus = 'active' | 'disabled' | 'missing'
 
+const mapAdminViewOptions: Array<{
+  description: string
+  icon: string
+  id: MapAdminView
+  label: string
+}> = [
+  {
+    description: 'Pridávanie a úprava lovných miest, chát, servisných bodov a plôch.',
+    icon: 'i-heroicons-cursor-arrow-rays',
+    id: 'prvky',
+    label: 'Prvky',
+  },
+  {
+    description: 'Viditeľnosť vrstiev, pracovné režimy, podkladový obrázok a exportný výrez.',
+    icon: 'i-heroicons-squares-2x2',
+    id: 'vrstvy',
+    label: 'Vrstvy',
+  },
+  {
+    description: 'Uloženie draftu, kontrola konfliktov a zverejnenie mapy.',
+    icon: 'i-heroicons-cloud-arrow-up',
+    id: 'publikovanie',
+    label: 'Publikovanie',
+  },
+  {
+    description: 'Legenda označených vrcholov a prehľad pripravených dát.',
+    icon: 'i-heroicons-arrow-down-tray',
+    id: 'export',
+    label: 'Export',
+  },
+]
+
 const { cabinProducts: seedCabinProducts, getLakeName, lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations, tournaments } = usePondData()
 const { liveClosures } = await useClosureState({ admin: true, key: 'admin-map-closure-state' })
 
@@ -100,6 +134,20 @@ const getRouteQueryValue = (value: unknown) => {
 
   return typeof singleValue === 'string' && singleValue.trim() ? singleValue : undefined
 }
+
+function normalizeMapAdminView(value: unknown): MapAdminView {
+  const requestedView = getRouteQueryValue(value)
+
+  return mapAdminViewOptions.some((option) => option.id === requestedView)
+    ? requestedView as MapAdminView
+    : 'prvky'
+}
+
+const activeMapAdminView = ref<MapAdminView>(normalizeMapAdminView(route.query.sekcia))
+const mapAdminTabsRef = ref<HTMLElement | null>(null)
+const activeMapAdminViewOption = computed(() =>
+  mapAdminViewOptions.find((option) => option.id === activeMapAdminView.value) ?? mapAdminViewOptions[0]!,
+)
 
 function emptyMapEntityChanges(): MapEntityChangeSummary {
   return {
@@ -855,6 +903,14 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    activeMapAdminView.value = normalizeMapAdminView(view)
+    void centerActiveMapAdminTab(false)
+  },
+)
+
 watch(selectedLake, () => {
   selectedPegId.value = lakePegs.value[0]?.id ?? ''
   selectedFacilityId.value = lakeFacilities.value[0]?.id ?? ''
@@ -1166,22 +1222,79 @@ function resetBackgroundImageSettings() {
   resetBackgroundUploadFeedback()
 }
 
+async function centerActiveMapAdminTab(smooth = true) {
+  if (!import.meta.client) return
+
+  await nextTick()
+  const container = mapAdminTabsRef.value
+  const activeTab = container?.querySelector<HTMLElement>(`[data-map-admin-view="${activeMapAdminView.value}"]`)
+  if (!container || !activeTab) return
+
+  container.scrollTo({
+    behavior: smooth ? 'smooth' : 'auto',
+    left: activeTab.offsetLeft - (container.clientWidth / 2) + (activeTab.clientWidth / 2),
+  })
+}
+
+async function selectMapAdminView(view: MapAdminView, options: { focusTab?: boolean, updateRoute?: boolean } = {}) {
+  activeMapAdminView.value = view
+
+  if (import.meta.client && options.updateRoute !== false) {
+    const query = { ...route.query }
+    const explicitView = getRouteQueryValue(route.query.sekcia)
+    const shouldReplaceRoute = view === 'prvky'
+      ? Boolean(explicitView)
+      : normalizeMapAdminView(route.query.sekcia) !== view
+
+    if (view === 'prvky') delete query.sekcia
+    else query.sekcia = view
+
+    if (shouldReplaceRoute) await router.replace({ query })
+  }
+
+  await centerActiveMapAdminTab()
+
+  if (options.focusTab) {
+    mapAdminTabsRef.value
+      ?.querySelector<HTMLElement>(`[data-map-admin-view="${view}"]`)
+      ?.focus()
+  }
+}
+
+function handleMapAdminTabsKeydown(event: KeyboardEvent) {
+  const currentIndex = mapAdminViewOptions.findIndex((option) => option.id === activeMapAdminView.value)
+  let nextIndex = currentIndex
+
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % mapAdminViewOptions.length
+  else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + mapAdminViewOptions.length) % mapAdminViewOptions.length
+  else if (event.key === 'Home') nextIndex = 0
+  else if (event.key === 'End') nextIndex = mapAdminViewOptions.length - 1
+  else return
+
+  event.preventDefault()
+  const nextView = mapAdminViewOptions[nextIndex]?.id
+  if (nextView) void selectMapAdminView(nextView, { focusTab: true })
+}
+
 function selectPeg(peg: Peg) {
   selectedKind.value = 'peg'
   selectedPegId.value = peg.id
   resetSaveFeedback()
+  void selectMapAdminView('prvky')
 }
 
 function selectFacility(facility: MapFacility) {
   selectedKind.value = 'facility'
   selectedFacilityId.value = facility.id
   resetSaveFeedback()
+  void selectMapAdminView('prvky')
 }
 
 function selectShape(shape: MapShape) {
   selectedKind.value = 'shape'
   selectedShapeId.value = shape.id
   resetSaveFeedback()
+  void selectMapAdminView('prvky')
 }
 
 function selectShapePointLegendRow(row: MapShapePointLegendRow) {
@@ -1488,6 +1601,8 @@ async function focusRequestedTournamentSector() {
 
   if (!tournamentId && !sectorId) return
 
+  await selectMapAdminView('prvky')
+
   const tournament = requestedTournament.value
   if (!tournament) {
     routeFocusStatus.value = 'warning'
@@ -1647,6 +1762,7 @@ function handleDrawingShortcut(event: KeyboardEvent) {
 onMounted(() => {
   window.addEventListener('keydown', handleDrawingShortcut)
   shapePointLegendPrintGeneratedAt.value = formatPrintTimestamp()
+  void centerActiveMapAdminTab(false)
   void focusRequestedTournamentSector()
 })
 
@@ -2028,6 +2144,15 @@ async function focusMapQualityIssue(issue: MapQualityIssue) {
     await nextTick()
   }
 
+  const targetView: MapAdminView = (
+    target.action === 'openBackground'
+    || target.action === 'openLayers'
+    || target.kind === 'layer'
+  )
+    ? 'vrstvy'
+    : 'prvky'
+  await selectMapAdminView(targetView)
+
   if (target.kind === 'lake' && target.action === 'createShoreline') {
     ensureShapeLayerVisible('shoreline')
     selectedKind.value = 'shape'
@@ -2386,8 +2511,73 @@ async function discardMapDraft() {
         </button>
       </div>
 
+      <div class="mb-6 border-y border-border py-3">
+        <div
+          ref="mapAdminTabsRef"
+          class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+        >
+          <div
+            role="tablist"
+            aria-label="Pracovná časť editora mapy"
+            class="inline-flex min-w-max rounded-lg border border-border bg-surface p-1"
+            @keydown="handleMapAdminTabsKeydown"
+          >
+            <button
+              v-for="option in mapAdminViewOptions"
+              :id="`map-admin-tab-${option.id}`"
+              :key="option.id"
+              type="button"
+              role="tab"
+              :aria-controls="`map-admin-panel-${option.id}`"
+              :aria-selected="activeMapAdminView === option.id"
+              :data-map-admin-view="option.id"
+              :tabindex="activeMapAdminView === option.id ? 0 : -1"
+              class="flex min-h-10 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors"
+              :class="activeMapAdminView === option.id
+                ? 'bg-primary-900 text-white shadow-sm'
+                : 'text-foreground-muted hover:bg-muted hover:text-foreground'"
+              @click="selectMapAdminView(option.id)"
+            >
+              <UIcon :name="option.icon" class="h-4 w-4 shrink-0" />
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-foreground-muted text-sm">{{ activeMapAdminViewOption.description }}</p>
+          <button
+            v-if="activeMapAdminView !== 'publikovanie' && (changedItemsCount > 0 || mapState.hasUnpublishedChanges)"
+            type="button"
+            class="inline-flex shrink-0 items-center gap-1.5 text-left text-sm font-bold text-primary-800 hover:text-primary-950"
+            @click="selectMapAdminView('publikovanie')"
+          >
+            <UIcon name="i-heroicons-arrow-right-circle" class="h-4 w-4" />
+            {{ changedItemsCount > 0 ? 'Skontrolovať neuložené zmeny' : 'Skontrolovať uložený draft' }}
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="mapQualityFocusMessage"
+        class="mb-5 flex items-start justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-950"
+      >
+        <div class="flex items-start gap-2">
+          <UIcon name="i-heroicons-information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+          <p class="font-semibold">{{ mapQualityFocusMessage }}</p>
+        </div>
+        <button
+          type="button"
+          class="shrink-0 text-primary-800 hover:text-primary-950"
+          aria-label="Zavrieť správu"
+          @click="mapQualityFocusMessage = ''"
+        >
+          <UIcon name="i-heroicons-x-mark" class="h-5 w-5" />
+        </button>
+      </div>
+
       <div class="grid gap-6 lg:grid-cols-[1fr_0.82fr]">
-        <MapEditorCanvas
+        <div class="min-w-0 lg:sticky lg:top-20 lg:self-start">
+          <MapEditorCanvas
           :closures="liveClosures"
           :draft-shape="draftShape"
           :drawing-shape="isDrawingShape"
@@ -2417,10 +2607,16 @@ async function discardMapDraft() {
           @move-point="movePoint"
           @move-shape="moveShape"
           @move-shape-point="moveShapePoint"
-        />
+          />
+        </div>
 
-        <aside class="space-y-6">
-          <div class="rounded-card border border-border bg-surface p-5">
+        <aside
+          :id="`map-admin-panel-${activeMapAdminView}`"
+          role="tabpanel"
+          :aria-labelledby="`map-admin-tab-${activeMapAdminView}`"
+          class="min-w-0 space-y-6"
+        >
+          <div v-if="activeMapAdminView === 'prvky'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Pridať do mapy</h2>
@@ -2682,6 +2878,7 @@ async function discardMapDraft() {
           </div>
 
           <div
+            v-if="activeMapAdminView === 'vrstvy'"
             ref="layersPanelRef"
             class="rounded-card border border-border bg-surface p-5 transition-shadow"
             :class="highlightLayersPanel ? 'ring-2 ring-warning-300 shadow-sm' : ''"
@@ -2845,7 +3042,11 @@ async function discardMapDraft() {
             </div>
           </div>
 
-          <div ref="backgroundPanelRef" class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="activeMapAdminView === 'vrstvy'"
+            ref="backgroundPanelRef"
+            class="rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Podklad mapy</h2>
@@ -3045,7 +3246,7 @@ async function discardMapDraft() {
             />
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="activeMapAdminView === 'prvky'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Vybraný prvok</h2>
@@ -3467,13 +3668,39 @@ async function discardMapDraft() {
               valid-description="Názov, súradnice a typ sú pripravené na uloženie."
             />
 
-            <div class="mt-4 grid gap-2 sm:grid-cols-5">
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
               <UButton type="button" icon="i-heroicons-arrow-path" variant="soft" :disabled="!canManageMap" @click="resetSelectedItem">
                 Vrátiť
               </UButton>
               <UButton type="button" icon="i-heroicons-trash" variant="soft" color="error" :disabled="!canManageMap" @click="removeSelectedItem">
                 Odstrániť
               </UButton>
+            </div>
+          </div>
+
+          <div v-if="activeMapAdminView === 'publikovanie'" class="rounded-card border border-border bg-surface p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Draft a publikovanie</h2>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  Najprv ulož pracovnú verziu, potom ju po kontrole zverejni návštevníkom.
+                </p>
+              </div>
+              <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5 shrink-0 text-primary-800" />
+            </div>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-md bg-muted p-3">
+                <p class="text-foreground-muted text-xs font-semibold">Neuložené zmeny</p>
+                <p class="mt-1 text-xl font-bold text-primary-950">{{ changedItemsCount }}</p>
+              </div>
+              <div class="rounded-md bg-muted p-3">
+                <p class="text-foreground-muted text-xs font-semibold">Uložený draft</p>
+                <p class="mt-1 text-xl font-bold text-primary-950">{{ draftChangeTotal }}</p>
+              </div>
+            </div>
+
+            <div class="mt-4 grid gap-2 sm:grid-cols-3">
               <UButton
                 type="button"
                 icon="i-heroicons-check"
@@ -3528,7 +3755,7 @@ async function discardMapDraft() {
             />
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="activeMapAdminView === 'publikovanie'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Kontrola pred publikovaním</h2>
@@ -3669,12 +3896,9 @@ async function discardMapDraft() {
             <p class="text-foreground-muted mt-4 text-xs">
               Stav publikácie: {{ mapPublishQualitySummaryLabel }}. Upozornenia neblokujú draft, kritické nálezy blokujú iba publikovanie.
             </p>
-            <p v-if="mapQualityFocusMessage" class="mt-3 rounded-md bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-900">
-              {{ mapQualityFocusMessage }}
-            </p>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="activeMapAdminView === 'publikovanie'" class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Súhrn mapy</h2>
             <p class="text-foreground-muted mt-1 text-sm">{{ mapPublishStateLabel }}</p>
             <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -3738,7 +3962,7 @@ async function discardMapDraft() {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="activeMapAdminView === 'export'" class="rounded-card border border-border bg-surface p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-bold">Legenda vrcholov</h2>
@@ -3849,7 +4073,7 @@ async function discardMapDraft() {
             </div>
           </div>
 
-          <div class="rounded-card border border-border bg-surface p-5">
+          <div v-if="activeMapAdminView === 'export'" class="rounded-card border border-border bg-surface p-5">
             <h2 class="text-lg font-bold">Prehľad pripravených dát</h2>
             <p class="text-foreground-muted mt-2 text-sm">
               Pred uložením vidíš, koľko prvkov sa z pracovnej mapy premietne do návrhu.

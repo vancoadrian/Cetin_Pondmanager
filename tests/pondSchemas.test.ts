@@ -12,8 +12,11 @@ import {
   mapLayerImageSettingsSchema,
   mapPointDraftSchema,
   mapShapeInputSchema,
+  notificationAlertEndInputSchema,
+  notificationBroadcastInputSchema,
   passwordResetConfirmPayloadSchema,
   passwordResetRequestPayloadSchema,
+  pushSubscriptionInputSchema,
   reservationRequestSchema,
   sponsorSettingsInputSchema,
   tournamentPenaltyInputSchema,
@@ -24,6 +27,49 @@ import {
   tournamentTeamRegistrationInputSchema,
   tripLogbookInputSchema,
 } from '~/app/schemas/pondSchemas'
+
+describe('notification preference schemas', () => {
+  it('accepts lake-scoped subscriptions and broadcasts', () => {
+    expect(pushSubscriptionInputSchema.safeParse({
+      endpoint: 'mock://rybolov-cetin/device-lake-scope',
+      lakeIds: ['strkovisko-kocka'],
+      permission: 'granted',
+      topics: ['weather', 'service'],
+    }).success).toBe(true)
+
+    expect(notificationBroadcastInputSchema.safeParse({
+      body: 'Servisný oznam platný iba pre Štrkovisko Kocka.',
+      expiresAt: '2026-07-13T18:00:00.000Z',
+      severity: 'service',
+      targetLakeIds: ['strkovisko-kocka'],
+      targetTopics: ['service'],
+      title: 'Oznam pre Kocku',
+      validUntil: 'dnes 21:00',
+    }).success).toBe(true)
+
+    expect(notificationAlertEndInputSchema.safeParse({ alertId: 'alert-service-kocka' }).success).toBe(true)
+  })
+
+  it('rejects unknown lakes in notification preferences', () => {
+    const subscription = pushSubscriptionInputSchema.safeParse({
+      endpoint: 'mock://rybolov-cetin/device-unknown-lake',
+      lakeIds: ['nezname-jazero'],
+      permission: 'granted',
+      topics: ['weather'],
+    })
+
+    expect(subscription.success).toBe(false)
+
+    expect(notificationBroadcastInputSchema.safeParse({
+      body: 'Servisný oznam s chybným dátumom platnosti.',
+      expiresAt: 'zajtra večer',
+      severity: 'service',
+      targetTopics: ['service'],
+      title: 'Chybná platnosť',
+      validUntil: 'zajtra večer',
+    }).success).toBe(false)
+  })
+})
 
 describe('accountRegistrationPayloadSchema', () => {
   it('accepts a strong password and trims account identity fields', () => {

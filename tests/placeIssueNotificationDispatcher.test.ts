@@ -77,6 +77,7 @@ describe('placeIssueNotificationDispatcher', () => {
           category: 'safety',
           description: 'Pri móle je uvoľnená doska a môže sa na nej niekto zraniť.',
           id: 'issue-20260520-chata-3-uvolnena-doska',
+          lake: 'velky-cetin',
           priority: 'urgent',
           targetLabel: 'Chata 3',
           title: 'Uvoľnená doska na móle',
@@ -95,6 +96,7 @@ describe('placeIssueNotificationDispatcher', () => {
         requestId: 'issue-20260520-chata-3-uvolnena-doska',
         roles: ['owner', 'manager', 'worker'],
       },
+      targetLakeIds: ['velky-cetin'],
       targetTopics: ['service'],
       title: 'Urgentný nedostatok: Uvoľnená doska na móle',
     })

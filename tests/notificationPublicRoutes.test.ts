@@ -124,6 +124,8 @@ async function requestJson<T>(
 function alertFixture(overrides: Partial<Alert> = {}): Alert {
   return {
     body: 'O 18:30 sa očakáva prechod búrkového pásma.',
+    createdAt: '2026-05-20T12:05:00.000Z',
+    expiresAt: '2099-05-20T21:00:00.000Z',
     id: 'alert-public-storm',
     severity: 'storm',
     title: 'Výstraha pred búrkou',
@@ -154,6 +156,7 @@ function broadcastFixture(overrides: Partial<NotificationBroadcast> = {}): Notif
     body: 'O 18:30 sa očakáva prechod búrkového pásma.',
     createdAt: '2026-05-20T12:05:00.000Z',
     createdBy: 'Správca',
+    expiresAt: '2099-05-20T21:00:00.000Z',
     id: 'broadcast-public-storm',
     message: 'Skúšobné doručovanie zaevidovalo 1 doručení.',
     recipientCount: 1,
@@ -220,6 +223,41 @@ describe('public notification API routes', () => {
     }
   })
 
+  it('omits expired and manually ended alerts from the public response', async () => {
+    await writeLocalNotificationState({
+      alerts: [
+        alertFixture({ id: 'alert-active', title: 'Aktívna výstraha' }),
+        alertFixture({
+          expiresAt: '2026-05-20T13:00:00.000Z',
+          id: 'alert-expired',
+          title: 'Stará výstraha',
+        }),
+        alertFixture({
+          endedAt: '2026-05-20T13:00:00.000Z',
+          id: 'alert-ended',
+          title: 'Ukončená výstraha',
+        }),
+      ],
+      broadcasts: [],
+      deliveryLogs: [],
+      subscriptions: [],
+    })
+    const server = await startRouteServer()
+
+    try {
+      const { body, response } = await requestJson<PublicNotificationStateResponse>(
+        server,
+        '/api/notifications',
+      )
+
+      expect(response.status).toBe(200)
+      expect(body?.alerts.map((alert) => alert.id)).toEqual(['alert-active'])
+    }
+    finally {
+      await server.close()
+    }
+  })
+
   it('stores a public subscription and strips internal audience scope', async () => {
     const server = await startRouteServer()
 
@@ -232,6 +270,7 @@ describe('public notification API routes', () => {
             audienceRole: 'marshal',
             deviceLabel: 'Mobil pri vode',
             endpoint: 'mock://rybolov-cetin/public-device',
+            lakeIds: ['strkovisko-kocka'],
             marshalId: 'marshal-1',
             permission: 'granted',
             sectorIds: ['a2'],
@@ -248,6 +287,7 @@ describe('public notification API routes', () => {
         deviceLabel: 'Mobil pri vode',
         enabled: true,
         endpoint: 'mock://rybolov-cetin/public-device',
+        lakeIds: ['strkovisko-kocka'],
         topics: ['weather', 'tournaments'],
       })
       expect(body?.subscription.audienceRole).toBeUndefined()
@@ -258,6 +298,7 @@ describe('public notification API routes', () => {
       const state = await readLocalNotificationState()
       expect(state.subscriptions[0]).toMatchObject({
         endpoint: 'mock://rybolov-cetin/public-device',
+        lakeIds: ['strkovisko-kocka'],
         topics: ['weather', 'tournaments'],
       })
       expect(state.subscriptions[0]?.audienceRole).toBeUndefined()

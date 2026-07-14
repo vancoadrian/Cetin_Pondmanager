@@ -28,6 +28,8 @@ import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin rezervácie' })
 
+type ReservationAdminView = 'ziadosti' | 'kalendar' | 'nova' | 'nastavenia'
+
 const route = useRoute()
 const router = useRouter()
 const requestFetch = useRequestFetch()
@@ -104,7 +106,7 @@ const {
   readOnlyMessage: reservationReadOnlyMessage,
 } = useAdminModuleAccess('reservations')
 
-const selectedLake = ref<LakeSlug | 'all'>('all')
+const reservationLakeFilter = ref<LakeSlug | 'all'>('all')
 const {
   adminRentalBookings,
   adminReservations,
@@ -121,6 +123,9 @@ const routeReservationId = computed(() =>
     ? route.query.rezervacia
     : typeof route.query.reservationId === 'string' ? route.query.reservationId : '',
 )
+const activeReservationAdminView = ref<ReservationAdminView>(
+  routeReservationId.value ? 'ziadosti' : parseReservationAdminView(route.query.sekcia),
+)
 const selectedReservationId = ref(
   adminReservations.value.find((reservation) => reservation.id === routeReservationId.value)?.id ??
     adminReservations.value.find((reservation) => reservation.status === 'pending')?.id ??
@@ -130,7 +135,8 @@ const selectedReservationId = ref(
 const decisionMode = ref<ReservationDecisionMode>('approve')
 const adminNoteDraft = ref('')
 const calendarMode = ref<'week' | 'month'>('week')
-const calendarStart = ref('2026-05-16')
+const calendarStart = ref(new Date().toISOString().slice(0, 10))
+const calendarLake = ref<LakeSlug>('velky-cetin')
 const decisionSubmitStatus = ref<'idle' | 'submitting' | 'error'>('idle')
 const decisionSubmitMessage = ref('')
 const decisionCommunicationDraft = ref<ReservationDecisionSuccess['communicationDraft']>()
@@ -140,6 +146,9 @@ const adminReservationSubmitMessage = ref('')
 const paymentMethodSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const paymentMethodSubmitMessage = ref('')
 const paymentMethodDraft = ref<PaymentMethod[]>([])
+const reservationAdminTabScrollerElement = ref<HTMLElement | null>(null)
+const reservationDetailElement = ref<HTMLElement | null>(null)
+const showCalendarContext = ref(false)
 const livePegs = computed(() => mapState.value?.pegs ?? pegs)
 const activeCabinProducts = computed(() =>
   liveCabinProducts.value.length > 0 ? liveCabinProducts.value : seedCabinProducts,
@@ -180,8 +189,15 @@ watch(
   { immediate: true },
 )
 
+const reservationStatusOrder: Record<Reservation['status'], number> = {
+  pending: 0,
+  confirmed: 1,
+  blocked: 2,
+}
 const filteredReservations = computed(() =>
-  adminReservations.value.filter((reservation) => selectedLake.value === 'all' || reservation.lake === selectedLake.value),
+  adminReservations.value
+    .filter((reservation) => reservationLakeFilter.value === 'all' || reservation.lake === reservationLakeFilter.value)
+    .sort((first, second) => reservationStatusOrder[first.status] - reservationStatusOrder[second.status]),
 )
 const selectedReservation = computed(() =>
   adminReservations.value.find((reservation) => reservation.id === selectedReservationId.value),
@@ -220,9 +236,22 @@ watch(
 watch(
   routeReservationId,
   (reservationId) => {
-    if (reservationId) selectReservationById(reservationId, { syncLake: true, syncRoute: false })
+    if (!reservationId) return
+
+    activeReservationAdminView.value = 'ziadosti'
+    selectReservationById(reservationId, { syncLake: true, syncRoute: false })
   },
-  { immediate: true },
+  { flush: 'post', immediate: true },
+)
+watch(
+  [reservationDetailElement, routeReservationId],
+  async ([detailElement, reservationId]) => {
+    if (!import.meta.client || !detailElement || !reservationId) return
+
+    await nextTick()
+    detailElement.scrollIntoView({ behavior: 'auto', block: 'start' })
+  },
+  { flush: 'post' },
 )
 
 watch(
@@ -245,6 +274,29 @@ const reservationStats = computed(() => ({
   blocked: adminReservations.value.filter((reservation) => reservation.status === 'blocked').length,
   web: adminReservations.value.filter((reservation) => reservation.source === 'web').length,
 }))
+const reservationAdminViewTabs = computed(() => [
+  {
+    count: reservationStats.value.pending,
+    icon: 'i-heroicons-inbox-arrow-down',
+    label: 'Žiadosti',
+    value: 'ziadosti' as const,
+  },
+  {
+    icon: 'i-heroicons-calendar-days',
+    label: 'Kalendár',
+    value: 'kalendar' as const,
+  },
+  {
+    icon: 'i-heroicons-plus-circle',
+    label: 'Nová rezervácia',
+    value: 'nova' as const,
+  },
+  {
+    icon: 'i-heroicons-cog-6-tooth',
+    label: 'Nastavenia',
+    value: 'nastavenia' as const,
+  },
+])
 
 const adminReservationPegs = computed(() =>
   livePegs.value.filter((peg) => peg.lake === adminReservationDraft.lake),
@@ -352,7 +404,7 @@ const conflictingClosures = computed(() =>
 )
 const pegAvailabilityRows = computed(() =>
   livePegs.value
-    .filter((peg) => selectedLake.value === 'all' || peg.lake === selectedLake.value)
+    .filter((peg) => peg.lake === calendarLake.value)
     .map((peg) => ({
       availability: getPegAvailability(peg, {
         closures: liveClosures.value,
@@ -362,7 +414,6 @@ const pegAvailabilityRows = computed(() =>
       peg,
     })),
 )
-const calendarLake = computed<LakeSlug>(() => (selectedLake.value === 'all' ? 'velky-cetin' : selectedLake.value))
 const calendarDays = computed(() =>
   calendarMode.value === 'month'
     ? buildMonthCalendarDays(calendarStart.value)
@@ -648,9 +699,88 @@ const rentalBookingStatusLabel = (status?: RentalBooking['status']) => {
       return 'bez záznamu'
   }
 }
+function parseReservationAdminView(value: unknown): ReservationAdminView {
+  const normalizedValue = Array.isArray(value) ? value[0] : value
+
+  if (normalizedValue === 'kalendar' || normalizedValue === 'nova' || normalizedValue === 'nastavenia') {
+    return normalizedValue
+  }
+
+  return 'ziadosti'
+}
+function reservationAdminTabClass(isActive: boolean) {
+  return isActive
+    ? 'border-primary-700 text-primary-900'
+    : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
+}
+function selectReservationAdminView(view: ReservationAdminView) {
+  activeReservationAdminView.value = view
+  const query = { ...route.query }
+
+  if (view === 'ziadosti') delete query.sekcia
+  else query.sekcia = view
+
+  if (view !== 'ziadosti') {
+    delete query.rezervacia
+    delete query.reservationId
+  }
+
+  void router.replace({ query })
+}
+function handleReservationAdminTabKeydown(event: KeyboardEvent, index: number) {
+  let targetIndex: number | undefined
+
+  if (event.key === 'ArrowLeft') {
+    targetIndex = (index - 1 + reservationAdminViewTabs.value.length) % reservationAdminViewTabs.value.length
+  }
+  else if (event.key === 'ArrowRight') {
+    targetIndex = (index + 1) % reservationAdminViewTabs.value.length
+  }
+  else if (event.key === 'Home') {
+    targetIndex = 0
+  }
+  else if (event.key === 'End') {
+    targetIndex = reservationAdminViewTabs.value.length - 1
+  }
+
+  if (targetIndex === undefined) return
+
+  event.preventDefault()
+  const tabList = (event.currentTarget as HTMLElement).closest('[role="tablist"]')
+  const targetView = reservationAdminViewTabs.value[targetIndex]?.value
+  if (!targetView) return
+
+  selectReservationAdminView(targetView)
+  void nextTick(() => {
+    tabList?.querySelectorAll<HTMLElement>('[role="tab"]')[targetIndex]?.focus()
+  })
+}
+async function revealActiveReservationAdminTab(behavior: ScrollBehavior = 'auto') {
+  if (!import.meta.client) return
+
+  await nextTick()
+  const scroller = reservationAdminTabScrollerElement.value
+  const activeTab = scroller?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+  if (!scroller || !activeTab) return
+
+  const centeredLeft = activeTab.offsetLeft - (scroller.clientWidth - activeTab.offsetWidth) / 2
+  scroller.scrollTo({ behavior, left: Math.max(0, centeredLeft) })
+}
+watch(
+  () => route.query.sekcia,
+  (view) => {
+    activeReservationAdminView.value = routeReservationId.value ? 'ziadosti' : parseReservationAdminView(view)
+  },
+)
+watch(
+  activeReservationAdminView,
+  () => void revealActiveReservationAdminTab('smooth'),
+  { flush: 'post', immediate: true },
+)
 function replaceReservationQuery(reservationId: string) {
   const nextQuery = { ...route.query }
   delete nextQuery.reservationId
+  delete nextQuery.sekcia
 
   if (reservationId) {
     nextQuery.rezervacia = reservationId
@@ -666,12 +796,13 @@ function selectReservation(
   options: { syncLake?: boolean, syncRoute?: boolean } = {},
 ) {
   if (options.syncLake) {
-    selectedLake.value = reservation.lake
+    reservationLakeFilter.value = reservation.lake
   }
 
   selectedReservationId.value = reservation.id
 
   if (options.syncRoute ?? true) {
+    activeReservationAdminView.value = 'ziadosti'
     replaceReservationQuery(reservation.id)
   }
 }
@@ -889,26 +1020,74 @@ async function savePaymentMethodSettings() {
         <p class="mt-1 text-sm">{{ reservationReadOnlyMessage }}</p>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Čaká</p>
-          <p class="mt-2 text-3xl font-bold">{{ reservationStats.pending }}</p>
+      <nav
+        ref="reservationAdminTabScrollerElement"
+        aria-label="Pracovné pohľady rezervácií"
+        class="mt-6 overflow-x-auto border-b border-border"
+      >
+        <div role="tablist" aria-label="Rezervácie" class="flex min-w-max gap-1">
+          <button
+            v-for="(view, index) in reservationAdminViewTabs"
+            :id="`reservation-admin-tab-${view.value}`"
+            :key="view.value"
+            type="button"
+            role="tab"
+            aria-controls="reservation-admin-panel"
+            :aria-selected="activeReservationAdminView === view.value"
+            :tabindex="activeReservationAdminView === view.value ? 0 : -1"
+            class="flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-bold transition-colors"
+            :class="reservationAdminTabClass(activeReservationAdminView === view.value)"
+            @click="selectReservationAdminView(view.value)"
+            @keydown="handleReservationAdminTabKeydown($event, index)"
+          >
+            <UIcon :name="view.icon" class="h-4 w-4 shrink-0" />
+            <span>{{ view.label }}</span>
+            <span
+              v-if="view.count !== undefined"
+              class="min-w-5 rounded-full bg-warning-500/15 px-1.5 py-0.5 text-center text-xs font-bold text-warning-800"
+            >
+              {{ view.count }}
+            </span>
+          </button>
         </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Potvrdené</p>
-          <p class="mt-2 text-3xl font-bold">{{ reservationStats.confirmed }}</p>
-        </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Blokované</p>
-          <p class="mt-2 text-3xl font-bold">{{ reservationStats.blocked }}</p>
-        </div>
-        <div class="rounded-card border border-border bg-surface p-4">
-          <p class="text-foreground-muted text-sm">Verejné žiadosti</p>
-          <p class="mt-2 text-3xl font-bold">{{ reservationStats.web }}</p>
-        </div>
-      </div>
+      </nav>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        id="reservation-admin-panel"
+        role="tabpanel"
+        :aria-labelledby="`reservation-admin-tab-${activeReservationAdminView}`"
+      >
+        <div
+          v-if="activeReservationAdminView === 'ziadosti'"
+          class="mt-5 flex flex-col gap-4 rounded-md border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <span class="flex items-center gap-2">
+              <UIcon name="i-heroicons-clock" class="h-4 w-4 text-warning-700" />
+              <strong>{{ reservationStats.pending }}</strong> čaká
+            </span>
+            <span class="flex items-center gap-2">
+              <UIcon name="i-heroicons-check-circle" class="h-4 w-4 text-success-700" />
+              <strong>{{ reservationStats.confirmed }}</strong> potvrdené
+            </span>
+            <span class="flex items-center gap-2">
+              <UIcon name="i-heroicons-globe-alt" class="h-4 w-4 text-primary-700" />
+              <strong>{{ reservationStats.web }}</strong> z webu
+            </span>
+            <span v-if="reservationStats.blocked" class="flex items-center gap-2">
+              <UIcon name="i-heroicons-no-symbol" class="h-4 w-4 text-error-700" />
+              <strong>{{ reservationStats.blocked }}</strong> blokované
+            </span>
+          </div>
+          <UButton icon="i-heroicons-plus" variant="soft" @click="selectReservationAdminView('nova')">
+            Nová rezervácia
+          </UButton>
+        </div>
+
+      <div
+        v-if="activeReservationAdminView === 'nastavenia'"
+        class="mt-5 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Platobné metódy rezervácií</h2>
@@ -965,7 +1144,10 @@ async function savePaymentMethodSettings() {
         />
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeReservationAdminView === 'nova'"
+        class="mt-5 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">Nová rezervácia správcu</h2>
@@ -1167,7 +1349,10 @@ async function savePaymentMethodSettings() {
         </form>
       </div>
 
-      <div class="mt-6 rounded-card border border-border bg-surface p-5">
+      <div
+        v-if="activeReservationAdminView === 'kalendar'"
+        class="mt-5 rounded-card border border-border bg-surface p-5"
+      >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 class="text-lg font-bold">
@@ -1178,10 +1363,18 @@ async function savePaymentMethodSettings() {
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <select
+              v-model="calendarLake"
+              aria-label="Jazero v kalendári"
+              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+            >
+              <option value="velky-cetin">Veľký Cetín</option>
+              <option value="strkovisko-kocka">Štrkovisko Kocka</option>
+            </select>
             <div class="flex rounded-md border border-border bg-white p-1">
               <button
                 type="button"
-                class="rounded px-3 py-1.5 text-sm font-semibold"
+                class="min-h-9 rounded px-3 py-1.5 text-sm font-semibold"
                 :class="calendarMode === 'week' ? 'bg-primary-700 text-white' : 'text-foreground-muted hover:bg-muted'"
                 @click="setCalendarMode('week')"
               >
@@ -1189,23 +1382,23 @@ async function savePaymentMethodSettings() {
               </button>
               <button
                 type="button"
-                class="rounded px-3 py-1.5 text-sm font-semibold"
+                class="min-h-9 rounded px-3 py-1.5 text-sm font-semibold"
                 :class="calendarMode === 'month' ? 'bg-primary-700 text-white' : 'text-foreground-muted hover:bg-muted'"
                 @click="setCalendarMode('month')"
               >
                 Mesiac
               </button>
             </div>
-            <UButton size="sm" icon="i-heroicons-chevron-left" color="neutral" variant="soft" @click="moveCalendar(-7)">
+            <UButton icon="i-heroicons-chevron-left" color="neutral" variant="soft" @click="moveCalendar(-7)">
               {{ calendarMode === 'month' ? 'Mesiac späť' : 'Týždeň späť' }}
             </UButton>
             <input
               v-model="calendarStart"
               type="date"
-              class="h-9 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
               aria-label="Začiatok kalendára"
             >
-            <UButton size="sm" icon="i-heroicons-chevron-right" color="neutral" variant="soft" @click="moveCalendar(7)">
+            <UButton icon="i-heroicons-chevron-right" color="neutral" variant="soft" @click="moveCalendar(7)">
               {{ calendarMode === 'month' ? 'Mesiac ďalej' : 'Týždeň ďalej' }}
             </UButton>
           </div>
@@ -1326,14 +1519,73 @@ async function savePaymentMethodSettings() {
         </div>
       </div>
 
-      <div class="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <div v-if="activeReservationAdminView === 'kalendar'" class="mt-4">
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          color="neutral"
+          variant="soft"
+          :aria-expanded="showCalendarContext"
+          @click="showCalendarContext = !showCalendarContext"
+        >
+          {{ showCalendarContext ? 'Skryť prevádzkové obmedzenia' : 'Prevádzkové obmedzenia a stav miest' }}
+        </UButton>
+
+        <div v-if="showCalendarContext" class="mt-4 grid gap-6 xl:grid-cols-2">
+          <div class="rounded-card border border-border bg-surface p-5">
+            <h2 class="text-lg font-bold">Konflikty dostupnosti</h2>
+            <div class="mt-4 space-y-3">
+              <div v-for="closure in conflictingClosures" :key="closure.id" class="rounded-md bg-muted p-4">
+                <p class="font-semibold">{{ closure.title }}</p>
+                <p class="text-foreground-muted mt-1 text-sm">
+                  {{ closure.lake === 'all' ? 'Všetky jazerá' : getLakeName(closure.lake) }} ·
+                  {{ closure.from }} až {{ closure.to }}
+                </p>
+                <p class="text-foreground-muted mt-2 text-sm">{{ closure.notes }}</p>
+              </div>
+              <AppState
+                v-if="conflictingClosures.length === 0"
+                compact
+                title="Bez konfliktov"
+                description="Dostupnosť zatiaľ nehlási žiadnu uzávierku blokujúcu rezervácie."
+              />
+            </div>
+          </div>
+
+          <div class="rounded-card border border-border bg-surface p-5">
+            <h2 class="text-lg font-bold">Miesta podľa stavu</h2>
+            <p class="text-foreground-muted mt-1 text-sm">{{ getLakeName(calendarLake) }}</p>
+            <div class="mt-4 grid gap-2">
+              <div
+                v-for="row in pegAvailabilityRows"
+                :key="row.peg.id"
+                class="flex items-center justify-between gap-3 rounded-md bg-muted p-3"
+              >
+                <div>
+                  <p class="font-semibold">{{ row.peg.label }}</p>
+                  <p class="text-foreground-muted text-xs">{{ row.availability.reasons[0] }}</p>
+                </div>
+                <AvailabilityBadge :availability="row.availability" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="activeReservationAdminView === 'ziadosti'"
+        class="mt-5 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]"
+      >
         <div class="rounded-card border border-border bg-surface p-5">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 class="text-lg font-bold">Žiadosti a termíny</h2>
-              <p class="text-foreground-muted text-sm">Kliknutím vyberiete rezerváciu na schválenie.</p>
+              <h2 class="text-lg font-bold">Rezervácie</h2>
+              <p class="text-foreground-muted text-sm">Čakajúce žiadosti sú vždy navrchu.</p>
             </div>
-            <select v-model="selectedLake" class="h-10 rounded-md border border-border bg-white px-3 text-sm">
+            <select
+              v-model="reservationLakeFilter"
+              aria-label="Filtrovať rezervácie podľa jazera"
+              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+            >
               <option value="all">Všetky jazerá</option>
               <option value="velky-cetin">Veľký Cetín</option>
               <option value="strkovisko-kocka">Štrkovisko Kocka</option>
@@ -1395,7 +1647,11 @@ async function savePaymentMethodSettings() {
         </div>
 
         <aside class="space-y-6">
-          <div v-if="selectedReservation" class="rounded-card border border-border bg-surface p-5">
+          <div
+            v-if="selectedReservation"
+            ref="reservationDetailElement"
+            class="scroll-mt-24 rounded-card border border-border bg-surface p-5"
+          >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold">Detail rezervácie</h2>
@@ -1697,46 +1953,8 @@ async function savePaymentMethodSettings() {
             title="Vyberte rezerváciu"
             description="Detail sa zobrazí po kliknutí na rezerváciu v zozname."
           />
-
-          <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Konflikty dostupnosti</h2>
-            <div class="mt-4 space-y-3">
-              <div v-for="closure in conflictingClosures" :key="closure.id" class="rounded-md bg-muted p-4">
-                <p class="font-semibold">{{ closure.title }}</p>
-                <p class="text-foreground-muted mt-1 text-sm">
-                  {{ closure.lake === 'all' ? 'Všetky jazerá' : getLakeName(closure.lake) }} ·
-                  {{ closure.from }} až {{ closure.to }}
-                </p>
-                <p class="text-foreground-muted mt-2 text-sm">{{ closure.notes }}</p>
-              </div>
-              <AppState
-                v-if="conflictingClosures.length === 0"
-                compact
-                title="Bez konfliktov"
-                description="Dostupnosť zatiaľ nehlási žiadnu uzávierku blokujúcu rezervácie."
-              />
-            </div>
-          </div>
-
-          <div class="rounded-card border border-border bg-surface p-5">
-            <h2 class="text-lg font-bold">Miesta podľa stavu</h2>
-            <div class="mt-4 grid gap-2">
-              <div
-                v-for="row in pegAvailabilityRows"
-                :key="row.peg.id"
-                class="flex items-center justify-between gap-3 rounded-md bg-muted p-3"
-              >
-                <div>
-                  <p class="font-semibold">{{ row.peg.label }}</p>
-                  <p class="text-foreground-muted text-xs">
-                    {{ getLakeName(row.peg.lake) }} · {{ row.availability.reasons[0] }}
-                  </p>
-                </div>
-                <AvailabilityBadge :availability="row.availability" />
-              </div>
-            </div>
-          </div>
         </aside>
+      </div>
       </div>
     </section>
   </div>

@@ -65,6 +65,8 @@ function createWebPushPayload(broadcast: NotificationBroadcast) {
   return JSON.stringify({
     body: broadcast.body,
     broadcastId: broadcast.id,
+    expiresAt: broadcast.expiresAt,
+    lakeIds: broadcast.targetLakeIds ?? [],
     severity: broadcast.severity,
     title: broadcast.title,
     url: createNotificationUrl(broadcast),
@@ -153,6 +155,7 @@ export async function runServerNotificationDelivery(
       state.subscriptions,
       broadcast.targetTopics,
       broadcast.targetAudience,
+      broadcast.targetLakeIds,
     ).map((subscription) => [subscription.id, subscription]),
   )
   const sendWebPush = options.sendWebPush ?? defaultWebPushSender

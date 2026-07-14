@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { auditActionLabels, createAuditEvent, filterAuditEvents } from '~/app/services/auditLogService'
+import {
+  auditActionLabels,
+  auditAreaLabels,
+  auditAreas,
+  createAuditEvent,
+  filterAuditEvents,
+} from '~/app/services/auditLogService'
 
 const baseEventInput = {
   action: 'tournament.penalty.created',
@@ -49,9 +55,17 @@ describe('auditLogService', () => {
     expect(filterAuditEvents([reservationEvent, tournamentEvent], { limit: 1 })).toEqual([reservationEvent])
   })
 
+  it('keeps every audit area available to API and UI filters', () => {
+    expect(auditAreas).toEqual(Object.keys(auditAreaLabels))
+    expect(auditAreas).toContain('accounts')
+    expect(auditAreas).toContain('fish')
+    expect(auditAreas).toContain('issues')
+  })
+
   it('labels local backup audit actions', () => {
     expect(auditActionLabels['account.password_changed']).toBe('Heslo zmenené')
     expect(auditActionLabels['account.profile_updated']).toBe('Profil upravený')
+    expect(auditActionLabels['fish.manager_presence.started']).toBe('Prítomnosť správcu zapnutá')
     expect(auditActionLabels['system.data_backup.downloaded']).toBe('Ochranná záloha stiahnutá')
     expect(auditActionLabels['system.data_backup.loaded']).toBe('Ochranná záloha načítaná')
     expect(auditActionLabels['system.data_export.downloaded']).toBe('Záloha stiahnutá')

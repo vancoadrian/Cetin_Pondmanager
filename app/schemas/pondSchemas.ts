@@ -309,6 +309,7 @@ export const pushSubscriptionInputSchema = z.object({
   audienceRole: z.enum(['accountant', 'angler', 'manager', 'marshal', 'owner', 'tournament_organizer', 'tournament_team', 'worker']).optional(),
   deviceLabel: z.string().trim().max(80, 'Názov zariadenia môže mať najviac 80 znakov.').optional(),
   endpoint: z.string().trim().min(12, 'Chýba endpoint odberu notifikácií.'),
+  lakeIds: z.array(lakeSlugSchema).optional(),
   marshalId: z.preprocess(
     (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
     z.string().trim().optional(),
@@ -503,6 +504,7 @@ export const sponsorSettingsInputSchema = z.object({
 
 export const notificationBroadcastInputSchema = z.object({
   body: z.string().trim().min(10, 'Text notifikácie musí mať aspoň 10 znakov.').max(280, 'Text notifikácie môže mať najviac 280 znakov.'),
+  expiresAt: z.string().datetime({ message: 'Platnosť výstrahy musí obsahovať platný dátum a čas.' }).optional(),
   severity: z.enum(['storm', 'info', 'service', 'water']),
   targetAudience: z.object({
     marshalIds: z.array(z.string().trim().min(1)).default([]),
@@ -512,9 +514,14 @@ export const notificationBroadcastInputSchema = z.object({
     sectorIds: z.array(z.string().trim().min(1)).default([]),
     tournamentId: z.string().trim().optional(),
   }).optional(),
+  targetLakeIds: z.array(lakeSlugSchema).default([]),
   targetTopics: z.array(z.enum(['reservations', 'service', 'tournaments', 'weather'])).min(1, 'Vyberte aspoň jeden okruh notifikácie.'),
   title: z.string().trim().min(3, 'Nadpis musí mať aspoň 3 znaky.').max(80, 'Nadpis môže mať najviac 80 znakov.'),
   validUntil: z.string().trim().min(3, 'Doplňte platnosť výstrahy.').max(60, 'Platnosť môže mať najviac 60 znakov.'),
+})
+
+export const notificationAlertEndInputSchema = z.object({
+  alertId: z.string().trim().min(1, 'Chýba identifikátor verejného oznamu.'),
 })
 
 export const notificationTestBroadcastInputSchema = z.object({

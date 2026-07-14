@@ -13,6 +13,7 @@ describe('notificationDeliveryRunner', () => {
     const subscription = savePushSubscription({
       auth: 'auth-secret',
       endpoint: 'https://push.example.test/device-1',
+      lakeIds: ['velky-cetin'],
       p256dh: 'p256dh-key',
       permission: 'granted',
       topics: ['weather'],
@@ -31,7 +32,9 @@ describe('notificationDeliveryRunner', () => {
     }
     const broadcast = createNotificationBroadcast({
       body: 'O 18:30 sa očakáva prechod búrkového pásma, skontrolujte bivaky.',
+      expiresAt: '2026-05-20T19:00:00.000Z',
       severity: 'storm',
+      targetLakeIds: ['velky-cetin'],
       targetTopics: ['weather'],
       title: 'Výstraha pred búrkou',
       validUntil: 'dnes 21:00',
@@ -61,6 +64,8 @@ describe('notificationDeliveryRunner', () => {
     expect(sends[0]).toMatchObject({
       endpoint: 'https://push.example.test/device-1',
       payload: {
+        expiresAt: '2026-05-20T19:00:00.000Z',
+        lakeIds: ['velky-cetin'],
         title: 'Výstraha pred búrkou',
         url: '/notifikacie',
       },

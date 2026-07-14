@@ -71,6 +71,7 @@ export default defineEventHandler(async (event) => {
       const notification = await tryAppendTournamentNotificationBroadcast({
         body: `${assignedMarshal?.name ?? 'Kontrolór'} má nové hlásenie: sektor ${result.request.sectorId.toUpperCase()} · ${result.request.team}.`,
         createdBy: actor.actorLabel,
+        lake: state.tournaments.find((tournament) => tournament.id === result.request?.tournamentId)?.lake,
         marshalIds: result.request.assignedMarshalId ? [result.request.assignedMarshalId] : [],
         reason: 'priradené hlásenie',
         requestId: result.request.id,

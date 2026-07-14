@@ -522,6 +522,7 @@ onBeforeUnmount(() => {
       <AvailabilityRangePicker
         v-model:date-from="dateFrom"
         v-model:date-to="dateTo"
+        compact-on-mobile
         class="mb-5"
       />
 
@@ -558,7 +559,34 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mb-5 grid gap-3 md:grid-cols-3">
+      <DataStatusNotice
+        v-if="isMapStateLoading || hasMapStateError"
+        class="mb-5"
+        :title="hasMapStateError ? 'Mapu sa nepodarilo obnoviť' : 'Načítavam aktuálnu mapu'"
+        :description="hasMapStateError ? 'Zobrazujeme posledný dostupný stav lovných miest a bodov v areáli.' : 'Kontrolujeme aktuálne lovné miesta, chaty a servisné body.'"
+        :tone="hasMapStateError ? 'warning' : 'info'"
+        :loading="isMapStateLoading && !hasMapStateError"
+        :action-label="hasMapStateError ? 'Skúsiť znova' : ''"
+        :action-loading="isMapStateLoading"
+        @action="retryMapState"
+      />
+
+      <LakeMap
+        :title="currentLake.name"
+        :image="activeBackgroundImage"
+        :image-settings="activeBackgroundLayer?.imageSettings"
+        :closures="liveClosures"
+        :date-from="dateFrom"
+        :date-to="dateTo"
+        :facilities="liveMapFacilities"
+        :points="visiblePegs"
+        :reservations="reservations"
+        :shapes="liveMapShapes"
+        :selected-id="selectedPegId"
+        @select="selectPeg"
+      />
+
+      <div class="mt-5 grid gap-3 md:grid-cols-3">
         <div
           v-for="item in availabilitySummaryItems"
           :key="item.label"
@@ -576,7 +604,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mb-5 rounded-md border border-border bg-white p-4">
+      <div class="mt-5 rounded-md border border-border bg-white p-4">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="flex items-start gap-3">
             <UIcon
@@ -621,35 +649,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <DataStatusNotice
-        v-if="isMapStateLoading || hasMapStateError"
-        class="mb-5"
-        :title="hasMapStateError ? 'Mapu sa nepodarilo obnoviť' : 'Načítavam aktuálnu mapu'"
-        :description="hasMapStateError ? 'Zobrazujeme posledný dostupný stav lovných miest a bodov v areáli.' : 'Kontrolujeme aktuálne lovné miesta, chaty a servisné body.'"
-        :tone="hasMapStateError ? 'warning' : 'info'"
-        :loading="isMapStateLoading && !hasMapStateError"
-        :action-label="hasMapStateError ? 'Skúsiť znova' : ''"
-        :action-loading="isMapStateLoading"
-        @action="retryMapState"
-      />
-
-      <LakeMap
-        :title="currentLake.name"
-        :image="activeBackgroundImage"
-        :image-settings="activeBackgroundLayer?.imageSettings"
-        :closures="liveClosures"
-        :date-from="dateFrom"
-        :date-to="dateTo"
-        :facilities="liveMapFacilities"
-        :points="visiblePegs"
-        :reservations="reservations"
-        :shapes="liveMapShapes"
-        :selected-id="selectedPegId"
-        @select="selectPeg"
-      />
-
-      <div class="mt-8 grid gap-6 lg:grid-cols-[0.7fr_1.3fr]">
-        <div class="border-border bg-surface rounded-card border p-5">
+      <div class="mt-8 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold">Nahlásiť nedostatok</h2>
@@ -812,7 +813,7 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div class="border-border bg-surface rounded-card border p-5">
+        <div class="border-border bg-surface min-w-0 rounded-card border p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold">Zoznam miest</h2>

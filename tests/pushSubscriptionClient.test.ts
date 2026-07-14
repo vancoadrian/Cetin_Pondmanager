@@ -4,9 +4,14 @@ import {
   createMockPushSubscriptionPayload,
   createWebPushSubscribeOptions,
   createWebPushSubscriptionPayload,
+  DEFAULT_PUBLIC_PUSH_LAKES,
+  DEFAULT_PUBLIC_PUSH_TOPICS,
   getClientPushSupport,
   MOCK_PUSH_ENDPOINT_STORAGE_KEY,
+  PUSH_PREFERENCES_STORAGE_KEY,
+  readPublicPushPreferences,
   urlBase64ToUint8Array,
+  writePublicPushPreferences,
 } from '~/app/services/pushSubscriptionClient'
 
 class MemoryStorage {
@@ -95,6 +100,39 @@ describe('pushSubscriptionClient', () => {
       endpoint: 'https://push.example.test/device',
       p256dh: 'p256dh-key',
       permission: 'granted',
+    })
+  })
+
+  it('stores validated public topic and lake preferences for one device', () => {
+    const storage = new MemoryStorage()
+
+    expect(readPublicPushPreferences(storage)).toEqual({
+      lakeIds: DEFAULT_PUBLIC_PUSH_LAKES,
+      topics: DEFAULT_PUBLIC_PUSH_TOPICS,
+    })
+
+    const saved = writePublicPushPreferences(storage, {
+      lakeIds: ['strkovisko-kocka'],
+      topics: ['weather', 'reservations'],
+    })
+
+    expect(saved).toEqual({
+      lakeIds: ['strkovisko-kocka'],
+      topics: ['weather', 'reservations'],
+    })
+    expect(readPublicPushPreferences(storage)).toEqual(saved)
+  })
+
+  it('falls back to safe defaults for malformed stored preferences', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(PUSH_PREFERENCES_STORAGE_KEY, JSON.stringify({
+      lakeIds: ['unknown-lake'],
+      topics: ['unknown-topic'],
+    }))
+
+    expect(readPublicPushPreferences(storage)).toEqual({
+      lakeIds: DEFAULT_PUBLIC_PUSH_LAKES,
+      topics: DEFAULT_PUBLIC_PUSH_TOPICS,
     })
   })
 })

@@ -1,23 +1,35 @@
 <script setup lang="ts">
+import type { LakeSlug, PushSubscriptionTopic } from '~/data/pond'
 import type { StatusBadgeTone } from '~/utils/ui'
 import type {
   PublicNotificationStateResponse,
   PushSubscriptionMutationSuccess,
   PushUnsubscribeSuccess,
 } from '~/services/notificationService'
+import { notificationLakeLabels } from '~/services/notificationService'
 import {
   createWebPushSubscribeOptions,
   createWebPushSubscriptionPayload,
+  DEFAULT_PUBLIC_PUSH_LAKES,
+  DEFAULT_PUBLIC_PUSH_TOPICS,
   getClientPushSupport,
   PUSH_ENDPOINT_STORAGE_KEY,
+  readPublicPushPreferences,
   type ClientPushSupport,
+  writePublicPushPreferences,
 } from '~/services/pushSubscriptionClient'
 
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
+function formatSlovakCount(count: number, forms: [string, string, string]) {
+  const form = count === 1 ? forms[0] : count >= 2 && count <= 4 ? forms[1] : forms[2]
+
+  return `${count} ${form}`
+}
+
 useHead({ title: 'Výstrahy' })
 
-const { alerts: seedAlerts } = usePondData()
+const { alerts: seedAlerts, lakes } = usePondData()
 const runtimeConfig = useRuntimeConfig()
 
 const fallbackNotificationState = (): PublicNotificationStateResponse => ({
@@ -46,9 +58,24 @@ const pushSupport = ref<ClientPushSupport>({
 })
 const requesting = ref(false)
 const subscriptionEndpoint = ref('')
+const selectedLakeIds = ref<LakeSlug[]>([...DEFAULT_PUBLIC_PUSH_LAKES])
+const selectedTopics = ref<PushSubscriptionTopic[]>([...DEFAULT_PUBLIC_PUSH_TOPICS])
 const subscriptionSubmitMessage = ref('')
 const subscriptionSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const alerts = computed(() => notificationState.value?.alerts ?? seedAlerts)
+const uniqueAlerts = computed(() => {
+  const seenScopes = new Set<string>()
+
+  return alerts.value.filter((alert) => {
+    const scope = [...(alert.lakeIds ?? [])].sort().join(',') || 'all'
+    const key = `${alert.severity}:${alert.title}:${scope}`
+
+    if (seenScopes.has(key)) return false
+
+    seenScopes.add(key)
+    return true
+  })
+})
 const alertSeverityPriority: Record<string, number> = {
   storm: 0,
   service: 1,
@@ -56,7 +83,7 @@ const alertSeverityPriority: Record<string, number> = {
   info: 3,
 }
 const sortedAlerts = computed(() =>
-  [...alerts.value].sort((first, second) => {
+  [...uniqueAlerts.value].sort((first, second) => {
     const priorityDiff = (alertSeverityPriority[first.severity] ?? 4) - (alertSeverityPriority[second.severity] ?? 4)
     if (priorityDiff !== 0) return priorityDiff
 
@@ -97,6 +124,16 @@ const lastNotificationUpdateLabel = computed(() => {
 })
 const notificationsAvailable = computed(() => pushSupport.value.mode === 'web-push')
 const notificationsEnabled = computed(() => notificationsAvailable.value && Boolean(subscriptionEndpoint.value))
+const hasNotificationSelection = computed(() =>
+  selectedTopics.value.length > 0 && selectedLakeIds.value.length > 0,
+)
+const notificationSelectionLabel = computed(() => [
+  formatSlovakCount(selectedTopics.value.length, ['okruh', 'okruhy', 'okruhov']),
+  formatSlovakCount(selectedLakeIds.value.length, ['jazero', 'jazerá', 'jazier']),
+].join(' · '))
+const notificationPrimaryActionLabel = computed(() =>
+  subscriptionEndpoint.value ? 'Uložiť výber' : 'Zapnúť vybrané upozornenia',
+)
 const notificationAvailabilityMessage = computed(() => {
   if (notificationsAvailable.value) {
     return 'Toto zariadenie vie prijímať výstrahy z revíru.'
@@ -178,20 +215,24 @@ const notificationSummaryItems = computed(() => [
     icon: criticalAlertCount.value > 0 ? 'i-heroicons-bolt' : 'i-heroicons-megaphone',
     label: 'Stav pri vode',
     value: criticalAlertCount.value > 0
-      ? `${criticalAlertCount.value} výstraha`
+      ? formatSlovakCount(criticalAlertCount.value, ['výstraha', 'výstrahy', 'výstrah'])
       : activeAlertCount.value > 0
-        ? `${activeAlertCount.value} oznamy`
+        ? formatSlovakCount(activeAlertCount.value, ['oznam', 'oznamy', 'oznamov'])
         : 'pokoj',
   },
   {
     icon: notificationsEnabled.value ? 'i-heroicons-bell-alert' : 'i-heroicons-bell-slash',
     label: 'Toto zariadenie',
-    value: notificationsEnabled.value ? 'výstrahy zapnuté' : 'výstrahy vypnuté',
+    value: notificationsEnabled.value
+      ? `výber: ${formatSlovakCount(selectedTopics.value.length, ['okruh', 'okruhy', 'okruhov'])}`
+      : 'výstrahy vypnuté',
   },
   {
     icon: serviceAlertCount.value > 0 ? 'i-heroicons-wrench-screwdriver' : 'i-heroicons-clock',
     label: serviceAlertCount.value > 0 ? 'Prevádzka' : 'Aktualizované',
-    value: serviceAlertCount.value > 0 ? `${serviceAlertCount.value} oznam` : lastNotificationUpdateLabel.value,
+    value: serviceAlertCount.value > 0
+      ? formatSlovakCount(serviceAlertCount.value, ['oznam', 'oznamy', 'oznamov'])
+      : lastNotificationUpdateLabel.value,
   },
 ])
 const notificationTopicCards = [
@@ -199,25 +240,32 @@ const notificationTopicCards = [
     description: 'búrky, vietor, nárazový dážď, bezpečnosť člnov a bivakov',
     icon: 'i-heroicons-bolt',
     title: 'Počasie',
+    value: 'weather' as const,
   },
   {
     description: 'údržba chaty, zákaz vjazdu, zmena pravidiel a pohyb techniky',
     icon: 'i-heroicons-wrench-screwdriver',
     title: 'Revír',
+    value: 'service' as const,
   },
   {
     description: 'potvrdenie, presun termínu, pripomenutie príchodu a odchodu',
     icon: 'i-heroicons-calendar-days',
     title: 'Rezervácie',
+    value: 'reservations' as const,
   },
   {
     description: 'zmeny programu, váženia, uzávierky sektorov a organizačné pokyny',
     icon: 'i-heroicons-trophy',
     title: 'Súťaže',
+    value: 'tournaments' as const,
   },
 ]
 
 onMounted(() => {
+  const preferences = readPublicPushPreferences(localStorage)
+  selectedLakeIds.value = preferences.lakeIds
+  selectedTopics.value = preferences.topics
   const vapidPublicKey = String(runtimeConfig.public.vapidPublicKey || '')
   pushSupport.value = getClientPushSupport({
     hasNotification: 'Notification' in window,
@@ -277,6 +325,11 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 async function requestNotifications() {
+  if (!hasNotificationSelection.value) {
+    subscriptionSubmitStatus.value = 'error'
+    subscriptionSubmitMessage.value = 'Vyberte aspoň jeden okruh a jedno jazero.'
+    return
+  }
   if (!('Notification' in window)) {
     notificationStatus.value = 'unsupported'
     subscriptionSubmitStatus.value = 'error'
@@ -300,17 +353,26 @@ async function requestNotifications() {
       body: {
         ...subscriptionPayload,
         deviceLabel: 'Web PWA zariadenie',
-        topics: ['weather', 'service', 'reservations', 'tournaments'],
+        lakeIds: selectedLakeIds.value,
+        topics: selectedTopics.value,
         userAgent: navigator.userAgent,
       },
       method: 'POST',
     })
 
     subscriptionEndpoint.value = result.subscription.endpoint
+    selectedLakeIds.value = result.subscription.lakeIds?.length
+      ? [...result.subscription.lakeIds]
+      : [...selectedLakeIds.value]
+    selectedTopics.value = [...result.subscription.topics]
     localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, result.subscription.endpoint)
+    writePublicPushPreferences(localStorage, {
+      lakeIds: selectedLakeIds.value,
+      topics: selectedTopics.value,
+    })
     subscriptionSubmitStatus.value = 'success'
     subscriptionSubmitMessage.value = result.subscription.enabled
-      ? 'Výstrahy sú zapnuté pre toto zariadenie.'
+      ? 'Výber upozornení je uložený pre toto zariadenie.'
       : 'Výstrahy sa nepodarilo zapnúť pre toto zariadenie.'
     await refreshNotifications()
   }
@@ -390,6 +452,12 @@ function alertSeverityLabel(severity: string) {
   if (severity === 'service') return 'prevádzka'
 
   return 'oznam'
+}
+
+function formatAlertLakes(lakeIds?: LakeSlug[]) {
+  if (!lakeIds?.length) return 'všetky jazerá'
+
+  return lakeIds.map((lakeId) => notificationLakeLabels[lakeId]).join(', ')
 }
 
 function alertActionText(severity: string) {
@@ -473,36 +541,6 @@ function formatAlertValidUntil(value: string) {
             :tone="notificationSupportNoticeTone"
           />
 
-          <div class="mt-5 grid gap-2 sm:grid-cols-2">
-            <UButton
-              icon="i-heroicons-bell"
-              :loading="requesting"
-              :disabled="!notificationsAvailable || notificationStatus === 'unsupported'"
-              block
-              @click="requestNotifications"
-            >
-              Zapnúť upozornenia
-            </UButton>
-            <UButton
-              icon="i-heroicons-bell-slash"
-              color="neutral"
-              variant="soft"
-              :loading="requesting"
-              :disabled="!subscriptionEndpoint"
-              block
-              @click="disableNotifications"
-            >
-              Vypnúť
-            </UButton>
-          </div>
-          <DataStatusNotice
-            v-if="subscriptionSubmitMessage"
-            class="mt-3"
-            :description="subscriptionSubmitMessage"
-            :loading="subscriptionSubmitStatus === 'submitting'"
-            :title="subscriptionNoticeTitle"
-            :tone="subscriptionNoticeTone"
-          />
         </div>
 
         <div class="space-y-4">
@@ -555,6 +593,12 @@ function formatAlertValidUntil(value: string) {
                     size="xs"
                   />
                   <StatusBadge
+                    icon="i-heroicons-map-pin"
+                    :label="formatAlertLakes(alert.lakeIds)"
+                    tone="neutral"
+                    size="xs"
+                  />
+                  <StatusBadge
                     icon="i-heroicons-clock"
                     :label="`do ${formatAlertValidUntil(alert.validUntil)}`"
                     tone="neutral"
@@ -576,18 +620,108 @@ function formatAlertValidUntil(value: string) {
         </div>
       </div>
 
-      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div
-          v-for="topic in notificationTopicCards"
-          :key="topic.title"
-          class="border-border bg-surface rounded-card border p-5"
-        >
-          <UIcon :name="topic.icon" class="h-5 w-5 text-primary-700" />
-          <h3 class="mt-3 font-bold">{{ topic.title }}</h3>
-          <p class="text-foreground-muted mt-2 text-sm">
-            {{ topic.description }}
-          </p>
+      <div class="mt-10 border-y border-border py-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 class="text-xl font-bold">Upozornenia pre toto zariadenie</h2>
+            <p class="mt-1 text-sm text-foreground-muted">
+              Výber sa uloží iba v tomto telefóne alebo prehliadači.
+            </p>
+          </div>
+          <StatusBadge
+            icon="i-heroicons-adjustments-horizontal"
+            :label="notificationSelectionLabel"
+            :tone="hasNotificationSelection ? 'primary' : 'warning'"
+          />
         </div>
+
+        <fieldset class="mt-6">
+          <legend class="text-sm font-bold">Okruhy</legend>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label
+              v-for="topic in notificationTopicCards"
+              :key="topic.value"
+              class="flex min-h-32 cursor-pointer items-start gap-3 rounded-md border p-4 transition"
+              :class="selectedTopics.includes(topic.value)
+                ? 'border-primary-600 bg-primary-50/60'
+                : 'border-border bg-surface hover:border-primary-300'"
+            >
+              <input
+                v-model="selectedTopics"
+                :value="topic.value"
+                type="checkbox"
+                class="mt-1 h-4 w-4 shrink-0 accent-primary-700"
+              >
+              <span class="min-w-0">
+                <UIcon :name="topic.icon" class="h-5 w-5 text-primary-700" />
+                <span class="mt-2 block font-bold">{{ topic.title }}</span>
+                <span class="mt-1 block text-sm text-foreground-muted">{{ topic.description }}</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="mt-6">
+          <legend class="text-sm font-bold">Jazerá</legend>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label
+              v-for="lake in lakes"
+              :key="lake.slug"
+              class="flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 transition"
+              :class="selectedLakeIds.includes(lake.slug)
+                ? 'border-primary-600 bg-primary-50/60'
+                : 'border-border bg-surface hover:border-primary-300'"
+            >
+              <input
+                v-model="selectedLakeIds"
+                :value="lake.slug"
+                type="checkbox"
+                class="h-4 w-4 shrink-0 accent-primary-700"
+              >
+              <UIcon name="i-heroicons-map-pin" class="h-5 w-5 shrink-0 text-primary-700" />
+              <span class="font-bold">{{ lake.name }}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <DataStatusNotice
+          v-if="!hasNotificationSelection"
+          class="mt-4"
+          description="Vyberte aspoň jeden okruh a jedno jazero."
+          title="Výber nie je úplný"
+          tone="warning"
+        />
+
+        <div class="mt-6 grid gap-2 sm:max-w-xl sm:grid-cols-2">
+          <UButton
+            :icon="subscriptionEndpoint ? 'i-heroicons-check' : 'i-heroicons-bell'"
+            :loading="requesting"
+            :disabled="!notificationsAvailable || notificationStatus === 'unsupported' || !hasNotificationSelection"
+            block
+            @click="requestNotifications"
+          >
+            {{ notificationPrimaryActionLabel }}
+          </UButton>
+          <UButton
+            icon="i-heroicons-bell-slash"
+            color="neutral"
+            variant="soft"
+            :loading="requesting"
+            :disabled="!subscriptionEndpoint"
+            block
+            @click="disableNotifications"
+          >
+            Vypnúť upozornenia
+          </UButton>
+        </div>
+        <DataStatusNotice
+          v-if="subscriptionSubmitMessage"
+          class="mt-3 sm:max-w-xl"
+          :description="subscriptionSubmitMessage"
+          :loading="subscriptionSubmitStatus === 'submitting'"
+          :title="subscriptionNoticeTitle"
+          :tone="subscriptionNoticeTone"
+        />
       </div>
     </section>
   </div>

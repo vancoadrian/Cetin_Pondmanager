@@ -6,6 +6,9 @@ self.addEventListener('push', (event) => {
   }
 
   const payload = event.data ? event.data.json() : fallback
+  const expiresAt = payload.expiresAt ? Date.parse(payload.expiresAt) : Number.NaN
+  if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) return
+
   const title = payload.title || fallback.title
 
   event.waitUntil(

@@ -326,6 +326,10 @@ export interface Alert {
   severity: AlertSeverity
   title: string
   body: string
+  createdAt?: string
+  endedAt?: string
+  expiresAt?: string
+  lakeIds?: LakeSlug[]
   validUntil: string
 }
 
@@ -338,6 +342,7 @@ export interface PushSubscriptionRecord {
   enabled: boolean
   endpoint: string
   lastSeenAt: string
+  lakeIds?: LakeSlug[]
   marshalId?: string
   p256dh?: string
   permission: PushSubscriptionPermission
@@ -354,11 +359,15 @@ export interface NotificationBroadcast {
   body: string
   createdAt: string
   createdBy: string
+  endedAt?: string
+  endedBy?: string
+  expiresAt?: string
   message: string
   recipientCount: number
   severity: AlertSeverity
   status: NotificationBroadcastStatus
   targetAudience?: NotificationAudience
+  targetLakeIds?: LakeSlug[]
   targetTopics: PushSubscriptionTopic[]
   title: string
   validUntil: string
@@ -943,8 +952,8 @@ export const infoSections: InfoSection[] = [
   {
     title: 'Prevádzka Veľký Cetín',
     items: [
-      'Rezervácie miest sú možné len po telefonáte so správcom rybníka.',
-      'Rezervácie sa prijímajú pondelok až piatok v čase od 9:00 do 14:00.',
+      'Žiadosť o rezerváciu môžete odoslať cez aplikáciu alebo dohodnúť telefonicky so správcom.',
+      'Správca vybavuje žiadosti pondelok až piatok od 9:00 do 14:00; rezervácia platí až po potvrdení.',
       'Vo Veľkom Cetíne je založenie ohnísk v areáli prísne zakázané.',
       'Návšteva mimo prevádzkových dní je možná po dohode so správcom na minimálne 48 hodín.',
     ],
@@ -953,8 +962,8 @@ export const infoSections: InfoSection[] = [
   {
     title: 'Prevádzka Štrkovisko Kocka',
     items: [
-      'Rezervácie miest sú možné len po telefonáte so správcom rybníka.',
-      'Rezervácie sa prijímajú pondelok až piatok v čase od 9:00 do 14:00.',
+      'Žiadosť o rezerváciu môžete odoslať cez aplikáciu alebo dohodnúť telefonicky so správcom.',
+      'Správca vybavuje žiadosti pondelok až piatok od 9:00 do 14:00; rezervácia platí až po potvrdení.',
       'Nočná rybačka je možná po dohode so správcom.',
       'Na Kocke je možné prenajať altánok na firemné akcie, oslavy a večierky za cenu dohodou.',
     ],
@@ -2235,7 +2244,7 @@ export const alerts: Alert[] = [
     severity: 'service',
     title: 'Údržba chaty 10',
     body: 'Chata 10 je dočasne blokovaná. Rezervácie presúvame na najbližšie voľné miesto.',
-    validUntil: 'pondelok',
+    validUntil: 'pondelka',
   },
 ]
 
