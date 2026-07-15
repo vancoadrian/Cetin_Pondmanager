@@ -102,6 +102,9 @@ describe('supabaseSeedService', () => {
     expect(payload.tables.map_facilities).toHaveLength(mapFacilities.length)
     expect(payload.tables.pegs).toHaveLength(pegs.length)
     expect(payload.tables.place_issues).toHaveLength(placeIssues.length)
+    expect(payload.tables.alerts[0]).toMatchObject({
+      valid_from: '2026-05-17T00:00:00+02:00',
+    })
     expect(payload.tables.reservations).toHaveLength(reservations.length)
     expect(payload.tables.payment_methods).toHaveLength(paymentMethods.length)
     expect(payload.tables.catch_photos).toHaveLength(catchPhotos.length)

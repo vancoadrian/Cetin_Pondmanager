@@ -20,12 +20,16 @@ PWA prototyp pre správu rybárskeho revíru Štrkovisko Kocka a Veľký Cetín.
 
 ```bash
 pnpm install
+pnpm supabase:start
+pnpm local:setup
 pnpm dev
 ```
 
 Potom otvor `http://localhost:3000`.
 
-Env základ skopíruj z `.env.example`. `RYBOLOV_ENVIRONMENT` môže byť `development`, `staging` alebo `production`; admin modul `/admin/system` potom ukáže readiness kontrolu pre verejnú URL, perzistentný lokálny dátový adresár, Web Push/VAPID, Resend reporty, cron secret a weather provider.
+`local:setup` vytvorí ignorovaný `.env` z `.env.example`, načíta lokálne Supabase URL a kľúče a bezpečne vygeneruje alebo zachová VAPID pár bez vypísania tajomstiev. `RYBOLOV_ENVIRONMENT` môže byť `development`, `staging` alebo `production`; admin modul `/admin/system` potom ukáže readiness kontrolu pre verejnú URL, perzistentný lokálny dátový adresár, Web Push/VAPID, Resend reporty, cron secret a weather provider.
+
+Pri zmene schémy alebo seed dát spusti `pnpm seed:export && pnpm supabase:reset`. Lokálne služby sú na API `54321`, DB `54322`, Studio `54323` a Mailpit `54324`. Aplikačné repository zatiaľ naďalej používa lokálne JSON stores; Supabase je lokálny migračný/RLS kontrakt, nie potichu zapnutý produkčný backend.
 
 ## Dáta
 
@@ -49,7 +53,7 @@ Rezervačný workflow už používa aj lokálny runtime stav v `.data/rybolov-ce
 
 Mapový editor používa publikovaný stav `.data/rybolov-cetin/map-state.json`, rozpracovaný stav `.data/rybolov-cetin/map-draft-state.json` a nahraté podklady ukladá do `.data/rybolov-cetin/map-assets/`. Public mapa číta sanitizovaný publikovaný stav cez `GET /api/map`, ktorý nevracia interné servisné body, zóny ani vrstvy; admin editor číta draft cez `GET /api/admin/map`. Admin odpovede vracajú aj `draftChanges`, teda počty a názvy zmien draftu oproti verejnej mape. Admin úpravy lovných miest, chát, servisných bodov, polygonových plôch a aktívnych vrstiev sa ukladajú ako draft cez `PUT /api/admin/map`; verejná mapa sa zmení až po `POST /api/admin/map/publish` a rozpracované zmeny sa dajú vrátiť na publikovanú verziu cez `POST /api/admin/map/discard-draft`. Verejné mapové assety z `/api/map-assets/:id` sa vydajú iba vtedy, keď patria k public alebo súťažnej vrstve v publikovanej mape.
 
-Notifikácie používajú `.data/rybolov-cetin/notification-state.json`. Verejná stránka číta oznamy cez `GET /api/notifications`, PWA odber uloží cez `POST /api/notifications/subscribe` a vypne cez `POST /api/notifications/unsubscribe`. Admin obrazovka `/admin/notifikacie` číta interný stav cez `GET /api/admin/notifications` a pripraví nový oznam cez `POST /api/admin/notifications/broadcast`; zatiaľ ide o mock dispatcher s audit stopou, pripravený na Web Push po doplnení `NUXT_PUBLIC_VAPID_PUBLIC_KEY`, `RYBOLOV_VAPID_PRIVATE_KEY` a odosielacieho providera.
+Notifikácie používajú `.data/rybolov-cetin/notification-state.json`. Verejná stránka číta oznamy cez `GET /api/notifications`, PWA odber uloží cez `POST /api/notifications/subscribe` a vypne cez `POST /api/notifications/unsubscribe`. Admin obrazovka `/admin/notifikacie` číta interný stav cez `GET /api/admin/notifications` a pripraví nový oznam cez `POST /api/admin/notifications/broadcast`. Dispatcher podporuje `mock`, `disabled` aj reálny štandardný `web-push` provider s VAPID; lokálny setup ho zapne a produkcia musí odbery/delivery logy presunúť do Supabase.
 
 Offline režim má stránku `/offline`, stavový banner v app shelli, service worker cache pre verejné API `/api/notifications`, `/api/map`, `/api/reservations`, `/api/catches`, `/api/tournaments` a obrázky revíru. Pri slabom signále sa zobrazí posledná uložená odpoveď, aby mapa, výstrahy a základné prehľady nepadli na prázdnu obrazovku. Verejné formuláre pre rezervácie, úlovky a súťažné hlásenia majú klientsku IndexedDB frontu: ak odoslanie zlyhá kvôli výpadku siete, validovaný payload ostane v zariadení a po návrate internetu sa odošle do príslušného API. `/offline` zároveň funguje ako centrum čakajúcich položiek s hromadným odoslaním, mazanim jednotlivých offline záznamov, počtom položiek na kontrolu, poslednou chybou a preklikom späť do príslušného formulára. App header zobrazuje badge s počtom čakajúcich offline položiek, ak v zariadení niečo ostalo neodoslané.
 
@@ -63,7 +67,7 @@ Systémový monitoring má verejný `GET /api/health`, admin detail `/api/admin/
 
 Lokálne dáta sa dajú pred Supabase zálohovať cez admin endpoint `GET /api/admin/data-export`. V `/admin/system` je panel so súhrnom store, počtom záznamov, asset súbormi a downloadom JSON exportu. Režim `assets=manifest` uloží dáta a zoznam súborov, `assets=inline` vloží obrázky a logá priamo ako base64 do JSON zálohy. Každý nový export obsahuje SHA-256 integritný odtlačok; preview ho overí a upravený alebo poškodený súbor označí ako neplatný. Ten istý panel vie cez `POST /api/admin/data-import/preview` ne-deštruktívne skontrolovať nahratý backup, porovnať store a ukázať upozornenia ešte pred restore. Ostrá obnova ide cez `POST /api/admin/data-import/restore`, vyžaduje frázu `OBNOVIT DATA` a pred prepísaním store uloží safety backup aktuálneho stavu do `.data/rybolov-cetin/backups/`. Admin vie safety backupy listovať cez `GET /api/admin/data-backups`, priamo načítať do kontroly obnovy, stiahnuť konkrétny súbor cez `GET /api/admin/data-backups/:id?download=1` a čistiť staršie safety backupy cez dvojkrokový `POST /api/admin/data-backups/cleanup` s náhľadom a frázou `VYCISTIT BACKUPY`.
 
-Seed export pre budúci Supabase import spustíš cez `pnpm seed:export`. Vygeneruje `supabase/seed/rybolov-cetin.seed.json` s deterministickými UUID a tabuľkovým payloadom podľa aktuálneho dátového kontraktu.
+Seed export pre budúci Supabase import spustíš cez `pnpm seed:export`. Vygeneruje JSON kontrakt aj vykonateľný `supabase/seed.sql` s deterministickými UUID podľa aktuálneho dátového kontraktu.
 
 ## Podklady
 
@@ -87,4 +91,5 @@ Lokálne obrazové podklady sú skopírované do `public/images/`.
 - `docs/features/catches-ai.md` — úlovky a budúca AI vrstva.
 - `docs/features/sponsors.md` — sponzori.
 - `docs/seed-import.md` — export mock dát do Supabase seed formátu.
+- `docs/deployment/production-platform.md` — odporúčaná Vercel/Supabase/Cloudflare/Sentry/Resend produkčná architektúra.
 - `docs/source-web-assets.md` — zdrojové webové podklady a overené fakty.

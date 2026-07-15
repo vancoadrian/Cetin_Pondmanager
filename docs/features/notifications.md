@@ -28,3 +28,20 @@
 - História rozoslaní aj zoznam odberov zobrazujú okruhy a jazerný rozsah.
 - Audit manuálneho rozoslania ukladá `targetLakeIds`, nie osobné údaje príjemcov.
 - Reálne doručenie vyžaduje service worker, povolenie prehliadača, verejný VAPID kľúč a serverový provider `web-push`.
+
+## Lokálny reálny Web Push
+
+Po `pnpm supabase:start && pnpm local:setup` obsahuje ignorovaný `.env` lokálny VAPID pár, provider `web-push` a zapnutý service worker pre lokálny PWA test. Produkčný build musí bežať na rovnakom secure origin/localhost origin, na ktorom používateľ odber povolí.
+
+Verejná obrazovka načíta panel nastavení až pri priblížení k viewportu a samotný Push API helper až po kliknutí na zapnutie. Výstrahy a SSR obsah preto neťahajú Zod schémy, celé pond dáta ani PushManager kód do počiatočného route chunku.
+
+Lokálne end-to-end overenie:
+
+1. otvoriť `/notifikacie` v browseri s povolenými notifikáciami,
+2. zapnúť aspoň jeden okruh a jazero,
+3. overiť, že uložený endpoint nie je `mock://`,
+4. ako správca odoslať interný test alebo verejný oznam s rovnakým topic/jazerným scope,
+5. overiť HTTP odpoveď push služby, zobrazenie notifikácie a bezpečný deep link,
+6. vypnúť odber a overiť, že sa lokálny PushSubscription aj serverový záznam deaktivovali.
+
+Lokálne odbery zatiaľ zostávajú v JSON notification store, pretože aplikačné repository ešte nebolo prepnuté na Supabase. Produkcia musí uložiť odbery a delivery logy do `push_subscriptions` a `notification_delivery_logs`; pri HTTP 404/410 má dispatcher endpoint deaktivovať.

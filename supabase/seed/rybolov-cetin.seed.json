@@ -172,6 +172,7 @@
         "lake_id": null,
         "severity": "storm",
         "title": "Výstraha pred búrkou",
+        "valid_from": "2026-05-17T00:00:00+02:00",
         "valid_until": "2026-05-17T21:00:00+02:00",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
         "visibility": "public"
@@ -182,6 +183,7 @@
         "lake_id": null,
         "severity": "water",
         "title": "Zvýšený vietor na otvorenej vode",
+        "valid_from": "2026-05-17T00:00:00+02:00",
         "valid_until": "2026-05-17T20:00:00+02:00",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
         "visibility": "public"
@@ -192,7 +194,8 @@
         "lake_id": null,
         "severity": "service",
         "title": "Údržba chaty 10",
-        "valid_until": "2026-05-18T23:59:00+02:00",
+        "valid_from": "2026-05-17T00:00:00+02:00",
+        "valid_until": "2026-05-17T00:00:00+02:00",
         "venue_id": "61a5fb8f-cc01-5690-af9c-1128c5485d91",
         "visibility": "public"
       }
@@ -1625,7 +1628,7 @@
         "active": true,
         "applies_to": "all",
         "code": "third-rod",
-        "description": "Web uvádza možnosť dokúpenia po dohode so správcom.",
+        "description": "Doplnková služba dostupná po dohode so správcom.",
         "id": "124db913-fe27-5a10-a212-b5c0901f99d7",
         "label": "Tretí prút",
         "lake_id": null,
@@ -1637,7 +1640,7 @@
         "active": true,
         "applies_to": "all",
         "code": "gazebo-kocka",
-        "description": "Web uvádza možnosť prenajatia altánku na firemné akcie, oslavy a večierky.",
+        "description": "Altánok je dostupný po dohode so správcom na firemné akcie, oslavy a večierky.",
         "id": "f26e432e-76e8-5331-a34d-0e0a002fe412",
         "label": "Altánok / akcia na Kocke",
         "lake_id": "650523ec-45a5-57a3-8efc-5a698f1702b3",
@@ -2388,7 +2391,7 @@
             "Po-Pi 9:00-14:00 rezervácie",
             "So-Ne 7:00-18:00 prevádzkový kontakt"
           ],
-          "reservationNote": "Rezervácie miest sú možné len po telefonáte so správcom. Web uvádza príjem rezervácií pondelok až piatok od 9:00 do 14:00.",
+          "reservationNote": "Rezervácie miest prijíma správca telefonicky pondelok až piatok od 9:00 do 14:00. Prevádzkové otázky pri vode riešte cez víkend na rovnakom čísle.",
           "role": "správca štrkoviska",
           "sourceUrl": "https://strkoviskokocka.sk/strkovisko-velky-cetin/home/"
         },

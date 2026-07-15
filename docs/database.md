@@ -6,7 +6,35 @@ Prvá Supabase migrácia je v `supabase/migrations/202605160001_rybolov_cetin_co
 
 Migrácia zatiaľ neslúži ako finálne produkčné rozhodnutie o každom stĺpci. Je to pracovný kontrakt medzi prototypom a budúcim backendom: pomenúva tabuľky, vzťahy, enumy, indexy a základné RLS politiky tak, aby sa dalo pokračovať na repository implementácii bez ďalšieho veľkého prepisu.
 
-Prvý seed export aktuálnych mock dát vzniká cez `pnpm seed:export` do `supabase/seed/rybolov-cetin.seed.json`. Export používa deterministické UUID, takže sa dá opakovane regenerovať bez rozbitia referencií.
+Prvý seed export aktuálnych mock dát vzniká cez `pnpm seed:export` do `supabase/seed/rybolov-cetin.seed.json` a vykonateľného `supabase/seed.sql`. Export používa deterministické UUID, takže sa dá opakovane regenerovať bez rozbitia referencií. SQL používa explicitné poradie závislostí, transakciu a `on conflict do nothing`; neupravuje sa ručne.
+
+## Lokálny Supabase
+
+Projekt má lokálny Supabase CLI/Docker profil v `supabase/config.toml`:
+
+- API `http://127.0.0.1:54321`,
+- PostgreSQL `127.0.0.1:54322`,
+- Studio `http://127.0.0.1:54323`,
+- Mailpit `http://127.0.0.1:54324`,
+- privátne Storage buckety `catch-photos` a `sponsor-assets`.
+
+Prvé spustenie:
+
+```bash
+pnpm supabase:start
+pnpm local:setup
+```
+
+`local:setup` načíta lokálne Supabase URL/kľúče, zachová alebo vytvorí VAPID pár a zapíše ignorovaný `.env` s právami `0600`. Tajomstvá nevypisuje. Pri zmene migrácie alebo seed dát:
+
+```bash
+pnpm seed:export
+pnpm supabase:reset
+```
+
+Reset musí skončiť bez chyby, anonymous REST čítanie verejných dát musí prejsť cez RLS a v databáze musia zostať oba Storage buckety. Lokálny stack nie je určený na verejné vystavenie ani produkciu.
+
+Supabase CLI už automaticky nevystavuje nové tabuľky Data API rolám. Migrácia `202607150001_explicit_api_grants.sql` preto udeľuje oprávnenia existujúcim tabuľkám explicitne; nové tabuľky musia mať vlastné granty aj RLS politiky v tej istej migrácii. Budúce tabuľky sa anonymous roli neudeľujú cez default privileges.
 
 ## Multi-tenant jadro
 
@@ -84,7 +112,8 @@ Základné pravidlá:
 
 Ďalšie implementačné kroky sú:
 
-1. pridať Supabase env premenné, keď bude projekt vytvorený,
-2. vytvoriť Supabase client/repository implementáciu vedľa mock/lokálnej repository,
-3. nahradiť lokálne mutácie v rezervačných a úlovkových API produkčnými Supabase mutáciami,
-4. rozhodnúť, či seed JSON konvertovať na SQL súbor alebo spúšťať cez vlastný import runner.
+1. vytvoriť Supabase client/repository implementáciu vedľa mock/lokálnej repository,
+2. pridať RLS integračné testy pre anonymous, angler, team, marshal a prevádzkové roly,
+3. nahradiť lokálne mutácie v rezervačných a notifikačných API produkčnými Supabase mutáciami,
+4. presunúť fotky úlovkov a sponzorské/mapové assety do Storage,
+5. až po odstránení produkčných zápisov do `.data` nasadiť SSR/API na Vercel.

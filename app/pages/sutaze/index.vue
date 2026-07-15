@@ -29,6 +29,7 @@ import {
   MAP_VIEWBOX_HEIGHT,
   MAP_VIEWBOX_WIDTH,
 } from '~/utils/map'
+import { getResponsiveMapBackgroundSources } from '~/utils/responsiveImage'
 import {
   getTournamentMapCoverage,
   getTournamentSectorMapRows,
@@ -194,6 +195,14 @@ const sectorShapeById = computed(() =>
 const tournamentMapImageAttributes = computed(() =>
   getMapLayerImageAttributes(activeTournamentBackgroundLayer.value?.imageSettings),
 )
+const responsiveTournamentMapSources = computed(() =>
+  getResponsiveMapBackgroundSources(activeTournamentBackgroundImage.value),
+)
+const tournamentMapObjectFit = computed(() => {
+  if (tournamentMapImageAttributes.value.preserveAspectRatio === 'none') return 'fill'
+
+  return tournamentMapImageAttributes.value.preserveAspectRatio.endsWith(' meet') ? 'contain' : 'cover'
+})
 const requestForm = reactive<{
   sectorId: string
   type: TournamentRequest['type']
@@ -795,8 +804,45 @@ watch([activeTournament, teamScopedSector], ([tournament, scopedSector]) => {
               role="img"
               :aria-label="`Súťažná mapa ${activeTournament.name}`"
             >
+              <foreignObject
+                v-if="activeTournamentBackgroundImage && responsiveTournamentMapSources"
+                :x="tournamentMapImageAttributes.x"
+                :y="tournamentMapImageAttributes.y"
+                :width="tournamentMapImageAttributes.width"
+                :height="tournamentMapImageAttributes.height"
+                :opacity="tournamentMapImageAttributes.opacity"
+                aria-hidden="true"
+              >
+                <picture xmlns="http://www.w3.org/1999/xhtml" class="block h-full w-full">
+                  <source
+                    media="(min-width: 1024px)"
+                    type="image/avif"
+                    :srcset="responsiveTournamentMapSources.desktop.avif"
+                  >
+                  <source
+                    type="image/avif"
+                    :srcset="responsiveTournamentMapSources.mobile.avif"
+                  >
+                  <source
+                    media="(min-width: 1024px)"
+                    type="image/webp"
+                    :srcset="responsiveTournamentMapSources.desktop.webp"
+                  >
+                  <source
+                    type="image/webp"
+                    :srcset="responsiveTournamentMapSources.mobile.webp"
+                  >
+                  <img
+                    :src="activeTournamentBackgroundImage"
+                    alt=""
+                    class="block h-full w-full"
+                    :style="{ objectFit: tournamentMapObjectFit }"
+                    draggable="false"
+                  >
+                </picture>
+              </foreignObject>
               <image
-                v-if="activeTournamentBackgroundImage"
+                v-else-if="activeTournamentBackgroundImage"
                 :href="activeTournamentBackgroundImage"
                 aria-hidden="true"
                 :x="tournamentMapImageAttributes.x"

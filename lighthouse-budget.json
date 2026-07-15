@@ -1,0 +1,78 @@
+[
+  {
+    "path": "/",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 4000 },
+      { "metric": "total-blocking-time", "budget": 300 },
+      { "metric": "cumulative-layout-shift", "budget": 0.1 }
+    ],
+    "resourceSizes": [
+      { "resourceType": "total", "budget": 450 },
+      { "resourceType": "script", "budget": 250 },
+      { "resourceType": "image", "budget": 120 },
+      { "resourceType": "stylesheet", "budget": 30 }
+    ],
+    "resourceCounts": [
+      { "resourceType": "total", "budget": 55 },
+      { "resourceType": "script", "budget": 40 },
+      { "resourceType": "image", "budget": 5 }
+    ]
+  },
+  {
+    "path": "/mapa",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 4200 },
+      { "metric": "total-blocking-time", "budget": 300 },
+      { "metric": "cumulative-layout-shift", "budget": 0.1 }
+    ],
+    "resourceSizes": [
+      { "resourceType": "total", "budget": 650 },
+      { "resourceType": "script", "budget": 260 },
+      { "resourceType": "image", "budget": 320 },
+      { "resourceType": "stylesheet", "budget": 30 }
+    ],
+    "resourceCounts": [
+      { "resourceType": "total", "budget": 55 },
+      { "resourceType": "script", "budget": 40 },
+      { "resourceType": "image", "budget": 5 }
+    ]
+  },
+  {
+    "path": "/rezervacie",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 4200 },
+      { "metric": "total-blocking-time", "budget": 300 },
+      { "metric": "cumulative-layout-shift", "budget": 0.1 }
+    ],
+    "resourceSizes": [
+      { "resourceType": "total", "budget": 380 },
+      { "resourceType": "script", "budget": 260 },
+      { "resourceType": "image", "budget": 20 },
+      { "resourceType": "stylesheet", "budget": 30 }
+    ],
+    "resourceCounts": [
+      { "resourceType": "total", "budget": 50 },
+      { "resourceType": "script", "budget": 36 },
+      { "resourceType": "image", "budget": 4 }
+    ]
+  },
+  {
+    "path": "/notifikacie",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 3500 },
+      { "metric": "total-blocking-time", "budget": 350 },
+      { "metric": "cumulative-layout-shift", "budget": 0.1 }
+    ],
+    "resourceSizes": [
+      { "resourceType": "total", "budget": 360 },
+      { "resourceType": "script", "budget": 250 },
+      { "resourceType": "image", "budget": 20 },
+      { "resourceType": "stylesheet", "budget": 30 }
+    ],
+    "resourceCounts": [
+      { "resourceType": "total", "budget": 45 },
+      { "resourceType": "script", "budget": 30 },
+      { "resourceType": "image", "budget": 4 }
+    ]
+  }
+]

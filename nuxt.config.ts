@@ -80,11 +80,17 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    supabaseDbUrl: process.env.SUPABASE_DB_URL || '',
+    supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
     public: {
       siteUrl,
       appName,
       venueName,
       reservationsPhone: process.env.NUXT_PUBLIC_REZERVACIE_PHONE || '+421 911 298 702',
+      supabasePublishableKey: process.env.NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        || process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY
+        || '',
+      supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || '',
       vapidPublicKey: process.env.NUXT_PUBLIC_VAPID_PUBLIC_KEY || '',
     },
   },

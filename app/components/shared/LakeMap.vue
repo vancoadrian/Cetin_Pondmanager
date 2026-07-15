@@ -14,6 +14,7 @@ import {
   MAP_VIEWBOX_WIDTH,
   toSvgY,
 } from '~/utils/map'
+import { getResponsiveMapBackgroundSources } from '~/utils/responsiveImage'
 
 const props = defineProps<{
   closures?: LakeClosure[]
@@ -42,6 +43,12 @@ const currentLakeSlug = computed(() => props.points[0]?.lake)
 const currentShapes = computed(() => props.shapes ?? mapShapes)
 const currentFacilities = computed(() => props.facilities ?? mapFacilities)
 const imageAttributes = computed(() => getMapLayerImageAttributes(props.imageSettings))
+const responsiveImageSources = computed(() => getResponsiveMapBackgroundSources(props.image))
+const imageObjectFit = computed(() => {
+  if (imageAttributes.value.preserveAspectRatio === 'none') return 'fill'
+
+  return imageAttributes.value.preserveAspectRatio.endsWith(' meet') ? 'contain' : 'cover'
+})
 const visibleShapes = computed(() =>
   currentShapes.value.filter((shape) => shape.lake === currentLakeSlug.value && shape.visibility === 'public'),
 )
@@ -174,8 +181,45 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
           role="group"
           :aria-label="title"
         >
+          <foreignObject
+            v-if="image && responsiveImageSources"
+            :x="imageAttributes.x"
+            :y="imageAttributes.y"
+            :width="imageAttributes.width"
+            :height="imageAttributes.height"
+            :opacity="imageAttributes.opacity"
+            aria-hidden="true"
+          >
+            <picture xmlns="http://www.w3.org/1999/xhtml" class="block h-full w-full">
+              <source
+                media="(min-width: 1024px)"
+                type="image/avif"
+                :srcset="responsiveImageSources.desktop.avif"
+              >
+              <source
+                type="image/avif"
+                :srcset="responsiveImageSources.mobile.avif"
+              >
+              <source
+                media="(min-width: 1024px)"
+                type="image/webp"
+                :srcset="responsiveImageSources.desktop.webp"
+              >
+              <source
+                type="image/webp"
+                :srcset="responsiveImageSources.mobile.webp"
+              >
+              <img
+                :src="image"
+                alt=""
+                class="block h-full w-full"
+                :style="{ objectFit: imageObjectFit }"
+                draggable="false"
+              >
+            </picture>
+          </foreignObject>
           <image
-            v-if="image"
+            v-else-if="image"
             :href="image"
             aria-hidden="true"
             :x="imageAttributes.x"

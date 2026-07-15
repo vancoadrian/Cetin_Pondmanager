@@ -358,6 +358,7 @@ export function buildSupabaseSeedPayload(
       lake_id: null,
       severity: alert.severity,
       title: alert.title,
+      valid_from: `${baseDate}T00:00:00+02:00`,
       valid_until: parseOperationalTimestamp(alert.validUntil, baseDate),
       venue_id: venueId,
       visibility: 'public',

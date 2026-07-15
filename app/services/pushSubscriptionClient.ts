@@ -1,4 +1,15 @@
-import type { LakeSlug, PushSubscriptionPermission, PushSubscriptionTopic } from '~/data/pond'
+import type { Alert, LakeSlug, PushSubscriptionPermission, PushSubscriptionTopic } from '~/data/pond'
+import type { ClientPushSubscriptionPayload } from '~/services/webPushSubscriptionClient'
+export {
+  createWebPushSubscribeOptions,
+  createWebPushSubscriptionPayload,
+  urlBase64ToUint8Array,
+} from '~/services/webPushSubscriptionClient'
+export type {
+  ClientPushSubscription,
+  ClientPushSubscriptionJson,
+  ClientPushSubscriptionPayload,
+} from '~/services/webPushSubscriptionClient'
 
 export const PUSH_ENDPOINT_STORAGE_KEY = 'rybolov_cetin_push_endpoint'
 export const MOCK_PUSH_ENDPOINT_STORAGE_KEY = 'rybolov_cetin_mock_push_endpoint'
@@ -10,6 +21,45 @@ export const DEFAULT_PUBLIC_PUSH_TOPICS: PushSubscriptionTopic[] = [
   'tournaments',
 ]
 export const DEFAULT_PUBLIC_PUSH_LAKES: LakeSlug[] = ['velky-cetin', 'strkovisko-kocka']
+export const PUBLIC_NOTIFICATION_LAKES: ReadonlyArray<{
+  name: string
+  slug: LakeSlug
+}> = [
+  {
+    name: 'Veľký Cetín',
+    slug: 'velky-cetin',
+  },
+  {
+    name: 'Štrkovisko Kocka',
+    slug: 'strkovisko-kocka',
+  },
+]
+export const PUBLIC_NOTIFICATION_LAKE_LABELS: Record<LakeSlug, string> = Object.fromEntries(
+  PUBLIC_NOTIFICATION_LAKES.map((lake) => [lake.slug, lake.name]),
+) as Record<LakeSlug, string>
+export const FALLBACK_PUBLIC_NOTIFICATION_ALERTS: Alert[] = [
+  {
+    body: 'O 18:30 sa očakáva prechod búrkového pásma. Skontrolujte bivaky, stojany a nepoužívajte prúty počas bleskov.',
+    id: 'a-1',
+    severity: 'storm',
+    title: 'Výstraha pred búrkou',
+    validUntil: 'dnes 21:00',
+  },
+  {
+    body: 'Na Veľkom Cetíne môže byť horšia ovládateľnosť člnov a zavážacích lodiek pri miestach A1-A4.',
+    id: 'a-2',
+    severity: 'water',
+    title: 'Zvýšený vietor na otvorenej vode',
+    validUntil: 'dnes 20:00',
+  },
+  {
+    body: 'Chata 10 je dočasne blokovaná. Rezervácie presúvame na najbližšie voľné miesto.',
+    id: 'a-3',
+    severity: 'service',
+    title: 'Údržba chaty 10',
+    validUntil: 'pondelka',
+  },
+]
 
 export interface PublicPushPreferences {
   lakeIds: LakeSlug[]
@@ -29,30 +79,19 @@ export interface ClientPushSupport {
   reason: ClientPushSupportReason
 }
 
+export interface PublicNotificationDeviceState {
+  lakeIds: LakeSlug[]
+  permission: 'denied' | 'granted' | 'unknown' | 'unsupported'
+  subscriptionEndpoint: string
+  support: ClientPushSupport
+  topics: PushSubscriptionTopic[]
+}
+
 export interface ClientPushSupportInput {
   hasNotification: boolean
   hasPushManager: boolean
   hasServiceWorker: boolean
   vapidPublicKey?: string
-}
-
-export interface ClientPushSubscriptionPayload {
-  auth?: string
-  endpoint: string
-  p256dh?: string
-  permission: PushSubscriptionPermission
-}
-
-export interface ClientPushSubscriptionJson {
-  keys?: {
-    auth?: string
-    p256dh?: string
-  }
-}
-
-export interface ClientPushSubscription {
-  endpoint: string
-  toJSON: () => ClientPushSubscriptionJson
 }
 
 function normalizeSelection<T extends string>(
@@ -102,19 +141,6 @@ export function writePublicPushPreferences(
   storage.setItem(PUSH_PREFERENCES_STORAGE_KEY, JSON.stringify(normalized))
 
   return normalized
-}
-
-export function urlBase64ToUint8Array(value: string) {
-  const padding = '='.repeat((4 - value.length % 4) % 4)
-  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = globalThis.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-
-  for (let index = 0; index < rawData.length; index += 1) {
-    outputArray[index] = rawData.charCodeAt(index)
-  }
-
-  return outputArray
 }
 
 export function getClientPushSupport(input: ClientPushSupportInput): ClientPushSupport {
@@ -174,27 +200,6 @@ export function createMockPushSubscriptionPayload(
     auth: 'mock-auth',
     endpoint: createMockPushEndpoint(storage, randomUUID),
     p256dh: 'mock-p256dh',
-    permission,
-  }
-}
-
-export function createWebPushSubscribeOptions(vapidPublicKey: string): PushSubscriptionOptionsInit {
-  return {
-    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    userVisibleOnly: true,
-  }
-}
-
-export function createWebPushSubscriptionPayload(
-  subscription: ClientPushSubscription,
-  permission: PushSubscriptionPermission,
-): ClientPushSubscriptionPayload {
-  const payload = subscription.toJSON()
-
-  return {
-    auth: payload.keys?.auth,
-    endpoint: subscription.endpoint,
-    p256dh: payload.keys?.p256dh,
     permission,
   }
 }
