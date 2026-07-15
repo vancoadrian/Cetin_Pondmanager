@@ -11,9 +11,11 @@ Rezervácie majú byť použiteľné pre bežného rybára aj správcu. Rybár m
 3. Vyberie povolenku.
 4. Pridá požičovňu alebo doplnky.
 5. Vyplní kontakt. Prihlásenému rybárovi sa meno a e-mail predvyplnia z účtu, aby sa rezervácia neskôr zobrazila v jeho histórii.
-6. Odošle žiadosť.
+6. Zvolí spôsob platby a odošle žiadosť.
 7. Dostane stav: čaká na potvrdenie, potvrdené, zamietnuté alebo vyžaduje telefonát.
 8. Platba prebehne až po potvrdení: hotovosť na mieste alebo bankový prevod. Platobná brána má zostať pripravená ako vypínateľný budúci modul.
+
+Pri priamom otvorení rezervácie aplikácia sama nevyberá lovné miesto, požičovňu ani spôsob platby. Predvýber sa použije iba z konkrétneho odkazu, mapy, chaty, služby alebo upravovanej offline žiadosti. Na mobile sa takto predvybrané miesto zobrazí ako kompaktný súhrn; úplný zoznam otvorí akcia `Zmeniť miesto`.
 
 Verejné odkazy z informačnej stránky môžu predvybrať službu priamo v rezervácii:
 
@@ -65,7 +67,7 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 
 - `/rezervacie` obsahuje verejný rezervačný formulár.
 - Úvodná stránka používa rovnaký termínový rozsah ako mapa a rezervácia. Karty dostupnosti vedú priamo na mapu voľných miest, rezerváciu chaty, žiadosť o potvrdenie alebo zmenu termínu.
-- Detail revíru má výber termínu, súhrn voľných miest a chát pre zvolený rozsah, 7-dňový prehľad od zvoleného dátumu a prekliky do mapy alebo rezervácie s rovnakými parametrami.
+- Detail revíru má výber termínu, súhrn voľných miest a chát pre zvolený rozsah, 7-dňový prehľad od zvoleného dátumu a prekliky do mapy alebo rezervácie s rovnakými parametrami. Na mobile sa termín najprv zobrazuje ako kompaktné zhrnutie s rozbaliteľnou zmenou a sedem dní používa krátke riadky; desktop zachováva otvorený výber a plnú kartovú mriežku.
 - Prihlásený rybár má v public formulári predvyplnené meno a e-mail účtu. Polia môže prepísať, ale aplikácia mu rozpracovaný kontakt neprepisuje automaticky.
 - `/konto` zobrazuje vlastné rezervácie bez interných poznámok, s platobným stavom, pokynmi k zvolenej platobnej metóde a rýchlym telefonátom alebo SMS správcovi s predvyplneným ID rezervácie.
 - `/admin` ukazuje súhrn rezervácií na spracovanie.

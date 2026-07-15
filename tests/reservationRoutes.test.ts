@@ -12,7 +12,9 @@ import type {
   ReservationStateResponse,
   ReservationSubmissionSuccess,
 } from '~/app/services/reservationApiService'
+import type { PublicReservationStateResponse } from '~/app/services/publicAvailabilityService'
 import accountReservationsGetHandler from '~/server/api/account/reservations.get'
+import adminReservationsGetHandler from '~/server/api/admin/reservations.get'
 import adminReservationPostHandler from '~/server/api/admin/reservations.post'
 import adminReservationNotificationsHandler from '~/server/api/admin/reservations/notifications.get'
 import adminReservationDecisionHandler from '~/server/api/admin/reservations/[id]/decision.post'
@@ -124,6 +126,7 @@ function createReservationRouteServerApp() {
   router.get('/api/reservations', reservationsGetHandler)
   router.post('/api/reservations', reservationPostHandler)
   router.get('/api/account/reservations', accountReservationsGetHandler)
+  router.get('/api/admin/reservations', adminReservationsGetHandler)
   router.get('/api/admin/reservations/notifications', adminReservationNotificationsHandler)
   router.post('/api/admin/reservations', adminReservationPostHandler)
   router.post('/api/admin/reservations/:id/decision', adminReservationDecisionHandler)
@@ -188,18 +191,53 @@ async function requestJson<T>(
 }
 
 describe('reservation API routes', () => {
-  it('returns the local reservation state from seed data', async () => {
+  it('returns only redacted availability data from the public reservation endpoint', async () => {
     const server = await startRouteServer()
 
     try {
-      const { body, response } = await requestJson<ReservationStateResponse>(server, '/api/reservations', {
+      const { body, response } = await requestJson<PublicReservationStateResponse>(server, '/api/reservations', {
         cookie: null,
       })
 
       expect(response.status).toBe(200)
       expect(body.ok).toBe(true)
-      expect(body.reservations.some((reservation) => reservation.id === 'r-1003')).toBe(true)
-      expect(body.rentalBookings.some((booking) => booking.reservationId === 'r-1003')).toBe(true)
+      expect(body.reservations).not.toHaveLength(0)
+      expect(body.rentalBookings).not.toHaveLength(0)
+      expect(body.reservations[0]?.id).toMatch(/^public-reservation-/)
+      expect(body.rentalBookings[0]?.id).toMatch(/^public-rental-/)
+      expect(body.reservations[0]).not.toHaveProperty('guest')
+      expect(body.reservations[0]).not.toHaveProperty('contactEmail')
+      expect(body.reservations[0]).not.toHaveProperty('contactPhone')
+      expect(body.reservations[0]).not.toHaveProperty('internalNote')
+      expect(body.rentalBookings[0]).not.toHaveProperty('reservationId')
+      expect(body.rentalBookings[0]).not.toHaveProperty('note')
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('keeps the full reservation state behind the admin access guard', async () => {
+    const server = await startRouteServer()
+
+    try {
+      const managerState = await requestJson<ReservationStateResponse>(
+        server,
+        '/api/admin/reservations',
+      )
+      expect(managerState.response.status).toBe(200)
+      expect(managerState.body.reservations.some((reservation) => reservation.id === 'r-1003')).toBe(true)
+      expect(managerState.body.reservations[0]).toHaveProperty('contactPhone')
+      expect(managerState.body.reservations[0]).toHaveProperty('internalNote')
+      expect(managerState.body.rentalBookings.some((booking) => booking.reservationId === 'r-1003')).toBe(true)
+
+      const anonymousState = await requestJson<{ statusMessage: string }>(
+        server,
+        '/api/admin/reservations',
+        { cookie: null },
+      )
+      expect(anonymousState.response.status).toBe(401)
+      expect(anonymousState.body.statusMessage).toBe('Admin login required')
     }
     finally {
       await server.close()

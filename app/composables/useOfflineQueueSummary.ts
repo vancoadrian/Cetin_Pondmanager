@@ -1,9 +1,4 @@
-import { OFFLINE_QUEUE_CHANGED_EVENT } from '~/services/offlineQueueDb'
-import { readOfflineCatchQueue } from '~/services/offlineCatchQueueService'
-import { readOfflinePlaceIssueQueue } from '~/services/offlinePlaceIssueQueueService'
-import { readOfflineReservationQueue } from '~/services/offlineReservationQueueService'
-import { readOfflineTournamentAdminActionQueue } from '~/services/offlineTournamentAdminActionQueueService'
-import { readOfflineTournamentRequestQueue } from '~/services/offlineTournamentRequestQueueService'
+import { OFFLINE_QUEUE_CHANGED_EVENT, readOfflineQueueCounts } from '~/services/offlineQueueDb'
 
 export function useOfflineQueueSummary() {
   const reservations = useState('offline-queue-count-reservations', () => 0)
@@ -22,25 +17,13 @@ export function useOfflineQueueSummary() {
     if (!import.meta.client) return
 
     try {
-      const [
-        reservationItems,
-        catchItems,
-        placeIssueItems,
-        tournamentRequestItems,
-        adminTournamentActionItems,
-      ] = await Promise.all([
-        readOfflineReservationQueue(),
-        readOfflineCatchQueue(),
-        readOfflinePlaceIssueQueue(),
-        readOfflineTournamentRequestQueue(),
-        readOfflineTournamentAdminActionQueue(),
-      ])
+      const counts = await readOfflineQueueCounts()
 
-      reservations.value = reservationItems.length
-      catches.value = catchItems.length
-      placeIssues.value = placeIssueItems.length
-      tournamentRequests.value = tournamentRequestItems.length
-      adminTournamentActions.value = adminTournamentActionItems.length
+      reservations.value = counts.reservations
+      catches.value = counts.catches
+      placeIssues.value = counts.placeIssues
+      tournamentRequests.value = counts.tournamentRequests
+      adminTournamentActions.value = counts.adminTournamentActions
       loaded.value = true
       error.value = ''
     }
@@ -52,17 +35,35 @@ export function useOfflineQueueSummary() {
   }
 
   if (import.meta.client) {
-    onMounted(() => {
+    let idleCallbackId: number | undefined
+    let fallbackTimerId: number | undefined
+    const refreshFromEvent = () => {
       void refresh()
-      window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refresh)
-      window.addEventListener('focus', refresh)
-      document.addEventListener('visibilitychange', refresh)
+    }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+
+    onMounted(() => {
+      if (typeof window.requestIdleCallback === 'function') {
+        idleCallbackId = window.requestIdleCallback(refreshFromEvent, { timeout: 1500 })
+      }
+      else {
+        fallbackTimerId = window.setTimeout(refreshFromEvent, 250)
+      }
+
+      window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshFromEvent)
+      window.addEventListener('focus', refreshFromEvent)
+      document.addEventListener('visibilitychange', refreshWhenVisible)
     })
 
     onBeforeUnmount(() => {
-      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refresh)
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', refresh)
+      if (idleCallbackId !== undefined) window.cancelIdleCallback(idleCallbackId)
+      if (fallbackTimerId !== undefined) window.clearTimeout(fallbackTimerId)
+
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshFromEvent)
+      window.removeEventListener('focus', refreshFromEvent)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     })
   }
 

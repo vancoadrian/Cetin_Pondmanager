@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /konto
+Disallow: /sutaze/tim
+Disallow: /login
+Disallow: /registracia
+Disallow: /zabudnute-heslo
+Disallow: /obnova-hesla
+Disallow: /offline

@@ -40,7 +40,10 @@ import {
 } from '~/utils/tournamentLeaderboard'
 import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperations'
 
-useHead({ title: 'Súťaže' })
+usePublicSeo({
+  title: 'Súťaže',
+  description: 'Rybárske súťaže, sektory, priebežné výsledky, registrácia tímu a organizačné informácie pre Veľký Cetín a Štrkovisko Kocka.',
+})
 
 const route = useRoute()
 const { user } = useMockAuth()
@@ -795,7 +798,7 @@ watch([activeTournament, teamScopedSector], ([tournament, scopedSector]) => {
               <image
                 v-if="activeTournamentBackgroundImage"
                 :href="activeTournamentBackgroundImage"
-                :aria-label="`Mapa ${getLakeName(activeTournament.lake)}`"
+                aria-hidden="true"
                 :x="tournamentMapImageAttributes.x"
                 :y="tournamentMapImageAttributes.y"
                 :width="tournamentMapImageAttributes.width"

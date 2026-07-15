@@ -16,6 +16,7 @@ useHead({
 
 <template>
   <UApp>
+    <NuxtRouteAnnouncer />
     <ConnectionStatusBanner />
     <NuxtLayout>
       <NuxtPage />

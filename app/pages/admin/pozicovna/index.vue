@@ -7,6 +7,7 @@ import type { StatusBadgeTone } from '~/utils/ui'
 
 useHead({ title: 'Admin požičovňa' })
 
+const requestFetch = useRequestFetch()
 const { getLakeName, getPegLabel, rentalBookings, reservations } = usePondData()
 const {
   canOperate: canOperateRentals,
@@ -23,7 +24,7 @@ const fallbackReservationState = (): ReservationStateResponse => ({
 })
 const { data: reservationState } = await useAsyncData<ReservationStateResponse>(
   'admin-rentals-reservation-state',
-  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  () => requestFetch<ReservationStateResponse>('/api/admin/reservations'),
   {
     default: fallbackReservationState,
   },

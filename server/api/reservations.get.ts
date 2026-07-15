@@ -1,14 +1,12 @@
 import { defineEventHandler } from 'h3'
-import type { ReservationStateResponse } from '~/services/reservationApiService'
+import {
+  createPublicReservationState,
+  type PublicReservationStateResponse,
+} from '~/services/publicAvailabilityService'
 import { readLocalReservationState } from '../utils/localReservationStore'
 
-export default defineEventHandler(async (): Promise<ReservationStateResponse> => {
+export default defineEventHandler(async (): Promise<PublicReservationStateResponse> => {
   const state = await readLocalReservationState()
 
-  return {
-    ok: true,
-    rentalBookings: state.rentalBookings,
-    reservations: state.reservations,
-    updatedAt: state.updatedAt,
-  }
+  return createPublicReservationState(state)
 })

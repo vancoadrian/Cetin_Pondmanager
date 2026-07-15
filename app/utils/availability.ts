@@ -20,12 +20,21 @@ export interface AvailabilityResult {
   sourceIds: string[]
 }
 
+export interface ReservationAvailabilityRecord {
+  from: string
+  guest?: string
+  id: string
+  pegId: string
+  status: Reservation['status']
+  to: string
+}
+
 interface AvailabilityInput {
   closures: LakeClosure[]
   dateFrom?: string
   dateTo?: string
   includePrivateReservationDetails?: boolean
-  reservations: Reservation[]
+  reservations: readonly ReservationAvailabilityRecord[]
 }
 
 const statusMeta: Record<
@@ -45,7 +54,7 @@ const statusMeta: Record<
     description: 'Miesto je dostupné, ale má obmedzenie alebo čakajúcu žiadosť.',
     icon: 'i-heroicons-exclamation-triangle',
     classes: 'bg-warning-500/10 text-warning-700 border-warning-500/25',
-    dotClasses: 'bg-warning-500 text-primary-950',
+    dotClasses: 'bg-warning-500 text-white',
     reservable: true,
   },
   reserved: {
@@ -150,7 +159,7 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
   if (confirmedReservation) {
     reasons.push(
       input.includePrivateReservationDetails
-        ? `Rezervácia: ${confirmedReservation.guest}`
+        ? `Rezervácia: ${confirmedReservation.guest ?? 'hosť'}`
         : 'Miesto má v danom termíne potvrdenú rezerváciu.',
     )
     sourceIds.push(confirmedReservation.id)
@@ -161,7 +170,7 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
   if (blockedReservation) {
     reasons.push(
       input.includePrivateReservationDetails
-        ? `Blokácia: ${blockedReservation.guest}`
+        ? `Blokácia: ${blockedReservation.guest ?? 'interná blokácia'}`
         : 'Miesto je v danom termíne blokované.',
     )
     sourceIds.push(blockedReservation.id)
@@ -179,7 +188,7 @@ export function getPegAvailability(peg: Peg, input: AvailabilityInput): Availabi
   if (pendingReservation) {
     reasons.push(
       input.includePrivateReservationDetails
-        ? `Čakajúca žiadosť: ${pendingReservation.guest}`
+        ? `Čakajúca žiadosť: ${pendingReservation.guest ?? 'hosť'}`
         : 'Na miesto je v danom termíne čakajúca žiadosť.',
     )
     sourceIds.push(pendingReservation.id)

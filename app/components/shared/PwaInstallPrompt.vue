@@ -102,18 +102,21 @@ const body = computed(() =>
 
 <template>
   <Transition
-    enter-active-class="transition duration-200 ease-out"
-    enter-from-class="translate-y-full opacity-0"
+    enter-active-class="transition duration-200 ease-out motion-reduce:transition-none"
+    enter-from-class="translate-y-full opacity-0 motion-reduce:transform-none"
     enter-to-class="translate-y-0 opacity-100"
-    leave-active-class="transition duration-150 ease-in"
+    leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
     leave-from-class="translate-y-0 opacity-100"
-    leave-to-class="translate-y-full opacity-0"
+    leave-to-class="translate-y-full opacity-0 motion-reduce:transform-none"
   >
     <div
       v-if="showing"
       class="border-border bg-surface fixed inset-x-3 bottom-3 z-50 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border p-4 shadow-lg sm:right-6 sm:bottom-6 sm:left-auto sm:max-w-sm"
-      role="dialog"
+      role="region"
+      aria-live="polite"
       aria-labelledby="pwa-install-title"
+      aria-describedby="pwa-install-description"
+      @keydown.esc.stop.prevent="dismiss"
     >
       <div class="flex items-start gap-3">
         <div class="bg-primary-50 text-primary-700 shrink-0 rounded-full p-2">
@@ -123,7 +126,7 @@ const body = computed(() =>
           <p id="pwa-install-title" class="text-foreground break-words text-sm font-semibold">
             {{ title }}
           </p>
-          <p class="text-foreground-muted mt-0.5 break-words text-xs">
+          <p id="pwa-install-description" class="text-foreground-muted mt-0.5 break-words text-xs">
             {{ body }}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
@@ -131,19 +134,20 @@ const body = computed(() =>
               v-if="mode === 'native'"
               size="xs"
               color="primary"
+              class="min-h-11"
               :loading="installing"
               @click="install"
             >
               Inštalovať
             </UButton>
-            <UButton size="xs" color="neutral" variant="ghost" @click="dismiss">
+            <UButton size="xs" color="neutral" variant="ghost" class="min-h-11" @click="dismiss">
               {{ mode === 'ios' ? 'Rozumiem' : 'Neskôr' }}
             </UButton>
           </div>
         </div>
         <button
           type="button"
-          class="text-foreground-muted hover:text-foreground -mt-1 -mr-1 shrink-0 p-1"
+          class="text-foreground-muted hover:text-foreground -mt-1 -mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
           aria-label="Zavrieť"
           @click="dismiss"
         >

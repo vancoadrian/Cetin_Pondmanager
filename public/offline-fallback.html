@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f4c4a">
+    <meta name="robots" content="noindex">
+    <title>Ste offline · Rybolov Cetín</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #edf5f1;
+        color: #102522;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background:
+          radial-gradient(circle at 85% 8%, rgb(245 200 75 / 22%), transparent 24rem),
+          linear-gradient(165deg, #f7fbf9 0%, #e7f2ed 100%);
+      }
+
+      main {
+        display: grid;
+        min-height: 100vh;
+        min-height: 100dvh;
+        place-items: center;
+        padding: max(1.25rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+          max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      }
+
+      .card {
+        width: min(100%, 34rem);
+        overflow: hidden;
+        border: 1px solid #cbded6;
+        border-radius: 1.25rem;
+        background: rgb(255 255 255 / 92%);
+        box-shadow: 0 1.5rem 4rem rgb(3 31 29 / 12%);
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 1.25rem;
+        background: #073f3a;
+        color: white;
+      }
+
+      .header img {
+        width: 3.5rem;
+        height: 3.5rem;
+        border-radius: 0.9rem;
+      }
+
+      .brand {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
+      .venue {
+        margin: 0.2rem 0 0;
+        color: #bfe6dc;
+        font-size: 0.82rem;
+      }
+
+      .content {
+        padding: clamp(1.35rem, 5vw, 2rem);
+      }
+
+      .status {
+        display: inline-flex;
+        min-height: 2rem;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid #f0c96a;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        background: #fff7db;
+        color: #684b08;
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+
+      .status::before {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: #d89a20;
+        content: "";
+      }
+
+      h1 {
+        margin: 1rem 0 0;
+        color: #073f3a;
+        font-size: clamp(2rem, 8vw, 2.75rem);
+        line-height: 1.05;
+      }
+
+      .lead {
+        margin: 0.9rem 0 0;
+        color: #425c56;
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+
+      .queue-note {
+        margin-top: 1.25rem;
+        border-left: 4px solid #168173;
+        border-radius: 0.6rem;
+        padding: 0.9rem 1rem;
+        background: #edf8f4;
+        color: #21443d;
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+
+      .action {
+        display: inline-flex;
+        min-height: 3rem;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #0f4c4a;
+        border-radius: 0.7rem;
+        padding: 0.7rem 1rem;
+        color: #0f4c4a;
+        font-weight: 800;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      .action-primary {
+        background: #0f4c4a;
+        color: white;
+      }
+
+      .action:hover {
+        background: #e5f2ed;
+      }
+
+      .action-primary:hover {
+        background: #073f3a;
+      }
+
+      .action:focus-visible {
+        outline: 3px solid #e7aa26;
+        outline-offset: 3px;
+      }
+
+      .help {
+        margin: 1.25rem 0 0;
+        color: #60756f;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      @media (min-width: 32rem) {
+        .actions {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .status::before {
+          animation: pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          50% {
+            opacity: 0.35;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article class="card" aria-labelledby="offline-title">
+        <header class="header">
+          <img src="/icons/icon-192.png" alt="" width="56" height="56">
+          <div>
+            <p class="brand">Rybolov Cetín</p>
+            <p class="venue">Veľký Cetín &amp; Štrkovisko Kocka</p>
+          </div>
+        </header>
+
+        <div class="content">
+          <div class="status" role="status">Bez pripojenia</div>
+          <h1 id="offline-title">Ste offline</h1>
+          <p class="lead">
+            Túto stránku sa momentálne nepodarilo načítať. Skontrolujte mobilné dáta alebo Wi-Fi a skúste to znova.
+          </p>
+
+          <div class="queue-note">
+            Formuláre uložené v čakajúcej fronte ostávajú v tomto zariadení. Po obnovení pripojenia znovu otvorte aplikáciu a odošlú sa na spracovanie.
+          </div>
+
+          <div class="actions">
+            <a class="action action-primary" href="">Skúsiť znova</a>
+            <a class="action" href="tel:+421911298702">Zavolať správcovi</a>
+          </div>
+
+          <p class="help">
+            Ak ste už mali otvorenú mapu alebo kontakt, môžete sa k nim vrátiť tlačidlom Späť v prehliadači.
+          </p>
+        </div>
+      </article>
+    </main>
+
+    <script>
+      window.addEventListener('online', () => window.location.reload())
+    </script>
+  </body>
+</html>

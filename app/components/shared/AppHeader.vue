@@ -86,14 +86,14 @@ async function signOut() {
       <NuxtLink to="/" class="flex min-w-0 items-center gap-3">
         <img
           src="/logo.svg"
-          alt="Rybolov Cetín"
+          alt=""
           decoding="async"
           class="h-10 w-10 shrink-0 rounded bg-white/5 object-contain"
         >
         <span class="truncate font-semibold">{{ config.public.appName }}</span>
       </NuxtLink>
 
-      <nav class="hidden items-center gap-1 xl:flex">
+      <nav class="hidden items-center gap-1 xl:flex" aria-label="Hlavná navigácia">
         <NuxtLink
           v-for="item in primaryNav"
           :key="item.to"
@@ -226,7 +226,7 @@ async function signOut() {
             {{ offlineQueueTotal }}
           </span>
         </NuxtLink>
-        <nav class="flex flex-col gap-1">
+        <nav class="flex flex-col gap-1" aria-label="Mobilná navigácia">
           <NuxtLink
             to="/"
             class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"

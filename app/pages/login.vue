@@ -120,7 +120,7 @@ async function submit() {
     />
 
     <section class="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-      <div class="rounded-card bg-primary-900 p-6 text-white lg:p-8">
+      <div class="order-last rounded-card bg-primary-900 p-6 text-white lg:order-first lg:p-8">
         <div class="flex items-start justify-between gap-4">
           <div class="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 text-accent-300">
             <UIcon name="i-heroicons-shield-check" class="h-7 w-7" />
@@ -172,7 +172,7 @@ async function submit() {
         </div>
       </div>
 
-      <form class="rounded-card border border-border bg-surface p-5 sm:p-7" @submit.prevent="submit">
+      <form class="order-first rounded-card border border-border bg-surface p-5 sm:p-7 lg:order-last" @submit.prevent="submit">
         <div>
           <h2 class="text-2xl font-bold">Prihláste sa do účtu</h2>
           <p class="mt-2 text-sm text-foreground-muted">

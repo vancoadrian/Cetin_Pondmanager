@@ -7,11 +7,11 @@
   --color-primary-200: #abe4d8;
   --color-primary-300: #75cbbc;
   --color-primary-400: #3ba997;
-  --color-primary-500: #238d7e;
-  --color-primary-600: #197267;
-  --color-primary-700: #155c55;
-  --color-primary-800: #124a46;
-  --color-primary-900: #0f3e3b;
+  --color-primary-500: #197267;
+  --color-primary-600: #155c55;
+  --color-primary-700: #124a46;
+  --color-primary-800: #0f3e3b;
+  --color-primary-900: #0b312e;
   --color-primary-950: #062523;
 
   --color-water-50: #edf9ff;
@@ -33,6 +33,9 @@
   --color-accent-500: #d98d0c;
   --color-accent-600: #b96d07;
   --color-accent-700: #934f0b;
+  --color-accent-800: #713b08;
+  --color-accent-900: #542b06;
+  --color-accent-950: #321703;
 
   --color-reed-500: #668a35;
   --color-clay-500: #a86134;
@@ -46,10 +49,53 @@
   --color-foreground-muted: #60716d;
   --color-dark: #071d1c;
 
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
   --color-success-500: #198754;
-  --color-warning-500: #d98d0c;
+  --color-success-600: #047857;
+  --color-success-700: #065f46;
+  --color-success-800: #064e3b;
+  --color-success-900: #063b2e;
+  --color-success-950: #022c22;
+
+  --color-warning-50: #fff8eb;
+  --color-warning-100: #ffedc7;
+  --color-warning-200: #ffd58a;
+  --color-warning-300: #fdbb4b;
+  --color-warning-400: #d7840f;
+  --color-warning-500: #9a5207;
+  --color-warning-600: #854407;
+  --color-warning-700: #6e3607;
+  --color-warning-800: #592d09;
+  --color-warning-900: #482609;
+  --color-warning-950: #291204;
+
+  --color-error-50: #fff1f0;
+  --color-error-100: #ffe0dd;
+  --color-error-200: #ffc2bd;
+  --color-error-300: #fb938b;
+  --color-error-400: #e86156;
   --color-error-500: #c9372c;
+  --color-error-600: #a92d25;
+  --color-error-700: #8a2822;
+  --color-error-800: #71251f;
+  --color-error-900: #5e231f;
+  --color-error-950: #320f0c;
+
+  --color-info-50: #edf9ff;
+  --color-info-100: #d7f1ff;
+  --color-info-200: #b8e6ff;
+  --color-info-300: #84d5ff;
+  --color-info-400: #48b9f5;
   --color-info-500: #127abd;
+  --color-info-600: #116199;
+  --color-info-700: #14517d;
+  --color-info-800: #174568;
+  --color-info-900: #153a58;
+  --color-info-950: #0b2033;
 
   --font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,

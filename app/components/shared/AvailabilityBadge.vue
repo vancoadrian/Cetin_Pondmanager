@@ -26,6 +26,7 @@ const tone = computed(() => {
 
 <template>
   <StatusBadge
+    class="shrink-0"
     :icon="availability.icon"
     :label="availability.label"
     :tone="tone"

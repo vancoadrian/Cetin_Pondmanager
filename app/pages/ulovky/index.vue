@@ -41,7 +41,10 @@ import {
   type OfflineCatchQueueItem,
 } from '~/services/offlineCatchQueueService'
 
-useHead({ title: 'Úlovky' })
+usePublicSeo({
+  title: 'Úlovky',
+  description: 'Prehľad úlovkov z Veľkého Cetína a Štrkoviska Kocka, zápis úlovku a otvorenie zdieľaného rybárskeho zápisníka cez kód.',
+})
 
 const route = useRoute()
 const { account: anglerAccount, isLoggedIn: isAnglerLoggedIn } = useMockAnglerAuth()
@@ -879,8 +882,12 @@ function prepareCatchForActiveLogbook() {
   if (!import.meta.client) return
 
   void nextTick(() => {
-    document.getElementById('pridat-ulovok')?.scrollIntoView({
-      behavior: 'smooth',
+    const target = document.getElementById('pridat-ulovok')
+    if (!target) return
+
+    target.focus({ preventScroll: true })
+    target.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
       block: 'start',
     })
   })
@@ -1298,11 +1305,21 @@ watch(catchValidation, () => {
               <UIcon name="i-heroicons-key" class="text-primary-800 h-5 w-5" />
             </div>
 
-            <form class="mt-5 flex flex-col gap-3 sm:flex-row" @submit.prevent="openLogbookByCode">
+            <label for="trip-logbook-code" class="mt-5 block text-sm font-semibold">
+              Kód zápisníka
+            </label>
+            <form class="mt-2 flex flex-col gap-3 sm:flex-row" @submit.prevent="openLogbookByCode">
               <input
+                id="trip-logbook-code"
                 v-model="logbookCodeForm.code"
                 class="h-11 flex-1 rounded-md border border-border bg-white px-3 text-sm font-semibold uppercase"
                 placeholder="CETIN-..."
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                required
+                :aria-describedby="logbookLookupMessage ? 'trip-logbook-code-help trip-logbook-code-status' : 'trip-logbook-code-help'"
+                :aria-invalid="logbookLookupStatus === 'error'"
               >
               <UButton
                 type="submit"
@@ -1314,6 +1331,7 @@ watch(catchValidation, () => {
             </form>
             <DataStatusNotice
               v-if="logbookLookupMessage"
+              id="trip-logbook-code-status"
               class="mt-3"
               :description="logbookLookupMessage"
               :loading="logbookLookupStatus === 'submitting'"
@@ -1332,6 +1350,9 @@ watch(catchValidation, () => {
                     : 'success'
               "
             />
+            <p id="trip-logbook-code-help" class="sr-only">
+              Kód má formát CETIN nasledovaný pomlčkou a znakmi zápisníka.
+            </p>
           </div>
 
           <div v-if="isAnglerLoggedIn || activeLogbook" class="border-border bg-surface rounded-card border p-5">
@@ -1358,25 +1379,26 @@ watch(catchValidation, () => {
             />
 
             <form class="mt-5 space-y-4" @submit.prevent="submitLogbook">
-              <div>
-                <span class="text-sm font-semibold">Typ</span>
+              <fieldset>
+                <legend class="text-sm font-semibold">Typ</legend>
                 <div class="mt-2 grid grid-cols-3 rounded-lg bg-muted p-1">
                   <button
                     v-for="option in logbookModeOptions"
                     :key="option.value"
                     type="button"
-                    class="rounded-md px-2 py-2 text-xs font-bold transition-colors"
+                    class="min-h-11 rounded-md px-2 py-2 text-xs font-bold transition-colors"
                     :class="
                       selectedLogbookMode === option.value
                         ? 'bg-white text-primary-900 shadow-sm'
                         : 'text-foreground-muted hover:text-foreground'
                     "
+                    :aria-pressed="selectedLogbookMode === option.value"
                     @click="selectedLogbookMode = option.value"
                   >
                     {{ option.label }}
                   </button>
                 </div>
-              </div>
+              </fieldset>
 
               <label class="block">
                 <span class="text-sm font-semibold">Názov výpravy</span>
@@ -1457,9 +1479,11 @@ watch(catchValidation, () => {
           <div
             v-if="isAnglerLoggedIn || activeLogbook"
             id="pridat-ulovok"
+            tabindex="-1"
+            aria-labelledby="pridat-ulovok-title"
             class="border-border bg-surface rounded-card scroll-mt-24 border p-5"
           >
-            <h2 class="text-lg font-bold">Pridať úlovok</h2>
+            <h2 id="pridat-ulovok-title" class="text-lg font-bold">Pridať úlovok</h2>
             <DataStatusNotice
               class="mt-4"
               :description="

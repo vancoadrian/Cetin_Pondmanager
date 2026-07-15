@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { StatusBadgeTone } from '~/utils/ui'
 
-useHead({ title: 'Kontakt' })
+usePublicSeo({
+  title: 'Kontakt',
+  description: 'Kontakt na prevádzkovateľa revírov Rybolov Cetín pre rezervácie, úlovky, výbavu, hlásenia problémov a súťaže.',
+})
 
 const { contactInfo } = usePondData()
 
@@ -218,6 +221,7 @@ watch(contactForm, () => {
                 type="button"
                 class="rounded-md border p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50"
                 :class="contactForm.topic === topic.label ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
+                :aria-pressed="contactForm.topic === topic.label"
                 @click="selectTopic(topic.label)"
               >
                 <div class="flex items-start gap-2">

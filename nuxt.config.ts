@@ -10,7 +10,13 @@ const normalizeSiteUrl = (value?: string) => {
 const appName = 'Rybolov Cetín'
 const venueName = 'Veľký Cetín & Kocka'
 const fullTitle = `${appName} · ${venueName}`
-const siteUrl = normalizeSiteUrl(process.env.NUXT_PUBLIC_SITE_URL) || 'http://localhost:3000'
+const configuredSiteUrl = normalizeSiteUrl(process.env.NUXT_PUBLIC_SITE_URL)
+
+if (process.env.RYBOLOV_ENVIRONMENT === 'production' && !configuredSiteUrl) {
+  throw new Error('NUXT_PUBLIC_SITE_URL is required when RYBOLOV_ENVIRONMENT=production.')
+}
+
+const siteUrl = configuredSiteUrl || 'http://localhost:3000'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
@@ -23,6 +29,23 @@ export default defineNuxtConfig({
   devtools: { enabled: import.meta.dev },
 
   modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@vite-pwa/nuxt'],
+
+  ui: {
+    fonts: false,
+  },
+
+  nitro: {
+    compressPublicAssets: true,
+  },
+
+  routeRules: {
+    '/offline-fallback': {
+      redirect: {
+        statusCode: 302,
+        to: '/offline-fallback.html',
+      },
+    },
+  },
 
   css: ['~/assets/css/main.css'],
 
@@ -75,7 +98,7 @@ export default defineNuxtConfig({
       theme_color: '#0f4c4a',
       background_color: '#f6faf8',
       display: 'standalone',
-      orientation: 'portrait',
+      id: '/',
       lang: 'sk',
       start_url: '/',
       scope: '/',
@@ -90,26 +113,58 @@ export default defineNuxtConfig({
           src: '/icons/icon-512.png',
           sizes: '512x512',
           type: 'image/png',
-          purpose: 'any maskable',
+          purpose: 'any',
+        },
+        {
+          src: '/icons/icon-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
         },
       ],
     },
     workbox: {
-      navigateFallback: '/',
-      globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}'],
+      navigateFallback: null,
+      globPatterns: [
+        'offline-fallback.html',
+        'favicon.svg',
+        'logo.svg',
+        'icons/*.{png,svg}',
+        '_nuxt/*.css',
+      ],
       importScripts: ['/sw-push.js'],
       runtimeCaching: [
         {
+          handler: 'NetworkOnly',
+          options: {
+            precacheFallback: {
+              fallbackURL: '/offline-fallback',
+            },
+          },
+          urlPattern: ({ request }) => request.mode === 'navigate',
+        },
+        {
           handler: 'NetworkFirst',
           options: {
-            cacheName: 'rybolov-public-api',
+            cacheName: 'rybolov-low-risk-public-api-v3',
             expiration: {
-              maxAgeSeconds: 60 * 60,
-              maxEntries: 30,
+              maxAgeSeconds: 15 * 60,
+              maxEntries: 40,
             },
-            networkTimeoutSeconds: 3,
+            networkTimeoutSeconds: 4,
           },
-          urlPattern: /\/api\/(notifications|map|reservations|catches|tournaments)(\/.*)?$/,
+          urlPattern: /\/api\/(?:map|catches|payment-methods|rental-catalog|cabin-products|fish-registry\/rules|sponsors)(?:\/|\?|$)/,
+        },
+        {
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'rybolov-nuxt-assets',
+            expiration: {
+              maxAgeSeconds: 30 * 24 * 60 * 60,
+              maxEntries: 120,
+            },
+          },
+          urlPattern: /\/_nuxt\/.*\.(?:js|css)$/i,
         },
         {
           handler: 'StaleWhileRevalidate',
@@ -120,17 +175,17 @@ export default defineNuxtConfig({
               maxEntries: 40,
             },
           },
-          urlPattern: /\/images\/.*\.(?:png|jpg|jpeg|webp|svg)$/i,
+          urlPattern: /\/images\/.*\.(?:avif|png|jpg|jpeg|webp|svg)$/i,
         },
       ],
     },
     devOptions: {
-      enabled: true,
+      enabled: process.env.NUXT_PWA_DEV === 'true',
       type: 'module',
       suppressWarnings: true,
     },
     client: {
-      installPrompt: true,
+      installPrompt: false,
     },
   },
 

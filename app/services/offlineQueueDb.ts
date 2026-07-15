@@ -71,6 +71,95 @@ export function requestToPromise<T>(request: IDBRequest<T>) {
   })
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasNonEmptyString(record: Record<string, unknown>, key: string) {
+  return typeof record[key] === 'string' && record[key].length > 0
+}
+
+function hasQueueEnvelope(value: unknown): value is Record<string, unknown> & { payload: Record<string, unknown> } {
+  if (!isRecord(value) || !isRecord(value.payload)) return false
+
+  return hasNonEmptyString(value, 'id')
+    && hasNonEmptyString(value, 'createdAt')
+    && hasNonEmptyString(value, 'updatedAt')
+    && typeof value.attempts === 'number'
+    && Number.isInteger(value.attempts)
+    && value.attempts >= 0
+}
+
+/**
+ * Lightweight integrity check for the global queue badge. Full Zod validation
+ * remains in each queue service before records are displayed or submitted.
+ */
+export function isOfflineQueueRecord(storeName: OfflineQueueStoreName, value: unknown) {
+  if (!hasQueueEnvelope(value)) return false
+  const payload = value.payload
+
+  if (storeName === OFFLINE_QUEUE_STORES.reservations) {
+    return ['contactName', 'contactPhone', 'dateFrom', 'dateTo', 'lake', 'pegId', 'permitId']
+      .every((key) => hasNonEmptyString(payload, key))
+      && Array.isArray(payload.extraIds)
+      && Array.isArray(payload.rentalIds)
+  }
+
+  if (storeName === OFFLINE_QUEUE_STORES.catches) {
+    return ['angler', 'bait', 'caughtAt', 'lake', 'pegId', 'species']
+      .every((key) => hasNonEmptyString(payload, key))
+      && typeof payload.released === 'boolean'
+      && typeof payload.lengthCm === 'number'
+      && typeof payload.weightKg === 'number'
+  }
+
+  if (storeName === OFFLINE_QUEUE_STORES.placeIssues) {
+    return ['category', 'description', 'lake', 'targetType', 'title']
+      .every((key) => hasNonEmptyString(payload, key))
+  }
+
+  if (storeName === OFFLINE_QUEUE_STORES.tournamentRequests) {
+    return ['sectorId', 'tournamentId', 'type']
+      .every((key) => hasNonEmptyString(payload, key))
+  }
+
+  return hasNonEmptyString(payload, 'kind') && isRecord(payload.payload)
+}
+
+async function countValidQueueRecords(
+  transaction: IDBTransaction,
+  storeName: OfflineQueueStoreName,
+) {
+  const records = await requestToPromise<unknown[]>(transaction.objectStore(storeName).getAll())
+  return records.filter((record) => isOfflineQueueRecord(storeName, record)).length
+}
+
+export async function readOfflineQueueCounts() {
+  const database = await openOfflineQueueDb()
+
+  try {
+    const transaction = database.transaction(Object.values(OFFLINE_QUEUE_STORES), 'readonly')
+    const [adminTournamentActions, catches, placeIssues, reservations, tournamentRequests] = await Promise.all([
+      countValidQueueRecords(transaction, OFFLINE_QUEUE_STORES.adminTournamentActions),
+      countValidQueueRecords(transaction, OFFLINE_QUEUE_STORES.catches),
+      countValidQueueRecords(transaction, OFFLINE_QUEUE_STORES.placeIssues),
+      countValidQueueRecords(transaction, OFFLINE_QUEUE_STORES.reservations),
+      countValidQueueRecords(transaction, OFFLINE_QUEUE_STORES.tournamentRequests),
+    ])
+
+    return {
+      adminTournamentActions,
+      catches,
+      placeIssues,
+      reservations,
+      tournamentRequests,
+    }
+  }
+  finally {
+    database.close()
+  }
+}
+
 export function transactionDone(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
     transaction.addEventListener('complete', () => resolve())

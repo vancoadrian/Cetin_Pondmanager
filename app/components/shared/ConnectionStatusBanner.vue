@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
     <div
       v-if="!isOnline || showRestored"
       class="fixed inset-x-0 top-0 z-50 border-b px-4 py-2 text-sm font-semibold shadow-sm"
-      :class="isOnline ? 'border-success-500/25 bg-success-500 text-white' : 'border-warning-500/25 bg-warning-500 text-primary-950'"
+      :class="isOnline ? 'border-success-500/25 bg-success-500 text-white' : 'border-warning-500/25 bg-warning-500 text-white'"
       role="status"
     >
       <div class="mx-auto flex max-w-7xl items-center justify-between gap-3">

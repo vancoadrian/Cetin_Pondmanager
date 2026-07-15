@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { CabinProduct, RequiredEquipmentItem, ReservationExtra } from '~/data/pond'
 
-useHead({ title: 'Pravidlá a výbava' })
+usePublicSeo({
+  title: 'Pravidlá a výbava',
+  description: 'Pravidlá rybolovu, cenník, povinná výbava, chaty, požičovňa a služby pre revíry Veľký Cetín a Štrkovisko Kocka.',
+})
 
 const {
   cabinProducts: seedCabinProducts,

@@ -92,7 +92,7 @@ const {
   refresh: refreshReservationState,
 } = await useAsyncData<ReservationStateResponse>(
   'admin-dashboard-reservation-state',
-  () => requestFetch<ReservationStateResponse>('/api/reservations'),
+  () => requestFetch<ReservationStateResponse>('/api/admin/reservations'),
   { default: fallbackReservationState },
 )
 const {

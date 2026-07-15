@@ -3,7 +3,18 @@ import { rangesOverlap } from '~/utils/availability'
 
 export type RentalAvailabilityStatus = 'available' | 'limited' | 'unavailable'
 
-export interface RentalAvailabilityResult {
+export interface RentalAvailabilityBooking {
+  from: string
+  id: string
+  quantity: number
+  rentalItemId: string
+  status: RentalBooking['status']
+  to: string
+}
+
+export interface RentalAvailabilityResult<
+  TBooking extends RentalAvailabilityBooking = RentalBooking,
+> {
   status: RentalAvailabilityStatus
   label: string
   description: string
@@ -15,11 +26,11 @@ export interface RentalAvailabilityResult {
   availableQuantity: number
   reasons: string[]
   sourceIds: string[]
-  bookings: RentalBooking[]
+  bookings: TBooking[]
 }
 
-interface RentalAvailabilityInput {
-  bookings: RentalBooking[]
+interface RentalAvailabilityInput<TBooking extends RentalAvailabilityBooking> {
+  bookings: readonly TBooking[]
   dateFrom: string
   dateTo: string
 }
@@ -48,10 +59,10 @@ const statusMeta: Record<
   },
 }
 
-export function getRentalAvailability(
+export function getRentalAvailability<TBooking extends RentalAvailabilityBooking = RentalBooking>(
   item: RentalItem,
-  input: RentalAvailabilityInput,
-): RentalAvailabilityResult {
+  input: RentalAvailabilityInput<TBooking>,
+): RentalAvailabilityResult<TBooking> {
   const bookings = input.bookings.filter((booking) => {
     if (booking.rentalItemId !== item.id) return false
     if (['returned', 'unavailable', 'cancelled'].includes(booking.status)) return false

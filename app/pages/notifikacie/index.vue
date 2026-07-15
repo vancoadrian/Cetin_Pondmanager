@@ -27,7 +27,10 @@ function formatSlovakCount(count: number, forms: [string, string, string]) {
   return `${count} ${form}`
 }
 
-useHead({ title: 'Výstrahy' })
+usePublicSeo({
+  title: 'Výstrahy a upozornenia',
+  description: 'Aktuálne výstrahy pred búrkou a vetrom, servisné oznamy, zmeny rezervácií a súťažné upozornenia pre Rybolov Cetín.',
+})
 
 const { alerts: seedAlerts, lakes } = usePondData()
 const runtimeConfig = useRuntimeConfig()

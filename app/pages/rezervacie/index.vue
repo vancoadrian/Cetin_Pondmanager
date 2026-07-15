@@ -2,9 +2,12 @@
 import type { LakeSlug } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import type {
-  ReservationStateResponse,
   ReservationSubmissionSuccess,
 } from '~/services/reservationApiService'
+import {
+  createPublicReservationState,
+  type PublicReservationStateResponse,
+} from '~/services/publicAvailabilityService'
 import { getValidationMessages, reservationRequestSchema } from '~/schemas/pondSchemas'
 import {
   enqueueOfflineReservation,
@@ -25,7 +28,11 @@ import { getRentalAvailability } from '~/utils/rentals'
 useHead({
   bodyAttrs: { class: 'overflow-x-hidden' },
   htmlAttrs: { class: 'overflow-x-hidden' },
+})
+
+usePublicSeo({
   title: 'Rezervácie',
+  description: 'Vyberte jazero, termín, voľné lovné miesto alebo chatu a odošlite žiadosť o rezerváciu bez skrytých predvolieb.',
 })
 
 const {
@@ -44,8 +51,7 @@ const {
   reservations,
 } = usePondData()
 
-const fallbackReservationState = (): ReservationStateResponse => ({
-  ok: true,
+const fallbackReservationState = (): PublicReservationStateResponse => createPublicReservationState({
   rentalBookings,
   reservations,
   updatedAt: 'seed',
@@ -55,9 +61,9 @@ const {
   error: reservationStateError,
   refresh: refreshReservationState,
   status: reservationStateStatus,
-} = await useAsyncData<ReservationStateResponse>(
+} = await useAsyncData<PublicReservationStateResponse>(
   'public-reservation-state',
-  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  () => $fetch<PublicReservationStateResponse>('/api/reservations'),
   {
     default: fallbackReservationState,
   },
@@ -135,23 +141,23 @@ const selectedPegId = ref(
   pegs.find((peg) => peg.id === requestedPegId && peg.lake === selectedLake.value)?.id
   ?? requestedCabinPegId
   ?? firstCabinPegId
-  ?? pegs.find((peg) => peg.lake === selectedLake.value)?.id
   ?? '',
 )
+const isPlaceListExpanded = ref(!selectedPegId.value)
+const isAvailabilityOverviewExpanded = ref(false)
 const selectedPermitId = ref('permit-48h')
 const reservationFrom = ref(initialDateRange.dateFrom)
 const reservationTo = ref(initialDateRange.dateTo)
 const reservationContactName = ref(anglerAccount.value?.name ?? '')
 const reservationContactEmail = ref(anglerAccount.value?.email ?? '')
 const reservationContactPhone = ref(anglerAccount.value?.phone ?? '')
-const selectedPaymentMethodId = ref(enabledPaymentMethods.value[0]?.id ?? '')
+const selectedPaymentMethodId = ref('')
 const selectedRentalIds = ref<string[]>(
   routeRentalIds.filter((id) => activeRentalItems.value.some((item) => item.id === id)),
 )
 const selectedExtraIds = ref<string[]>(
   routeExtraIds.filter((id) => activeReservationExtras.value.some((item) => item.id === id)),
 )
-let rentalDefaultSelectionApplied = false
 const reservationSubmitStatus = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
 const reservationSubmitMessage = ref('')
 const reservationSubmitOutcome = ref<'none' | 'queued' | 'sent'>('none')
@@ -315,7 +321,7 @@ const mapTarget = computed(() => ({
   query: {
     do: reservationTo.value,
     jazero: selectedLake.value,
-    miesto: selectedPegId.value,
+    miesto: selectedPegId.value || undefined,
     od: reservationFrom.value,
   },
 }))
@@ -541,6 +547,13 @@ function formatReservationCount(count: number) {
   return `${count} rezervácií`
 }
 
+function formatPlaceCount(count: number) {
+  if (count === 1) return '1 miesto'
+  if (count > 1 && count < 5) return `${count} miesta`
+
+  return `${count} miest`
+}
+
 const availabilityCellClasses: Record<AvailabilityStatus, string> = {
   available: 'border-success-200 bg-success-500/10 text-success-700 hover:bg-success-500/20',
   blocked: 'border-border bg-muted text-foreground-muted hover:bg-border',
@@ -580,13 +593,15 @@ function selectRecommendedAvailablePlace() {
 function scrollToReservationRequest() {
   if (!import.meta.client) return
 
+  isPlaceListExpanded.value = false
   void nextTick(() => {
     const target = document.getElementById('ziadost-rezervacie')
     if (!target) return
 
+    target.focus({ preventScroll: true })
     const top = target.getBoundingClientRect().top + window.scrollY - 88
     window.scrollTo({
-      behavior: 'smooth',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
       top: Math.max(top, 0),
     })
   })
@@ -673,15 +688,16 @@ async function editOfflineReservation(item: OfflineReservationQueueItem) {
   selectedPermitId.value = permitProducts.some((permit) => permit.id === payload.permitId)
     ? payload.permitId
     : permitProducts[0]?.id ?? ''
-  rentalDefaultSelectionApplied = true
 
   await nextTick()
 
   if (livePegs.value.some((peg) => peg.id === payload.pegId && peg.lake === payload.lake)) {
     selectedPegId.value = payload.pegId
+    isPlaceListExpanded.value = false
   }
   else {
-    selectedPegId.value = lakePegs.value[0]?.id ?? ''
+    selectedPegId.value = ''
+    isPlaceListExpanded.value = true
     warnings.push('Pôvodné lovné miesto už nie je dostupné, preto vyberte náhradné miesto.')
   }
 
@@ -704,9 +720,9 @@ async function editOfflineReservation(item: OfflineReservationQueueItem) {
   }
 
   const paymentMethod = enabledPaymentMethods.value.find((method) => method.id === payload.paymentMethodId)
-  selectedPaymentMethodId.value = paymentMethod?.id ?? enabledPaymentMethods.value[0]?.id ?? ''
+  selectedPaymentMethodId.value = paymentMethod?.id ?? ''
   if (payload.paymentMethodId && !paymentMethod) {
-    warnings.push('Pôvodný spôsob platby už nie je zapnutý, preto skontrolujte nový výber.')
+    warnings.push('Pôvodný spôsob platby už nie je zapnutý, preto vyberte nový spôsob platby.')
   }
 
   offlineReservationEditWarnings.value = warnings
@@ -951,13 +967,15 @@ onBeforeUnmount(() => {
 })
 
 watch(selectedLake, () => {
-  selectedPegId.value = lakePegs.value[0]?.id ?? ''
+  selectedPegId.value = ''
+  isPlaceListExpanded.value = true
   cleanSelectedExtras()
 })
 
 watch(lakePegs, (rows) => {
   if (!rows.some((peg) => peg.id === selectedPegId.value)) {
-    selectedPegId.value = rows[0]?.id ?? ''
+    selectedPegId.value = ''
+    isPlaceListExpanded.value = true
   }
 })
 
@@ -1038,18 +1056,6 @@ watch(
     if (filteredIds.length !== selectedRentalIds.value.length) {
       selectedRentalIds.value = filteredIds
     }
-
-    if (selectedRentalIds.value.length > 0) {
-      rentalDefaultSelectionApplied = true
-      return
-    }
-
-    if (!rentalDefaultSelectionApplied) {
-      selectedRentalIds.value = rows
-        .filter((row) => row.item.recommended && row.availability.reservable)
-        .map((row) => row.item.id)
-      rentalDefaultSelectionApplied = true
-    }
   },
   { immediate: true },
 )
@@ -1068,7 +1074,7 @@ watch(
   (methods) => {
     if (methods.some((method) => method.id === selectedPaymentMethodId.value)) return
 
-    selectedPaymentMethodId.value = methods[0]?.id ?? ''
+    selectedPaymentMethodId.value = ''
   },
   { immediate: true },
 )
@@ -1096,12 +1102,13 @@ watch(
             v-for="lake in lakes"
             :key="lake.slug"
             type="button"
-            class="rounded-md px-4 py-2 text-sm font-semibold transition-colors"
+            class="min-h-11 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
             :class="
               selectedLake === lake.slug
                 ? 'bg-white text-primary-900 shadow-sm'
                 : 'text-foreground-muted hover:text-foreground'
             "
+            :aria-pressed="selectedLake === lake.slug"
             @click="selectedLake = lake.slug"
           >
             {{ lake.name }}
@@ -1111,7 +1118,7 @@ watch(
         <div class="grid grid-cols-3 gap-2 text-sm">
           <div class="rounded-md border border-border bg-white px-3 py-2">
             <p class="text-foreground-muted text-xs">Voľné miesta</p>
-            <p class="font-bold">{{ actionablePegs.length }} miest</p>
+            <p class="font-bold">{{ formatPlaceCount(actionablePegs.length) }}</p>
           </div>
           <div class="rounded-md border border-border bg-white px-3 py-2">
             <p class="text-foreground-muted text-xs">Voľné chaty</p>
@@ -1119,7 +1126,7 @@ watch(
           </div>
           <div class="rounded-md border border-border bg-white px-3 py-2">
             <p class="text-foreground-muted text-xs">Nedostupné</p>
-            <p class="font-bold">{{ blockedPegs.length }} miest</p>
+            <p class="font-bold">{{ formatPlaceCount(blockedPegs.length) }}</p>
           </div>
         </div>
       </div>
@@ -1177,17 +1184,50 @@ watch(
                 >
                   Vybrať {{ recommendedAvailableRow.peg.label }}
                 </UButton>
+                <UButton
+                  v-if="selectedPeg"
+                  type="button"
+                  :icon="isPlaceListExpanded ? 'i-heroicons-chevron-up' : 'i-heroicons-pencil-square'"
+                  variant="soft"
+                  class="md:hidden"
+                  @click="isPlaceListExpanded = !isPlaceListExpanded"
+                >
+                  {{ isPlaceListExpanded ? 'Skryť zoznam' : 'Zmeniť miesto' }}
+                </UButton>
                 <UButton :to="mapTarget" icon="i-heroicons-map-pin" variant="ghost">Mapa</UButton>
               </div>
             </div>
 
-            <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-if="selectedPeg && !isPlaceListExpanded"
+              class="mt-5 rounded-md border border-primary-300 bg-primary-50 p-4 md:hidden"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="font-bold">{{ selectedPeg.label }}</p>
+                  <p class="mt-0.5 text-xs text-foreground-muted">
+                    {{ selectedPeg.type === 'cabin' ? 'miesto s chatou' : 'lovné miesto' }} ·
+                    {{ selectedPeg.capacity }} osoby
+                  </p>
+                </div>
+                <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
+              </div>
+              <p class="mt-3 text-sm text-foreground-muted">
+                {{ selectedAvailability ? publicAvailabilityReason({ peg: selectedPeg, availability: selectedAvailability }) : '' }}
+              </p>
+            </div>
+
+            <div
+              class="mt-5 gap-3 md:grid md:grid-cols-2 xl:grid-cols-3"
+              :class="isPlaceListExpanded || !selectedPeg ? 'grid' : 'hidden'"
+            >
               <button
                 v-for="row in availabilityRows"
                 :key="row.peg.id"
                 type="button"
                 class="border-border rounded-md border p-4 text-left transition-colors hover:bg-muted"
                 :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50' : 'bg-white'"
+                :aria-pressed="selectedPegId === row.peg.id"
                 @click="selectedPegId = row.peg.id"
               >
                 <div class="flex items-start justify-between gap-3">
@@ -1259,14 +1299,27 @@ watch(
                   Najbližších 14 dní od zvoleného dátumu. Kliknutím na bunku vyberiete miesto aj deň.
                 </p>
               </div>
-              <UButton
-                icon="i-heroicons-arrow-down-tray"
-                variant="ghost"
-                :disabled="availabilityOverviewRows.length === 0"
-                @click="exportAvailabilityOverviewCsv"
-              >
-                Stiahnuť prehľad
-              </UButton>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  id="availability-overview-toggle"
+                  type="button"
+                  :icon="isAvailabilityOverviewExpanded ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'"
+                  variant="soft"
+                  :aria-expanded="isAvailabilityOverviewExpanded"
+                  aria-controls="availability-overview-table"
+                  @click="isAvailabilityOverviewExpanded = !isAvailabilityOverviewExpanded"
+                >
+                  {{ isAvailabilityOverviewExpanded ? 'Skryť 14-dňový prehľad' : 'Zobraziť 14-dňový prehľad' }}
+                </UButton>
+                <UButton
+                  icon="i-heroicons-arrow-down-tray"
+                  variant="ghost"
+                  :disabled="availabilityOverviewRows.length === 0"
+                  @click="exportAvailabilityOverviewCsv"
+                >
+                  Stiahnuť prehľad
+                </UButton>
+              </div>
             </div>
 
             <div class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
@@ -1296,7 +1349,13 @@ watch(
               </span>
             </div>
 
-            <div class="mt-5 max-w-full overflow-x-auto rounded-md border border-border bg-white [contain:layout_paint]">
+            <div
+              v-if="isAvailabilityOverviewExpanded"
+              id="availability-overview-table"
+              role="region"
+              aria-labelledby="availability-overview-toggle"
+              class="mt-5 max-w-full overflow-x-auto rounded-md border border-border bg-white [contain:layout_paint]"
+            >
               <table class="w-full min-w-[860px] border-collapse text-sm">
                 <thead>
                   <tr class="bg-muted text-left">
@@ -1309,7 +1368,7 @@ watch(
                       class="border-border border-l px-2 py-3 text-center font-semibold"
                     >
                       <span class="text-foreground-muted block text-xs">{{ day.dayName }}</span>
-                      <span>{{ day.dayNumber }}. {{ day.monthName }}</span>
+                      <span>{{ day.dayNumber }} {{ day.monthName }}</span>
                     </th>
                   </tr>
                 </thead>
@@ -1357,9 +1416,14 @@ watch(
         </div>
 
         <aside class="order-2 min-w-0 space-y-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-start">
-          <div id="ziadost-rezervacie" class="border-border bg-surface scroll-mt-24 rounded-card border p-5">
+          <div
+            id="ziadost-rezervacie"
+            tabindex="-1"
+            aria-labelledby="ziadost-rezervacie-title"
+            class="border-border bg-surface scroll-mt-24 rounded-card border p-5"
+          >
             <div class="flex items-center justify-between gap-3">
-              <h2 class="text-lg font-bold">Žiadosť o rezerváciu</h2>
+              <h2 id="ziadost-rezervacie-title" class="text-lg font-bold">Žiadosť o rezerváciu</h2>
               <UButton
                 to="#vyber-rezervacie"
                 icon="i-heroicons-pencil-square"
@@ -1491,7 +1555,7 @@ watch(
                 </div>
               </div>
             </div>
-            <form class="mt-5 space-y-5">
+            <form class="mt-5 space-y-5" @submit.prevent="submitReservation">
               <div
                 v-if="selectedAvailability"
                 class="rounded-md border p-4"
@@ -1532,8 +1596,8 @@ watch(
                 </p>
               </div>
 
-              <div>
-                <p class="text-sm font-semibold">Povolenka</p>
+              <fieldset class="min-w-0">
+                <legend class="text-sm font-semibold">Povolenka</legend>
                 <div class="mt-2 grid gap-2">
                   <label
                     v-for="permit in permitProducts"
@@ -1559,10 +1623,10 @@ watch(
                     </span>
                   </label>
                 </div>
-              </div>
+              </fieldset>
 
-              <div>
-                <p class="text-sm font-semibold">Požičovňa výbavy</p>
+              <fieldset class="min-w-0">
+                <legend class="text-sm font-semibold">Požičovňa výbavy</legend>
                 <div class="mt-2 grid gap-2">
                   <label
                     v-for="row in rentalAvailabilityRows"
@@ -1605,10 +1669,10 @@ watch(
                     </span>
                   </label>
                 </div>
-              </div>
+              </fieldset>
 
-              <div v-if="availableExtras.length">
-                <p class="text-sm font-semibold">Doplnky k rezervácii</p>
+              <fieldset v-if="availableExtras.length" class="min-w-0">
+                <legend class="text-sm font-semibold">Doplnky k rezervácii</legend>
                 <div class="mt-2 grid gap-2">
                   <label
                     v-for="extra in availableExtras"
@@ -1638,10 +1702,10 @@ watch(
                     </span>
                   </label>
                 </div>
-              </div>
+              </fieldset>
 
-              <div>
-                <p class="text-sm font-semibold">Kontaktné údaje</p>
+              <fieldset class="min-w-0">
+                <legend class="text-sm font-semibold">Kontaktné údaje</legend>
                 <div class="mt-2 grid gap-3 sm:grid-cols-2">
                   <div
                     v-if="reservationAccountHint"
@@ -1689,7 +1753,7 @@ watch(
                     >
                   </label>
                 </div>
-              </div>
+              </fieldset>
 
               <div class="rounded-md bg-muted p-4 text-sm">
                 <div class="flex items-start justify-between gap-3">
@@ -1716,9 +1780,9 @@ watch(
                 </div>
               </div>
 
-              <div class="rounded-md border border-border bg-white p-4 text-sm">
-                <p class="font-bold">Spôsob platby</p>
-                <p class="text-foreground-muted mt-1">
+              <fieldset class="min-w-0 rounded-md border border-border bg-white p-4 text-sm">
+                <legend class="px-1 font-bold">Spôsob platby (povinné)</legend>
+                <p id="payment-method-help" class="text-foreground-muted mt-1">
                   Platobné pokyny dostanete až po potvrdení rezervácie správcom.
                 </p>
                 <div v-if="enabledPaymentMethods.length" class="mt-3 grid gap-2">
@@ -1734,6 +1798,8 @@ watch(
                       type="radio"
                       name="payment-method"
                       :value="method.id"
+                      aria-describedby="payment-method-help"
+                      required
                       class="mt-1 h-4 w-4 accent-primary-700"
                     >
                     <UIcon
@@ -1752,7 +1818,7 @@ watch(
                   title="Platba sa dohodne so správcom"
                   description="Momentálne nie je zapnutý žiadny spôsob platby v aplikácii."
                 />
-              </div>
+              </fieldset>
 
               <ValidationSummary
                 :messages="reservationValidationMessages"
@@ -1775,12 +1841,11 @@ watch(
               />
 
               <UButton
-                type="button"
+                type="submit"
                 icon="i-heroicons-paper-airplane"
                 block
                 :disabled="!reservationCanSubmit || reservationSubmitStatus === 'submitting'"
                 :loading="reservationSubmitStatus === 'submitting'"
-                @click="submitReservation"
               >
                 {{ editingOfflineReservationId ? 'Odoslať opravenú žiadosť' : 'Odoslať žiadosť' }}
               </UButton>

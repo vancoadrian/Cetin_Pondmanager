@@ -273,6 +273,16 @@ export function useMockAuth() {
     session.value = null
     anglerSession.value = null
     sessionUser.value = null
+
+    if (import.meta.client && 'caches' in window) {
+      void caches.keys().then((cacheNames) => Promise.all(
+        cacheNames
+          .filter((cacheName) =>
+            cacheName.startsWith('rybolov-pages') || cacheName.startsWith('rybolov-public-api'),
+          )
+          .map((cacheName) => caches.delete(cacheName)),
+      )).catch(() => undefined)
+    }
   }
 
   return {

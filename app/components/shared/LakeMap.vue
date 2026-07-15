@@ -110,14 +110,21 @@ const mapLegendItems = [
   },
 ] as const
 
-function markerStyle(point: Peg) {
-  const availability = getPegAvailability(point, {
+function pointAvailability(point: Peg) {
+  return getPegAvailability(point, {
     closures: activeClosures.value,
     dateFrom: props.dateFrom,
     dateTo: props.dateTo,
     reservations: activeReservations.value,
   })
-  return getMapMarkerStyle(availability.status)
+}
+
+function markerStyle(point: Peg) {
+  return getMapMarkerStyle(pointAvailability(point).status)
+}
+
+function markerAccessibleLabel(point: Peg) {
+  return `${getMapPointLabel(point)}, ${point.label}, ${pointAvailability(point).label}`
 }
 
 function reservationTarget(point: Peg) {
@@ -164,13 +171,13 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
         <svg
           class="absolute inset-0 h-full w-full"
           :viewBox="`0 0 ${MAP_VIEWBOX_WIDTH} ${MAP_VIEWBOX_HEIGHT}`"
-          role="img"
+          role="group"
           :aria-label="title"
         >
           <image
             v-if="image"
             :href="image"
-            :aria-label="title"
+            aria-hidden="true"
             :x="imageAttributes.x"
             :y="imageAttributes.y"
             :width="imageAttributes.width"
@@ -234,13 +241,24 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
           <g
             v-for="point in points"
             :key="point.id"
-            class="cursor-pointer outline-none transition-transform"
+            class="lake-map-point cursor-pointer transition-transform"
             role="button"
             tabindex="0"
-            :aria-label="point.label"
+            :aria-label="markerAccessibleLabel(point)"
+            :aria-pressed="props.selectedId === point.id"
             @click="emit('select', point)"
             @keydown="selectFromKeyboard($event, point)"
           >
+            <circle
+              class="lake-map-focus-ring"
+              :cx="point.x"
+              :cy="toSvgY(point.y)"
+              r="5.4"
+              fill="none"
+              stroke="#ffc247"
+              stroke-width="1.2"
+              pointer-events="none"
+            />
             <circle
               :cx="point.x"
               :cy="toSvgY(point.y)"
@@ -283,25 +301,25 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
           <div class="rounded-md border border-border bg-white p-4">
             <p class="text-foreground-muted text-xs font-semibold uppercase">Váš výber</p>
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-foreground mt-1 text-xl font-black">{{ selectedPeg.label }}</h3>
+              <p class="text-foreground mt-1 text-xl font-black">{{ selectedPeg.label }}</p>
               <AvailabilityBadge v-if="selectedAvailability" :availability="selectedAvailability" />
             </div>
-            <dl class="mt-4 space-y-3 text-sm">
+            <div class="mt-4 space-y-3 text-sm">
               <div class="flex items-start gap-2">
                 <UIcon name="i-heroicons-calendar-days" class="text-primary-700 mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <dt class="text-foreground-muted text-xs">Termín</dt>
-                  <dd class="font-semibold">{{ selectedRangeLabel }}</dd>
+                  <p class="text-foreground-muted text-xs">Termín</p>
+                  <p class="font-semibold">{{ selectedRangeLabel }}</p>
                 </div>
               </div>
               <div class="flex items-start gap-2">
                 <UIcon name="i-heroicons-map-pin" class="text-primary-700 mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <dt class="text-foreground-muted text-xs">Typ miesta</dt>
-                  <dd class="font-semibold">{{ selectedPegTypeLabel }}</dd>
+                  <p class="text-foreground-muted text-xs">Typ miesta</p>
+                  <p class="font-semibold">{{ selectedPegTypeLabel }}</p>
                 </div>
               </div>
-            </dl>
+            </div>
             <p class="text-foreground-muted mt-4 text-sm">{{ selectedPeg.notes }}</p>
             <p class="text-primary-800 mt-3 text-sm font-semibold">
               {{ reservationHint }}
@@ -337,3 +355,24 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.lake-map-point:focus {
+  outline: none;
+}
+
+.lake-map-focus-ring {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.lake-map-point:focus-visible .lake-map-focus-ring {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lake-map-focus-ring {
+    transition: none;
+  }
+}
+</style>

@@ -54,7 +54,7 @@ const fallbackReservationState = (): ReservationStateResponse => ({
 })
 const { data: reservationState, refresh: refreshReservationState } = await useAsyncData<ReservationStateResponse>(
   'admin-reservation-state',
-  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  () => requestFetch<ReservationStateResponse>('/api/admin/reservations'),
   {
     default: fallbackReservationState,
   },

@@ -1,0 +1,1146 @@
+{
+  "schemaVersion": 1,
+  "auditDate": "2026-07-14",
+  "environment": {
+    "lighthouse": "13.4.0",
+    "chrome": "138.0.7204.184",
+    "runsPerRoute": 3,
+    "aggregation": "independent metric median"
+  },
+  "routes": [
+    "/",
+    "/reviry",
+    "/reviry/velky-cetin",
+    "/mapa",
+    "/rezervacie",
+    "/ulovky",
+    "/sutaze",
+    "/info",
+    "/kontakt",
+    "/notifikacie"
+  ],
+  "results": {
+    "baseline": {
+      "mobile": [
+        {
+          "route": "/",
+          "runs": {
+            "performance": [
+              48,
+              46,
+              49
+            ],
+            "lcpMs": [
+              13197,
+              12314,
+              12381
+            ]
+          },
+          "median": {
+            "performance": 48,
+            "accessibility": 87,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8559,
+            "lcpMs": 12381,
+            "cls": 0.165,
+            "tbtMs": 138,
+            "transferBytes": 2241617,
+            "requests": 67
+          }
+        },
+        {
+          "route": "/reviry",
+          "runs": {
+            "performance": [
+              57,
+              55,
+              56
+            ],
+            "lcpMs": [
+              12173,
+              11467,
+              11429
+            ]
+          },
+          "median": {
+            "performance": 56,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8158,
+            "lcpMs": 11467,
+            "cls": 0,
+            "tbtMs": 92,
+            "transferBytes": 2362475,
+            "requests": 57
+          }
+        },
+        {
+          "route": "/reviry/velky-cetin",
+          "runs": {
+            "performance": [
+              55,
+              56,
+              55
+            ],
+            "lcpMs": [
+              11601,
+              10898,
+              10887
+            ]
+          },
+          "median": {
+            "performance": 55,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8586,
+            "lcpMs": 10898,
+            "cls": 0.007,
+            "tbtMs": 137,
+            "transferBytes": 1919714,
+            "requests": 63
+          }
+        },
+        {
+          "route": "/mapa",
+          "runs": {
+            "performance": [
+              56,
+              56,
+              56
+            ],
+            "lcpMs": [
+              10081,
+              10738,
+              10147
+            ]
+          },
+          "median": {
+            "performance": 56,
+            "accessibility": 87,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8970,
+            "lcpMs": 10147,
+            "cls": 0,
+            "tbtMs": 79,
+            "transferBytes": 1781733,
+            "requests": 66
+          }
+        },
+        {
+          "route": "/rezervacie",
+          "runs": {
+            "performance": [
+              55,
+              55,
+              55
+            ],
+            "lcpMs": [
+              9824,
+              10151,
+              9841
+            ]
+          },
+          "median": {
+            "performance": 55,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 9564,
+            "lcpMs": 9841,
+            "cls": 0,
+            "tbtMs": 126,
+            "transferBytes": 1557368,
+            "requests": 73
+          }
+        },
+        {
+          "route": "/ulovky",
+          "runs": {
+            "performance": [
+              56,
+              57,
+              57
+            ],
+            "lcpMs": [
+              9015,
+              9015,
+              8796
+            ]
+          },
+          "median": {
+            "performance": 57,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8816,
+            "lcpMs": 9015,
+            "cls": 0.02,
+            "tbtMs": 84,
+            "transferBytes": 1464888,
+            "requests": 56
+          }
+        },
+        {
+          "route": "/sutaze",
+          "runs": {
+            "performance": [
+              56,
+              56,
+              56
+            ],
+            "lcpMs": [
+              10065,
+              10360,
+              10378
+            ]
+          },
+          "median": {
+            "performance": 56,
+            "accessibility": 93,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 9114,
+            "lcpMs": 10360,
+            "cls": 0,
+            "tbtMs": 101,
+            "transferBytes": 1691388,
+            "requests": 57
+          }
+        },
+        {
+          "route": "/info",
+          "runs": {
+            "performance": [
+              56,
+              56,
+              56
+            ],
+            "lcpMs": [
+              8832,
+              9371,
+              9329
+            ]
+          },
+          "median": {
+            "performance": 56,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8584,
+            "lcpMs": 9329,
+            "cls": 0,
+            "tbtMs": 95,
+            "transferBytes": 1401344,
+            "requests": 69
+          }
+        },
+        {
+          "route": "/kontakt",
+          "runs": {
+            "performance": [
+              55,
+              57,
+              58
+            ],
+            "lcpMs": [
+              8553,
+              8550,
+              8383
+            ]
+          },
+          "median": {
+            "performance": 57,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8360,
+            "lcpMs": 8550,
+            "cls": 0.036,
+            "tbtMs": 53,
+            "transferBytes": 1410427,
+            "requests": 53
+          }
+        },
+        {
+          "route": "/notifikacie",
+          "runs": {
+            "performance": [
+              51,
+              50,
+              53
+            ],
+            "lcpMs": [
+              8862,
+              8645,
+              8854
+            ]
+          },
+          "median": {
+            "performance": 51,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 8660,
+            "lcpMs": 8854,
+            "cls": 0.018,
+            "tbtMs": 267,
+            "transferBytes": 1426924,
+            "requests": 58
+          }
+        }
+      ],
+      "desktop": [
+        {
+          "route": "/",
+          "runs": {
+            "performance": [
+              78,
+              81,
+              81
+            ],
+            "lcpMs": [
+              2512,
+              2256,
+              2254
+            ]
+          },
+          "median": {
+            "performance": 81,
+            "accessibility": 87,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1622,
+            "lcpMs": 2256,
+            "cls": 0,
+            "tbtMs": 11,
+            "transferBytes": 2391371,
+            "requests": 88
+          }
+        },
+        {
+          "route": "/reviry",
+          "runs": {
+            "performance": [
+              80,
+              80,
+              81
+            ],
+            "lcpMs": [
+              2496,
+              2492,
+              2395
+            ]
+          },
+          "median": {
+            "performance": 80,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1529,
+            "lcpMs": 2492,
+            "cls": 0,
+            "tbtMs": 1,
+            "transferBytes": 3092858,
+            "requests": 90
+          }
+        },
+        {
+          "route": "/reviry/velky-cetin",
+          "runs": {
+            "performance": [
+              82,
+              82,
+              82
+            ],
+            "lcpMs": [
+              2164,
+              2181,
+              2174
+            ]
+          },
+          "median": {
+            "performance": 82,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1619,
+            "lcpMs": 2174,
+            "cls": 0,
+            "tbtMs": 15,
+            "transferBytes": 2332745,
+            "requests": 88
+          }
+        },
+        {
+          "route": "/mapa",
+          "runs": {
+            "performance": [
+              83,
+              84,
+              84
+            ],
+            "lcpMs": [
+              1941,
+              1874,
+              1896
+            ]
+          },
+          "median": {
+            "performance": 84,
+            "accessibility": 87,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1677,
+            "lcpMs": 1896,
+            "cls": 0,
+            "tbtMs": 0,
+            "transferBytes": 1931487,
+            "requests": 88
+          }
+        },
+        {
+          "route": "/rezervacie",
+          "runs": {
+            "performance": [
+              83,
+              83,
+              83
+            ],
+            "lcpMs": [
+              1871,
+              1870,
+              1810
+            ]
+          },
+          "median": {
+            "performance": 83,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1794,
+            "lcpMs": 1870,
+            "cls": 0,
+            "tbtMs": 16,
+            "transferBytes": 1728237,
+            "requests": 95
+          }
+        },
+        {
+          "route": "/ulovky",
+          "runs": {
+            "performance": [
+              86,
+              86,
+              86
+            ],
+            "lcpMs": [
+              1695,
+              1698,
+              1693
+            ]
+          },
+          "median": {
+            "performance": 86,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1637,
+            "lcpMs": 1695,
+            "cls": 0.012,
+            "tbtMs": 0,
+            "transferBytes": 1623544,
+            "requests": 79
+          }
+        },
+        {
+          "route": "/sutaze",
+          "runs": {
+            "performance": [
+              84,
+              84,
+              84
+            ],
+            "lcpMs": [
+              1943,
+              1872,
+              1871
+            ]
+          },
+          "median": {
+            "performance": 84,
+            "accessibility": 93,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1656,
+            "lcpMs": 1872,
+            "cls": 0,
+            "tbtMs": 6,
+            "transferBytes": 1921010,
+            "requests": 80
+          }
+        },
+        {
+          "route": "/info",
+          "runs": {
+            "performance": [
+              86,
+              86,
+              86
+            ],
+            "lcpMs": [
+              1682,
+              1690,
+              1666
+            ]
+          },
+          "median": {
+            "performance": 86,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1633,
+            "lcpMs": 1682,
+            "cls": 0,
+            "tbtMs": 1,
+            "transferBytes": 1658972,
+            "requests": 88
+          }
+        },
+        {
+          "route": "/kontakt",
+          "runs": {
+            "performance": [
+              87,
+              87,
+              87
+            ],
+            "lcpMs": [
+              1635,
+              1623,
+              1623
+            ]
+          },
+          "median": {
+            "performance": 87,
+            "accessibility": 97,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1552,
+            "lcpMs": 1623,
+            "cls": 0.003,
+            "tbtMs": 0,
+            "transferBytes": 1623003,
+            "requests": 82
+          }
+        },
+        {
+          "route": "/notifikacie",
+          "runs": {
+            "performance": [
+              87,
+              86,
+              86
+            ],
+            "lcpMs": [
+              1666,
+              1672,
+              1674
+            ]
+          },
+          "median": {
+            "performance": 86,
+            "accessibility": 96,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 1600,
+            "lcpMs": 1672,
+            "cls": 0,
+            "tbtMs": 39,
+            "transferBytes": 1630491,
+            "requests": 86
+          }
+        }
+      ]
+    },
+    "final": {
+      "mobile": [
+        {
+          "route": "/",
+          "runs": {
+            "performance": [
+              83,
+              90,
+              82
+            ],
+            "lcpMs": [
+              3422,
+              2999,
+              3475
+            ]
+          },
+          "median": {
+            "performance": 83,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2507,
+            "lcpMs": 3422,
+            "cls": 0,
+            "tbtMs": 171,
+            "transferBytes": 304653,
+            "requests": 59
+          }
+        },
+        {
+          "route": "/reviry",
+          "runs": {
+            "performance": [
+              89,
+              87,
+              88
+            ],
+            "lcpMs": [
+              2895,
+              3513,
+              3267
+            ]
+          },
+          "median": {
+            "performance": 88,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2391,
+            "lcpMs": 3267,
+            "cls": 0,
+            "tbtMs": 132,
+            "transferBytes": 332823,
+            "requests": 45
+          }
+        },
+        {
+          "route": "/reviry/velky-cetin",
+          "runs": {
+            "performance": [
+              85,
+              64,
+              90
+            ],
+            "lcpMs": [
+              3460,
+              3385,
+              2994
+            ]
+          },
+          "median": {
+            "performance": 85,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2513,
+            "lcpMs": 3385,
+            "cls": 0,
+            "tbtMs": 148,
+            "transferBytes": 291647,
+            "requests": 59
+          }
+        },
+        {
+          "route": "/mapa",
+          "runs": {
+            "performance": [
+              82,
+              84,
+              88
+            ],
+            "lcpMs": [
+              3957,
+              3537,
+              3145
+            ]
+          },
+          "median": {
+            "performance": 84,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2813,
+            "lcpMs": 3537,
+            "cls": 0,
+            "tbtMs": 113,
+            "transferBytes": 559840,
+            "requests": 61
+          }
+        },
+        {
+          "route": "/rezervacie",
+          "runs": {
+            "performance": [
+              83,
+              85,
+              83
+            ],
+            "lcpMs": [
+              3697,
+              3378,
+              3675
+            ]
+          },
+          "median": {
+            "performance": 83,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2965,
+            "lcpMs": 3675,
+            "cls": 0,
+            "tbtMs": 125,
+            "transferBytes": 290781,
+            "requests": 65
+          }
+        },
+        {
+          "route": "/ulovky",
+          "runs": {
+            "performance": [
+              90,
+              90,
+              89
+            ],
+            "lcpMs": [
+              2995,
+              3000,
+              3020
+            ]
+          },
+          "median": {
+            "performance": 90,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2665,
+            "lcpMs": 3000,
+            "cls": 0,
+            "tbtMs": 100,
+            "transferBytes": 291841,
+            "requests": 47
+          }
+        },
+        {
+          "route": "/sutaze",
+          "runs": {
+            "performance": [
+              88,
+              86,
+              84
+            ],
+            "lcpMs": [
+              3220,
+              3383,
+              3688
+            ]
+          },
+          "median": {
+            "performance": 86,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2815,
+            "lcpMs": 3383,
+            "cls": 0,
+            "tbtMs": 90,
+            "transferBytes": 566834,
+            "requests": 48
+          }
+        },
+        {
+          "route": "/info",
+          "runs": {
+            "performance": [
+              91,
+              87,
+              87
+            ],
+            "lcpMs": [
+              2921,
+              3269,
+              3385
+            ]
+          },
+          "median": {
+            "performance": 87,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2545,
+            "lcpMs": 3269,
+            "cls": 0,
+            "tbtMs": 102,
+            "transferBytes": 265949,
+            "requests": 64
+          }
+        },
+        {
+          "route": "/kontakt",
+          "runs": {
+            "performance": [
+              94,
+              94,
+              94
+            ],
+            "lcpMs": [
+              2523,
+              2542,
+              2525
+            ]
+          },
+          "median": {
+            "performance": 94,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2352,
+            "lcpMs": 2525,
+            "cls": 0,
+            "tbtMs": 48,
+            "transferBytes": 252826,
+            "requests": 40
+          }
+        },
+        {
+          "route": "/notifikacie",
+          "runs": {
+            "performance": [
+              89,
+              87,
+              88
+            ],
+            "lcpMs": [
+              2773,
+              2768,
+              2771
+            ]
+          },
+          "median": {
+            "performance": 88,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 2513,
+            "lcpMs": 2771,
+            "cls": 0,
+            "tbtMs": 254,
+            "transferBytes": 276124,
+            "requests": 48
+          }
+        }
+      ],
+      "desktop": [
+        {
+          "route": "/",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              692,
+              663,
+              688
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 556,
+            "lcpMs": 688,
+            "cls": 0,
+            "tbtMs": 3,
+            "transferBytes": 738966,
+            "requests": 87
+          }
+        },
+        {
+          "route": "/reviry",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              719,
+              763,
+              759
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 512,
+            "lcpMs": 759,
+            "cls": 0,
+            "tbtMs": 0,
+            "transferBytes": 490919,
+            "requests": 88
+          }
+        },
+        {
+          "route": "/reviry/velky-cetin",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              700,
+              705,
+              716
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 592,
+            "lcpMs": 705,
+            "cls": 0,
+            "tbtMs": 25,
+            "transferBytes": 466260,
+            "requests": 86
+          }
+        },
+        {
+          "route": "/mapa",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              99
+            ],
+            "lcpMs": [
+              725,
+              725,
+              748
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 624,
+            "lcpMs": 725,
+            "cls": 0,
+            "tbtMs": 14,
+            "transferBytes": 641356,
+            "requests": 86
+          }
+        },
+        {
+          "route": "/rezervacie",
+          "runs": {
+            "performance": [
+              99,
+              99,
+              99
+            ],
+            "lcpMs": [
+              765,
+              763,
+              763
+            ]
+          },
+          "median": {
+            "performance": 99,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 713,
+            "lcpMs": 763,
+            "cls": 0,
+            "tbtMs": 11,
+            "transferBytes": 370452,
+            "requests": 93
+          }
+        },
+        {
+          "route": "/ulovky",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              687,
+              688,
+              687
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 596,
+            "lcpMs": 687,
+            "cls": 0,
+            "tbtMs": 3,
+            "transferBytes": 363807,
+            "requests": 77
+          }
+        },
+        {
+          "route": "/sutaze",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              727,
+              712,
+              718
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 639,
+            "lcpMs": 718,
+            "cls": 0,
+            "tbtMs": 5,
+            "transferBytes": 643340,
+            "requests": 78
+          }
+        },
+        {
+          "route": "/info",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              642,
+              653,
+              617
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 560,
+            "lcpMs": 642,
+            "cls": 0,
+            "tbtMs": 3,
+            "transferBytes": 366677,
+            "requests": 86
+          }
+        },
+        {
+          "route": "/kontakt",
+          "runs": {
+            "performance": [
+              100,
+              100,
+              100
+            ],
+            "lcpMs": [
+              600,
+              601,
+              600
+            ]
+          },
+          "median": {
+            "performance": 100,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 513,
+            "lcpMs": 600,
+            "cls": 0,
+            "tbtMs": 0,
+            "transferBytes": 363308,
+            "requests": 80
+          }
+        },
+        {
+          "route": "/notifikacie",
+          "runs": {
+            "performance": [
+              100,
+              99,
+              98
+            ],
+            "lcpMs": [
+              601,
+              667,
+              631
+            ]
+          },
+          "median": {
+            "performance": 99,
+            "accessibility": 100,
+            "bestPractices": 100,
+            "seo": 100,
+            "fcpMs": 573,
+            "lcpMs": 631,
+            "cls": 0,
+            "tbtMs": 68,
+            "transferBytes": 364026,
+            "requests": 84
+          }
+        }
+      ]
+    }
+  },
+  "postHardeningSpotCheck": {
+    "scope": "mobile homepage",
+    "runs": 3,
+    "isolated": true,
+    "performance": [
+      88,
+      89,
+      79
+    ],
+    "lcpMs": [
+      2958,
+      3009,
+      3575
+    ],
+    "tbtMs": [
+      205,
+      175,
+      270
+    ],
+    "median": {
+      "performance": 88,
+      "accessibility": 100,
+      "bestPractices": 100,
+      "seo": 100,
+      "lcpMs": 3009,
+      "cls": 0,
+      "tbtMs": 205,
+      "transferBytes": 365963
+    }
+  }
+}

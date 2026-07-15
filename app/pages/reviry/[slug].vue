@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { Peg } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
-import type { ReservationStateResponse } from '~/services/reservationApiService'
+import {
+  createPublicReservationState,
+  type PublicReservationStateResponse,
+} from '~/services/publicAvailabilityService'
 import { getPegAvailability } from '~/utils/availability'
 import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 import { buildCalendarDays } from '~/utils/calendar'
+import { getOptimizedImageSrcset } from '~/utils/responsiveImage'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,7 +23,12 @@ if (!lake) {
   })
 }
 
-useHead({ title: lake.name })
+usePublicSeo({
+  title: lake.name,
+  description: lake.summary,
+  image: lake.image,
+  imageAlt: lake.name,
+})
 
 const fallbackMapState = (): MapStateResponse => ({
   ok: true,
@@ -29,8 +38,7 @@ const fallbackMapState = (): MapStateResponse => ({
   pegs,
   updatedAt: 'seed',
 })
-const fallbackReservationState = (): ReservationStateResponse => ({
-  ok: true,
+const fallbackReservationState = (): PublicReservationStateResponse => createPublicReservationState({
   rentalBookings,
   reservations,
   updatedAt: 'seed',
@@ -52,9 +60,9 @@ const {
   error: reservationStateError,
   refresh: refreshReservationState,
   status: reservationStateStatus,
-} = await useAsyncData<ReservationStateResponse>(
+} = await useAsyncData<PublicReservationStateResponse>(
   `public-revir-reservation-state-${lake.slug}`,
-  () => $fetch<ReservationStateResponse>('/api/reservations'),
+  () => $fetch<PublicReservationStateResponse>('/api/reservations'),
   {
     default: fallbackReservationState,
   },
@@ -63,6 +71,7 @@ const { liveClosures } = await useClosureState({ key: `public-revir-closure-stat
 const initialDateRange = resolveAvailabilityDateRange(route.query.od, route.query.do)
 const dateFrom = ref(initialDateRange.dateFrom)
 const dateTo = ref(initialDateRange.dateTo)
+const isDatePickerExpanded = ref(false)
 const livePegs = computed(() => mapState.value?.pegs ?? pegs)
 const liveReservations = computed(() => reservationState.value?.reservations ?? reservations)
 const lakePegs = computed(() => livePegs.value.filter((peg) => peg.lake === lake.slug))
@@ -108,6 +117,12 @@ const recommendedRangeRows = computed(() =>
     .slice(0, 3),
 )
 const availabilityRangeLabel = computed(() => formatAvailabilityDateRange(dateFrom.value, dateTo.value))
+
+function formatReservablePlaceCount(count: number) {
+  if (count === 1) return '1 voľné miesto'
+  if (count >= 2 && count <= 4) return `${count} voľné miesta`
+  return `${count} voľných miest`
+}
 
 function mapTargetForPeg(peg?: Peg) {
   return {
@@ -199,11 +214,26 @@ watch(
 <template>
   <div>
     <section class="relative min-h-[32rem] overflow-hidden bg-primary-950 text-white">
-      <img
-        :src="lake.image"
-        :alt="lake.name"
-        class="absolute inset-0 h-full w-full object-cover opacity-70"
-      >
+      <picture>
+        <source
+          type="image/avif"
+          :srcset="getOptimizedImageSrcset(lake.image, [320, 500])"
+          sizes="100vw"
+        >
+        <source
+          type="image/webp"
+          :srcset="getOptimizedImageSrcset(lake.image, [320, 500], 'webp')"
+          sizes="100vw"
+        >
+        <img
+          :src="lake.image"
+          :alt="lake.name"
+          width="500"
+          height="400"
+          fetchpriority="high"
+          class="absolute inset-0 h-full w-full object-cover opacity-70"
+        >
+      </picture>
       <div class="absolute inset-0 bg-linear-to-t from-primary-950 via-primary-950/55 to-primary-950/10" />
       <div class="relative mx-auto flex min-h-[32rem] max-w-7xl flex-col justify-end px-4 pb-10 pt-24 sm:px-6 lg:px-8">
         <NuxtLink
@@ -271,10 +301,30 @@ watch(
           </div>
         </div>
 
+        <div class="mt-5 flex items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 p-3 md:hidden">
+          <div class="min-w-0">
+            <p class="text-primary-800 text-xs font-semibold">Zvolený termín</p>
+            <p class="mt-0.5 truncate font-bold">{{ availabilityRangeLabel }}</p>
+          </div>
+          <UButton
+            type="button"
+            :icon="isDatePickerExpanded ? 'i-heroicons-chevron-up' : 'i-heroicons-pencil-square'"
+            size="sm"
+            variant="soft"
+            :aria-expanded="isDatePickerExpanded"
+            aria-controls="revir-date-picker"
+            @click="isDatePickerExpanded = !isDatePickerExpanded"
+          >
+            {{ isDatePickerExpanded ? 'Hotovo' : 'Zmeniť' }}
+          </UButton>
+        </div>
+
         <AvailabilityRangePicker
+          id="revir-date-picker"
           v-model:date-from="dateFrom"
           v-model:date-to="dateTo"
-          class="mt-5"
+          class="mt-3 md:mt-5 md:block"
+          :class="isDatePickerExpanded ? 'block' : 'hidden'"
         />
 
         <DataStatusNotice
@@ -289,21 +339,21 @@ watch(
           @action="retryAvailability"
         />
 
-        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="rounded-md border border-border bg-white p-3">
+        <div class="mt-5 grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
+          <div class="hidden rounded-md border border-border bg-white p-3 lg:block">
             <p class="text-foreground-muted text-xs">Zvolený termín</p>
             <p class="mt-1 font-bold">{{ availabilityRangeLabel }}</p>
           </div>
-          <div class="rounded-md border border-success-200 bg-success-500/10 p-3">
+          <div class="min-w-0 rounded-md border border-success-200 bg-success-500/10 p-3">
             <p class="text-success-700 text-xs font-semibold">Voľné miesta</p>
             <p class="mt-1 text-2xl font-black">{{ rangeReservableRows.length }}</p>
           </div>
-          <div class="rounded-md border border-warning-200 bg-warning-500/10 p-3">
+          <div class="min-w-0 rounded-md border border-warning-200 bg-warning-500/10 p-3">
             <p class="text-warning-700 text-xs font-semibold">Voľné chaty</p>
             <p class="mt-1 text-2xl font-black">{{ rangeCabinRows.length }}</p>
           </div>
-          <div class="rounded-md border border-border bg-muted p-3">
-            <p class="text-foreground-muted text-xs">Blokované v termíne</p>
+          <div class="min-w-0 rounded-md border border-border bg-muted p-3">
+            <p class="text-foreground-muted text-xs">Blokované</p>
             <p class="mt-1 text-2xl font-black">{{ rangeBlockedRows.length }}</p>
           </div>
         </div>
@@ -361,7 +411,42 @@ watch(
           @action="router.push(mapTarget)"
         />
 
-        <div class="mt-5 grid gap-3 md:grid-cols-7">
+        <div class="mt-5 md:hidden">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="font-bold">Najbližších 7 dní</h3>
+            <span class="text-foreground-muted text-xs">od {{ availabilityDays[0]?.dayNumber }} {{ availabilityDays[0]?.monthName }}</span>
+          </div>
+          <div class="mt-3 divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
+            <NuxtLink
+              v-for="row in availabilityPreviewRows"
+              :key="`mobile-${row.day.iso}`"
+              :to="row.target"
+              class="group grid min-h-18 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary-50"
+              :class="row.firstPeg ? '' : 'bg-muted/60'"
+            >
+              <div class="text-center">
+                <p class="text-foreground-muted text-[0.6875rem] font-bold uppercase">{{ row.day.dayName }}</p>
+                <p class="mt-0.5 font-black">{{ row.day.dayNumber }}</p>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <UIcon
+                    :name="row.firstPeg ? 'i-heroicons-check-circle' : 'i-heroicons-no-symbol'"
+                    class="h-4 w-4 shrink-0"
+                    :class="row.firstPeg ? 'text-success-600' : 'text-foreground-muted'"
+                  />
+                  <p class="truncate text-sm font-bold">{{ formatReservablePlaceCount(row.reservableCount) }}</p>
+                </div>
+                <p class="text-foreground-muted mt-0.5 truncate text-xs">
+                  {{ row.firstPeg ? `Odporúčané: ${row.firstPeg.label}` : 'Skúste iný deň alebo mapu.' }}
+                </p>
+              </div>
+              <UIcon name="i-heroicons-chevron-right" class="text-primary-800 h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+            </NuxtLink>
+          </div>
+        </div>
+
+        <div class="mt-5 hidden gap-3 md:grid md:grid-cols-7">
           <NuxtLink
             v-for="row in availabilityPreviewRows"
             :key="row.day.iso"
@@ -369,7 +454,7 @@ watch(
             class="group rounded-md border border-border bg-white p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
           >
             <p class="text-xs font-bold uppercase">{{ row.day.dayName }}</p>
-            <p class="mt-1 text-lg font-black">{{ row.day.dayNumber }}. {{ row.day.monthName }}</p>
+            <p class="mt-1 text-lg font-black">{{ row.day.dayNumber }} {{ row.day.monthName }}</p>
             <div class="mt-3">
               <AvailabilityBadge v-if="row.firstAvailability" :availability="row.firstAvailability" />
               <StatusBadge
@@ -453,14 +538,31 @@ watch(
       <div class="mt-12">
         <h2 class="text-2xl font-bold">Fotogaléria</h2>
         <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <img
-            v-for="image in lake.galleryImages"
+          <picture
+            v-for="(image, imageIndex) in lake.galleryImages"
             :key="image"
-            :src="image"
-            :alt="`${lake.name} – pohľad na revír`"
-            class="aspect-4/3 w-full rounded-md object-cover"
-            loading="lazy"
+            class="block min-w-0"
           >
+            <source
+              type="image/avif"
+              :srcset="getOptimizedImageSrcset(image, [320, 640, 1080])"
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+            >
+            <source
+              type="image/webp"
+              :srcset="getOptimizedImageSrcset(image, [320, 640, 1080], 'webp')"
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+            >
+            <img
+              :src="image"
+              :alt="`${lake.name} – pohľad na revír ${imageIndex + 1}`"
+              width="1080"
+              height="247"
+              class="aspect-4/3 w-full rounded-md object-cover"
+              loading="lazy"
+              decoding="async"
+            >
+          </picture>
         </div>
       </div>
     </section>

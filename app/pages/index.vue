@@ -4,7 +4,10 @@ import type { PublicNotificationStateResponse } from '~/services/notificationSer
 import { getPegAvailability } from '~/utils/availability'
 import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 
-useHead({ title: 'Prehľad' })
+usePublicSeo({
+  title: 'Prehľad',
+  description: 'Aktuálna obsadenosť revírov Veľký Cetín a Štrkovisko Kocka, mapa lovných miest, rezervácie, úlovky, výstrahy a súťaže na jednom mieste.',
+})
 
 const { alerts: seedAlerts, catches, getPegLabel, lakes, pegs, reservations } = usePondData()
 const route = useRoute()
@@ -30,6 +33,9 @@ const {
 const initialDateRange = resolveAvailabilityDateRange(route.query.od, route.query.do)
 const dateFrom = ref(initialDateRange.dateFrom)
 const dateTo = ref(initialDateRange.dateTo)
+const homeMapContainer = ref<HTMLElement>()
+const shouldRenderHomeMap = ref(false)
+let homeMapObserver: IntersectionObserver | undefined
 
 const livePegAvailabilityRows = computed(() =>
   pegs.map((peg) => ({
@@ -193,16 +199,55 @@ watch([dateFrom, dateTo], () => {
     },
   })
 })
+
+onMounted(() => {
+  if (!('IntersectionObserver' in window)) {
+    shouldRenderHomeMap.value = true
+    return
+  }
+
+  homeMapObserver = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry?.isIntersecting) return
+
+      shouldRenderHomeMap.value = true
+      homeMapObserver?.disconnect()
+      homeMapObserver = undefined
+    },
+    { rootMargin: '320px 0px' },
+  )
+
+  if (homeMapContainer.value) homeMapObserver.observe(homeMapContainer.value)
+})
+
+onBeforeUnmount(() => {
+  homeMapObserver?.disconnect()
+})
 </script>
 
 <template>
   <div>
     <section class="relative overflow-hidden bg-primary-950 text-white">
-      <img
-        src="/images/source-web/home-img-0999.jpg"
-        alt="Vstup do areálu Štrkovisko Kocka a Veľký Cetín"
-        class="absolute inset-0 h-full w-full object-cover opacity-35"
-      >
+      <picture>
+        <source
+          type="image/avif"
+          srcset="/images/optimized/home-img-0999-640.avif 640w, /images/optimized/home-img-0999-960.avif 960w, /images/optimized/home-img-0999-1440.avif 1440w, /images/optimized/home-img-0999-1920.avif 1920w"
+          sizes="100vw"
+        >
+        <source
+          type="image/webp"
+          srcset="/images/optimized/home-img-0999-640.webp 640w, /images/optimized/home-img-0999-960.webp 960w, /images/optimized/home-img-0999-1440.webp 1440w, /images/optimized/home-img-0999-1920.webp 1920w"
+          sizes="100vw"
+        >
+        <img
+          src="/images/source-web/home-img-0999.jpg"
+          alt="Vstup do areálu Štrkovisko Kocka a Veľký Cetín"
+          width="1920"
+          height="1280"
+          fetchpriority="high"
+          class="absolute inset-0 h-full w-full object-cover opacity-35"
+        >
+      </picture>
       <div class="absolute inset-0 bg-linear-to-r from-primary-950 via-primary-950/90 to-primary-950/60" />
       <div class="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-14">
         <div class="relative">
@@ -373,16 +418,27 @@ watch([dateFrom, dateTo], () => {
               Celá mapa
             </UButton>
           </div>
-          <LakeMap
-            title="Veľký Cetín"
-            image="/images/source-web/velky-cetin-map-original.jpg"
-            :closures="liveClosures"
-            :date-from="dateFrom"
-            :date-to="dateTo"
-            :points="pegs.filter((peg) => peg.lake === 'velky-cetin')"
-            :reservations="reservations"
-            selected-id="vc-03"
-          />
+          <div ref="homeMapContainer" class="min-h-[48rem] lg:min-h-[32rem]">
+            <LazyLakeMap
+              v-if="shouldRenderHomeMap"
+              title="Veľký Cetín"
+              image="/images/source-web/velky-cetin-map-original.jpg"
+              :closures="liveClosures"
+              :date-from="dateFrom"
+              :date-to="dateTo"
+              :points="pegs.filter((peg) => peg.lake === 'velky-cetin')"
+              :reservations="reservations"
+              selected-id="vc-03"
+            />
+            <div
+              v-else
+              class="min-h-[48rem] overflow-hidden rounded-card border border-border bg-surface lg:min-h-[32rem]"
+              aria-hidden="true"
+            >
+              <div class="h-20 border-b border-border bg-muted/70" />
+              <div class="aspect-4/3 animate-pulse bg-muted lg:mr-[18.75rem]" />
+            </div>
+          </div>
         </div>
       </div>
 

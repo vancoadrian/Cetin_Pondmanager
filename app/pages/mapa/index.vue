@@ -16,7 +16,10 @@ import type { PlaceIssueSubmissionSuccess } from '~/services/placeIssueService'
 import { getPegAvailability } from '~/utils/availability'
 import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 
-useHead({ title: 'Mapa lovných miest' })
+usePublicSeo({
+  title: 'Mapa lovných miest',
+  description: 'Interaktívna mapa lovných miest, chát, sektorov a aktuálnej dostupnosti na Veľkom Cetíne a Štrkovisku Kocka.',
+})
 
 const { lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations } = usePondData()
 const route = useRoute()
@@ -532,12 +535,13 @@ onBeforeUnmount(() => {
             v-for="lake in lakes"
             :key="lake.slug"
             type="button"
-            class="rounded-md px-4 py-2 text-sm font-semibold transition-colors"
+            class="min-h-11 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
             :class="
               selectedLake === lake.slug
                 ? 'bg-white text-primary-900 shadow-sm'
                 : 'text-foreground-muted hover:text-foreground'
             "
+            :aria-pressed="selectedLake === lake.slug"
             @click="selectedLake = lake.slug"
           >
             {{ lake.name }}
@@ -830,6 +834,7 @@ onBeforeUnmount(() => {
               type="button"
               class="border-border rounded-md border p-3 text-left transition-colors hover:bg-muted"
               :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50' : 'bg-white'"
+              :aria-pressed="selectedPegId === row.peg.id"
               @click="selectPeg(row.peg)"
             >
               <div class="flex items-start justify-between gap-3">
