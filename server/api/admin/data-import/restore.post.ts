@@ -41,10 +41,11 @@ export default defineEventHandler(async (event): Promise<LocalDataRestoreRespons
   }
   catch (error) {
     const maybeError = error as Error
+    console.error('[admin/data-import/restore] Local data restore failed', maybeError)
 
     throw createError({
       data: {
-        message: maybeError.message,
+        messages: ['Obnova zo zálohy zlyhala. Skontroluj formát súboru alebo kontaktuj správcu systému.'],
       },
       statusCode: 422,
       statusMessage: 'Local data restore rejected',
