@@ -28,7 +28,7 @@ const sortedObservations = computed(() =>
 
 const metricLabel = computed(() => props.metric === 'weightKg' ? 'Váha' : 'Dĺžka')
 const unit = computed(() => props.metric === 'weightKg' ? 'kg' : 'cm')
-const stroke = computed(() => props.metric === 'weightKg' ? '#0f766e' : '#ca8a04')
+const stroke = computed(() => props.metric === 'weightKg' ? 'var(--color-primary-600)' : 'var(--color-accent-500)')
 
 function measurementCountLabel(count: number) {
   if (count === 1) return '1 meranie'
@@ -121,13 +121,13 @@ const chart = computed(() => {
             :x2="width - padding.right"
             :y1="tick.y"
             :y2="tick.y"
-            stroke="#e5e7eb"
+            stroke="var(--color-border)"
             stroke-width="1"
           />
           <text
             x="2"
             :y="tick.y + 4"
-            fill="#6b7280"
+            fill="var(--color-foreground-muted)"
             font-size="11"
           >
             {{ tick.label }}
@@ -162,7 +162,7 @@ const chart = computed(() => {
           :key="`${label.date}-${label.x}`"
           :x="label.x"
           :y="height - 8"
-          fill="#6b7280"
+          fill="var(--color-foreground-muted)"
           font-size="11"
           text-anchor="middle"
         >
