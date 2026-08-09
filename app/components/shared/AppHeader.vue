@@ -20,7 +20,7 @@ const secondaryNav: NavItem[] = [
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const mobileOpen = ref(false)
+const mobileOpen = useMobileNavState()
 const { isLoggedIn, logout, user } = useMockAuth()
 const { total: offlineQueueTotal } = useOfflineQueueSummary()
 const accountAction = computed(() => {

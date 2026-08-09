@@ -111,7 +111,7 @@ const body = computed(() =>
   >
     <div
       v-if="showing"
-      class="border-border bg-surface fixed inset-x-3 bottom-3 z-50 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border p-4 shadow-lg sm:right-6 sm:bottom-6 sm:left-auto sm:max-w-sm"
+      class="border-border bg-surface fixed inset-x-3 bottom-20 z-50 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border p-4 shadow-lg sm:right-6 sm:bottom-20 sm:left-auto sm:max-w-sm lg:bottom-6"
       role="region"
       aria-live="polite"
       aria-labelledby="pwa-install-title"

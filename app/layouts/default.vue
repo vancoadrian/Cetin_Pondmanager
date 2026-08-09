@@ -1,3 +1,8 @@
+<script setup lang="ts">
+const route = useRoute()
+const showBottomTabBar = computed(() => isBottomTabBarRoute(route.path))
+</script>
+
 <template>
   <div class="flex min-h-screen flex-col">
     <a
@@ -10,6 +15,7 @@
     <main id="main-content" tabindex="-1" class="flex-1">
       <slot />
     </main>
-    <AppFooter />
+    <AppFooter :class="showBottomTabBar ? 'pb-20 lg:pb-0' : ''" />
+    <BottomTabBar />
   </div>
 </template>
