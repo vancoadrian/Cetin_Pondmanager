@@ -17,12 +17,22 @@ export function withFileMutex<T>(filePath: string, task: () => Promise<T>): Prom
 }
 
 /**
+ * Writes a string/Buffer to a temp file in the same directory and renames it
+ * into place, so a crash or concurrent read never observes a partially
+ * written file. Use this for binary assets (photos, logos, map backgrounds);
+ * use atomicWriteJsonFile for JSON state.
+ */
+export async function atomicWriteFile(filePath: string, data: string | Uint8Array) {
+  await mkdir(dirname(filePath), { recursive: true })
+  const tempPath = `${filePath}.${randomUUID()}.tmp`
+  await writeFile(tempPath, data)
+  await rename(tempPath, filePath)
+}
+
+/**
  * Writes JSON to a temp file in the same directory and renames it into place,
  * so a crash or concurrent read never observes a partially written file.
  */
 export async function atomicWriteJsonFile(filePath: string, value: unknown) {
-  await mkdir(dirname(filePath), { recursive: true })
-  const tempPath = `${filePath}.${randomUUID()}.tmp`
-  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-  await rename(tempPath, filePath)
+  await atomicWriteFile(filePath, `${JSON.stringify(value, null, 2)}\n`)
 }
