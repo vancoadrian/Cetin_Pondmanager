@@ -20,14 +20,16 @@ import catchReportGenerateHandler from '~/server/api/admin/catch-reports/[id]/ge
 import catchReportsRunDueHandler from '~/server/api/admin/catch-reports/run-due.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalCatchReportState, writeLocalCatchReportState } from '~/server/utils/localCatchReportStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+let managerCookie: string
+let accountantCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_REPORT_STORE',
   'RYBOLOV_LOCAL_CATCH_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_REPORT_DELIVERY_PROVIDER',
   'RYBOLOV_REPORT_EMAIL_FROM',
   'RYBOLOV_REPORT_EMAIL_REPLY_TO',
@@ -61,6 +63,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_REPORT_EMAIL_REPLY_TO = ''
   process.env.RYBOLOV_RESEND_API_ENDPOINT = 'https://api.resend.test/emails'
   process.env.RYBOLOV_RESEND_API_KEY = ''
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  accountantCookie = await createSessionCookieHeader('accountant', 'accountant')
 })
 
 afterEach(async () => {
@@ -133,7 +138,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -185,7 +190,7 @@ describe('admin catch report API routes', () => {
       const { body, response } = await requestJson<CatchReportStateResponse>(
         server,
         '/api/admin/catch-reports',
-        { cookie: ACCOUNTANT_COOKIE },
+        { cookie: accountantCookie },
       )
 
       expect(response.status).toBe(200)
@@ -222,7 +227,7 @@ describe('admin catch report API routes', () => {
             recipients: ['majitel@example.test'],
             title: 'Blokovaný report',
           }),
-          cookie: ACCOUNTANT_COOKIE,
+          cookie: accountantCookie,
           method: 'POST',
         },
       )

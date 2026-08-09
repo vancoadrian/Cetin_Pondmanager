@@ -23,11 +23,12 @@ import reservationPostHandler from '~/server/api/reservations.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '~/server/utils/localNotificationStore'
 import { readLocalReservationState } from '~/server/utils/localReservationStore'
+import { createAnglerSessionCookieHeader, createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
-const MAREK_APP_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
-const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
+let managerCookie: string
+let accountantCookie: string
+let marekAppCookie: string
+let lenkaAnglerCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
@@ -39,6 +40,7 @@ const localEnvKeys = [
   'RYBOLOV_LOCAL_PAYMENT_METHOD_STORE',
   'RYBOLOV_LOCAL_RENTAL_CATALOG_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_RESEND_API_ENDPOINT',
   'RYBOLOV_RESEND_API_KEY',
   'RYBOLOV_RESERVATION_DELIVERY_PROVIDER',
@@ -99,6 +101,11 @@ beforeEach(async () => {
   process.env.RYBOLOV_RESERVATION_DELIVERY_PROVIDER = 'mock'
   process.env.RYBOLOV_RESERVATION_EMAIL_FROM = 'Rybolov Cetín <rezervacie@example.test>'
   process.env.RYBOLOV_RESERVATION_EMAIL_REPLY_TO = ''
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  accountantCookie = await createSessionCookieHeader('accountant', 'accountant')
+  marekAppCookie = await createSessionCookieHeader('angler-marek', 'angler')
+  lenkaAnglerCookie = await createAnglerSessionCookieHeader('angler-lenka')
 })
 
 afterEach(async () => {
@@ -173,7 +180,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -320,7 +327,7 @@ describe('reservation API routes', () => {
         server,
         '/api/admin/reservations/notifications',
         {
-          cookie: ACCOUNTANT_COOKIE,
+          cookie: accountantCookie,
         },
       )
 
@@ -382,7 +389,7 @@ describe('reservation API routes', () => {
       const marekHistory = await requestJson<AnglerReservationsResponse>(
         server,
         '/api/account/reservations',
-        { cookie: MAREK_APP_COOKIE },
+        { cookie: marekAppCookie },
       )
       expect(marekHistory.response.status).toBe(200)
       expect(marekHistory.body.account.email).toBe('marek.horvath@example.test')
@@ -407,7 +414,7 @@ describe('reservation API routes', () => {
       const lenkaHistory = await requestJson<AnglerReservationsResponse>(
         server,
         '/api/account/reservations',
-        { cookie: LENKA_ANGLER_COOKIE },
+        { cookie: lenkaAnglerCookie },
       )
       expect(lenkaHistory.response.status).toBe(200)
       expect(lenkaHistory.body.reservations.some((reservation) => reservation.id === created.body.reservation.id)).toBe(false)
@@ -434,7 +441,7 @@ describe('reservation API routes', () => {
         '/api/admin/reservations',
         {
           body: JSON.stringify(validPayload),
-          cookie: ACCOUNTANT_COOKIE,
+          cookie: accountantCookie,
           method: 'POST',
         },
       )

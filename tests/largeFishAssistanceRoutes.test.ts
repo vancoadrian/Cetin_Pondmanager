@@ -18,14 +18,16 @@ import assistanceGetHandler from '~/server/api/large-fish-assistance/[id].get'
 import assistanceCancelHandler from '~/server/api/large-fish-assistance/[id]/cancel.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '~/server/utils/localNotificationStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
+let managerCookie: string
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_FISH_REGISTRY_STORE',
   'RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
   'RYBOLOV_LOCAL_NOTIFICATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
 ] as const
 const originalEnv = new Map<string, string | undefined>()
 let tempDir: string | undefined
@@ -48,6 +50,8 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE = join(dataDir, 'assistance.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map.json')
   process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notifications.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
 
   const now = '2026-06-22T12:00:00.000Z'
   await writeLocalNotificationState({
@@ -135,7 +139,7 @@ async function requestJson<T>(
   const headers = new Headers(init.headers)
   headers.set('accept', 'application/json')
   if (init.body) headers.set('content-type', 'application/json')
-  if (init.cookie !== null) headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+  if (init.cookie !== null) headers.set('cookie', init.cookie ?? managerCookie)
 
   const response = await fetch(`${server.baseUrl}${path}`, { ...init, headers })
   const body = JSON.parse(await response.text()) as T

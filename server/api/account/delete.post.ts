@@ -1,18 +1,18 @@
-import { createError, defineEventHandler, deleteCookie, readBody } from 'h3'
-import { AUTH_SESSION_COOKIE, AUTH_USER_COOKIE } from '~/composables/useMockAuth'
+import { createError, defineEventHandler, readBody } from 'h3'
 import { getValidationMessages, accountDeletionPayloadSchema } from '~/schemas/pondSchemas'
 import {
   ANONYMIZED_ANGLER_LABEL,
   anonymizeAccountData,
   type AccountDeletionResponse,
 } from '~/services/accountDeletionService'
-import { ANGLER_SESSION_COOKIE } from '~/services/anglerAccountService'
 import { requireMockAnglerAccount } from '../../utils/anglerSession'
 import { verifyAppUserPassword } from '../../utils/accountAuthentication'
+import { clearSessionCookies } from '../../utils/appSession'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { markLocalAccountDeleted } from '../../utils/localAccountStore'
 import { readLocalCatchState, writeLocalCatchState } from '../../utils/localCatchStore'
 import { readLocalReservationState, writeLocalReservationState } from '../../utils/localReservationStore'
+import { destroyAllLocalSessionsForAccount } from '../../utils/localSessionStore'
 
 export default defineEventHandler(async (event): Promise<AccountDeletionResponse> => {
   const account = await requireMockAnglerAccount(event)
@@ -60,9 +60,8 @@ export default defineEventHandler(async (event): Promise<AccountDeletionResponse
     summary: 'Rybársky účet bol zmazaný a jeho prevádzkové záznamy anonymizované.',
   })
 
-  deleteCookie(event, AUTH_SESSION_COOKIE, { path: '/' })
-  deleteCookie(event, AUTH_USER_COOKIE, { path: '/' })
-  deleteCookie(event, ANGLER_SESSION_COOKIE, { path: '/' })
+  await destroyAllLocalSessionsForAccount(account.id)
+  clearSessionCookies(event)
 
   return {
     deletedAt,

@@ -7,12 +7,14 @@ import {
 import { getValidationMessages, accountRegistrationPayloadSchema } from '~/schemas/pondSchemas'
 import { findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
 import { createPasswordHash, toPublicRegisteredUser } from '../../utils/accountAuthentication'
+import { applySessionCookies } from '../../utils/appSession'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import {
   addLocalRegisteredAccount,
   findLocalRegisteredAccountByEmail,
   type LocalRegisteredAnglerAccount,
 } from '../../utils/localAccountStore'
+import { createLocalSession } from '../../utils/localSessionStore'
 
 export default defineEventHandler(async (event): Promise<MockRegistrationResponse> => {
   const payload = accountRegistrationPayloadSchema.safeParse(await readBody(event))
@@ -56,8 +58,12 @@ export default defineEventHandler(async (event): Promise<MockRegistrationRespons
     summary: 'Rybár si vytvoril nový používateľský účet.',
   })
 
+  const publicUser = toPublicRegisteredUser(account)
+  const { token } = await createLocalSession(publicUser.id, publicUser.role)
+  applySessionCookies(event, token, publicUser.role)
+
   return {
     ok: true,
-    user: toPublicRegisteredUser(account),
+    user: publicUser,
   }
 })

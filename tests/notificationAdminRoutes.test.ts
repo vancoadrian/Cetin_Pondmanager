@@ -29,14 +29,16 @@ import notificationTestBroadcastHandler from '~/server/api/admin/notifications/t
 import notificationTestCleanupHandler from '~/server/api/admin/notifications/test-cleanup.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '~/server/utils/localNotificationStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+let managerCookie: string
+let accountantCookie: string
 
 const localEnvKeys = [
   'NUXT_PUBLIC_VAPID_PUBLIC_KEY',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_NOTIFICATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_PUSH_PROVIDER',
   'RYBOLOV_PUSH_SUBJECT',
   'RYBOLOV_PUSH_TIMEOUT_MS',
@@ -72,6 +74,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_PUSH_URGENCY = 'normal'
   Reflect.deleteProperty(process.env, 'NUXT_PUBLIC_VAPID_PUBLIC_KEY')
   Reflect.deleteProperty(process.env, 'RYBOLOV_VAPID_PRIVATE_KEY')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  accountantCookie = await createSessionCookieHeader('accountant', 'accountant')
 })
 
 afterEach(async () => {
@@ -146,7 +151,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -297,7 +302,7 @@ describe('admin notification API routes', () => {
             title: 'Servisný oznam',
             validUntil: 'dnes 21:00',
           }),
-          cookie: ACCOUNTANT_COOKIE,
+          cookie: accountantCookie,
           method: 'POST',
         },
       )

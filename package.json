@@ -17,6 +17,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "push:vapid": "node scripts/generate-vapid-keys.ts",
+    "seed:credentials": "node scripts/generate-seed-credentials.ts",
     "seed:export": "node scripts/export-supabase-seed.ts",
     "supabase:reset": "supabase db reset",
     "supabase:start": "supabase start -x logflare,vector,imgproxy,edge-runtime --ignore-health-check",

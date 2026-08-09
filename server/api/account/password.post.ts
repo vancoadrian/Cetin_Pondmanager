@@ -1,15 +1,15 @@
-import { createError, defineEventHandler, deleteCookie, readBody } from 'h3'
-import { AUTH_SESSION_COOKIE, AUTH_USER_COOKIE } from '~/composables/useMockAuth'
+import { createError, defineEventHandler, readBody } from 'h3'
 import { accountPasswordChangePayloadSchema, getValidationMessages } from '~/schemas/pondSchemas'
 import type { AccountPasswordChangeResponse } from '~/services/accountSecurityService'
-import { ANGLER_SESSION_COOKIE } from '~/services/anglerAccountService'
 import { requireMockAnglerAccount } from '../../utils/anglerSession'
 import {
   createPasswordHash,
   verifyAppUserPassword,
 } from '../../utils/accountAuthentication'
+import { clearSessionCookies } from '../../utils/appSession'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { updateLocalAccountPassword } from '../../utils/localAccountStore'
+import { destroyAllLocalSessionsForAccount } from '../../utils/localSessionStore'
 
 export default defineEventHandler(async (event): Promise<AccountPasswordChangeResponse> => {
   const account = await requireMockAnglerAccount(event)
@@ -44,9 +44,8 @@ export default defineEventHandler(async (event): Promise<AccountPasswordChangeRe
     summary: 'Používateľ zmenil heslo svojho účtu.',
   })
 
-  deleteCookie(event, AUTH_SESSION_COOKIE, { path: '/' })
-  deleteCookie(event, AUTH_USER_COOKIE, { path: '/' })
-  deleteCookie(event, ANGLER_SESSION_COOKIE, { path: '/' })
+  await destroyAllLocalSessionsForAccount(account.id)
+  clearSessionCookies(event)
 
   return {
     message: 'Heslo bolo zmenené. Prihláste sa novým heslom.',

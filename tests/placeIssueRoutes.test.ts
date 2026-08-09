@@ -16,16 +16,18 @@ import placeIssuesPostHandler from '~/server/api/place-issues.post'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalNotificationState } from '~/server/utils/localNotificationStore'
 import { readLocalPlaceIssueState } from '~/server/utils/localPlaceIssueStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const WORKER_COOKIE = 'rybolov_cetin_mock_session=worker'
-const MARSHAL_COOKIE = 'rybolov_cetin_mock_session=marshal'
+let managerCookie: string
+let workerCookie: string
+let marshalCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
   'RYBOLOV_LOCAL_NOTIFICATION_STORE',
   'RYBOLOV_LOCAL_PLACE_ISSUE_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
 ] as const
 
 const publicPayload = {
@@ -61,6 +63,10 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
   process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notification-state.json')
   process.env.RYBOLOV_LOCAL_PLACE_ISSUE_STORE = join(dataDir, 'place-issue-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  workerCookie = await createSessionCookieHeader('worker', 'worker')
+  marshalCookie = await createSessionCookieHeader('marshal', 'marshal')
 })
 
 afterEach(async () => {
@@ -131,7 +137,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -200,7 +206,7 @@ describe('place issue API routes', () => {
           resolutionNote: '',
           status: 'triaged',
         }),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
 
@@ -214,7 +220,7 @@ describe('place issue API routes', () => {
           resolutionNote: '',
           status: 'in-progress',
         }),
-        cookie: WORKER_COOKIE,
+        cookie: workerCookie,
         method: 'POST',
       })
 
