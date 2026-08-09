@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { z } from 'zod'
 import type { mapBackgroundUploadSchema } from '~/schemas/pondSchemas'
+import { atomicWriteFile } from './jsonFileStore'
 
 export type MapBackgroundUpload = z.infer<typeof mapBackgroundUploadSchema>
 
@@ -36,8 +37,7 @@ export async function writeLocalMapAssetFile(
   dir = resolveLocalMapAssetDir(),
 ) {
   const buffer = decodeMapBackgroundDataUrl(upload)
-  await mkdir(dir, { recursive: true })
-  await writeFile(resolveMapAssetFilePath(assetId, dir), buffer)
+  await atomicWriteFile(resolveMapAssetFilePath(assetId, dir), buffer)
 }
 
 export async function readLocalMapAssetFile(assetId: string, dir = resolveLocalMapAssetDir()) {

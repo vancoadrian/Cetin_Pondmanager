@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { readdir, readFile, stat, unlink } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 import type {
   LocalDataExportIntegrity,
   LocalDataRestoreAssetResult,
@@ -26,6 +26,7 @@ import {
   LOCAL_DATA_BACKUP_CLEANUP_MIN_KEEP_RECENT,
   LOCAL_DATA_RESTORE_CONFIRMATION,
 } from '~/services/localDataExportService'
+import { atomicWriteFile, atomicWriteJsonFile } from './jsonFileStore'
 import { readLocalAccountState, resolveLocalAccountStorePath } from './localAccountStore'
 import { readLocalAuditLogState, resolveLocalAuditLogStorePath } from './localAuditLogStore'
 import { readLocalCabinCatalogState, resolveLocalCabinCatalogStorePath } from './localCabinCatalogStore'
@@ -825,8 +826,7 @@ export async function createLocalDataImportPreview(
 }
 
 async function writeJsonFile(filePath: string, value: unknown) {
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, value)
 }
 
 async function writeSafetyBackup(
@@ -1054,8 +1054,7 @@ async function restoreInlineAssets(
       const fileBuffer = Buffer.from(file.dataBase64, 'base64')
       const filePath = join(definition.directory, basename(file.name))
 
-      await mkdir(definition.directory, { recursive: true })
-      await writeFile(filePath, fileBuffer)
+      await atomicWriteFile(filePath, fileBuffer)
       fileCount += 1
       totalSizeBytes += fileBuffer.byteLength
     }

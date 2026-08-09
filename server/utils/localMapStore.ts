@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { MapFacility, MapLayer, MapShape, Peg } from '~/data/pond'
 import { mapFacilities, mapLayers, mapShapes, pegs } from '~/data/pond'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalMapState {
   mapFacilities: MapFacility[]
@@ -161,8 +162,7 @@ export async function writeLocalMapState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
