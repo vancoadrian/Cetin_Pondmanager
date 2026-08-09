@@ -1,11 +1,5 @@
 <script setup lang="ts">
 import type { LakeScope, PlaceIssue, PlaceIssuePriority, PlaceIssueStatus } from '~/data/pond'
-import {
-  placeIssueCategoryLabels,
-  placeIssuePriorityLabels,
-  placeIssueStatusLabels,
-  placeIssueTargetTypeLabels,
-} from '~/data/pond'
 import type { PlaceIssueActionSuccess, PlaceIssueStateResponse } from '~/services/placeIssueService'
 import type { StatusBadgeTone } from '~/utils/ui'
 
@@ -14,7 +8,15 @@ type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 useHead({ title: 'Admin hlásenia nedostatkov' })
 
-const { getLakeName, lakes, placeIssues } = usePondData()
+const {
+  getLakeName,
+  lakes,
+  placeIssueCategoryLabels,
+  placeIssuePriorityLabels,
+  placeIssues,
+  placeIssueStatusLabels,
+  placeIssueTargetTypeLabels,
+} = usePondData()
 const { canOperate, isReadOnly, label: accessLabel, readOnlyMessage } = useAdminModuleAccess('issues')
 const requestFetch = useRequestFetch()
 const route = useRoute()

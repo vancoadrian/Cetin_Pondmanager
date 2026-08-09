@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { LakeSlug, Peg, PlaceIssueCategory, PlaceIssueTargetType } from '~/data/pond'
-import { placeIssueCategoryLabels } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import {
   enqueueOfflinePlaceIssue,
@@ -21,7 +20,7 @@ usePublicSeo({
   description: 'Interaktívna mapa lovných miest, chát, sektorov a aktuálnej dostupnosti na Veľkom Cetíne a Štrkovisku Kocka.',
 })
 
-const { lakes, mapFacilities, mapLayers, mapShapes, pegs, reservations } = usePondData()
+const { lakes, mapFacilities, mapLayers, mapShapes, pegs, placeIssueCategoryLabels, reservations } = usePondData()
 const route = useRoute()
 const router = useRouter()
 const { liveClosures } = await useClosureState({ key: 'public-map-closure-state' })

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
-import { placeIssuePriorityLabels } from '~/data/pond'
 import type { CatchStateResponse } from '~/services/catchApiService'
 import type { LargeFishAssistanceStateResponse } from '~/services/largeFishAssistanceService'
 import type { PlaceIssueStateResponse } from '~/services/placeIssueService'
@@ -50,6 +49,7 @@ const {
   getLakeName,
   getPegLabel,
   pegs,
+  placeIssuePriorityLabels,
   placeIssues,
   rentalBookings: seedRentalBookings,
   reservations: seedReservations,

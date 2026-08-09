@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { placeIssueCategoryLabels } from '~/data/pond'
 import type { CatchSubmissionSuccess } from '~/services/catchApiService'
 import type { PlaceIssueSubmissionSuccess } from '~/services/placeIssueService'
 import type { ReservationSubmissionSuccess } from '~/services/reservationApiService'
@@ -72,6 +71,7 @@ const {
   getLakeName,
   getPegLabel,
   mapFacilities,
+  placeIssueCategoryLabels,
   tournamentPenaltyTypeLabels,
   tournamentRequestTypeLabels,
 } = usePondData()
