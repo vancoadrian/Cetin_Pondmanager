@@ -1,11 +1,12 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { PaymentMethod } from '~/data/pond'
 import { paymentMethods } from '~/data/pond'
 import {
   sortPaymentMethods,
   type PaymentMethodWorkflowState,
 } from '~/services/paymentMethodService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalPaymentMethodState extends PaymentMethodWorkflowState {
   updatedAt: string
@@ -72,8 +73,7 @@ export async function writeLocalPaymentMethodState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }

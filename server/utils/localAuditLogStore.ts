@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { AuditEvent } from '~/data/pond'
 import {
   cloneAuditEvents,
@@ -7,6 +7,7 @@ import {
   type AuditEventInput,
   type AuditLogState,
 } from '~/services/auditLogService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalAuditLogState extends AuditLogState {
   updatedAt: string
@@ -78,8 +79,7 @@ export async function writeLocalAuditLogState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -88,17 +88,19 @@ export async function appendLocalAuditEvent(
   input: AuditEventInput,
   filePath = resolveLocalAuditLogStorePath(),
 ): Promise<StoredAuditEventAppend> {
-  const currentState = await readLocalAuditLogState(filePath)
-  const event = createAuditEvent(input, currentState.events)
-  const state = await writeLocalAuditLogState(
-    {
-      events: [event, ...currentState.events].slice(0, 500),
-    },
-    filePath,
-  )
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalAuditLogState(filePath)
+    const event = createAuditEvent(input, currentState.events)
+    const state = await writeLocalAuditLogState(
+      {
+        events: [event, ...currentState.events].slice(0, 500),
+      },
+      filePath,
+    )
 
-  return {
-    event,
-    state,
-  }
+    return {
+      event,
+      state,
+    }
+  })
 }

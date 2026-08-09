@@ -1,9 +1,10 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { RentalItem, ReservationExtra } from '~/data/pond'
 import { rentalItems, reservationExtras } from '~/data/pond'
 import type { RentalCatalogWorkflowState } from '~/services/rentalCatalogService'
 import { sortRentalItems, sortReservationExtras } from '~/services/rentalCatalogService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalRentalCatalogState extends RentalCatalogWorkflowState {
   updatedAt: string
@@ -157,8 +158,7 @@ export async function writeLocalRentalCatalogState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }

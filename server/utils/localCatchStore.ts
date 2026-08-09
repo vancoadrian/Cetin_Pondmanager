@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { CatchPhoto, CatchRecord, TripLogbook, TripLogbookEntry } from '~/data/pond'
 import { catches, catchPhotos, tripLogbookEntries, tripLogbooks } from '~/data/pond'
 import type { CatchWorkflowState } from '~/services/catchApiService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalCatchState extends CatchWorkflowState {
   updatedAt: string
@@ -124,8 +125,7 @@ export async function writeLocalCatchState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -136,38 +136,42 @@ export async function appendLocalCatch(
   catchPhoto?: CatchPhoto,
   filePath = resolveLocalCatchStorePath(),
 ): Promise<LocalCatchState> {
-  const currentState = await readLocalCatchState(filePath)
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalCatchState(filePath)
 
-  return writeLocalCatchState(
-    {
-      catchPhotos: catchPhoto
-        ? [catchPhoto, ...currentState.catchPhotos]
-        : currentState.catchPhotos,
-      catches: [catchRecord, ...currentState.catches],
-      tripLogbookEntries: logbookEntry
-        ? [logbookEntry, ...currentState.tripLogbookEntries]
-        : currentState.tripLogbookEntries,
-      tripLogbooks: currentState.tripLogbooks,
-    },
-    filePath,
-  )
+    return writeLocalCatchState(
+      {
+        catchPhotos: catchPhoto
+          ? [catchPhoto, ...currentState.catchPhotos]
+          : currentState.catchPhotos,
+        catches: [catchRecord, ...currentState.catches],
+        tripLogbookEntries: logbookEntry
+          ? [logbookEntry, ...currentState.tripLogbookEntries]
+          : currentState.tripLogbookEntries,
+        tripLogbooks: currentState.tripLogbooks,
+      },
+      filePath,
+    )
+  })
 }
 
 export async function appendLocalTripLogbook(
   logbook: TripLogbook,
   filePath = resolveLocalCatchStorePath(),
 ): Promise<LocalCatchState> {
-  const currentState = await readLocalCatchState(filePath)
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalCatchState(filePath)
 
-  return writeLocalCatchState(
-    {
-      catchPhotos: currentState.catchPhotos,
-      catches: currentState.catches,
-      tripLogbookEntries: currentState.tripLogbookEntries,
-      tripLogbooks: [logbook, ...currentState.tripLogbooks],
-    },
-    filePath,
-  )
+    return writeLocalCatchState(
+      {
+        catchPhotos: currentState.catchPhotos,
+        catches: currentState.catches,
+        tripLogbookEntries: currentState.tripLogbookEntries,
+        tripLogbooks: [logbook, ...currentState.tripLogbooks],
+      },
+      filePath,
+    )
+  })
 }
 
 export async function replaceLocalCatchState(

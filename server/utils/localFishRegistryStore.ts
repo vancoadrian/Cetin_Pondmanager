@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   cloneFishRegistryState,
   normalizeFishRegistrySettings,
@@ -8,6 +8,7 @@ import {
   type FishObservation,
   type TaggedFish,
 } from '~/services/fishRegistryService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalFishRegistryState extends FishRegistryState {
   settings: FishRegistrySettings
@@ -217,7 +218,6 @@ export async function writeLocalFishRegistryState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
   return nextState
 }

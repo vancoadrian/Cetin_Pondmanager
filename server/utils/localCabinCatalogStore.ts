@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { CabinProduct } from '~/data/pond'
 import { cabinProducts } from '~/data/pond'
 import { sortCabinProducts } from '~/services/cabinCatalogService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalCabinCatalogState {
   cabinProducts: CabinProduct[]
@@ -94,8 +95,7 @@ export async function writeLocalCabinCatalogState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }

@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type {
   Tournament,
   TournamentCatch,
@@ -20,6 +20,7 @@ import {
   tournaments,
 } from '~/data/pond'
 import type { TournamentWorkflowState } from '~/services/tournamentApiService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalTournamentState extends TournamentWorkflowState {
   updatedAt: string
@@ -145,8 +146,7 @@ export async function writeLocalTournamentState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -155,38 +155,42 @@ export async function appendLocalTournamentRequest(
   request: TournamentRequest,
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  const currentState = await readLocalTournamentState(filePath)
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalTournamentState(filePath)
 
-  return writeLocalTournamentState(
-    {
-      tournamentCatches: currentState.tournamentCatches,
-      tournamentMarshals: currentState.tournamentMarshals,
-      tournamentPenalties: currentState.tournamentPenalties,
-      tournamentRequests: [request, ...currentState.tournamentRequests],
-      tournamentRuleChecks: currentState.tournamentRuleChecks,
-      tournamentTeamRegistrations: currentState.tournamentTeamRegistrations,
-      tournaments: currentState.tournaments,
-    },
-    filePath,
-  )
+    return writeLocalTournamentState(
+      {
+        tournamentCatches: currentState.tournamentCatches,
+        tournamentMarshals: currentState.tournamentMarshals,
+        tournamentPenalties: currentState.tournamentPenalties,
+        tournamentRequests: [request, ...currentState.tournamentRequests],
+        tournamentRuleChecks: currentState.tournamentRuleChecks,
+        tournamentTeamRegistrations: currentState.tournamentTeamRegistrations,
+        tournaments: currentState.tournaments,
+      },
+      filePath,
+    )
+  })
 }
 
 export async function appendLocalTournamentTeamRegistration(
   registration: TournamentTeamRegistration,
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  const currentState = await readLocalTournamentState(filePath)
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalTournamentState(filePath)
 
-  return writeLocalTournamentState(
-    {
-      tournamentCatches: currentState.tournamentCatches,
-      tournamentMarshals: currentState.tournamentMarshals,
-      tournamentPenalties: currentState.tournamentPenalties,
-      tournamentRequests: currentState.tournamentRequests,
-      tournamentRuleChecks: currentState.tournamentRuleChecks,
-      tournamentTeamRegistrations: [registration, ...currentState.tournamentTeamRegistrations],
-      tournaments: currentState.tournaments,
-    },
-    filePath,
-  )
+    return writeLocalTournamentState(
+      {
+        tournamentCatches: currentState.tournamentCatches,
+        tournamentMarshals: currentState.tournamentMarshals,
+        tournamentPenalties: currentState.tournamentPenalties,
+        tournamentRequests: currentState.tournamentRequests,
+        tournamentRuleChecks: currentState.tournamentRuleChecks,
+        tournamentTeamRegistrations: [registration, ...currentState.tournamentTeamRegistrations],
+        tournaments: currentState.tournaments,
+      },
+      filePath,
+    )
+  })
 }

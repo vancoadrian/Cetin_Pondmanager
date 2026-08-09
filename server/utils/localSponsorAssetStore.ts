@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { Sponsor } from '~/data/pond'
 import type { SponsorLogoUpload } from '~/services/sponsorService'
+import { atomicWriteFile } from './jsonFileStore'
 
 export function resolveLocalSponsorAssetDir() {
   return process.env.RYBOLOV_LOCAL_SPONSOR_ASSET_DIR
@@ -34,8 +35,7 @@ export async function writeLocalSponsorLogoFile(
   dir = resolveLocalSponsorAssetDir(),
 ) {
   const buffer = decodeSponsorLogoDataUrl(upload)
-  await mkdir(dir, { recursive: true })
-  await writeFile(resolveSponsorLogoFilePath(sponsor, dir), buffer)
+  await atomicWriteFile(resolveSponsorLogoFilePath(sponsor, dir), buffer)
 }
 
 export async function readLocalSponsorLogoFile(

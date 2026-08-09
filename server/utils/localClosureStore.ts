@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { LakeClosure } from '~/data/pond'
 import { lakeClosures } from '~/data/pond'
 import type { ClosureWorkflowState } from '~/services/closureApiService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalClosureState extends ClosureWorkflowState {
   updatedAt: string
@@ -66,8 +67,7 @@ export async function writeLocalClosureState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }

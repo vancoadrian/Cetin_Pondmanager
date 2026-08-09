@@ -1,11 +1,12 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { RentalBooking, Reservation } from '~/data/pond'
 import { rentalBookings, reservations } from '~/data/pond'
 import {
   cloneReservationWorkflowState,
   type ReservationWorkflowState,
 } from '~/services/reservationWorkflowService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalReservationState extends ReservationWorkflowState {
   updatedAt: string
@@ -108,8 +109,7 @@ export async function writeLocalReservationState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -119,18 +119,20 @@ export async function appendLocalReservation(
   requestedRentalBookings: RentalBooking[],
   filePath = resolveLocalReservationStorePath(),
 ): Promise<StoredReservationAppend> {
-  const currentState = await readLocalReservationState(filePath)
-  const nextState = await writeLocalReservationState(
-    {
-      rentalBookings: [...currentState.rentalBookings, ...requestedRentalBookings],
-      reservations: [...currentState.reservations, reservation],
-    },
-    filePath,
-  )
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalReservationState(filePath)
+    const nextState = await writeLocalReservationState(
+      {
+        rentalBookings: [...currentState.rentalBookings, ...requestedRentalBookings],
+        reservations: [...currentState.reservations, reservation],
+      },
+      filePath,
+    )
 
-  return {
-    rentalBookings: requestedRentalBookings,
-    reservation,
-    state: nextState,
-  }
+    return {
+      rentalBookings: requestedRentalBookings,
+      reservation,
+      state: nextState,
+    }
+  })
 }
