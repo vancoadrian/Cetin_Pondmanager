@@ -145,13 +145,23 @@ const fallbackSafetyBackupArchive = (): LocalDataSafetyBackupArchiveResponse => 
 
 const requestFetch = useRequestFetch()
 
-const { data: systemHealth, refresh: refreshSystemHealth } = await useAsyncData<AdminSystemHealthResponse>(
+const {
+  data: systemHealth,
+  error: systemHealthError,
+  refresh: refreshSystemHealth,
+  status: systemHealthStatus,
+} = await useAsyncData<AdminSystemHealthResponse>(
   'admin-system-health',
   async () => {
     try {
       return await requestFetch<AdminSystemHealthResponse>('/api/admin/system')
     }
     catch {
+      // The admin-only health check failed (e.g. permissions or a transient
+      // error) — fall back to the public health endpoint so we can still show
+      // real degraded-mode data instead of immediately surfacing an error.
+      // If this fallback fetch also fails, the error propagates to
+      // useAsyncData below so it is not silently swallowed.
       const publicHealth = await $fetch<SystemHealthResponse>('/api/health')
 
       return {
@@ -165,59 +175,66 @@ const { data: systemHealth, refresh: refreshSystemHealth } = await useAsyncData<
   },
 )
 
-const { data: localDataExportSummary, refresh: refreshLocalDataExportSummary } = await useAsyncData<LocalDataExportPayload>(
+const {
+  data: localDataExportSummary,
+  error: localDataExportSummaryError,
+  refresh: refreshLocalDataExportSummary,
+  status: localDataExportSummaryStatus,
+} = await useAsyncData<LocalDataExportPayload>(
   'admin-local-data-export-summary',
-  async () => {
-    try {
-      return await requestFetch<LocalDataExportPayload>('/api/admin/data-export', {
-        query: {
-          assets: 'manifest',
-          mode: 'summary',
-        },
-      })
-    }
-    catch {
-      return fallbackLocalDataExport()
-    }
-  },
+  () => requestFetch<LocalDataExportPayload>('/api/admin/data-export', {
+    query: {
+      assets: 'manifest',
+      mode: 'summary',
+    },
+  }),
   {
     default: fallbackLocalDataExport,
   },
 )
 
-const { data: backupAuditLog, refresh: refreshBackupAuditLog } = await useAsyncData<AuditLogResponse>(
+const {
+  data: backupAuditLog,
+  error: backupAuditLogError,
+  refresh: refreshBackupAuditLog,
+  status: backupAuditLogStatus,
+} = await useAsyncData<AuditLogResponse>(
   'admin-system-backup-audit',
-  async () => {
-    try {
-      return await requestFetch<AuditLogResponse>('/api/admin/audit', {
-        query: {
-          area: 'system',
-          limit: 40,
-        },
-      })
-    }
-    catch {
-      return fallbackAuditLog()
-    }
-  },
+  () => requestFetch<AuditLogResponse>('/api/admin/audit', {
+    query: {
+      area: 'system',
+      limit: 40,
+    },
+  }),
   {
     default: fallbackAuditLog,
   },
 )
 
-const { data: safetyBackupArchive, refresh: refreshSafetyBackupArchive } = await useAsyncData<LocalDataSafetyBackupArchiveResponse>(
+const {
+  data: safetyBackupArchive,
+  error: safetyBackupArchiveError,
+  refresh: refreshSafetyBackupArchive,
+  status: safetyBackupArchiveStatus,
+} = await useAsyncData<LocalDataSafetyBackupArchiveResponse>(
   'admin-system-safety-backups',
-  async () => {
-    try {
-      return await requestFetch<LocalDataSafetyBackupArchiveResponse>('/api/admin/data-backups')
-    }
-    catch {
-      return fallbackSafetyBackupArchive()
-    }
-  },
+  () => requestFetch<LocalDataSafetyBackupArchiveResponse>('/api/admin/data-backups'),
   {
     default: fallbackSafetyBackupArchive,
   },
+)
+
+const isSystemFetchLoading = computed(() =>
+  systemHealthStatus.value === 'pending'
+  || localDataExportSummaryStatus.value === 'pending'
+  || backupAuditLogStatus.value === 'pending'
+  || safetyBackupArchiveStatus.value === 'pending',
+)
+const hasSystemFetchError = computed(() =>
+  Boolean(systemHealthError.value)
+  || Boolean(localDataExportSummaryError.value)
+  || Boolean(backupAuditLogError.value)
+  || Boolean(safetyBackupArchiveError.value),
 )
 
 const checks = computed(() => systemHealth.value?.checks ?? [])
@@ -1134,6 +1151,18 @@ onMounted(() => {
           Obnoviť
         </UButton>
       </div>
+
+      <DataStatusNotice
+        v-if="isSystemFetchLoading || hasSystemFetchError"
+        class="mt-6"
+        :title="hasSystemFetchError ? 'Časť systémových dát sa nepodarilo načítať' : 'Načítavam systémové dáta'"
+        :description="hasSystemFetchError ? 'Zobrazujeme posledný dostupný alebo predvolený stav. Skús obnoviť dáta alebo skontroluj záznam servera.' : 'Kontrolujeme stav systému, dátové úložiská, zálohy a audit.'"
+        :tone="hasSystemFetchError ? 'warning' : 'info'"
+        :loading="isSystemFetchLoading && !hasSystemFetchError"
+        :action-label="hasSystemFetchError ? 'Skúsiť znova' : ''"
+        :action-loading="isSystemFetchLoading"
+        @action="refreshSystem"
+      />
 
       <div class="mt-6 border-b border-border pb-5">
         <div
