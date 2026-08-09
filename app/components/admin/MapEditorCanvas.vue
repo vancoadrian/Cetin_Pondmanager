@@ -304,6 +304,20 @@ function formatShapePointMeta(point: MapShape['points'][number]) {
 
   return point.role && point.role !== 'regular' ? mapShapePointRoleLabels[point.role] : ''
 }
+
+function shapePointAccessibleLabel(shape: MapShape, pointIndex: number) {
+  const meta = formatShapePointMeta(shape.points[pointIndex]!)
+  const positionLabel = `bod ${pointIndex + 1}`
+
+  return meta ? `Upraviť ${positionLabel} (${meta}) tvaru ${shape.label}` : `Upraviť ${positionLabel} tvaru ${shape.label}`
+}
+
+function selectFromKeyboard(event: KeyboardEvent, action: () => void) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    action()
+  }
+}
 </script>
 
 <template>
@@ -411,8 +425,12 @@ function formatShapePointMeta(point: MapShape['points'][number]) {
           <g
             v-for="(point, pointIndex) in shape.points"
             :key="`${shape.id}-${pointIndex}`"
-            class="cursor-grab active:cursor-grabbing"
+            class="cursor-grab outline-none active:cursor-grabbing"
+            role="button"
+            tabindex="0"
+            :aria-label="shapePointAccessibleLabel(shape, pointIndex)"
             @pointerdown.stop.prevent="startShapePointDrag($event, shape, pointIndex)"
+            @keydown="selectFromKeyboard($event, () => emit('selectShape', shape))"
           >
             <circle
               :cx="point.x"
@@ -506,6 +524,7 @@ function formatShapePointMeta(point: MapShape['points'][number]) {
           :aria-label="`Upraviť ${facility.label}`"
           @pointerdown.prevent="startFacilityDrag($event, facility)"
           @click="emit('selectFacility', facility)"
+          @keydown="selectFromKeyboard($event, () => emit('selectFacility', facility))"
         >
           <rect
             :x="facility.x - 5"
@@ -549,6 +568,7 @@ function formatShapePointMeta(point: MapShape['points'][number]) {
           :aria-label="`Upraviť ${point.label}`"
           @pointerdown.prevent="startDrag($event, point)"
           @click="emit('select', point)"
+          @keydown="selectFromKeyboard($event, () => emit('select', point))"
         >
           <circle
             :cx="point.x"
