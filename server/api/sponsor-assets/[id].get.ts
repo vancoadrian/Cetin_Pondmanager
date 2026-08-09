@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
     const buffer = await readLocalSponsorLogoFile({ logoStoragePath })
     setHeader(event, 'content-type', logoMimeType)
     setHeader(event, 'cache-control', 'public, max-age=300')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
 
     return buffer
   }

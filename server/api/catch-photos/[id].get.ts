@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
     const buffer = await readLocalCatchPhotoFile(photo)
     setHeader(event, 'content-type', photo.mimeType)
     setHeader(event, 'cache-control', 'private, max-age=300')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
 
     return buffer
   }
