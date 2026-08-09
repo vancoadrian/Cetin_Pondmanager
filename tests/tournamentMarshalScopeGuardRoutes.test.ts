@@ -7,25 +7,25 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import adminTournamentPenaltiesHandler from '~/server/api/admin/tournaments/penalties.post'
 import adminTournamentRuleChecksHandler from '~/server/api/admin/tournaments/rule-checks.post'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
 /**
  * These routes are protected by `requireTournamentMarshalMutationScope`
  * (server/utils/tournamentMarshalScopeGuard.ts), the HTTP-layer enforcement
  * of the pure decision matrix already covered by
  * tests/tournamentMarshalScope.test.ts. This file exercises that guard
- * wired into real route handlers over HTTP, using the mock admin session
- * cookie convention shared by the rest of the route test suite (see
- * tests/mapRoutes.test.ts / tests/placeIssueRoutes.test.ts) — the marshal
- * mock user 'marshal' resolves to marshalId 'marshal-1' /
- * tournamentId 'eccj-2026' with sectors a1, a2, a3 assigned
- * (app/composables/useMockAuth.ts, app/data/pond.ts).
+ * wired into real route handlers over HTTP, using a real server-issued
+ * session (see tests/helpers/testAuth.ts) — the marshal mock user 'marshal'
+ * resolves to marshalId 'marshal-1' / tournamentId 'eccj-2026' with sectors
+ * a1, a2, a3 assigned (app/composables/useMockAuth.ts, app/data/pond.ts).
  */
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const MARSHAL_COOKIE = 'rybolov_cetin_mock_session=marshal'
+let managerCookie: string
+let marshalCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_LOCAL_TOURNAMENT_STORE',
 ] as const
 
@@ -75,6 +75,9 @@ beforeEach(async () => {
   const dataDir = join(tempDir, 'data')
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(dataDir, 'tournament-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  marshalCookie = await createSessionCookieHeader('marshal', 'marshal')
 })
 
 afterEach(async () => {
@@ -144,7 +147,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -190,7 +193,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
     try {
       const ruleCheck = await requestJson<RuleCheckSuccessResponse>(server, '/api/admin/tournaments/rule-checks', {
         body: JSON.stringify(validRuleCheckPayload()),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(ruleCheck.response.status).toBe(201)
@@ -203,7 +206,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
 
       const penalty = await requestJson<PenaltySuccessResponse>(server, '/api/admin/tournaments/penalties', {
         body: JSON.stringify(validPenaltyPayload()),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(penalty.response.status).toBe(201)
@@ -226,7 +229,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
       // Sector b1 is assigned to marshal-2, not to the session marshal (marshal-1).
       const ruleCheck = await requestJson<ScopeDeniedResponse>(server, '/api/admin/tournaments/rule-checks', {
         body: JSON.stringify(validRuleCheckPayload({ sectorId: 'b1' })),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(ruleCheck.response.status).toBe(403)
@@ -235,7 +238,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
 
       const penalty = await requestJson<ScopeDeniedResponse>(server, '/api/admin/tournaments/penalties', {
         body: JSON.stringify(validPenaltyPayload({ sectorId: 'b1' })),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(penalty.response.status).toBe(403)
@@ -255,7 +258,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
       // impersonates a different marshal account.
       const ruleCheck = await requestJson<ScopeDeniedResponse>(server, '/api/admin/tournaments/rule-checks', {
         body: JSON.stringify(validRuleCheckPayload({ marshalId: 'marshal-2' })),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(ruleCheck.response.status).toBe(403)
@@ -264,7 +267,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
 
       const penalty = await requestJson<ScopeDeniedResponse>(server, '/api/admin/tournaments/penalties', {
         body: JSON.stringify(validPenaltyPayload({ marshalId: 'marshal-2' })),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(penalty.response.status).toBe(403)
@@ -286,7 +289,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
       // and the request proceeds like any other authorized admin mutation.
       const ruleCheck = await requestJson<RuleCheckSuccessResponse>(server, '/api/admin/tournaments/rule-checks', {
         body: JSON.stringify(validRuleCheckPayload()),
-        cookie: MANAGER_COOKIE,
+        cookie: managerCookie,
         method: 'POST',
       })
       expect(ruleCheck.response.status).toBe(201)
@@ -294,7 +297,7 @@ describe('tournament marshal scope guard on rule-check and penalty routes', () =
 
       const penalty = await requestJson<PenaltySuccessResponse>(server, '/api/admin/tournaments/penalties', {
         body: JSON.stringify(validPenaltyPayload()),
-        cookie: MANAGER_COOKIE,
+        cookie: managerCookie,
         method: 'POST',
       })
       expect(penalty.response.status).toBe(201)
