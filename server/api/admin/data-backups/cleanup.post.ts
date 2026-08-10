@@ -10,7 +10,7 @@ import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import {
   cleanupLocalDataSafetyBackups,
   previewLocalDataSafetyBackupCleanup,
-} from '../../../utils/localDataExport'
+} from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataSafetyBackupCleanupResponse> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })

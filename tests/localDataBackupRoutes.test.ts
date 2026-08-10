@@ -18,7 +18,7 @@ import dataBackupCleanupHandler from '~/server/api/admin/data-backups/cleanup.po
 import dataExportHandler from '~/server/api/admin/data-export.get'
 import dataImportPreviewHandler from '~/server/api/admin/data-import/preview.post'
 import dataImportRestoreHandler from '~/server/api/admin/data-import/restore.post'
-import { createLocalDataExportPayload } from '~/server/utils/localDataExport'
+import { createLocalDataExportPayload } from '~/server/utils/localDataExportPayload'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { createSessionCookieHeader } from './helpers/testAuth'
 

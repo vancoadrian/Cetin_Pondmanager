@@ -8,7 +8,7 @@ import {
   createLocalDataExportPayload,
   normalizeLocalDataExportAssetPolicy,
   normalizeLocalDataExportMode,
-} from '../../utils/localDataExport'
+} from '../../utils/localDataExportPayload'
 
 export default defineEventHandler(async (event): Promise<LocalDataExportPayload | string> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })

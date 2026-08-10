@@ -3,7 +3,7 @@ import type { LocalDataExportPayload } from '~/services/localDataExportService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
-import { readLocalDataSafetyBackup } from '../../../utils/localDataExport'
+import { readLocalDataSafetyBackup } from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataExportPayload | string> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })

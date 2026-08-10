@@ -3,7 +3,7 @@ import type { LocalDataImportPreviewResponse } from '~/services/localDataExportS
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
-import { createLocalDataImportPreview } from '../../../utils/localDataExport'
+import { createLocalDataImportPreview } from '../../../utils/localDataImportPreview'
 
 export default defineEventHandler(async (event): Promise<LocalDataImportPreviewResponse> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
