@@ -3,7 +3,7 @@ import type { LocalDataRestoreRequest, LocalDataRestoreResponse } from '~/servic
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
-import { restoreLocalDataBackup } from '../../../utils/localDataExport'
+import { restoreLocalDataBackup } from '../../../utils/localDataRestore'
 
 export default defineEventHandler(async (event): Promise<LocalDataRestoreResponse> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })

@@ -1,7 +1,7 @@
 import { defineEventHandler } from 'h3'
 import type { LocalDataSafetyBackupArchiveResponse } from '~/services/localDataExportService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
-import { listLocalDataSafetyBackups, resolveLocalDataSafetyBackupDirectory } from '../../../utils/localDataExport'
+import { listLocalDataSafetyBackups, resolveLocalDataSafetyBackupDirectory } from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataSafetyBackupArchiveResponse> => {
   requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
