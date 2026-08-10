@@ -9,17 +9,21 @@ import {
   tournaments,
 } from '~/app/data/pond'
 import {
-  submitTournamentCatchVerification,
-  submitTournamentPenalty,
-  submitTournamentRequest,
-  submitTournamentRequestAction,
-  submitTournamentRuleCheck,
   submitTournamentTeamRegistration,
   submitTournamentTeamRegistrationDecision,
   type TournamentWorkflowState,
   updateTournamentOperationsMode,
   updateTournamentSectors,
 } from '~/app/services/tournamentApiService'
+import { submitTournamentCatchVerification } from '~/app/services/tournamentCatchVerificationService'
+import {
+  submitTournamentPenalty,
+  submitTournamentRuleCheck,
+} from '~/app/services/tournamentDisciplineService'
+import {
+  submitTournamentRequest,
+  submitTournamentRequestAction,
+} from '~/app/services/tournamentRequestService'
 
 const createState = (): TournamentWorkflowState => ({
   tournamentCatches: tournamentCatches.map((catchItem) => ({ ...catchItem })),

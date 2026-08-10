@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { canUseTournamentTeamScope } from '~/composables/useMockAuth'
-import { submitTournamentRequest } from '~/services/tournamentApiService'
+import { submitTournamentRequest } from '~/services/tournamentRequestService'
 import { tournamentRequestTypeLabels } from '~/data/pond'
 import { resolveAuditActor } from '../utils/auditActor'
 import { appendLocalAuditEvent } from '../utils/localAuditLogStore'

@@ -10,15 +10,19 @@ import type {
 import {
   getValidationMessages,
   tournamentOperationsModeInputSchema,
-  tournamentPenaltyInputSchema,
-  tournamentRequestInputSchema,
-  tournamentRuleCheckInputSchema,
   tournamentSectorSettingsInputSchema,
   tournamentTeamRegistrationDecisionInputSchema,
   tournamentTeamRegistrationInputSchema,
 } from '~/schemas/pondSchemas'
 import { getTournamentOperationalCapabilities } from '~/utils/tournamentOperations'
 
+// This file is the shared foundation for the tournament service modules:
+// tournament workflow state shape, cross-cutting helpers (id/timestamp
+// generation, state cloning, validation failures) plus the functions that
+// stay owned by this module: organizer sector/operations-mode configuration
+// and team registration (submission + decision). Sibling modules
+// (tournamentRequestService, tournamentCatchVerificationService,
+// tournamentDisciplineService) import the shared helpers and types from here.
 export interface TournamentWorkflowState {
   tournamentCatches: TournamentCatch[]
   tournamentMarshals: TournamentMarshal[]
@@ -38,45 +42,6 @@ export interface ApiValidationFailure {
   messages: string[]
   ok: false
   statusCode: 400 | 404 | 422
-}
-
-export interface TournamentRequestSubmissionSuccess {
-  message: string
-  ok: true
-  request: TournamentRequest
-  statusCode: 201
-}
-
-export interface TournamentActionSuccess extends TournamentWorkflowState {
-  idempotentReplay?: boolean
-  message: string
-  ok: true
-  request?: TournamentRequest
-  statusCode: 200
-}
-
-export interface TournamentCatchVerificationSuccess extends TournamentWorkflowState {
-  catchItem: TournamentCatch
-  idempotentReplay?: boolean
-  message: string
-  ok: true
-  statusCode: 200
-}
-
-export interface TournamentPenaltySubmissionSuccess extends TournamentWorkflowState {
-  idempotentReplay?: boolean
-  message: string
-  ok: true
-  penalty: TournamentPenalty
-  statusCode: 200 | 201
-}
-
-export interface TournamentRuleCheckSubmissionSuccess extends TournamentWorkflowState {
-  check: TournamentRuleCheck
-  idempotentReplay?: boolean
-  message: string
-  ok: true
-  statusCode: 200 | 201
 }
 
 export interface TournamentSectorSettingsSuccess extends TournamentWorkflowState {
@@ -107,21 +72,16 @@ export interface TournamentTeamRegistrationDecisionSuccess extends TournamentWor
   statusCode: 200
 }
 
-export type TournamentRequestSubmissionResult = ApiValidationFailure | TournamentRequestSubmissionSuccess
-export type TournamentActionResult = ApiValidationFailure | TournamentActionSuccess
-export type TournamentCatchVerificationResult = ApiValidationFailure | TournamentCatchVerificationSuccess
-export type TournamentPenaltySubmissionResult = ApiValidationFailure | TournamentPenaltySubmissionSuccess
-export type TournamentRuleCheckSubmissionResult = ApiValidationFailure | TournamentRuleCheckSubmissionSuccess
 export type TournamentSectorSettingsResult = ApiValidationFailure | TournamentSectorSettingsSuccess
 export type TournamentOperationsModeResult = ApiValidationFailure | TournamentOperationsModeSuccess
 export type TournamentTeamRegistrationSubmissionResult = ApiValidationFailure | TournamentTeamRegistrationSubmissionSuccess
 export type TournamentTeamRegistrationDecisionResult = ApiValidationFailure | TournamentTeamRegistrationDecisionSuccess
 
-function unique(values: string[]) {
+export function unique(values: string[]) {
   return [...new Set(values)]
 }
 
-function failure(messages: string[], statusCode: ApiValidationFailure['statusCode'] = 422): ApiValidationFailure {
+export function failure(messages: string[], statusCode: ApiValidationFailure['statusCode'] = 422): ApiValidationFailure {
   return {
     messages: unique(messages),
     ok: false,
@@ -129,7 +89,7 @@ function failure(messages: string[], statusCode: ApiValidationFailure['statusCod
   }
 }
 
-function slugify(value: string) {
+export function slugify(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -139,7 +99,7 @@ function slugify(value: string) {
     || 'zaznam'
 }
 
-function uniqueId(baseId: string, existingIds: Set<string>) {
+export function uniqueId(baseId: string, existingIds: Set<string>) {
   if (!existingIds.has(baseId)) return baseId
 
   let index = 2
@@ -150,14 +110,14 @@ function uniqueId(baseId: string, existingIds: Set<string>) {
   return `${baseId}-${index}`
 }
 
-function compactTimestamp(now: string) {
+export function compactTimestamp(now: string) {
   const parsed = Date.parse(now)
   const date = Number.isFinite(parsed) ? new Date(parsed) : new Date()
 
   return date.toISOString().replace(/\D/g, '').slice(0, 12)
 }
 
-function displayTimestamp(now: string) {
+export function displayTimestamp(now: string) {
   const parsed = Date.parse(now)
   if (!Number.isFinite(parsed)) return now
 
@@ -168,7 +128,7 @@ function displayTimestamp(now: string) {
   })
 }
 
-function addHoursLabel(now: string, hours: number) {
+export function addHoursLabel(now: string, hours: number) {
   const parsed = Date.parse(now)
   if (!Number.isFinite(parsed)) return undefined
 
@@ -178,13 +138,13 @@ function addHoursLabel(now: string, hours: number) {
   return displayTimestamp(date.toISOString())
 }
 
-function normalizeClientMutationId(value: unknown) {
+export function normalizeClientMutationId(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
     : undefined
 }
 
-function cloneTournamentState(state: TournamentWorkflowState): TournamentWorkflowState {
+export function cloneTournamentState(state: TournamentWorkflowState): TournamentWorkflowState {
   return {
     tournamentCatches: state.tournamentCatches.map((catchItem) => ({ ...catchItem })),
     tournamentMarshals: state.tournamentMarshals.map((marshal) => ({
@@ -203,11 +163,21 @@ function cloneTournamentState(state: TournamentWorkflowState): TournamentWorkflo
   }
 }
 
-function findTournamentSector(state: TournamentWorkflowState, tournamentId: string, sectorId: string) {
+export function findTournamentSector(state: TournamentWorkflowState, tournamentId: string, sectorId: string) {
   const tournament = state.tournaments.find((item) => item.id === tournamentId)
   const sector = tournament?.sectors.find((item) => item.id === sectorId)
 
   return { sector, tournament }
+}
+
+export function marshalForSector(state: TournamentWorkflowState, sectorId: string, preferredMarshalId?: string) {
+  if (preferredMarshalId) {
+    return state.tournamentMarshals.find((marshal) =>
+      marshal.id === preferredMarshalId && marshal.assignedSectorIds.includes(sectorId),
+    )
+  }
+
+  return state.tournamentMarshals.find((marshal) => marshal.assignedSectorIds.includes(sectorId))
 }
 
 function duplicatedValues(values: string[]) {
@@ -503,376 +473,5 @@ export function submitTournamentTeamRegistrationDecision(
     ok: true,
     registration: nextRegistration,
     statusCode: 200,
-  }
-}
-
-function marshalForSector(state: TournamentWorkflowState, sectorId: string, preferredMarshalId?: string) {
-  if (preferredMarshalId) {
-    return state.tournamentMarshals.find((marshal) =>
-      marshal.id === preferredMarshalId && marshal.assignedSectorIds.includes(sectorId),
-    )
-  }
-
-  return state.tournamentMarshals.find((marshal) => marshal.assignedSectorIds.includes(sectorId))
-}
-
-export function submitTournamentRequest(
-  rawInput: unknown,
-  state: TournamentWorkflowState,
-  now = new Date().toISOString(),
-): TournamentRequestSubmissionResult {
-  const inputResult = tournamentRequestInputSchema.safeParse(rawInput)
-  if (!inputResult.success) {
-    return failure(getValidationMessages(inputResult))
-  }
-
-  const input = inputResult.data
-  const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
-  if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
-  }
-
-  if (!getTournamentOperationalCapabilities(tournament).allowsTeamRequests) {
-    return failure(['Organizátor tejto súťaže nemá zapnuté tímové hlásenia cez aplikáciu.'], 400)
-  }
-
-  const requestId = uniqueId(
-    `tr-${compactTimestamp(now)}-${input.sectorId}-${slugify(input.type)}`,
-    new Set(state.tournamentRequests.map((request) => request.id)),
-  )
-  const request: TournamentRequest = {
-    assignedMarshalId: undefined,
-    createdAt: displayTimestamp(now),
-    description: input.description.trim() || 'Tím žiada príchod kontrolóra k meraniu úlovku.',
-    id: requestId,
-    priority: input.type === 'catch-measurement' ? 'high' : 'normal',
-    sectorId: input.sectorId,
-    status: 'new',
-    team: sector.team ?? sector.label,
-    tournamentId: tournament.id,
-    type: input.type,
-  }
-
-  return {
-    message: 'Hlásenie je uložené a čaká v súťažnom dispečingu.',
-    ok: true,
-    request,
-    statusCode: 201,
-  }
-}
-
-export function submitTournamentRequestAction(
-  rawInput: unknown,
-  state: TournamentWorkflowState,
-): TournamentActionResult {
-  const input = rawInput as Partial<{
-    action: unknown
-    clientMutationId: unknown
-    marshalId: unknown
-    requestId: unknown
-  }>
-  const requestId = typeof input.requestId === 'string' ? input.requestId.trim() : ''
-  const action = input.action === 'assign' || input.action === 'resolve' ? input.action : undefined
-  const clientMutationId = normalizeClientMutationId(input.clientMutationId)
-  const preferredMarshalId = typeof input.marshalId === 'string' ? input.marshalId.trim() : undefined
-
-  if (!requestId || !action) {
-    return failure(['Chýba ID hlásenia alebo platná admin akcia.'], 400)
-  }
-
-  const currentRequest = state.tournamentRequests.find((request) => request.id === requestId)
-  if (!currentRequest) {
-    return failure(['Hlásenie sa nenašlo.'], 404)
-  }
-  const currentTournament = state.tournaments.find((tournament) => tournament.id === currentRequest.tournamentId)
-  if (!currentTournament || !getTournamentOperationalCapabilities(currentTournament).allowsMarshalWorkflow) {
-    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
-  }
-
-  if (clientMutationId && currentRequest.actionClientMutationId === clientMutationId) {
-    return {
-      ...cloneTournamentState(state),
-      idempotentReplay: true,
-      message: 'Akcia hlásenia už bola spracovaná, nevytváram duplicitný záznam.',
-      ok: true,
-      request: { ...currentRequest },
-      statusCode: 200,
-    }
-  }
-
-  const nextState = cloneTournamentState(state)
-  const nextRequest = nextState.tournamentRequests.find((request) => request.id === requestId)!
-
-  if (action === 'assign') {
-    const marshal = marshalForSector(nextState, nextRequest.sectorId, preferredMarshalId)
-    if (!marshal) {
-      return failure(['Pre tento sektor sa nenašiel priradený kontrolór.'], 404)
-    }
-
-    nextRequest.assignedMarshalId = marshal.id
-    nextRequest.actionClientMutationId = clientMutationId
-    nextRequest.status = 'assigned'
-    nextState.tournamentMarshals = nextState.tournamentMarshals.map((item) =>
-      item.id === marshal.id
-        ? { ...item, status: nextRequest.type === 'catch-measurement' ? 'on-route' : 'available' }
-        : item,
-    )
-
-    return {
-      ...nextState,
-      message: `Hlásenie je priradené kontrolórovi ${marshal.name}.`,
-      ok: true,
-      request: nextRequest,
-      statusCode: 200,
-    }
-  }
-
-  nextRequest.actionClientMutationId = clientMutationId
-  nextRequest.status = 'resolved'
-  nextState.tournamentMarshals = nextState.tournamentMarshals.map((marshal) =>
-    marshal.id === nextRequest.assignedMarshalId && marshal.status === 'on-route'
-      ? { ...marshal, status: 'available' }
-      : marshal,
-  )
-
-  return {
-    ...nextState,
-    message: 'Hlásenie je uzavreté v dispečingu.',
-    ok: true,
-    request: nextRequest,
-    statusCode: 200,
-  }
-}
-
-export function submitTournamentCatchVerification(
-  rawInput: unknown,
-  state: TournamentWorkflowState,
-  now = new Date().toISOString(),
-): TournamentCatchVerificationResult {
-  const input = rawInput as Partial<{
-    catchId: unknown
-    clientMutationId: unknown
-    marshalId: unknown
-    status: unknown
-  }>
-  const catchId = typeof input.catchId === 'string' ? input.catchId.trim() : ''
-  const clientMutationId = normalizeClientMutationId(input.clientMutationId)
-  const status = input.status === 'verified' || input.status === 'disputed' ? input.status : undefined
-  const marshalId = typeof input.marshalId === 'string' && input.marshalId.trim()
-    ? input.marshalId.trim()
-    : undefined
-
-  if (!catchId || !status) {
-    return failure(['Chýba ID úlovku alebo platný výsledok váženia.'], 400)
-  }
-
-  const currentCatch = state.tournamentCatches.find((catchItem) => catchItem.id === catchId)
-  if (!currentCatch) {
-    return failure(['Súťažný úlovok sa nenašiel.'], 404)
-  }
-  const tournament = state.tournaments.find((item) => item.id === currentCatch.tournamentId)
-  if (!tournament || !getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
-    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
-  }
-
-  if (clientMutationId && currentCatch.verificationClientMutationId === clientMutationId) {
-    return {
-      ...cloneTournamentState(state),
-      catchItem: { ...currentCatch },
-      idempotentReplay: true,
-      message: 'Overenie váženia už bolo spracované, nevytváram duplicitný záznam.',
-      ok: true,
-      statusCode: 200,
-    }
-  }
-
-  const nextState = cloneTournamentState(state)
-  const nextCatch = nextState.tournamentCatches.find((catchItem) => catchItem.id === catchId)!
-  const resolvedMarshalId = marshalId ?? nextCatch.verifiedByMarshalId
-
-  nextCatch.measuredAt = displayTimestamp(now)
-  nextCatch.status = status
-  nextCatch.verifiedByMarshalId = resolvedMarshalId
-  nextCatch.verificationClientMutationId = clientMutationId
-  nextCatch.notes = status === 'verified'
-    ? 'Váženie overené kontrolórom v dispečingu.'
-    : 'Váženie označené ako sporné, čaká na posúdenie organizátorom.'
-
-  nextState.tournamentMarshals = nextState.tournamentMarshals.map((marshal) =>
-    marshal.id === resolvedMarshalId
-      ? { ...marshal, status: 'available' }
-      : marshal,
-  )
-
-  return {
-    ...nextState,
-    catchItem: nextCatch,
-    message: status === 'verified'
-      ? 'Úlovok je overený a uložený v súťažnom stave.'
-      : 'Úlovok je označený ako sporný.',
-    ok: true,
-    statusCode: 200,
-  }
-}
-
-export function submitTournamentPenalty(
-  rawInput: unknown,
-  state: TournamentWorkflowState,
-  now = new Date().toISOString(),
-): TournamentPenaltySubmissionResult {
-  const inputResult = tournamentPenaltyInputSchema.safeParse(rawInput)
-  if (!inputResult.success) {
-    return failure(getValidationMessages(inputResult))
-  }
-
-  const input = inputResult.data
-  const existingPenalty = input.clientMutationId
-    ? state.tournamentPenalties.find((penalty) => penalty.clientMutationId === input.clientMutationId)
-    : undefined
-  if (existingPenalty) {
-    return {
-      ...cloneTournamentState(state),
-      idempotentReplay: true,
-      message: 'Trest už bol spracovaný, nevytváram duplicitný záznam.',
-      ok: true,
-      penalty: { ...existingPenalty },
-      statusCode: 200,
-    }
-  }
-
-  const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
-  if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
-  }
-
-  if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
-    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
-  }
-
-  const marshal = marshalForSector(state, input.sectorId, input.marshalId)
-  if (!marshal) {
-    return failure(['Vybraný kontrolór nemá priradený tento sektor.'], 422)
-  }
-
-  const penalty: TournamentPenalty = {
-    clientMutationId: input.clientMutationId,
-    durationHours: input.durationHours,
-    endsAt: input.durationHours ? addHoursLabel(now, input.durationHours) : undefined,
-    id: uniqueId(
-      `tp-${compactTimestamp(now)}-${input.sectorId}-${slugify(input.type)}`,
-      new Set(state.tournamentPenalties.map((item) => item.id)),
-    ),
-    issuedAt: displayTimestamp(now),
-    issuedByMarshalId: marshal.id,
-    reason: input.reason,
-    rodsLess: input.type === 'rod-reduction' ? input.rodsLess : undefined,
-    sectorId: input.sectorId,
-    startsAt: input.durationHours ? displayTimestamp(now) : undefined,
-    status: 'active',
-    team: sector.team ?? sector.label,
-    tournamentId: tournament.id,
-    type: input.type,
-  }
-  const nextState = cloneTournamentState(state)
-
-  nextState.tournamentPenalties = [penalty, ...nextState.tournamentPenalties]
-  nextState.tournamentRuleChecks = [
-    {
-      checkedAt: penalty.issuedAt,
-      clientMutationId: input.clientMutationId ? `${input.clientMutationId}:penalty-check` : undefined,
-      id: uniqueId(
-        `check-${compactTimestamp(now)}-${input.sectorId}-penalty`,
-        new Set(nextState.tournamentRuleChecks.map((check) => check.id)),
-      ),
-      marshalId: marshal.id,
-      note: `Trest: ${input.reason}`,
-      result: 'penalty',
-      sectorId: input.sectorId,
-      tournamentId: tournament.id,
-    },
-    ...nextState.tournamentRuleChecks,
-  ]
-  nextState.tournamentMarshals = nextState.tournamentMarshals.map((item) =>
-    item.id === marshal.id
-      ? { ...item, status: 'available' }
-      : item,
-  )
-
-  return {
-    ...nextState,
-    message: 'Trest je uložený a automaticky zapísaný aj ako kontrola pravidiel.',
-    ok: true,
-    penalty,
-    statusCode: 201,
-  }
-}
-
-export function submitTournamentRuleCheck(
-  rawInput: unknown,
-  state: TournamentWorkflowState,
-  now = new Date().toISOString(),
-): TournamentRuleCheckSubmissionResult {
-  const inputResult = tournamentRuleCheckInputSchema.safeParse(rawInput)
-  if (!inputResult.success) {
-    return failure(getValidationMessages(inputResult))
-  }
-
-  const input = inputResult.data
-  const existingCheck = input.clientMutationId
-    ? state.tournamentRuleChecks.find((check) => check.clientMutationId === input.clientMutationId)
-    : undefined
-  if (existingCheck) {
-    return {
-      ...cloneTournamentState(state),
-      check: { ...existingCheck },
-      idempotentReplay: true,
-      message: 'Kontrola pravidiel už bola spracovaná, nevytváram duplicitný záznam.',
-      ok: true,
-      statusCode: 200,
-    }
-  }
-
-  const { sector, tournament } = findTournamentSector(state, input.tournamentId, input.sectorId)
-  if (!tournament || !sector) {
-    return failure(['Súťaž alebo sektor sa nenašli.'], 404)
-  }
-
-  if (!getTournamentOperationalCapabilities(tournament).allowsMarshalWorkflow) {
-    return failure(['Kontrolórsky dispečing nie je pre túto súťaž zapnutý.'], 400)
-  }
-
-  const marshal = marshalForSector(state, input.sectorId, input.marshalId)
-  if (!marshal) {
-    return failure(['Vybraný kontrolór nemá priradený tento sektor.'], 422)
-  }
-
-  const check: TournamentRuleCheck = {
-    checkedAt: displayTimestamp(now),
-    clientMutationId: input.clientMutationId,
-    id: uniqueId(
-      `check-${compactTimestamp(now)}-${input.sectorId}-${input.result}`,
-      new Set(state.tournamentRuleChecks.map((item) => item.id)),
-    ),
-    marshalId: marshal.id,
-    note: input.note,
-    result: input.result,
-    sectorId: input.sectorId,
-    tournamentId: tournament.id,
-  }
-  const nextState = cloneTournamentState(state)
-
-  nextState.tournamentRuleChecks = [check, ...nextState.tournamentRuleChecks]
-  nextState.tournamentMarshals = nextState.tournamentMarshals.map((item) =>
-    item.id === marshal.id
-      ? { ...item, status: 'available' }
-      : item,
-  )
-
-  return {
-    ...nextState,
-    check,
-    message: 'Kontrola pravidiel je uložená.',
-    ok: true,
-    statusCode: 201,
   }
 }

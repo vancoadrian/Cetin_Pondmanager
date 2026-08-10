@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type { TournamentRequest } from '~/data/pond'
-import type {
-  TournamentRequestSubmissionSuccess,
-  TournamentStateResponse,
-} from '~/services/tournamentApiService'
+import type { TournamentStateResponse } from '~/services/tournamentApiService'
+import type { TournamentRequestSubmissionSuccess } from '~/services/tournamentRequestService'
 import {
   getValidationMessages,
   tournamentRequestInputSchema,

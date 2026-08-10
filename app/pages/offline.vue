@@ -2,13 +2,15 @@
 import type { CatchSubmissionSuccess } from '~/services/catchApiService'
 import type { PlaceIssueSubmissionSuccess } from '~/services/placeIssueService'
 import type { ReservationSubmissionSuccess } from '~/services/reservationApiService'
+import type { TournamentCatchVerificationSuccess } from '~/services/tournamentCatchVerificationService'
+import type {
+  TournamentPenaltySubmissionSuccess,
+  TournamentRuleCheckSubmissionSuccess,
+} from '~/services/tournamentDisciplineService'
 import type {
   TournamentActionSuccess,
-  TournamentCatchVerificationSuccess,
-  TournamentPenaltySubmissionSuccess,
   TournamentRequestSubmissionSuccess,
-  TournamentRuleCheckSubmissionSuccess,
-} from '~/services/tournamentApiService'
+} from '~/services/tournamentRequestService'
 import {
   getOfflineCatchQueueErrorMessage,
   markOfflineCatchAttempt,

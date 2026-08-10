@@ -5,13 +5,13 @@ import type {
   TournamentRequest,
   TournamentRuleCheck,
 } from '~/data/pond'
+import type { TournamentStateResponse } from '~/services/tournamentApiService'
+import type { TournamentCatchVerificationSuccess } from '~/services/tournamentCatchVerificationService'
 import type {
-  TournamentActionSuccess,
-  TournamentCatchVerificationSuccess,
   TournamentPenaltySubmissionSuccess,
   TournamentRuleCheckSubmissionSuccess,
-  TournamentStateResponse,
-} from '~/services/tournamentApiService'
+} from '~/services/tournamentDisciplineService'
+import type { TournamentActionSuccess } from '~/services/tournamentRequestService'
 import {
   getValidationMessages,
   tournamentPenaltyInputSchema,
