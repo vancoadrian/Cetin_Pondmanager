@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'h3'
-import type { FishLargeCatchRulesResponse } from '~/services/fishRegistryService'
+import type { FishLargeCatchRulesResponse } from '~/services/fishRegistrySettingsService'
 import { readLocalFishRegistryState } from '../../utils/localFishRegistryStore'
 
 export default defineEventHandler(async (): Promise<FishLargeCatchRulesResponse> => {

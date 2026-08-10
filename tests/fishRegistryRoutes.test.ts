@@ -6,12 +6,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type {
-  FishCatchCandidateResponse,
   FishObservationMutationSuccess,
   FishRegistryMutationSuccess,
   FishRegistryStateResponse,
   FishRegistryUpdateSuccess,
 } from '~/app/services/fishRegistryService'
+import type { FishCatchCandidateResponse } from '~/app/services/fishRegistryCandidateService'
 import fishRegistryPatchHandler from '~/server/api/admin/fish-registry/[id].patch'
 import fishObservationPostHandler from '~/server/api/admin/fish-registry/[id]/observations.post'
 import fishCandidatesGetHandler from '~/server/api/admin/fish-registry/candidates.get'

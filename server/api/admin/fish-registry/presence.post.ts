@@ -3,7 +3,7 @@ import {
   fishManagerPresenceInputSchema,
   setFishManagerPresence,
   type FishManagerPresenceMutationSuccess,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'

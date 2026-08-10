@@ -1,9 +1,9 @@
 import { defineEventHandler } from 'h3'
 import {
   createFishCatchCandidates,
-  FISH_MANAGER_CALL_THRESHOLD_KG,
   type FishCatchCandidateResponse,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistryCandidateService'
+import { FISH_MANAGER_CALL_THRESHOLD_KG } from '~/services/fishRegistrySettingsService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { readLocalCatchState } from '../../../utils/localCatchStore'
 import { readLocalFishRegistryState } from '../../../utils/localFishRegistryStore'

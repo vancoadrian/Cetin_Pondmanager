@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { CatchRecord } from '~/app/data/pond'
-import { createDefaultFishRegistrySettings } from '~/app/services/fishRegistryService'
+import { createDefaultFishRegistrySettings } from '~/app/services/fishRegistrySettingsService'
 import type { LargeFishAssistanceRequest } from '~/app/services/largeFishAssistanceService'
 import {
   appendLargeCatchNotificationBroadcast,

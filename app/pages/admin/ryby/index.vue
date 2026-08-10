@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import type { LakeSlug } from '~/data/pond'
 import {
+  fishObservationSourceLabels,
+  fishRegistryStatusLabels,
+  fishTaggingContextLabels,
+  getFishObservations,
+  searchFishRegistry,
+  type FishObservationMutationSuccess,
+  type FishRegistryMutationSuccess,
+  type FishRegistryStateResponse,
+  type FishRegistryStatus,
+  type FishRegistryUpdateSuccess,
+} from '~/services/fishRegistryService'
+import {
   createDefaultFishRegistrySettings,
   FISH_MANAGER_CALL_THRESHOLD_KG,
   fishManagerWeekdayOptions,
@@ -8,23 +20,15 @@ import {
   formatFishManagerAvailability,
   getFishLargeCatchRule,
   getFishManagerAvailability,
-  fishObservationSourceLabels,
-  fishRegistryStatusLabels,
-  fishTaggingContextLabels,
-  getFishObservations,
-  searchFishRegistry,
-  type FishObservationMutationSuccess,
-  type FishCatchCandidate,
-  type FishCatchCandidateResponse,
   type FishLargeCatchRule,
   type FishManagerPresenceMutationSuccess,
-  type FishRegistryImportSuccess,
-  type FishRegistryMutationSuccess,
   type FishRegistrySettingsMutationSuccess,
-  type FishRegistryStateResponse,
-  type FishRegistryStatus,
-  type FishRegistryUpdateSuccess,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
+import type {
+  FishCatchCandidate,
+  FishCatchCandidateResponse,
+} from '~/services/fishRegistryCandidateService'
+import type { FishRegistryImportSuccess } from '~/services/fishRegistryCsvService'
 import type {
   LargeFishAssistanceRequest,
   LargeFishAssistanceMutationSuccess,

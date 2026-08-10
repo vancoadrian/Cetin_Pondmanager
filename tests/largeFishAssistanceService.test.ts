@@ -7,7 +7,7 @@ import {
   submitLargeFishAssistanceRequest,
   type LargeFishAssistanceState,
 } from '~/app/services/largeFishAssistanceService'
-import { createDefaultFishRegistrySettings } from '~/app/services/fishRegistryService'
+import { createDefaultFishRegistrySettings } from '~/app/services/fishRegistrySettingsService'
 
 const emptyState = (): LargeFishAssistanceState => ({ requests: [] })
 const settingsWithPresence = () => {

@@ -2,7 +2,7 @@ import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3
 import {
   fishRegistrySettingsInputSchema,
   type FishRegistrySettingsMutationSuccess,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'

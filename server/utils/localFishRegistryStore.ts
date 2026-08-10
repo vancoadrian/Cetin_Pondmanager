@@ -2,12 +2,14 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneFishRegistryState,
-  normalizeFishRegistrySettings,
   type FishRegistryState,
-  type FishRegistrySettings,
   type FishObservation,
   type TaggedFish,
 } from '~/services/fishRegistryService'
+import {
+  normalizeFishRegistrySettings,
+  type FishRegistrySettings,
+} from '~/services/fishRegistrySettingsService'
 import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalFishRegistryState extends FishRegistryState {
