@@ -2,7 +2,7 @@ import type { NotificationDeliveryProvider } from '~/data/pond'
 import type {
   NotificationDeliveryDiagnostics,
   NotificationDeliveryRunOptions,
-} from '~/services/notificationService'
+} from '~/services/notificationDeliveryService'
 import type { Urgency } from 'web-push'
 
 export interface ServerNotificationDeliveryOptions extends NotificationDeliveryRunOptions {

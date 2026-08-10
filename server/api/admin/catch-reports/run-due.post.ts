@@ -1,5 +1,5 @@
 import { defineEventHandler, setResponseStatus } from 'h3'
-import type { CatchReportScheduleRunSuccess } from '~/services/catchReportService'
+import type { CatchReportScheduleRunSuccess } from '~/services/catchReportSchedulerService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { runAndPersistCatchReportScheduler } from '../../../utils/catchReportSchedulerRunner'

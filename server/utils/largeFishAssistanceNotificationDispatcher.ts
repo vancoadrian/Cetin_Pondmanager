@@ -1,5 +1,5 @@
 import type { LargeFishAssistanceRequest } from '~/services/largeFishAssistanceService'
-import { createNotificationBroadcast } from '~/services/notificationService'
+import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {
   readLocalNotificationState,
   resolveLocalNotificationStorePath,

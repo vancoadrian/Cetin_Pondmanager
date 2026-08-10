@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'h3'
-import type { NotificationStateResponse } from '~/services/notificationService'
+import type { NotificationStateResponse } from '~/services/notificationDeliveryService'
 import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalNotificationState } from '../../utils/localNotificationStore'
 import { createNotificationDeliveryDiagnostics } from '../../utils/notificationDeliveryProvider'

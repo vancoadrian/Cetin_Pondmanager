@@ -7,10 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type { Alert, NotificationBroadcast, NotificationDeliveryLog, PushSubscriptionRecord } from '~/app/data/pond'
 import type {
-  PublicNotificationStateResponse,
   PushSubscriptionMutationSuccess,
   PushUnsubscribeSuccess,
 } from '~/app/services/notificationService'
+import type { PublicNotificationStateResponse } from '~/app/services/notificationBroadcastService'
 import notificationsGetHandler from '~/server/api/notifications.get'
 import notificationSubscribeHandler from '~/server/api/notifications/subscribe.post'
 import notificationUnsubscribeHandler from '~/server/api/notifications/unsubscribe.post'

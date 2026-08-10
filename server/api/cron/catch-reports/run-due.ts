@@ -10,7 +10,7 @@ import {
   isCatchReportSchedulerSecretValid,
   readCatchReportSchedulerConfig,
   type CatchReportScheduleRunSuccess,
-} from '~/services/catchReportService'
+} from '~/services/catchReportSchedulerService'
 import { createSystemAuditActor } from '../../../utils/auditActor'
 import { runAndPersistCatchReportScheduler } from '../../../utils/catchReportSchedulerRunner'
 

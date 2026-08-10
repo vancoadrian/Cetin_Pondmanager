@@ -2,7 +2,7 @@ import type { CatchRecord } from '~/data/pond'
 import type { FishRegistrySettings } from '~/services/fishRegistryService'
 import { getFishLargeCatchRule } from '~/services/fishRegistryService'
 import type { LargeFishAssistanceRequest } from '~/services/largeFishAssistanceService'
-import { createNotificationBroadcast } from '~/services/notificationService'
+import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {
   readLocalNotificationState,
   resolveLocalNotificationStorePath,

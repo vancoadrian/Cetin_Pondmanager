@@ -7,12 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, createRouter, toNodeListener } from 'h3'
 import type { CatchSavedReport } from '~/app/data/pond'
 import type {
-  CatchReportEmailDraftSuccess,
-  CatchReportGenerationSuccess,
   CatchReportMutationSuccess,
-  CatchReportScheduleRunSuccess,
   CatchReportStateResponse,
 } from '~/app/services/catchReportService'
+import type { CatchReportEmailDraftSuccess } from '~/app/services/catchReportEmailService'
+import type { CatchReportGenerationSuccess } from '~/app/services/catchReportGenerationService'
+import type { CatchReportScheduleRunSuccess } from '~/app/services/catchReportSchedulerService'
 import catchReportsGetHandler from '~/server/api/admin/catch-reports.get'
 import catchReportsPostHandler from '~/server/api/admin/catch-reports.post'
 import catchReportEmailDraftHandler from '~/server/api/admin/catch-reports/[id]/email-draft.post'

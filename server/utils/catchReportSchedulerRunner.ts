@@ -1,8 +1,8 @@
+import type { CatchReportEmailDeliveryOptions } from '~/services/catchReportEmailService'
 import {
   runDueCatchReports,
-  type CatchReportEmailDeliveryOptions,
   type CatchReportScheduleRunSuccess,
-} from '~/services/catchReportService'
+} from '~/services/catchReportSchedulerService'
 import { pondService } from '~/services/pondService'
 import type { AuditEventInput } from '~/services/auditLogService'
 import { appendLocalAuditEvent } from './localAuditLogStore'

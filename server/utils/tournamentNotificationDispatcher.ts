@@ -1,6 +1,6 @@
 import type { LakeSlug, NotificationAudience, NotificationAudienceRole } from '~/data/pond'
-import type { NotificationBroadcastSuccess } from '~/services/notificationService'
-import { createNotificationBroadcast } from '~/services/notificationService'
+import type { NotificationBroadcastSuccess } from '~/services/notificationBroadcastService'
+import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {
   readLocalNotificationState,
   resolveLocalNotificationStorePath,

@@ -3,13 +3,13 @@ import type {
   NotificationDeliveryLog,
   PushSubscriptionRecord,
 } from '~/data/pond'
+import type { NotificationState } from '~/services/notificationService'
+import { getBroadcastTargetSubscriptions } from '~/services/notificationBroadcastService'
 import {
-  getBroadcastTargetSubscriptions,
   runNotificationDelivery,
   summarizeNotificationDeliveryLogs,
   type NotificationDeliveryRunResult,
-  type NotificationState,
-} from '~/services/notificationService'
+} from '~/services/notificationDeliveryService'
 import type { PushSubscription as WebPushSubscription, RequestOptions, SendResult } from 'web-push'
 import type { ServerNotificationDeliveryOptions } from './notificationDeliveryProvider'
 

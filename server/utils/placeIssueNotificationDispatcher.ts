@@ -1,7 +1,7 @@
 import type { AlertSeverity, NotificationAudience, NotificationAudienceRole, PlaceIssue } from '~/data/pond'
 import { placeIssueCategoryLabels, placeIssuePriorityLabels } from '~/data/pond'
-import type { NotificationBroadcastSuccess } from '~/services/notificationService'
-import { createNotificationBroadcast } from '~/services/notificationService'
+import type { NotificationBroadcastSuccess } from '~/services/notificationBroadcastService'
+import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {
   readLocalNotificationState,
   resolveLocalNotificationStorePath,

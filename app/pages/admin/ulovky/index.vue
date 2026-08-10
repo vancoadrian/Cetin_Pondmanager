@@ -15,20 +15,18 @@ import type {
 } from '~/services/catchModerationService'
 import type {
   CatchReportMutationSuccess,
-  CatchGeneratedReport,
-  CatchReportEmailDraft,
-  CatchReportEmailDraftSuccess,
-  CatchReportGenerationSuccess,
-  CatchReportScheduleRunSuccess,
   CatchReportStateResponse,
 } from '~/services/catchReportService'
+import type { CatchReportEmailDraft, CatchReportEmailDraftSuccess } from '~/services/catchReportEmailService'
+import type { CatchGeneratedReport, CatchReportGenerationSuccess } from '~/services/catchReportGenerationService'
+import type { CatchReportScheduleRunSuccess } from '~/services/catchReportSchedulerService'
 import type { StatusBadgeTone } from '~/utils/ui'
 import {
   catchReportAudienceLabels,
   catchReportCadenceLabels,
   catchReportDeliveryLabels,
-  catchReportDeliveryProviderLabels,
 } from '~/services/catchReportService'
+import { catchReportDeliveryProviderLabels } from '~/services/catchReportEmailService'
 import {
   createDefaultFishRegistrySettings,
   formatFishManagerAvailability,

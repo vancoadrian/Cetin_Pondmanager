@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LakeSlug, PushSubscriptionTopic } from '~/data/pond'
 import type { StatusBadgeTone } from '~/utils/ui'
-import type { PublicNotificationStateResponse } from '~/services/notificationService'
+import type { PublicNotificationStateResponse } from '~/services/notificationBroadcastService'
 import {
   DEFAULT_PUBLIC_PUSH_LAKES,
   DEFAULT_PUBLIC_PUSH_TOPICS,
