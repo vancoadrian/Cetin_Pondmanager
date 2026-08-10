@@ -1,20 +1,20 @@
 <script setup lang="ts">
+import type { PushSubscriptionMutationSuccess } from '~/services/notificationService'
+import { pushSubscriptionTopicLabels } from '~/services/notificationService'
 import type {
   NotificationAlertEndSuccess,
   NotificationBroadcastSuccess,
-  NotificationStateResponse,
   NotificationTestBroadcastSuccess,
   NotificationTestCleanupSuccess,
-  PushSubscriptionMutationSuccess,
-} from '~/services/notificationService'
+} from '~/services/notificationBroadcastService'
 import {
   formatNotificationAudience,
   getActiveNotificationAlerts,
   isInternalNotificationBroadcast,
   notificationAudienceRoleLabels,
   notificationLakeLabels,
-  pushSubscriptionTopicLabels,
-} from '~/services/notificationService'
+} from '~/services/notificationBroadcastService'
+import type { NotificationStateResponse } from '~/services/notificationDeliveryService'
 import type {
   AlertSeverity,
   LakeSlug,

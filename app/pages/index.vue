@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Peg } from '~/data/pond'
-import type { PublicNotificationStateResponse } from '~/services/notificationService'
+import type { PublicNotificationStateResponse } from '~/services/notificationBroadcastService'
 import { getPegAvailability } from '~/utils/availability'
 import { formatAvailabilityDateRange, resolveAvailabilityDateRange } from '~/utils/availabilityDateRange'
 

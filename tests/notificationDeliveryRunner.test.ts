@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createNotificationBroadcast,
   savePushSubscription,
   type NotificationState,
 } from '~/app/services/notificationService'
+import { createNotificationBroadcast } from '~/app/services/notificationBroadcastService'
 import { runServerNotificationDelivery, type WebPushSender } from '~/server/utils/notificationDeliveryRunner'
 
 const now = '2026-05-20T12:00:00.000Z'

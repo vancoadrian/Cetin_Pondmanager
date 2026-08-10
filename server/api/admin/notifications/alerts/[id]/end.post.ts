@@ -2,7 +2,7 @@ import { createError, defineEventHandler, getRouterParam, setResponseStatus } fr
 import {
   endNotificationAlert,
   type NotificationAlertEndSuccess,
-} from '~/services/notificationService'
+} from '~/services/notificationBroadcastService'
 import { requireAdminAccess } from '../../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'

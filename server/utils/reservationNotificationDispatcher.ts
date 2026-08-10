@@ -1,5 +1,5 @@
 import type { NotificationAudienceRole, Reservation } from '~/data/pond'
-import { createNotificationBroadcast } from '~/services/notificationService'
+import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {
   readLocalNotificationState,
   resolveLocalNotificationStorePath,

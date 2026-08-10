@@ -2,7 +2,7 @@ import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3
 import {
   createNotificationTestBroadcast,
   type NotificationTestBroadcastSuccess,
-} from '~/services/notificationService'
+} from '~/services/notificationBroadcastService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
