@@ -1,5 +1,5 @@
 import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
-import { submitTournamentRuleCheck } from '~/services/tournamentApiService'
+import { submitTournamentRuleCheck } from '~/services/tournamentDisciplineService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'

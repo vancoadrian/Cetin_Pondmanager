@@ -3,9 +3,9 @@ import type { Sponsor, SponsorLogoVariant, TournamentCatch, TournamentMarshal, T
 import type { MapStateResponse } from '~/services/mapApiService'
 import type {
   TournamentTeamRegistrationSubmissionSuccess,
-  TournamentRequestSubmissionSuccess,
   TournamentStateResponse,
 } from '~/services/tournamentApiService'
+import type { TournamentRequestSubmissionSuccess } from '~/services/tournamentRequestService'
 import type { StatusBadgeTone } from '~/utils/ui'
 import {
   getValidationMessages,

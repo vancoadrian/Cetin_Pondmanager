@@ -1,5 +1,5 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
-import { submitTournamentCatchVerification } from '~/services/tournamentApiService'
+import { submitTournamentCatchVerification } from '~/services/tournamentCatchVerificationService'
 import { requireAdminAccess } from '../../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'

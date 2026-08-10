@@ -13,15 +13,17 @@ import type {
 } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
 import type {
-  TournamentActionSuccess,
-  TournamentCatchVerificationSuccess,
   TournamentOperationsModeSuccess,
-  TournamentPenaltySubmissionSuccess,
-  TournamentRuleCheckSubmissionSuccess,
   TournamentSectorSettingsSuccess,
   TournamentTeamRegistrationDecisionSuccess,
   TournamentStateResponse,
 } from '~/services/tournamentApiService'
+import type { TournamentCatchVerificationSuccess } from '~/services/tournamentCatchVerificationService'
+import type {
+  TournamentPenaltySubmissionSuccess,
+  TournamentRuleCheckSubmissionSuccess,
+} from '~/services/tournamentDisciplineService'
+import type { TournamentActionSuccess } from '~/services/tournamentRequestService'
 import {
   getValidationMessages,
   tournamentPenaltyInputSchema,

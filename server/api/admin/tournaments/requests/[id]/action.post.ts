@@ -1,5 +1,5 @@
 import { createError, defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
-import { submitTournamentRequestAction } from '~/services/tournamentApiService'
+import { submitTournamentRequestAction } from '~/services/tournamentRequestService'
 import { requireAdminAccess } from '../../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'
