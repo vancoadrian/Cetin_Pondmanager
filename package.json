@@ -25,6 +25,7 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "test:lhci": "lhci autorun --config=lighthouserc.cjs"
   },
@@ -45,6 +46,7 @@
     "@lhci/cli": "^0.15.1",
     "@nuxt/eslint": "^1.0.0",
     "@playwright/test": "^1.61.1",
+    "@supabase/supabase-js": "^2.112.2",
     "@types/node": "^22.0.0",
     "@types/web-push": "^3.6.4",
     "eslint": "^9.0.0",
