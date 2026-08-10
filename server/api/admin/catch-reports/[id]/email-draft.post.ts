@@ -2,7 +2,7 @@ import { createError, defineEventHandler, getRouterParam, setResponseStatus } fr
 import {
   deliverCatchReportEmail,
   type CatchReportEmailDraftSuccess,
-} from '~/services/catchReportService'
+} from '~/services/catchReportEmailService'
 import { pondService } from '~/services/pondService'
 import { requireAdminAccess } from '../../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../../utils/auditActor'

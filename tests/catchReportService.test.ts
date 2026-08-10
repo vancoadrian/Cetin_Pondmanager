@@ -1,20 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { catches } from '~/app/data/pond'
 import {
-  createCatchReportEmailDraft,
   createEmptyCatchReportState,
-  deliverCatchReportEmail,
-  generateCatchSavedReport,
-  getCatchReportNextEligibleAt,
-  isCatchReportDue,
-  isCatchReportSchedulerSecretValid,
-  prepareCatchReportEmailDraft,
-  readCatchReportDeliveryProviderConfig,
-  readCatchReportSchedulerConfig,
-  runDueCatchReports,
   saveCatchSavedReport,
   type CatchReportState,
 } from '~/app/services/catchReportService'
+import { generateCatchSavedReport } from '~/app/services/catchReportGenerationService'
+import {
+  createCatchReportEmailDraft,
+  deliverCatchReportEmail,
+  prepareCatchReportEmailDraft,
+  readCatchReportDeliveryProviderConfig,
+} from '~/app/services/catchReportEmailService'
+import {
+  getCatchReportNextEligibleAt,
+  isCatchReportDue,
+  isCatchReportSchedulerSecretValid,
+  readCatchReportSchedulerConfig,
+  runDueCatchReports,
+} from '~/app/services/catchReportSchedulerService'
 
 const now = '2026-05-19T08:00:00.000Z'
 
