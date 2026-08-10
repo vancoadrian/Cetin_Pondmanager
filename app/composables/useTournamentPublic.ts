@@ -9,8 +9,8 @@ import type {
 } from '~/data/pond'
 import type { PublicMockUser } from '~/composables/useMockAuth'
 import type { MapStateResponse } from '~/services/mapApiService'
+import type { TournamentRequestSubmissionSuccess } from '~/services/tournamentRequestService'
 import type {
-  TournamentRequestSubmissionSuccess,
   TournamentStateResponse,
   TournamentTeamRegistrationSubmissionSuccess,
 } from '~/services/tournamentApiService'

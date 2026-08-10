@@ -13,7 +13,7 @@ import {
   formatFishManagerAvailability,
   getFishManagerAvailability,
   type FishLargeCatchRulesResponse,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
 import type {
   LargeFishAssistanceMutationSuccess,
   LargeFishAssistancePublicResponse,

@@ -6,21 +6,16 @@ import type {
   CatchSavedReportDelivery,
   LakeSlug,
 } from '~/data/pond'
-import type {
-  CatchGeneratedReport,
-  CatchReportEmailDraft,
-  CatchReportEmailDraftSuccess,
-  CatchReportGenerationSuccess,
-  CatchReportMutationSuccess,
-  CatchReportScheduleRunSuccess,
-  CatchReportStateResponse,
-} from '~/services/catchReportService'
+import type { CatchReportEmailDraft, CatchReportEmailDraftSuccess } from '~/services/catchReportEmailService'
+import type { CatchGeneratedReport, CatchReportGenerationSuccess } from '~/services/catchReportGenerationService'
+import type { CatchReportScheduleRunSuccess } from '~/services/catchReportSchedulerService'
+import type { CatchReportMutationSuccess, CatchReportStateResponse } from '~/services/catchReportService'
 import type { StatusBadgeTone } from '~/utils/ui'
+import { catchReportDeliveryProviderLabels } from '~/services/catchReportEmailService'
 import {
   catchReportAudienceLabels,
   catchReportCadenceLabels,
   catchReportDeliveryLabels,
-  catchReportDeliveryProviderLabels,
 } from '~/services/catchReportService'
 import {
   createCatchAnalytics,

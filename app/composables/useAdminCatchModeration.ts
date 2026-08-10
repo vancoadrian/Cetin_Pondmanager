@@ -18,8 +18,8 @@ import {
   createDefaultFishRegistrySettings,
   getFishLargeCatchRule,
   getFishManagerAvailability,
-  type FishCatchCandidateResponse,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
+import type { FishCatchCandidateResponse } from '~/services/fishRegistryCandidateService'
 import { catchCorrectionInputSchema, getValidationMessages } from '~/schemas/pondSchemas'
 
 export type CatchAdminView = 'analytika' | 'moderacia' | 'reporty'

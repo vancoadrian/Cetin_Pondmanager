@@ -1,5 +1,5 @@
 import { defineEventHandler, setHeader } from 'h3'
-import { exportFishRegistryCsv } from '~/services/fishRegistryService'
+import { exportFishRegistryCsv } from '~/services/fishRegistryCsvService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { readLocalFishRegistryState } from '../../../utils/localFishRegistryStore'
 

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import {
-  fishManagerContactModeLabels,
-  fishManagerWeekdayOptions,
   fishObservationSourceLabels,
   fishRegistryStatusLabels,
   fishTaggingContextLabels,
-  formatFishManagerAvailability,
 } from '~/services/fishRegistryService'
+import {
+  fishManagerContactModeLabels,
+  fishManagerWeekdayOptions,
+  formatFishManagerAvailability,
+} from '~/services/fishRegistrySettingsService'
 import { largeFishAssistanceStatusLabels } from '~/services/largeFishAssistanceService'
 
 useHead({ title: 'Čipované ryby' })

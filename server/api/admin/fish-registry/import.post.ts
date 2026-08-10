@@ -3,7 +3,7 @@ import {
   fishRegistryImportInputSchema,
   importFishRegistryCsv,
   type FishRegistryImportSuccess,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistryCsvService'
 import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { resolveAuditActor } from '../../../utils/auditActor'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'

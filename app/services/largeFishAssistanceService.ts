@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import type { LakeSlug } from '~/data/pond'
-import type { FishRegistrySettings } from '~/services/fishRegistryService'
+import type { FishRegistrySettings } from '~/services/fishRegistrySettingsService'
 import {
   getFishLargeCatchRule,
   getFishManagerAvailability,
-} from '~/services/fishRegistryService'
+} from '~/services/fishRegistrySettingsService'
 import { pondService, type PondService } from '~/services/pondService'
 
 export type LargeFishAssistanceStatus =

@@ -12,12 +12,14 @@ import type {
   TournamentTeamRegistration,
 } from '~/data/pond'
 import type { MapStateResponse } from '~/services/mapApiService'
+import type { TournamentActionSuccess } from '~/services/tournamentRequestService'
+import type { TournamentCatchVerificationSuccess } from '~/services/tournamentCatchVerificationService'
 import type {
-  TournamentActionSuccess,
-  TournamentCatchVerificationSuccess,
-  TournamentOperationsModeSuccess,
   TournamentPenaltySubmissionSuccess,
   TournamentRuleCheckSubmissionSuccess,
+} from '~/services/tournamentDisciplineService'
+import type {
+  TournamentOperationsModeSuccess,
   TournamentSectorSettingsSuccess,
   TournamentTeamRegistrationDecisionSuccess,
   TournamentStateResponse,

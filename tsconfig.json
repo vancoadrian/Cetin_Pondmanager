@@ -1,3 +1,11 @@
 {
-  "extends": "./.nuxt/tsconfig.json"
+  "extends": "./.nuxt/tsconfig.json",
+  "compilerOptions": {
+    // Lets app/services/supabaseSeed*.ts use explicit .ts extensions in
+    // their mutual relative imports. That file tree is also imported
+    // directly by scripts/export-supabase-seed.ts, which runs under plain
+    // `node` (no bundler) and therefore needs a real, resolvable extension
+    // on relative specifiers — Nuxt/Vite itself doesn't care either way.
+    "allowImportingTsExtensions": true
+  }
 }

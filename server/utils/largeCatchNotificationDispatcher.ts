@@ -1,6 +1,6 @@
 import type { CatchRecord } from '~/data/pond'
-import type { FishRegistrySettings } from '~/services/fishRegistryService'
-import { getFishLargeCatchRule } from '~/services/fishRegistryService'
+import type { FishRegistrySettings } from '~/services/fishRegistrySettingsService'
+import { getFishLargeCatchRule } from '~/services/fishRegistrySettingsService'
 import type { LargeFishAssistanceRequest } from '~/services/largeFishAssistanceService'
 import { createNotificationBroadcast } from '~/services/notificationBroadcastService'
 import {

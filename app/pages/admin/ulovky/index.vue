@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CatchAdminView } from '~/composables/useAdminCatchModeration'
-import { formatFishManagerAvailability } from '~/services/fishRegistryService'
+import { formatFishManagerAvailability } from '~/services/fishRegistrySettingsService'
 
 useHead({ title: 'Admin úlovky' })
 

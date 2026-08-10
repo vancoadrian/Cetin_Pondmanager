@@ -7,19 +7,19 @@ import {
 } from '~/app/data/pond'
 import {
   addFishObservation,
-  createFishCatchCandidates,
-  createDefaultFishRegistrySettings,
-  exportFishRegistryCsv,
-  formatFishManagerAvailability,
-  getFishManagerAvailability,
-  importFishRegistryCsv,
-  parseCsvRows,
   registerTaggedFish,
   searchFishRegistry,
-  setFishManagerPresence,
   updateTaggedFishIdentity,
   type FishRegistryState,
 } from '~/app/services/fishRegistryService'
+import { createFishCatchCandidates } from '~/app/services/fishRegistryCandidateService'
+import { exportFishRegistryCsv, importFishRegistryCsv, parseCsvRows } from '~/app/services/fishRegistryCsvService'
+import {
+  createDefaultFishRegistrySettings,
+  formatFishManagerAvailability,
+  getFishManagerAvailability,
+  setFishManagerPresence,
+} from '~/app/services/fishRegistrySettingsService'
 
 const emptyState = (): FishRegistryState => ({
   fish: [],
