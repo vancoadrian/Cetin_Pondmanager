@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test'
+import { E2E_ACCOUNT_EMAILS, E2E_PASSWORD } from './helpers/auth'
 
 const AVAILABLE_DATE_FROM = '2030-09-10'
 const AVAILABLE_DATE_TO = '2030-09-11'
@@ -91,27 +92,28 @@ function reservationSuccessResponse() {
 }
 
 async function setSessionRole(context: BrowserContext, page: Page, role: string | null) {
-  const origin = new URL(page.url()).origin
-
-  // Dispose the current Nuxt app before changing cookies. Its useCookie refs can
-  // otherwise race an externally injected cookie during fast role switches.
+  // Dispose the current Nuxt app before changing session state. Its useCookie
+  // refs can otherwise race a login/logout during fast role switches.
   await page.goto('about:blank')
-  await context.clearCookies()
-  if (!role) return
 
-  await context.addCookies([{
-    name: 'rybolov_cetin_mock_session',
-    url: `${origin}/`,
-    value: role,
-  }])
+  if (!role) {
+    await context.clearCookies()
+    return
+  }
+
+  const email = E2E_ACCOUNT_EMAILS[role]
+  if (!email) throw new Error(`No e2e account email configured for role "${role}".`)
+
+  const response = await page.request.post('/api/auth/login', {
+    data: { email, password: E2E_PASSWORD },
+  })
+  if (!response.ok()) {
+    throw new Error(`E2E login as "${role}" failed with status ${response.status()}.`)
+  }
 }
 
-function getAdminReservationsAs(page: Page, role?: string) {
-  return page.request.get('/api/admin/reservations', {
-    headers: role
-      ? { cookie: `rybolov_cetin_mock_session=${role}` }
-      : undefined,
-  })
+function getAdminReservationsAs(page: Page) {
+  return page.request.get('/api/admin/reservations')
 }
 
 test('konflikt rezervácie zostane serverovou chybou a nevytvorí offline kópiu', async ({ page }) => {
@@ -214,7 +216,7 @@ test('route a API guardy presmerujú neprihláseného a obmedzia roly na ich pra
   )
 
   await setSessionRole(context, page, 'angler-marek')
-  const anglerApi = await getAdminReservationsAs(page, 'angler-marek')
+  const anglerApi = await getAdminReservationsAs(page)
   expect(anglerApi.status()).toBe(401)
   await page.goto('/admin/rezervacie')
   await expect(page).toHaveURL((url) => url.pathname === '/konto')
@@ -224,7 +226,7 @@ test('route a API guardy presmerujú neprihláseného a obmedzia roly na ich pra
   await expect(page).toHaveURL((url) => url.pathname === '/sutaze/tim')
 
   await setSessionRole(context, page, 'marshal')
-  const marshalReservationApi = await getAdminReservationsAs(page, 'marshal')
+  const marshalReservationApi = await getAdminReservationsAs(page)
   expect(marshalReservationApi.status()).toBe(403)
   await page.goto('/admin/rezervacie')
   await expect(page).toHaveURL((url) =>
@@ -233,7 +235,7 @@ test('route a API guardy presmerujú neprihláseného a obmedzia roly na ich pra
   await expect(page.getByRole('heading', { name: /Panel kontrolóra/ })).toBeVisible()
 
   await setSessionRole(context, page, 'manager')
-  const managerApi = await getAdminReservationsAs(page, 'manager')
+  const managerApi = await getAdminReservationsAs(page)
   expect(managerApi.status()).toBe(200)
   await page.goto('/admin/rezervacie')
   await expect(page.getByRole('heading', { name: 'Rezervácie a dostupnosť', exact: true })).toBeVisible()

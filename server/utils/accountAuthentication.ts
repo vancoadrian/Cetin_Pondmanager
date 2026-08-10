@@ -80,17 +80,19 @@ export async function verifyPasswordHash(password: string, encodedHash: string) 
 export async function authenticateAppUser(email: string, password: string): Promise<PublicMockUser | undefined> {
   const mockUser = findMockUserByEmail(email)
   if (mockUser) {
+    // Every seed account (owner/manager/marshal/... and the demo angler) must
+    // have its own credential override — there is no shared fallback
+    // password. Run scripts/generate-seed-credentials.ts to provision one.
     const credentialOverride = await findLocalCredentialOverride(mockUser.id)
     const passwordMatches = credentialOverride
       ? await verifyPasswordHash(password, credentialOverride.passwordHash)
-      : mockUser.password === password
+      : false
     if (!passwordMatches) return undefined
 
     const profile = await findLocalAccountProfileOverride(mockUser.id)
-    const { password: _password, ...publicUser } = mockUser
     return {
-      ...publicUser,
-      name: profile?.name ?? publicUser.name,
+      ...mockUser,
+      name: profile?.name ?? mockUser.name,
       phone: profile?.phone,
     }
   }
@@ -110,7 +112,7 @@ export async function verifyAppUserPassword(accountId: string, email: string, pa
     const credentialOverride = await findLocalCredentialOverride(accountId)
     return credentialOverride
       ? verifyPasswordHash(password, credentialOverride.passwordHash)
-      : mockUser.password === password
+      : false
   }
 
   const registeredAccount = await findLocalRegisteredAccountById(accountId)

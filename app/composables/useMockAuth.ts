@@ -1,7 +1,6 @@
-import { ANGLER_SESSION_COOKIE, findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
+import { findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
 
 export const AUTH_SESSION_COOKIE = 'rybolov_cetin_mock_session'
-export const AUTH_USER_COOKIE = 'rybolov_cetin_mock_user'
 
 export type MockRole =
   | 'angler'
@@ -18,7 +17,6 @@ export interface MockUser {
   id: string
   marshalId?: string
   name: string
-  password: string
   role: MockRole
   roleLabel: string
   sectorId?: string
@@ -28,7 +26,14 @@ export interface MockUser {
   phone?: string
 }
 
-export type PublicMockUser = Omit<MockUser, 'password'>
+/**
+ * Credentials never live in this module: it is bundled to the client (it is a
+ * composable), so any password field here would ship in the client JS. Every
+ * seed account's password is a unique, randomly generated value whose scrypt
+ * hash lives server-only in the local account store's credentialOverrides
+ * (see scripts/generate-seed-credentials.ts and server/utils/accountAuthentication.ts).
+ */
+export type PublicMockUser = MockUser
 
 export interface MockLoginResult {
   message?: string
@@ -45,7 +50,6 @@ export const mockUsers: MockUser[] = [
     email: 'marek.horvath@example.test',
     id: 'angler-marek',
     name: 'Marek H.',
-    password: 'Cetin2026!',
     role: 'angler',
     roleLabel: 'rybár',
     description: 'Má prístup k vlastným zápisníkom, výpravám a histórii úlovkov.',
@@ -55,7 +59,6 @@ export const mockUsers: MockUser[] = [
     email: 'majitel@rybolovcetin.sk',
     id: 'owner',
     name: 'Majiteľ revíru',
-    password: 'Cetin2026!',
     role: 'owner',
     roleLabel: 'majiteľ',
     description: 'Vidí celé stredisko, financie, nastavenia, sponzorov a všetky interné moduly.',
@@ -65,7 +68,6 @@ export const mockUsers: MockUser[] = [
     email: 'spravca@rybolovcetin.sk',
     id: 'manager',
     name: 'Správca pri vode',
-    password: 'Cetin2026!',
     role: 'manager',
     roleLabel: 'správca',
     description: 'Rieši rezervácie, obsadenosť, požičovňu, výstrahy a denné prevádzkové zmeny.',
@@ -75,7 +77,6 @@ export const mockUsers: MockUser[] = [
     email: 'kontrolor@rybolovcetin.sk',
     id: 'marshal',
     name: 'Kontrolór súťaže',
-    password: 'Cetin2026!',
     role: 'marshal',
     roleLabel: 'kontrolór',
     marshalId: 'marshal-1',
@@ -87,7 +88,6 @@ export const mockUsers: MockUser[] = [
     email: 'organizator@rybolovcetin.sk',
     id: 'organizer',
     name: 'Organizátor súťaže',
-    password: 'Cetin2026!',
     role: 'organizer',
     roleLabel: 'organizátor',
     description: 'Spravuje súťaž, sektory, tímy, pravidlá, priebeh pretekov a výstupy pre verejnosť.',
@@ -97,7 +97,6 @@ export const mockUsers: MockUser[] = [
     email: 'tim@rybolovcetin.sk',
     id: 'team',
     name: 'Súťažný tím',
-    password: 'Cetin2026!',
     role: 'team',
     roleLabel: 'tím',
     sectorId: 'a1',
@@ -109,7 +108,6 @@ export const mockUsers: MockUser[] = [
     email: 'uctovnik@rybolovcetin.sk',
     id: 'accountant',
     name: 'Účtovník',
-    password: 'Cetin2026!',
     role: 'accountant',
     roleLabel: 'účtovník',
     description: 'Vidí platby, rezervácie, exporty a podklady bez prevádzkových zásahov do mapy.',
@@ -119,7 +117,6 @@ export const mockUsers: MockUser[] = [
     email: 'brigadnik@rybolovcetin.sk',
     id: 'worker',
     name: 'Brigádnik',
-    password: 'Cetin2026!',
     role: 'worker',
     roleLabel: 'brigádnik',
     description: 'Pomáha pri nástupe hostí, výbave, údržbe a praktických úlohách pri vode.',
@@ -143,17 +140,6 @@ export function isSafeAppRedirect(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
 }
 
-export function authenticateMockUser(email: string, password: string) {
-  const normalizedEmail = email.trim().toLocaleLowerCase('sk')
-  const directMatch = mockUsers.find((item) => item.email.toLocaleLowerCase('sk') === normalizedEmail)
-  const aliasAccount = directMatch ? undefined : findMockAnglerAccountByEmail(normalizedEmail)
-  const matchedUser = directMatch ?? (aliasAccount
-    ? mockUsers.find((item) => item.role === 'angler' && item.id === aliasAccount.id)
-    : undefined)
-
-  return matchedUser?.password === password ? matchedUser : undefined
-}
-
 export function findMockUserByEmail(email: string) {
   const normalizedEmail = email.trim().toLocaleLowerCase('sk')
   const directMatch = mockUsers.find((item) => item.email.toLocaleLowerCase('sk') === normalizedEmail)
@@ -168,11 +154,6 @@ export function findMockUserById(userId?: string | null) {
   return mockUsers.find((item) => item.id === userId)
 }
 
-export function findMockUserBySessionValue(value?: string | null) {
-  return findMockUserById(value)
-    ?? mockUsers.find((item) => item.role === value)
-}
-
 export function canUseTournamentTeamScope(
   user: PublicMockUser | null | undefined,
   tournamentId: unknown,
@@ -185,26 +166,25 @@ export function canUseTournamentTeamScope(
     && user.sectorId === sectorId
 }
 
-export function useMockAuth() {
-  const session = useCookie<string | null>(AUTH_SESSION_COOKIE, {
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 14,
-  })
-  const anglerSession = useCookie<string | null>(ANGLER_SESSION_COOKIE, {
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-  })
-  const sessionUser = useCookie<PublicMockUser | null>(AUTH_USER_COOKIE, {
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-  })
+/**
+ * Authoritative client-side cache of "who is logged in". It is populated by
+ * app/plugins/auth-session.ts from GET /api/auth/session (which resolves the
+ * httpOnly session cookie server-side) and updated in place by login/register/
+ * logout. The cookie itself is httpOnly and opaque, so it is never read or
+ * trusted on the client — the server is the only party that can mint or
+ * verify a session (see server/utils/localSessionStore.ts).
+ */
+export function useAuthUserState() {
+  return useState<PublicMockUser | null>('rybolov-auth-user', () => null)
+}
 
-  const user = computed(() => sessionUser.value ?? findMockUserById(session.value) ?? null)
+export function useMockAuth() {
+  const sessionUser = useAuthUserState()
+
+  const user = computed(() => sessionUser.value)
   const isLoggedIn = computed(() => user.value !== null)
 
   function applyAuthenticatedUser(authenticatedUser: PublicMockUser) {
-    session.value = authenticatedUser.id
-    anglerSession.value = authenticatedUser.role === 'angler' ? authenticatedUser.id : null
     sessionUser.value = authenticatedUser
   }
 
@@ -269,9 +249,13 @@ export function useMockAuth() {
     }
   }
 
-  function logout() {
-    session.value = null
-    anglerSession.value = null
+  async function logout() {
+    try {
+      await $fetch('/api/auth/logout', { method: 'POST' })
+    }
+    catch {
+      // Best-effort: clear local state regardless of network failure.
+    }
     sessionUser.value = null
 
     if (import.meta.client && 'caches' in window) {

@@ -1,20 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
-  authenticateMockUser,
   canUseTournamentTeamScope,
   findMockUserById,
   getAuthenticatedHome,
   isSafeAppRedirect,
 } from '~/app/composables/useMockAuth'
 
+// Password verification is intentionally not testable from this client-safe
+// module anymore: there is no client-bundled password field or comparison
+// left in useMockAuth (see server/utils/accountAuthentication.ts and
+// tests/accountRegistrationRoutes.test.ts for the real, server-side login
+// contract, which requires a per-account credential override).
 describe('application authentication contract', () => {
-  it('authenticates by normalized email and password', () => {
-    expect(authenticateMockUser('  MAREK.HORVATH@EXAMPLE.TEST ', 'Cetin2026!')?.role).toBe('angler')
-    expect(authenticateMockUser('marek.h@example.com', 'Cetin2026!')?.id).toBe('angler-marek')
-    expect(authenticateMockUser('marek.horvath@example.test', 'wrong')).toBeUndefined()
-    expect(authenticateMockUser('marek.h@example.com', 'wrong')).toBeUndefined()
-  })
-
   it('routes every role to its own workspace', () => {
     expect(getAuthenticatedHome('angler')).toBe('/konto')
     expect(getAuthenticatedHome('team')).toBe('/sutaze/tim')

@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
+import { E2E_ACCOUNT_EMAILS, E2E_PASSWORD } from './helpers/auth'
 
-test('admin rezervácie a požičovňa preposielajú session pri SSR', async ({ context, page }) => {
+test('admin rezervácie a požičovňa preposielajú session pri SSR', async ({ page }) => {
   await page.goto('/')
-  await context.addCookies([{
-    name: 'rybolov_cetin_mock_session',
-    url: new URL('/', page.url()).href,
-    value: 'manager',
-  }])
+  const login = await page.request.post('/api/auth/login', {
+    data: { email: E2E_ACCOUNT_EMAILS.manager, password: E2E_PASSWORD },
+  })
+  expect(login.ok()).toBe(true)
 
   const reservationResponse = await page.goto('/admin/rezervacie')
   expect(reservationResponse?.status()).toBe(200)

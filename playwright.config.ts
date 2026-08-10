@@ -9,6 +9,7 @@ export default defineConfig({
   },
   forbidOnly: Boolean(process.env.CI),
   fullyParallel: false,
+  globalSetup: './e2e/global-setup.ts',
   outputDir: 'test-results/playwright',
   projects: [
     {

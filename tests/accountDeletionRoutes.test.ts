@@ -18,13 +18,15 @@ import { readLocalAccountState } from '~/server/utils/localAccountStore'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { readLocalCatchState } from '~/server/utils/localCatchStore'
 import { readLocalReservationState } from '~/server/utils/localReservationStore'
+import { createSessionCookieHeader, seedCredentialOverride } from './helpers/testAuth'
 
-const MAREK_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
+let marekCookie: string
 const localEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
 ] as const
 const originalEnv = new Map<string, string | undefined>()
 let tempDir: string | undefined
@@ -45,6 +47,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CATCH_STORE = join(dataDir, 'catch-state.json')
   process.env.RYBOLOV_LOCAL_RESERVATION_STORE = join(dataDir, 'reservation-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  await seedCredentialOverride('angler-marek', 'Cetin2026!')
+  marekCookie = await createSessionCookieHeader('angler-marek', 'angler')
 })
 
 afterEach(async () => {
@@ -132,7 +137,7 @@ describe('account deletion routes', () => {
 
       const wrongPassword = await requestJson<{ statusMessage: string }>(server, '/api/account/delete', {
         body: { confirmation: 'ZMAZAŤ', password: 'nesprávne' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'POST',
       })
       expect(wrongPassword.response.status).toBe(422)
@@ -154,14 +159,14 @@ describe('account deletion routes', () => {
 
       const invalid = await requestJson<{ data: { messages: string[] } }>(server, '/api/account/profile', {
         body: { name: 'M', phone: 'nesprávny telefón' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'PUT',
       })
       expect(invalid.response.status).toBe(422)
 
       const updated = await requestJson<AccountProfileUpdateResponse>(server, '/api/account/profile', {
         body: { name: '  Marek Novák  ', phone: ' +421 900 123 456 ' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'PUT',
       })
       expect(updated.response.status).toBe(200)
@@ -187,7 +192,7 @@ describe('account deletion routes', () => {
       expect(login.body.user).toMatchObject({ name: 'Marek Novák', phone: '+421 900 123 456' })
 
       const exportResult = await requestJson<AnglerAccountDataExport>(server, '/api/account/export', {
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
       })
       expect(exportResult.body.formatVersion).toBe(2)
       expect(exportResult.body.account).toMatchObject({
@@ -207,7 +212,7 @@ describe('account deletion routes', () => {
 
       const deleted = await requestJson<AccountDeletionResponse>(server, '/api/account/delete', {
         body: { confirmation: 'ZMAZAŤ', password: 'Cetin2026!' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'POST',
       })
       expect(deleted.response.status).toBe(200)
@@ -226,7 +231,7 @@ describe('account deletion routes', () => {
       expect(anonymous.response.status).toBe(401)
 
       const result = await requestJson<AnglerAccountDataExport>(server, '/api/account/export', {
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
       })
       expect(result.response.status).toBe(200)
       expect(result.response.headers.get('cache-control')).toBe('private, no-store')
@@ -248,7 +253,7 @@ describe('account deletion routes', () => {
     try {
       const deleted = await requestJson<AccountDeletionResponse>(server, '/api/account/delete', {
         body: { confirmation: 'ZMAZAŤ', password: 'Cetin2026!' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'POST',
       })
       expect(deleted.response.status).toBe(200)
@@ -274,7 +279,7 @@ describe('account deletion routes', () => {
       expect(loginAfterDeletion.response.status).toBe(403)
 
       const staleSession = await requestJson<{ statusMessage: string }>(server, '/api/account/logbooks', {
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
       })
       expect(staleSession.response.status).toBe(401)
     }

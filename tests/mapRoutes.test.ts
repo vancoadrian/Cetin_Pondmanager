@@ -17,9 +17,10 @@ import mapGetHandler from '~/server/api/map.get'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
 import { writeLocalCabinCatalogState } from '~/server/utils/localCabinCatalogStore'
 import { readLocalMapDraftState, readLocalMapState } from '~/server/utils/localMapStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const MARSHAL_COOKIE = 'rybolov_cetin_mock_session=marshal'
+let managerCookie: string
+let marshalCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
@@ -27,6 +28,7 @@ const localEnvKeys = [
   'RYBOLOV_LOCAL_MAP_ASSET_DIR',
   'RYBOLOV_LOCAL_MAP_DRAFT_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_LOCAL_TOURNAMENT_STORE',
 ] as const
 
@@ -74,6 +76,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_MAP_DRAFT_STORE = join(dataDir, 'map-draft-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
   process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(dataDir, 'tournament-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  marshalCookie = await createSessionCookieHeader('marshal', 'marshal')
 })
 
 afterEach(async () => {
@@ -148,7 +153,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -173,7 +178,7 @@ async function requestRaw(
   const headers = new Headers(init.headers)
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   return fetch(`${server.baseUrl}${path}`, {
@@ -214,7 +219,7 @@ describe('map API routes', () => {
       expect(anonymous.body.statusMessage).toBe('Admin login required')
 
       const marshal = await requestJson<ValidationErrorResponse>(server, '/api/admin/map', {
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
       })
       expect(marshal.response.status).toBe(403)
 
@@ -475,7 +480,7 @@ describe('map API routes', () => {
           mapShapes: state.body.mapShapes,
           pegs: state.body.pegs,
         }),
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'PUT',
       })
       expect(readOnlySave.response.status).toBe(403)
@@ -483,7 +488,7 @@ describe('map API routes', () => {
       expect(readOnlySave.body.data.requiredMode).toBe('full')
 
       const readOnlyDiscard = await requestJson<ValidationErrorResponse>(server, '/api/admin/map/discard-draft', {
-        cookie: MARSHAL_COOKIE,
+        cookie: marshalCookie,
         method: 'POST',
       })
       expect(readOnlyDiscard.response.status).toBe(403)

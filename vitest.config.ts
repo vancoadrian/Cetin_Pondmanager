@@ -22,5 +22,8 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     include: ['tests/**/*.test.ts'],
+    // tests/integration/** needs a live local Supabase (Docker) and has its
+    // own config/script (vitest.integration.config.ts, `pnpm test:integration`).
+    exclude: ['node_modules/**', 'tests/integration/**'],
   },
 })

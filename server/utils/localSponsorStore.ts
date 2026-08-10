@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Sponsor } from '~/data/pond'
 import { sponsors as seedSponsors } from '~/data/pond'
 import { sortSponsors, type SponsorWorkflowState } from '~/services/sponsorService'
+import { atomicWriteJsonFile } from './jsonFileStore'
 
 export interface LocalSponsorState extends SponsorWorkflowState {
   updatedAt: string
@@ -108,8 +109,7 @@ export async function writeLocalSponsorState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }

@@ -20,8 +20,9 @@ import dataImportPreviewHandler from '~/server/api/admin/data-import/preview.pos
 import dataImportRestoreHandler from '~/server/api/admin/data-import/restore.post'
 import { createLocalDataExportPayload } from '~/server/utils/localDataExport'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const ADMIN_COOKIE = 'rybolov_cetin_mock_session=owner'
+let adminCookie: string
 
 const localDataEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
@@ -41,6 +42,7 @@ const localDataEnvKeys = [
   'RYBOLOV_LOCAL_RENTAL_CATALOG_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
   'RYBOLOV_LOCAL_SPONSOR_ASSET_DIR',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_LOCAL_SPONSOR_STORE',
   'RYBOLOV_LOCAL_TOURNAMENT_STORE',
 ] as const
@@ -82,6 +84,8 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_SPONSOR_ASSET_DIR = join(dataDir, 'sponsor-assets')
   process.env.RYBOLOV_LOCAL_SPONSOR_STORE = join(dataDir, 'sponsor-state.json')
   process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(dataDir, 'tournament-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  adminCookie = await createSessionCookieHeader('owner', 'owner')
 })
 
 afterEach(async () => {
@@ -154,7 +158,7 @@ async function requestJson<T>(
   }
 
   if (init.admin !== false) {
-    headers.set('cookie', ADMIN_COOKIE)
+    headers.set('cookie', adminCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 
 interface WebPushVapidGenerator {
   generateVAPIDKeys: () => {
@@ -110,3 +111,9 @@ for (const [key, value] of Object.entries(values)) {
 await writeFile(envPath, `${content.trimEnd()}\n`, { encoding: 'utf8', mode: 0o600 })
 console.log(`Local environment written to ${envPath}.`)
 console.log(`Configured ${Object.keys(values).length} Supabase, PWA and VAPID variables without printing secrets.`)
+
+const scriptDir = dirname(fileURLToPath(import.meta.url))
+execFileSync('node', [resolve(scriptDir, 'generate-seed-credentials.ts')], {
+  cwd: rootDir,
+  stdio: 'inherit',
+})

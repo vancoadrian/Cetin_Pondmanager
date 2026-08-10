@@ -14,13 +14,15 @@ import loginHandler from '~/server/api/auth/login.post'
 import registerHandler from '~/server/api/auth/register.post'
 import { readLocalAccountState } from '~/server/utils/localAccountStore'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { createSessionCookieHeader, seedCredentialOverride } from './helpers/testAuth'
 
-const MAREK_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
+let marekCookie: string
 const localEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
 ] as const
 const originalEnv = new Map<string, string | undefined>()
 let tempDir: string | undefined
@@ -41,6 +43,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE = join(dataDir, 'audit-log.json')
   process.env.RYBOLOV_LOCAL_CATCH_STORE = join(dataDir, 'catch-state.json')
   process.env.RYBOLOV_LOCAL_RESERVATION_STORE = join(dataDir, 'reservation-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
+  await seedCredentialOverride('angler-marek', 'Cetin2026!')
+  marekCookie = await createSessionCookieHeader('angler-marek', 'angler')
 })
 
 afterEach(async () => {
@@ -111,7 +116,7 @@ describe('account password change route', () => {
 
       const incorrect = await requestJson<{ statusMessage: string }>(server, '/api/account/password', {
         body: { currentPassword: 'Nespravne2026', password: 'MarekNove2026' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'POST',
       })
       expect(incorrect.response.status).toBe(422)
@@ -127,7 +132,7 @@ describe('account password change route', () => {
     try {
       const changed = await requestJson<AccountPasswordChangeResponse>(server, '/api/account/password', {
         body: { currentPassword: 'Cetin2026!', password: 'MarekNove2026' },
-        cookie: MAREK_COOKIE,
+        cookie: marekCookie,
         method: 'POST',
       })
       expect(changed.response.status).toBe(200)
@@ -163,9 +168,12 @@ describe('account password change route', () => {
       expect(JSON.stringify(audit)).not.toContain('Cetin2026!')
       expect(JSON.stringify(audit)).not.toContain('MarekNove2026')
 
+      // The password change destroys every session for this account
+      // (including marekCookie itself), so deleting the account needs the
+      // fresh session obtained by newLogin above instead of the stale one.
       const deleted = await requestJson<AccountDeletionResponse>(server, '/api/account/delete', {
         body: { confirmation: 'ZMAZAŤ', password: 'MarekNove2026' },
-        cookie: MAREK_COOKIE,
+        cookie: await createSessionCookieHeader('angler-marek', 'angler'),
         method: 'POST',
       })
       expect(deleted.response.status).toBe(200)
@@ -194,13 +202,16 @@ describe('account password change route', () => {
 
       const changed = await requestJson<AccountPasswordChangeResponse>(server, '/api/account/password', {
         body: { currentPassword: registration.password, password: 'NoveHeslo2026' },
-        cookie: `rybolov_cetin_mock_session=${accountId}`,
+        cookie: await createSessionCookieHeader(accountId, 'angler'),
         method: 'POST',
       })
       expect(changed.response.status).toBe(200)
 
+      // beforeEach seeds a credentialOverride for angler-marek (used by the
+      // other tests' marekCookie fixture); assert this registered account
+      // specifically never gets one, rather than the whole array being empty.
       const state = await readLocalAccountState()
-      expect(state.credentialOverrides).toEqual([])
+      expect(state.credentialOverrides.some((override) => override.accountId === accountId)).toBe(false)
       expect(state.registeredAccounts[0]?.passwordHash).toMatch(/^scrypt:/)
       expect(state.registeredAccounts[0]?.passwordHash).not.toBe(originalHash)
 

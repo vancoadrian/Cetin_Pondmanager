@@ -48,9 +48,11 @@ export default defineEventHandler(async (event): Promise<LocalDataExportPayload 
   catch (error) {
     const maybeError = error as Error
 
+    console.error('Failed to read local data safety backup', maybeError)
+
     throw createError({
       data: {
-        message: maybeError.message,
+        messages: ['Safety backup sa nepodarilo nájsť.'],
       },
       statusCode: 404,
       statusMessage: 'Safety backup not found',

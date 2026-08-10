@@ -1,11 +1,12 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { PlaceIssue } from '~/data/pond'
 import { placeIssues } from '~/data/pond'
 import {
   clonePlaceIssueWorkflowState,
   type PlaceIssueWorkflowState,
 } from '~/services/placeIssueService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalPlaceIssueState extends PlaceIssueWorkflowState {
   updatedAt: string
@@ -77,8 +78,7 @@ export async function writeLocalPlaceIssueState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -87,16 +87,18 @@ export async function appendLocalPlaceIssue(
   issue: PlaceIssue,
   filePath = resolveLocalPlaceIssueStorePath(),
 ): Promise<StoredPlaceIssueAppend> {
-  const currentState = await readLocalPlaceIssueState(filePath)
-  const state = await writeLocalPlaceIssueState(
-    {
-      placeIssues: [issue, ...currentState.placeIssues],
-    },
-    filePath,
-  )
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalPlaceIssueState(filePath)
+    const state = await writeLocalPlaceIssueState(
+      {
+        placeIssues: [issue, ...currentState.placeIssues],
+      },
+      filePath,
+    )
 
-  return {
-    issue,
-    state,
-  }
+    return {
+      issue,
+      state,
+    }
+  })
 }

@@ -22,14 +22,16 @@ import fishPresencePostHandler from '~/server/api/admin/fish-registry/presence.p
 import fishSettingsPostHandler from '~/server/api/admin/fish-registry/settings.post'
 import fishRulesGetHandler from '~/server/api/fish-registry/rules.get'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
+let managerCookie: string
+let accountantCookie: string
 const envKeys = [
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_STORE',
   'RYBOLOV_LOCAL_FISH_REGISTRY_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_LOCAL_TOURNAMENT_STORE',
 ] as const
 
@@ -54,6 +56,9 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_FISH_REGISTRY_STORE = join(dataDirectory, 'fish-registry-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDirectory, 'map-state.json')
   process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(dataDirectory, 'tournament-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDirectory, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  accountantCookie = await createSessionCookieHeader('accountant', 'accountant')
 })
 
 afterEach(async () => {
@@ -110,7 +115,7 @@ async function request(
   init: RequestInit & { cookie?: string } = {},
 ) {
   const headers = new Headers(init.headers)
-  headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+  headers.set('cookie', init.cookie ?? managerCookie)
   if (init.body) headers.set('content-type', 'application/json')
 
   return fetch(`${server.baseUrl}${path}`, {
@@ -220,13 +225,13 @@ describe('fish registry API routes', () => {
 
     try {
       const readResponse = await request(server, '/api/admin/fish-registry', {
-        cookie: ACCOUNTANT_COOKIE,
+        cookie: accountantCookie,
       })
       expect(readResponse.status).toBe(403)
 
       const writeResponse = await request(server, '/api/admin/fish-registry', {
         body: JSON.stringify({}),
-        cookie: ACCOUNTANT_COOKIE,
+        cookie: accountantCookie,
         method: 'POST',
       })
       expect(writeResponse.status).toBe(403)
@@ -239,7 +244,7 @@ describe('fish registry API routes', () => {
           species: 'Kapor',
           status: 'active',
         }),
-        cookie: ACCOUNTANT_COOKIE,
+        cookie: accountantCookie,
         method: 'PATCH',
       })
       expect(patchResponse.status).toBe(403)
@@ -412,7 +417,7 @@ describe('fish registry API routes', () => {
           durationHours: 2,
           lake: 'velky-cetin',
         }),
-        cookie: ACCOUNTANT_COOKIE,
+        cookie: accountantCookie,
         method: 'POST',
       })
       expect(forbiddenResponse.status).toBe(403)

@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { CatchPhoto } from '~/data/pond'
 import type { CatchPhotoUpload } from '~/services/catchApiService'
+import { atomicWriteFile } from './jsonFileStore'
 
 export function resolveLocalCatchPhotoDir() {
   return process.env.RYBOLOV_LOCAL_CATCH_PHOTO_DIR
@@ -27,8 +28,7 @@ export async function writeLocalCatchPhotoFile(
   dir = resolveLocalCatchPhotoDir(),
 ) {
   const buffer = decodeCatchPhotoDataUrl(upload)
-  await mkdir(dir, { recursive: true })
-  await writeFile(resolveCatchPhotoFilePath(photo, dir), buffer)
+  await atomicWriteFile(resolveCatchPhotoFilePath(photo, dir), buffer)
 }
 
 export async function readLocalCatchPhotoFile(photo: Pick<CatchPhoto, 'storagePath'>, dir = resolveLocalCatchPhotoDir()) {

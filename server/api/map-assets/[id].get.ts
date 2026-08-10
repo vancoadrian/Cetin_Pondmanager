@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
     const buffer = await readLocalMapAssetFile(assetId)
     setHeader(event, 'content-type', getMapAssetMimeType(assetId))
     setHeader(event, 'cache-control', 'public, max-age=300')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
 
     return buffer
   }

@@ -11,9 +11,12 @@ import adminTournamentStateHandler from '~/server/api/admin/tournaments/index.ge
 import publicTournamentStateHandler from '~/server/api/tournaments.get'
 import publicTournamentLeaderboardHandler from '~/server/api/tournaments/[id]/leaderboard.get'
 import type { TournamentLeaderboardFeed } from '~/app/utils/tournamentLeaderboard'
+import type { MockRole } from '~/app/composables/useMockAuth'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
 let tempDirectory: string | undefined
 const originalStore = process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE
+const originalSessionStore = process.env.RYBOLOV_LOCAL_SESSION_STORE
 
 interface TestServer {
   baseUrl: string
@@ -23,11 +26,15 @@ interface TestServer {
 beforeEach(async () => {
   tempDirectory = await mkdtemp(join(tmpdir(), 'rybolov-tournament-visibility-'))
   process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = join(tempDirectory, 'tournament-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(tempDirectory, 'session-state.json')
 })
 
 afterEach(async () => {
   if (originalStore === undefined) Reflect.deleteProperty(process.env, 'RYBOLOV_LOCAL_TOURNAMENT_STORE')
   else process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE = originalStore
+
+  if (originalSessionStore === undefined) Reflect.deleteProperty(process.env, 'RYBOLOV_LOCAL_SESSION_STORE')
+  else process.env.RYBOLOV_LOCAL_SESSION_STORE = originalSessionStore
 
   if (tempDirectory) {
     await rm(tempDirectory, { force: true, recursive: true })
@@ -65,10 +72,10 @@ async function startServer(): Promise<TestServer> {
   }
 }
 
-async function requestState(server: TestServer, path: string, role?: string) {
+async function requestState(server: TestServer, path: string, role?: MockRole) {
   const response = await fetch(`${server.baseUrl}${path}`, {
     headers: role
-      ? { cookie: `rybolov_cetin_mock_session=${role}` }
+      ? { cookie: await createSessionCookieHeader(role, role) }
       : undefined,
   })
 

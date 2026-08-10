@@ -31,12 +31,13 @@ import {
   readLocalNotificationState,
   writeLocalNotificationState,
 } from '~/server/utils/localNotificationStore'
+import { createAnglerSessionCookieHeader, createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
-const ACCOUNTANT_COOKIE = 'rybolov_cetin_mock_session=accountant'
-const MAREK_APP_COOKIE = 'rybolov_cetin_mock_session=angler-marek'
-const MAREK_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-marek'
-const LENKA_ANGLER_COOKIE = 'rybolov_cetin_mock_angler_session=angler-lenka'
+let managerCookie: string
+let accountantCookie: string
+let marekAppCookie: string
+let marekAnglerCookie: string
+let lenkaAnglerCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
@@ -47,6 +48,7 @@ const localEnvKeys = [
   'RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE',
   'RYBOLOV_LOCAL_MAP_STORE',
   'RYBOLOV_LOCAL_NOTIFICATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_WEATHER_PROVIDER',
 ] as const
 
@@ -102,7 +104,13 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE = join(dataDir, 'large-fish-assistance-state.json')
   process.env.RYBOLOV_LOCAL_MAP_STORE = join(dataDir, 'map-state.json')
   process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE = join(dataDir, 'notification-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
   process.env.RYBOLOV_WEATHER_PROVIDER = 'mock'
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
+  accountantCookie = await createSessionCookieHeader('accountant', 'accountant')
+  marekAppCookie = await createSessionCookieHeader('angler-marek', 'angler')
+  marekAnglerCookie = await createAnglerSessionCookieHeader('angler-marek')
+  lenkaAnglerCookie = await createAnglerSessionCookieHeader('angler-lenka')
 })
 
 afterEach(async () => {
@@ -179,7 +187,7 @@ async function requestJson<T>(
   }
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   const response = await fetch(`${server.baseUrl}${path}`, {
@@ -204,7 +212,7 @@ async function requestRaw(
   const headers = new Headers(init.headers)
 
   if (init.cookie !== null) {
-    headers.set('cookie', init.cookie ?? MANAGER_COOKIE)
+    headers.set('cookie', init.cookie ?? managerCookie)
   }
 
   return fetch(`${server.baseUrl}${path}`, {
@@ -525,7 +533,7 @@ describe('catch API routes', () => {
           pegIds: ['vc-03'],
           title: 'Výprava v účte',
         }),
-        cookie: MAREK_APP_COOKIE,
+        cookie: marekAppCookie,
         method: 'POST',
       })
       expect(created.response.status).toBe(201)
@@ -541,7 +549,7 @@ describe('catch API routes', () => {
       const marekHistory = await requestJson<AnglerLogbooksResponse>(
         server,
         '/api/account/logbooks',
-        { cookie: MAREK_APP_COOKIE },
+        { cookie: marekAppCookie },
       )
       expect(marekHistory.response.status).toBe(200)
       expect(marekHistory.body.account.email).toBe('marek.horvath@example.test')
@@ -556,7 +564,7 @@ describe('catch API routes', () => {
       const legacyMarekHistory = await requestJson<AnglerLogbooksResponse>(
         server,
         '/api/account/logbooks',
-        { cookie: MAREK_ANGLER_COOKIE },
+        { cookie: marekAnglerCookie },
       )
       expect(legacyMarekHistory.response.status).toBe(200)
       expect(legacyMarekHistory.body.tripLogbooks).toContainEqual(expect.objectContaining({
@@ -566,7 +574,7 @@ describe('catch API routes', () => {
       const lenkaHistory = await requestJson<AnglerLogbooksResponse>(
         server,
         '/api/account/logbooks',
-        { cookie: LENKA_ANGLER_COOKIE },
+        { cookie: lenkaAnglerCookie },
       )
       expect(lenkaHistory.response.status).toBe(200)
       expect(lenkaHistory.body.tripLogbooks.some((logbook) => logbook.id === created.body.logbook.id)).toBe(false)
@@ -599,7 +607,7 @@ describe('catch API routes', () => {
             decisionMode: 'reject',
             note: 'Test read-only blokácie.',
           }),
-          cookie: ACCOUNTANT_COOKIE,
+          cookie: accountantCookie,
           method: 'POST',
         },
       )

@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   cloneObservedErrors,
   createObservedErrorEntry,
@@ -7,6 +7,7 @@ import {
   type ObservedErrorEntry,
   type ObservedErrorInput,
 } from '~/services/observabilityService'
+import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
 
 export interface LocalErrorLogState extends ErrorLogState {
   updatedAt: string
@@ -78,8 +79,7 @@ export async function writeLocalErrorLogState(
     version: 1,
   }
 
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8')
+  await atomicWriteJsonFile(filePath, nextState)
 
   return nextState
 }
@@ -88,17 +88,19 @@ export async function appendLocalObservedError(
   input: ObservedErrorInput,
   filePath = resolveLocalErrorLogStorePath(),
 ): Promise<StoredObservedErrorAppend> {
-  const currentState = await readLocalErrorLogState(filePath)
-  const error = createObservedErrorEntry(input, currentState.errors)
-  const state = await writeLocalErrorLogState(
-    {
-      errors: [error, ...currentState.errors].slice(0, 300),
-    },
-    filePath,
-  )
+  return withFileMutex(filePath, async () => {
+    const currentState = await readLocalErrorLogState(filePath)
+    const error = createObservedErrorEntry(input, currentState.errors)
+    const state = await writeLocalErrorLogState(
+      {
+        errors: [error, ...currentState.errors].slice(0, 300),
+      },
+      filePath,
+    )
 
-  return {
-    error,
-    state,
-  }
+    return {
+      error,
+      state,
+    }
+  })
 }

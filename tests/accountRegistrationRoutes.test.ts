@@ -22,12 +22,14 @@ import registerHandler from '~/server/api/auth/register.post'
 import { createPasswordResetToken } from '~/server/utils/accountPasswordReset'
 import { readLocalAccountState, saveLocalPasswordReset } from '~/server/utils/localAccountStore'
 import { readLocalAuditLogState } from '~/server/utils/localAuditLogStore'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_ACCOUNT_STORE',
   'RYBOLOV_LOCAL_AUDIT_LOG_STORE',
   'RYBOLOV_LOCAL_CATCH_STORE',
   'RYBOLOV_LOCAL_RESERVATION_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
   'RYBOLOV_AUTH_DELIVERY_PROVIDER',
 ] as const
 const originalEnv = new Map<string, string | undefined>()
@@ -50,6 +52,7 @@ beforeEach(async () => {
   process.env.RYBOLOV_LOCAL_CATCH_STORE = join(dataDir, 'catch-state.json')
   process.env.RYBOLOV_LOCAL_RESERVATION_STORE = join(dataDir, 'reservation-state.json')
   process.env.RYBOLOV_AUTH_DELIVERY_PROVIDER = 'mock'
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(dataDir, 'session-state.json')
 })
 
 afterEach(async () => {
@@ -153,7 +156,7 @@ describe('account registration routes', () => {
       expect(login.body.user.id).toBe(registered.body.user.id)
 
       const accountData = await requestJson<{ tripLogbooks: unknown[] }>(server, '/api/account/logbooks', {
-        cookie: `rybolov_cetin_mock_session=${registered.body.user.id}`,
+        cookie: await createSessionCookieHeader(registered.body.user.id, 'angler'),
       })
       expect(accountData.response.status).toBe(200)
       expect(accountData.body.tripLogbooks).toEqual([])
@@ -203,7 +206,7 @@ describe('account registration routes', () => {
         body: validRegistration,
         method: 'POST',
       })
-      const cookie = `rybolov_cetin_mock_session=${registered.body.user.id}`
+      const cookie = await createSessionCookieHeader(registered.body.user.id, 'angler')
 
       const deleted = await requestJson<AccountDeletionResponse>(server, '/api/account/delete', {
         body: { confirmation: 'ZMAZAŤ', password: validRegistration.password },
@@ -234,7 +237,7 @@ describe('account registration routes', () => {
         body: validRegistration,
         method: 'POST',
       })
-      const cookie = `rybolov_cetin_mock_session=${registered.body.user.id}`
+      const cookie = await createSessionCookieHeader(registered.body.user.id, 'angler')
 
       const updated = await requestJson<AccountProfileUpdateResponse>(server, '/api/account/profile', {
         body: { name: 'Rybár Po Úprave', phone: '+421 911 222 333' },
@@ -317,7 +320,7 @@ describe('account registration routes', () => {
         body: validRegistration,
         method: 'POST',
       })
-      const token = createPasswordResetToken(registered.body.user.id, new Date('2026-07-11T08:00:00.000Z'), 10_000)
+      const token = createPasswordResetToken(registered.body.user.id, new Date(), 10_000)
       await saveLocalPasswordReset(token.reset)
 
       const stateBefore = await readLocalAccountState()
@@ -362,7 +365,7 @@ describe('account registration routes', () => {
   it('resets the password of the seeded angler through a hashed credential override', async () => {
     const server = await startRouteServer()
     try {
-      const token = createPasswordResetToken('angler-marek', new Date('2026-07-11T08:00:00.000Z'), 10_000)
+      const token = createPasswordResetToken('angler-marek', new Date(), 10_000)
       await saveLocalPasswordReset(token.reset)
 
       const completed = await requestJson<PasswordResetConfirmResponse>(server, '/api/auth/password-reset/confirm', {

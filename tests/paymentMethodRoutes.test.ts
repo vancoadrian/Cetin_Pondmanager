@@ -8,11 +8,13 @@ import { createApp, createRouter, toNodeListener } from 'h3'
 import type { PaymentMethodStateResponse } from '~/app/services/paymentMethodService'
 import adminPaymentMethodsGetHandler from '~/server/api/admin/payment-methods.get'
 import publicPaymentMethodsGetHandler from '~/server/api/payment-methods.get'
+import { createSessionCookieHeader } from './helpers/testAuth'
 
-const MANAGER_COOKIE = 'rybolov_cetin_mock_session=manager'
+let managerCookie: string
 
 const localEnvKeys = [
   'RYBOLOV_LOCAL_PAYMENT_METHOD_STORE',
+  'RYBOLOV_LOCAL_SESSION_STORE',
 ] as const
 
 const originalEnv = new Map<string, string | undefined>()
@@ -33,6 +35,8 @@ beforeEach(async () => {
   }
 
   process.env.RYBOLOV_LOCAL_PAYMENT_METHOD_STORE = join(tempDir, 'payment-method-state.json')
+  process.env.RYBOLOV_LOCAL_SESSION_STORE = join(tempDir, 'session-state.json')
+  managerCookie = await createSessionCookieHeader('manager', 'manager')
 })
 
 afterEach(async () => {
@@ -118,7 +122,7 @@ describe('payment method routes', () => {
       const publicResult = await requestJson<PaymentMethodStateResponse>(server, '/api/payment-methods')
       const adminResult = await requestJson<PaymentMethodStateResponse>(server, '/api/admin/payment-methods', {
         headers: {
-          cookie: MANAGER_COOKIE,
+          cookie: managerCookie,
         },
       })
 

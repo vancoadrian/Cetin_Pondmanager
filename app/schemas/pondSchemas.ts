@@ -164,7 +164,7 @@ export const accountDeletionPayloadSchema = z.object({
 export const reservationRequestPayloadSchema = z.object({
   cabinProductId: z.string().optional(),
   contactEmail: optionalEmailSchema,
-  contactName: z.string().trim().min(2, 'Doplňte meno rezervujúceho.'),
+  contactName: z.string().trim().min(2, 'Doplňte meno rezervujúceho.').max(100, 'Meno rezervujúceho môže mať najviac 100 znakov.'),
   contactPhone: phoneSchema,
   dateFrom: isoDateSchema,
   dateTo: isoDateSchema,
@@ -224,14 +224,14 @@ export const reservationRequestSchema = reservationRequestPayloadSchema
   })
 
 export const catchRecordInputSchema = z.object({
-  angler: z.string().trim().min(2, 'Doplňte meno rybára.'),
-  bait: z.string().trim().min(2, 'Doplňte použitú nástrahu.'),
-  caughtAt: z.string().min(10, 'Doplňte čas úlovku.'),
+  angler: z.string().trim().min(2, 'Doplňte meno rybára.').max(80, 'Meno rybára môže mať najviac 80 znakov.'),
+  bait: z.string().trim().min(2, 'Doplňte použitú nástrahu.').max(80, 'Nástraha môže mať najviac 80 znakov.'),
+  caughtAt: z.string().datetime({ local: true, message: 'Doplňte platný čas úlovku.' }),
   lake: lakeSlugSchema,
   lengthCm: z.coerce.number().int('Miera musí byť celé číslo.').min(1, 'Miera musí byť väčšia ako 0 cm.').max(250),
   pegId: z.string().min(1, 'Vyberte lovné miesto.'),
   released: z.boolean(),
-  species: z.string().trim().min(2, 'Doplňte druh ryby.'),
+  species: z.string().trim().min(2, 'Doplňte druh ryby.').max(80, 'Druh ryby môže mať najviac 80 znakov.'),
   weightKg: z.coerce.number().min(0.1, 'Váha musí byť väčšia ako 0 kg.').max(80),
   photo: catchPhotoUploadSchema.optional(),
 })
@@ -243,17 +243,17 @@ export const catchModerationInputSchema = z.object({
 })
 
 export const catchCorrectionInputSchema = z.object({
-  angler: z.string().trim().min(2, 'Doplňte meno rybára.'),
-  bait: z.string().trim().min(2, 'Doplňte použitú nástrahu.'),
+  angler: z.string().trim().min(2, 'Doplňte meno rybára.').max(80, 'Meno rybára môže mať najviac 80 znakov.'),
+  bait: z.string().trim().min(2, 'Doplňte použitú nástrahu.').max(80, 'Nástraha môže mať najviac 80 znakov.'),
   catchId: z.string().min(1, 'Chýba identifikátor úlovku.'),
-  caughtAt: z.string().min(10, 'Doplňte čas úlovku.'),
+  caughtAt: z.string().datetime({ local: true, message: 'Doplňte platný čas úlovku.' }),
   lake: lakeSlugSchema,
   lengthCm: z.coerce.number().int('Miera musí byť celé číslo.').min(1, 'Miera musí byť väčšia ako 0 cm.').max(250),
   logbookLinkMode: z.enum(['keep', 'move', 'detach']).default('keep'),
   notes: z.string().trim().max(700, 'Poznámka môže mať najviac 700 znakov.'),
   pegId: z.string().min(1, 'Vyberte lovné miesto.'),
   released: z.boolean(),
-  species: z.string().trim().min(2, 'Doplňte druh ryby.'),
+  species: z.string().trim().min(2, 'Doplňte druh ryby.').max(80, 'Druh ryby môže mať najviac 80 znakov.'),
   targetLogbookId: z.string().trim().optional(),
   weightKg: z.coerce.number().min(0.1, 'Váha musí byť väčšia ako 0 kg.').max(80),
 }).superRefine((value, ctx) => {
@@ -559,7 +559,7 @@ export const lakeClosureInputSchema = z.object({
 
 export const tripLogbookInputSchema = z.object({
   lake: lakeSlugSchema,
-  memberNames: z.array(z.string().trim().min(2)).min(1, 'Doplňte aspoň jedného rybára.'),
+  memberNames: z.array(z.string().trim().min(2).max(80, 'Meno člena môže mať najviac 80 znakov.')).min(1, 'Doplňte aspoň jedného rybára.').max(20, 'Výprava môže mať najviac 20 členov.'),
   mode: z.enum(['personal', 'group', 'competition']),
   pegIds: z.array(z.string()).min(1, 'Vyberte aspoň jedno lovné miesto.'),
   title: z.string().trim().min(3, 'Názov výpravy musí mať aspoň 3 znaky.'),
