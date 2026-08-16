@@ -51,6 +51,15 @@ const year = new Date().getFullYear()
       >
         <p>© {{ year }} {{ config.public.venueName }}.</p>
         <p>Rybolov Cetín · informácie, rezervácie a služby pri vode</p>
+        <p>
+          Web vytvoril
+          <a
+            href="https://custommadedigital.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-accent-300 underline underline-offset-2"
+          >Custom Made Digital</a>
+        </p>
       </div>
     </div>
   </footer>
