@@ -122,7 +122,9 @@ export default defineNuxtConfig({
           purpose: 'any',
         },
         {
-          src: '/icons/icon-512.png',
+          // Dedikovaná maskable verzia — full-bleed pozadie a grafika v safe zóne,
+          // aby Android pri kruhovom oreze neodrezal okraj badge ikony.
+          src: '/icons/icon-maskable-512.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'maskable',
