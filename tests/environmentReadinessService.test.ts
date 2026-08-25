@@ -41,6 +41,7 @@ describe('environmentReadinessService', () => {
       .toEqual(expect.arrayContaining([
         'RYBOLOV_ENVIRONMENT',
         'NUXT_PUBLIC_SITE_URL',
+        'NUXT_PUBLIC_SENTRY_DSN',
         'RYBOLOV_LOCAL_DATA_DIR',
         'RYBOLOV_REPORT_SCHEDULER_SECRET',
       ]))
@@ -50,6 +51,7 @@ describe('environmentReadinessService', () => {
     const report = createEnvironmentReadinessReport(
       {
         NUXT_PUBLIC_REZERVACIE_PHONE: '+421 911 298 702',
+        NUXT_PUBLIC_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1',
         NUXT_PUBLIC_SITE_URL: 'https://rybolov-cetin.sk',
         NUXT_PUBLIC_VAPID_PUBLIC_KEY: 'public-key',
         RYBOLOV_AUTH_DELIVERY_PROVIDER: 'resend',

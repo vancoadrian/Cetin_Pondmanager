@@ -27,7 +27,9 @@ pnpm dev
 
 Potom otvor `http://localhost:3000`.
 
-`local:setup` vytvorí ignorovaný `.env` z `.env.example`, načíta lokálne Supabase URL a kľúče a bezpečne vygeneruje alebo zachová VAPID pár bez vypísania tajomstiev. `RYBOLOV_ENVIRONMENT` môže byť `development`, `staging` alebo `production`; admin modul `/admin/system` potom ukáže readiness kontrolu pre verejnú URL, perzistentný lokálny dátový adresár, Web Push/VAPID, Resend reporty, cron secret a weather provider.
+`local:setup` vytvorí ignorovaný `.env` z `.env.example`, načíta lokálne Supabase URL a kľúče a bezpečne vygeneruje alebo zachová VAPID pár bez vypísania tajomstiev. `RYBOLOV_ENVIRONMENT` môže byť `development`, `staging` alebo `production`; admin modul `/admin/system` potom ukáže readiness kontrolu pre verejnú URL, Sentry DSN, perzistentný lokálny dátový adresár, Web Push/VAPID, Resend reporty, cron secret a weather provider.
+
+> Sentry integrácia neruší produkčný blokátor: aplikačné repository stále zapisujú do lokálneho `.data`. Projekt sa nesmie nasadiť na serverless hosting, kým mutácie a assety neprejdú na perzistentnú Supabase repository/Storage vrstvu.
 
 Pri zmene schémy alebo seed dát spusti `pnpm seed:export && pnpm supabase:reset`. Lokálne služby sú na API `54321`, DB `54322`, Studio `54323` a Mailpit `54324`. Aplikačné repository zatiaľ naďalej používa lokálne JSON stores; Supabase je lokálny migračný/RLS kontrakt, nie potichu zapnutý produkčný backend.
 
@@ -63,7 +65,7 @@ Súťažný dispečing používa `.data/rybolov-cetin/tournament-state.json`. Ve
 
 Audit log používa `.data/rybolov-cetin/audit-log.json`. Admin obrazovka `/admin/audit` číta udalosti cez `GET /api/admin/audit`; udalosti sa zapisujú pri rezerváciách, úlovkoch, zápisníkoch, mapových úpravách, súťažných akciách a systémových backup/restore úkonoch.
 
-Systémový monitoring má verejný `GET /api/health`, admin detail `/api/admin/system` a lokálny error log `.data/rybolov-cetin/error-log.json`. Klientsky runtime reporter posiela skrátené chyby na `POST /api/client-errors`; `/admin/system` zobrazuje health checky, environment readiness, posledné chyby, lokálny data export, prevádzkový checklist backup workflow a posledné audit udalosti backupov.
+Systémový monitoring má verejný `GET /api/health`, admin detail `/api/admin/system`, lokálny development error log `.data/rybolov-cetin/error-log.json` a privacy-first `@sentry/nuxt` setup pre klient aj Nitro. Lokálny klientsky reporter je aktívny iba bez browser Sentry DSN, aby udalosti neduplikoval; `/admin/system` zobrazuje health checky, environment readiness, posledné lokálne chyby, data export, prevádzkový checklist backup workflow a posledné audit udalosti backupov. Build po dodaní CI tokenu uploadne hidden source mapy a po úspechu ich odstráni.
 
 Lokálne dáta sa dajú pred Supabase zálohovať cez admin endpoint `GET /api/admin/data-export`. V `/admin/system` je panel so súhrnom store, počtom záznamov, asset súbormi a downloadom JSON exportu. Režim `assets=manifest` uloží dáta a zoznam súborov, `assets=inline` vloží obrázky a logá priamo ako base64 do JSON zálohy. Každý nový export obsahuje SHA-256 integritný odtlačok; preview ho overí a upravený alebo poškodený súbor označí ako neplatný. Ten istý panel vie cez `POST /api/admin/data-import/preview` ne-deštruktívne skontrolovať nahratý backup, porovnať store a ukázať upozornenia ešte pred restore. Ostrá obnova ide cez `POST /api/admin/data-import/restore`, vyžaduje frázu `OBNOVIT DATA` a pred prepísaním store uloží safety backup aktuálneho stavu do `.data/rybolov-cetin/backups/`. Admin vie safety backupy listovať cez `GET /api/admin/data-backups`, priamo načítať do kontroly obnovy, stiahnuť konkrétny súbor cez `GET /api/admin/data-backups/:id?download=1` a čistiť staršie safety backupy cez dvojkrokový `POST /api/admin/data-backups/cleanup` s náhľadom a frázou `VYCISTIT BACKUPY`.
 
@@ -90,6 +92,7 @@ Lokálne obrazové podklady sú skopírované do `public/images/`.
 - `docs/features/maps.md` — mapy a editor miest.
 - `docs/features/catches-ai.md` — úlovky a budúca AI vrstva.
 - `docs/features/sponsors.md` — sponzori.
+- `docs/features/observability.md` — Sentry klient/server, súkromie, release a source mapy.
 - `docs/seed-import.md` — export mock dát do Supabase seed formátu.
 - `docs/deployment/production-platform.md` — odporúčaná Vercel/Supabase/Cloudflare/Sentry/Resend produkčná architektúra.
 - `docs/source-web-assets.md` — zdrojové webové podklady a overené fakty.

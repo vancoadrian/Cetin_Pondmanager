@@ -58,6 +58,7 @@ Verejné a bezpečné pre klienta:
 - `NUXT_PUBLIC_SITE_URL`
 - `NUXT_PUBLIC_SUPABASE_URL`
 - `NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NUXT_PUBLIC_SENTRY_DSN` alebo Vercel alias `NEXT_PUBLIC_SENTRY_DSN`
 - `NUXT_PUBLIC_VAPID_PUBLIC_KEY`
 
 Iba server/CI:
@@ -67,7 +68,8 @@ Iba server/CI:
 - `RYBOLOV_VAPID_PRIVATE_KEY`,
 - `RYBOLOV_RESEND_API_KEY`,
 - `RYBOLOV_REPORT_SCHEDULER_SECRET`,
-- budúci `SENTRY_AUTH_TOKEN` pre upload source máp,
+- `SENTRY_DSN` pre voliteľné oddelené serverové DSN,
+- `SENTRY_ORG`, `SENTRY_PROJECT` a `SENTRY_AUTH_TOKEN` pre build-time upload source máp,
 - budúci `CLOUDFLARE_TURNSTILE_SECRET_KEY`.
 
 Service-role, VAPID private key a Resend key nikdy nedávať pod prefix `NUXT_PUBLIC_`. Produkcia a staging musia používať odlišné hodnoty. Rotácia musí mať vlastníka a dátum; pri VAPID rotácii treba rátať s opätovným vytvorením odberov zariadení.
@@ -104,20 +106,21 @@ Pred ostrým spustením treba na fyzickom Android Chrome a nainštalovanej iOS P
 
 ## Sentry a Web Vitals
 
-Sentry pridať až s reálnym DSN a dohodnutými pravidlami súkromia:
+Repo má pripravený oficiálny `@sentry/nuxt` client/server setup pre samostatný projekt `cetin-pond-manager`. Root client config sa načíta pred aplikačnými pluginmi a server config sa na Verceli vloží top-level importom pred Nitro appku. Vercel server tracing je podľa aktuálneho SDK obmedzený; error capture zostáva aktívny.
 
-- samostatné staging/production projekty alebo jednoznačné `environment`,
-- release viazaný na commit/deployment,
-- client aj Nitro/server capture,
-- upload source máp počas buildu; source mapy po uploade verejne neservovať,
-- odstránenie hesiel, reset tokenov, VAPID kľúčov, cookies, telefónov a e-mailov cez `beforeSend`,
-- nízky počiatočný trace sample rate, vyšší iba na kritických trasách,
-- Web Vitals LCP, CLS a INP podľa route, viewportu a efektívneho pripojenia,
-- alerty na nové regresie, error rate, p95 latency a zlyhané push/e-mail joby.
+- Build-time `VERCEL_ENV=preview` sa mapuje na Sentry `staging`, produkcia na `production`; identita sa vloží do klienta aj servera a nezávisí od runtime dostupnosti `VERCEL_*`.
+- Release používa `SENTRY_RELEASE`, deployment commit SHA alebo ako posledný fallback Git HEAD; rovnakú hodnotu používa klient, server aj source-map upload.
+- Browser tracing začína na `0.05`, server na `0.02`; zvýšenie vyžaduje reálne volume a cost dáta.
+- PII, cookies, hlavičky, body, všetky `query.*` hodnoty a capability kódy odstraňuje SDK data-collection config aj spoločná finálna sanitizácia; console aj DOM/UI breadcrumbs sa vôbec neposielajú a UI span názvy sa normalizujú.
+- Replay a Sentry Logs nie sú zapnuté.
+- Hidden source mapy sa vytvoria iba s kompletnými build credentials, po úspešnom uploade sa odstránia a zlyhaný upload zastaví build; bez kompletnej trojice sú všetky client/server/Nitro/Workbox mapy vypnuté.
+- Lokálny client error reporter zostáva iba fallback bez aktívneho a syntakticky platného browser Sentry DSN, aby incidenty neduplikoval.
 
-Aktuálny lokálny error log zostáva dev fallback. V produkcii nesmie byť jediným monitoringom.
+Aktuálne nie je nastavená CSP. Ak sa pridá, `connect-src` smie dostať iba presný ingest origin z DSN, nie wildcard Sentry doménu. Podrobný kontrakt a staging acceptance sú v `docs/features/observability.md`.
 
-Zdroj: [Sentry source map troubleshooting](https://docs.sentry.io/platforms/javascript/guides/hono/sourcemaps/troubleshooting_js/)
+Ani funkčné Sentry nie je dôvod na deploy: produkcia zostáva blokovaná zápismi do `.data`, kým ich nenahradí Supabase/perzistentné úložisko.
+
+Zdroje: [Sentry Nuxt manual setup](https://docs.sentry.io/platforms/javascript/guides/nuxt/manual-setup/), [Sentry Nuxt source maps](https://docs.sentry.io/platforms/javascript/guides/nuxt/sourcemaps/)
 
 ## Resend
 

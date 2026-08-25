@@ -1,5 +1,5 @@
 export type DeploymentEnvironment = 'development' | 'production' | 'staging'
-export type EnvironmentReadinessCategory = 'accounts' | 'core' | 'notifications' | 'reports' | 'reservations' | 'storage' | 'weather'
+export type EnvironmentReadinessCategory = 'accounts' | 'core' | 'notifications' | 'observability' | 'reports' | 'reservations' | 'storage' | 'weather'
 export type EnvironmentReadinessSeverity = 'optional' | 'recommended' | 'required'
 export type EnvironmentReadinessStatus = 'configured' | 'missing' | 'mock' | 'not-applicable'
 export type EnvironmentReadinessSummaryStatus = 'attention' | 'blocked' | 'ready'
@@ -47,6 +47,7 @@ export const environmentReadinessCategoryLabels: Record<EnvironmentReadinessCate
   accounts: 'Používateľské účty',
   core: 'Jadro',
   notifications: 'Notifikácie',
+  observability: 'Monitoring',
   reports: 'Reporty',
   reservations: 'Rezervácie',
   storage: 'Úložisko',
@@ -197,6 +198,18 @@ export function createEnvironmentReadinessReport(
       key: 'NUXT_PUBLIC_REZERVACIE_PHONE',
       label: 'Rezervačný telefón',
       recommended: true,
+    }),
+    createRequirement(env, {
+      category: 'observability',
+      description: 'Verejné DSN pre Sentry error reporting v klientovi aj ako serverový fallback.',
+      key: envValue(env, 'NEXT_PUBLIC_SENTRY_DSN') && !envValue(env, 'NUXT_PUBLIC_SENTRY_DSN')
+        ? 'NEXT_PUBLIC_SENTRY_DSN'
+        : 'NUXT_PUBLIC_SENTRY_DSN',
+      label: 'Sentry DSN',
+      missingMessage: 'Pre stage/prod vytvor samostatný Sentry projekt a nastav jeho verejné DSN.',
+      recommended: environment === 'staging',
+      required: isProduction,
+      sensitive: true,
     }),
     createMockProviderItem({
       category: 'accounts',
