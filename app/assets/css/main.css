@@ -107,6 +107,60 @@
   --radius-card: 0.5rem;
 }
 
+/*
+ * Nočný režim pre rybolov pri vode: prepínajú sa iba sémantické tokeny,
+ * plné škály (primary/water/accent/…) ostávajú — tmavé brand plochy
+ * (bg-primary-900) a svetlé chipy (bg-primary-50 + text-primary-900)
+ * fungujú v oboch režimoch. Blok je zámerne mimo @layer: globálne poradie
+ * layerov určuje prvá deklarácia v dokumente a `base` sa registruje pred
+ * `theme`, takže vnútri layeru by tieto premenné prehrali s :root z @theme.
+ */
+.dark {
+  --color-surface: #102826;
+  --color-background: #0a1e1c;
+  --color-muted: #16332f;
+  --color-border: #27473f;
+  --color-foreground: #e6f1ee;
+  --color-foreground-muted: #9ab4ae;
+
+  /* Nuxt UI semantické utility (bg-muted, komponenty UButton/USlideover…)
+   * majú vlastné --ui-* premenné so slate defaultmi — v dark by svietili
+   * do modra, tak ich mapujeme na rovnakú zeleno-tyrkysovú nočnú paletu. */
+  --ui-bg: #0a1e1c;
+  --ui-bg-muted: #16332f;
+  --ui-bg-elevated: #16332f;
+  --ui-bg-accented: #1d3f3a;
+  --ui-bg-inverted: #e6f1ee;
+  --ui-border: #27473f;
+  --ui-border-muted: #1e3a35;
+  --ui-border-accented: #2f544c;
+  --ui-border-inverted: #e6f1ee;
+  --ui-text-dimmed: #7c948f;
+  --ui-text-muted: #9ab4ae;
+  --ui-text-toned: #b5cac5;
+  --ui-text: #cfe0dc;
+  --ui-text-highlighted: #e6f1ee;
+  --ui-text-inverted: #0a1e1c;
+
+  /* Statusové odtiene 700–900 sa v kóde používajú výhradne ako text na
+   * jemných tintách (bg-*-500/10) — v noci ich preklápame na svetlé tóny
+   * pôvodnej škály (300/200/100), nech notice karty a badge ostanú čitateľné. */
+  --color-success-700: #6ee7b7;
+  --color-success-800: #a7f3d0;
+  --color-success-900: #d1fae5;
+  --color-warning-700: #fdbb4b;
+  --color-warning-800: #ffd58a;
+  --color-warning-900: #ffedc7;
+  --color-error-700: #fb938b;
+  --color-error-800: #ffc2bd;
+  --color-error-900: #ffe0dd;
+  --color-info-700: #84d5ff;
+  --color-info-800: #b8e6ff;
+  --color-info-900: #d7f1ff;
+
+  color-scheme: dark;
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -120,6 +174,10 @@
 
   :focus-visible {
     @apply outline-primary-700 outline-2 outline-offset-2;
+  }
+
+  .dark :focus-visible {
+    @apply outline-primary-300;
   }
 }
 

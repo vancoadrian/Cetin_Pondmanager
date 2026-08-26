@@ -170,7 +170,7 @@ const {
             role="tab"
             class="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             :class="activeSystemAdminView === option.id
-              ? 'bg-white text-primary-900 shadow-sm'
+              ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm'
               : 'text-foreground-muted hover:bg-white/70 hover:text-foreground'"
             :aria-selected="activeSystemAdminView === option.id"
             :tabindex="activeSystemAdminView === option.id ? 0 : -1"
@@ -268,7 +268,7 @@ const {
           <article
             v-for="item in highlightedReadinessItems"
             :key="readinessItemKey(item)"
-            class="min-w-0 rounded-md border border-border bg-white p-4"
+            class="min-w-0 rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
@@ -322,7 +322,7 @@ const {
               <article
                 v-for="check in checks"
                 :key="check.id"
-                class="min-w-0 rounded-md border border-border bg-white p-4"
+                class="min-w-0 rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">
@@ -470,7 +470,7 @@ const {
                 <article
                   v-for="backup in safetyBackups"
                   :key="backup.id"
-                  class="rounded-md border border-border bg-white p-4"
+                  class="rounded-md border border-border bg-surface p-4"
                 >
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
@@ -535,7 +535,7 @@ const {
                       Skontroluje staršie ochranné zálohy a odstráni ich až po potvrdení frázy.
                     </p>
                   </div>
-                  <span class="w-fit rounded-md bg-white px-2.5 py-1 text-xs font-bold text-foreground-muted">
+                  <span class="w-fit rounded-md bg-surface px-2.5 py-1 text-xs font-bold text-foreground-muted">
                     ponechať {{ safetyBackupCleanupKeepRecent }}
                   </span>
                 </div>
@@ -548,7 +548,7 @@ const {
                       type="number"
                       min="2"
                       max="50"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                   </label>
                   <UButton
@@ -562,7 +562,7 @@ const {
                   </UButton>
                 </div>
 
-                <div v-if="safetyBackupCleanupPreview" class="mt-4 rounded-md border border-border bg-white p-3">
+                <div v-if="safetyBackupCleanupPreview" class="mt-4 rounded-md border border-border bg-surface p-3">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p class="font-semibold">
@@ -617,7 +617,7 @@ const {
                   </div>
                 </div>
 
-                <p v-if="safetyBackupCleanupStatusMessage" class="mt-3 rounded-md bg-white px-3 py-2 text-sm text-foreground-muted">
+                <p v-if="safetyBackupCleanupStatusMessage" class="mt-3 rounded-md bg-surface px-3 py-2 text-sm text-foreground-muted">
                   {{ safetyBackupCleanupStatusMessage }}
                 </p>
               </div>
@@ -759,7 +759,7 @@ const {
                 >
               </div>
 
-              <div v-if="importPreview" class="mt-4 rounded-md border border-border bg-white p-4">
+              <div v-if="importPreview" class="mt-4 rounded-md border border-border bg-surface p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
@@ -909,7 +909,7 @@ const {
               <article
                 v-for="error in recentErrorEntries"
                 :key="error.id"
-                class="min-w-0 rounded-md border border-border bg-white p-4"
+                class="min-w-0 rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">

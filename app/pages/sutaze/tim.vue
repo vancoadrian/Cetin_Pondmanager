@@ -791,7 +791,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 <select
                   v-model="requestForm.sectorId"
                   :disabled="isRoleScopedTeam"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="sector in visibleTeamSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team || 'voľný sektor' }}
@@ -808,8 +808,8 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                     type="button"
                     class="rounded-md border p-3 text-left transition-colors"
                     :class="requestForm.type === option.value
-                      ? 'border-primary-700 bg-primary-50 text-primary-950'
-                      : 'border-border bg-white text-foreground hover:bg-muted'"
+                      ? 'border-primary-700 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:text-primary-100'
+                      : 'border-border bg-surface text-foreground hover:bg-muted'"
                     @click="requestForm.type = option.value"
                   >
                     <span class="flex items-center gap-2 text-sm font-bold">
@@ -827,7 +827,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                   v-model="requestForm.description"
                   rows="4"
                   maxlength="240"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                   placeholder="Pri meraní môže zostať prázdne. Pri porušení alebo pomoci doplňte stručný popis."
                 />
               </label>
@@ -952,7 +952,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               />
             </div>
 
-            <div class="mt-4 rounded-md border border-border bg-white p-3 text-sm">
+            <div class="mt-4 rounded-md border border-border bg-surface p-3 text-sm">
               <p class="font-bold">{{ teamAccessSummary.teamName }}</p>
               <p class="text-foreground-muted mt-1">
                 Sektor {{ teamAccessSummary.sectorLabel }} · kód {{ currentTeamAccessCode }}
@@ -966,7 +966,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                   id="team-access-code"
                   v-model="teamCodeForm.code"
                   autocomplete="off"
-                  class="h-11 min-w-0 flex-1 rounded-md border border-border bg-white px-3 text-sm font-bold uppercase"
+                  class="h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm font-bold uppercase"
                   data-testid="team-access-code-input"
                   placeholder="ECCJ-2026-A1"
                 >
@@ -1071,7 +1071,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               </div>
             </div>
 
-            <div class="mt-4 rounded-md border border-border bg-white p-3 text-sm">
+            <div class="mt-4 rounded-md border border-border bg-surface p-3 text-sm">
               <p class="font-bold">{{ selectedMarshal?.name ?? 'Kontrolór nie je priradený' }}</p>
               <p class="text-foreground-muted mt-1">
                 {{ selectedMarshal?.phone ?? 'Dispečing priradí kontrolóra po odoslaní hlásenia.' }}
@@ -1114,9 +1114,9 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
                 </UButton>
               </div>
             </div>
-            <div class="mt-4 rounded-md border border-primary-200 bg-primary-50 px-3 py-3">
+            <div class="mt-4 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-3 py-3">
               <p class="text-xs font-bold uppercase text-primary-700">Tímový kód</p>
-              <p class="mt-1 break-all text-lg font-black text-primary-950">{{ currentTeamAccessCode }}</p>
+              <p class="mt-1 break-all text-lg font-black text-primary-950 dark:text-primary-100">{{ currentTeamAccessCode }}</p>
             </div>
             <p class="mt-4 break-all rounded-md bg-muted px-3 py-2 text-xs font-semibold text-foreground-muted">
               {{ absoluteTeamAccessUrl }}
@@ -1144,7 +1144,7 @@ watch([activeTournament, requestedSectorId, requestedAccessCode], () => {
               <div
                 v-for="request in activeSectorRequests"
                 :key="request.id"
-                class="rounded-md border border-border bg-white p-3"
+                class="rounded-md border border-border bg-surface p-3"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div>

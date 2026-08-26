@@ -883,7 +883,7 @@ onBeforeUnmount(() => {
               <span
                 v-for="sector in assignedSectors"
                 :key="sector.id"
-                class="rounded-md border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800"
+                class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-2.5 py-1 text-xs font-bold text-primary-800 dark:text-primary-200"
               >
                 {{ sector.label }} · {{ sector.team || 'voľný sektor' }}
               </span>
@@ -902,7 +902,7 @@ onBeforeUnmount(() => {
               <select
                 v-model="selectedMarshalId"
                 :disabled="isRoleScopedMarshal"
-                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
                 <option v-for="marshal in visibleMarshals" :key="marshal.id" :value="marshal.id">
                   {{ marshal.name }} · {{ tournamentMarshalStatusLabels[marshal.status] }}
@@ -1042,12 +1042,12 @@ onBeforeUnmount(() => {
               <article
                 v-for="request in openMarshalRequests"
                 :key="request.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-bold">{{ request.team }} · {{ sectorLabel(request.sectorId) }}</p>
-                    <p class="text-primary-800 text-sm font-semibold">{{ tournamentRequestTypeLabels[request.type] }}</p>
+                    <p class="text-primary-800 dark:text-primary-200 text-sm font-semibold">{{ tournamentRequestTypeLabels[request.type] }}</p>
                   </div>
                   <div class="flex flex-wrap gap-2 sm:justify-end">
                     <StatusBadge
@@ -1093,7 +1093,7 @@ onBeforeUnmount(() => {
                 </div>
               </article>
             </div>
-            <div v-else class="mt-4 rounded-md border border-dashed border-border bg-white p-5 text-sm text-foreground-muted">
+            <div v-else class="mt-4 rounded-md border border-dashed border-border bg-surface p-5 text-sm text-foreground-muted">
               Pre tvoje sektory teraz nie je otvorené hlásenie.
             </div>
           </div>
@@ -1118,7 +1118,7 @@ onBeforeUnmount(() => {
               <article
                 v-for="catchItem in visibleMarshalCatches"
                 :key="catchItem.id"
-                class="border-b border-border bg-white p-4 last:border-b-0"
+                class="border-b border-border bg-surface p-4 last:border-b-0"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -1163,7 +1163,7 @@ onBeforeUnmount(() => {
                 </div>
               </article>
             </div>
-            <div v-else class="mt-4 rounded-md border border-dashed border-border bg-white p-5 text-sm text-foreground-muted">
+            <div v-else class="mt-4 rounded-md border border-dashed border-border bg-surface p-5 text-sm text-foreground-muted">
               Pre tvoje sektory zatiaľ nie je súťažný úlovok.
             </div>
           </div>
@@ -1179,8 +1179,8 @@ onBeforeUnmount(() => {
                 type="button"
                 class="w-full rounded-md border px-3 py-3 text-left transition-colors"
                 :class="selectedSectorId === sector.id
-                  ? 'border-primary-700 bg-primary-50 text-primary-950'
-                  : 'border-border bg-white hover:bg-muted'"
+                  ? 'border-primary-700 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:text-primary-100'
+                  : 'border-border bg-surface hover:bg-muted'"
                 @click="selectedSectorId = sector.id"
               >
                 <span class="flex items-start justify-between gap-3">
@@ -1210,7 +1210,7 @@ onBeforeUnmount(() => {
               tone="error"
             />
             <div class="mt-4 space-y-3">
-              <article v-for="penalty in activeMarshalPenalties" :key="penalty.id" class="rounded-md border border-border bg-white p-3 text-sm text-foreground">
+              <article v-for="penalty in activeMarshalPenalties" :key="penalty.id" class="rounded-md border border-border bg-surface p-3 text-sm text-foreground">
                 <p class="font-bold">{{ sectorLabel(penalty.sectorId) }} · {{ tournamentPenaltyTypeLabels[penalty.type] }}</p>
                 <p class="mt-1 text-foreground-muted">{{ penalty.reason }}</p>
                 <p class="mt-2 text-xs font-semibold text-error-700">
@@ -1228,7 +1228,7 @@ onBeforeUnmount(() => {
                 <select
                   v-model="ruleCheckForm.sectorId"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="sector in assignedSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team || 'voľný sektor' }}
@@ -1241,7 +1241,7 @@ onBeforeUnmount(() => {
                 <select
                   v-model="ruleCheckForm.result"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="[value, label] in ruleCheckResultOptions" :key="value" :value="value">
                     {{ label }}
@@ -1255,7 +1255,7 @@ onBeforeUnmount(() => {
                   v-model="ruleCheckForm.note"
                   rows="3"
                   :readonly="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -1285,7 +1285,7 @@ onBeforeUnmount(() => {
                 <select
                   v-model="penaltyForm.sectorId"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="sector in assignedSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team || 'voľný sektor' }}
@@ -1298,7 +1298,7 @@ onBeforeUnmount(() => {
                 <select
                   v-model="penaltyForm.type"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="[value, label] in penaltyTypeOptions" :key="value" :value="value">
                     {{ label }}
@@ -1318,7 +1318,7 @@ onBeforeUnmount(() => {
                     min="1"
                     max="24"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label v-if="penaltyForm.type === 'rod-reduction'" class="block">
@@ -1329,7 +1329,7 @@ onBeforeUnmount(() => {
                     min="1"
                     max="4"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -1340,7 +1340,7 @@ onBeforeUnmount(() => {
                   v-model="penaltyForm.reason"
                   rows="3"
                   :readonly="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -1368,7 +1368,7 @@ onBeforeUnmount(() => {
               <div
                 v-for="check in recentMarshalRuleChecks"
                 :key="check.id"
-                class="rounded-md bg-white p-3 text-sm"
+                class="rounded-md bg-surface p-3 text-sm"
               >
                 <div class="flex items-start justify-between gap-3">
                   <p class="font-bold">{{ sectorLabel(check.sectorId) }}</p>
@@ -1385,7 +1385,7 @@ onBeforeUnmount(() => {
                 </p>
               </div>
             </div>
-            <p v-else class="mt-4 rounded-md border border-dashed border-border bg-white p-4 text-sm text-foreground-muted">
+            <p v-else class="mt-4 rounded-md border border-dashed border-border bg-surface p-4 text-sm text-foreground-muted">
               Kontroly pre tvoje sektory zatiaľ nie sú zapísané.
             </p>
           </div>

@@ -301,9 +301,9 @@ watch(
           </div>
         </div>
 
-        <div class="mt-5 flex items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 p-3 md:hidden">
+        <div class="mt-5 flex items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3 md:hidden">
           <div class="min-w-0">
-            <p class="text-primary-800 text-xs font-semibold">Zvolený termín</p>
+            <p class="text-primary-800 dark:text-primary-200 text-xs font-semibold">Zvolený termín</p>
             <p class="mt-0.5 truncate font-bold">{{ availabilityRangeLabel }}</p>
           </div>
           <UButton
@@ -340,7 +340,7 @@ watch(
         />
 
         <div class="mt-5 grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
-          <div class="hidden rounded-md border border-border bg-white p-3 lg:block">
+          <div class="hidden rounded-md border border-border bg-surface p-3 lg:block">
             <p class="text-foreground-muted text-xs">Zvolený termín</p>
             <p class="mt-1 font-bold">{{ availabilityRangeLabel }}</p>
           </div>
@@ -360,10 +360,10 @@ watch(
 
         <div
           v-if="preferredRangeRow"
-          class="mt-5 grid gap-4 rounded-md border border-primary-200 bg-primary-50 p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+          class="mt-5 grid gap-4 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
         >
           <div class="min-w-0">
-            <p class="text-primary-800 text-xs font-bold uppercase">Odporúčaný výber pre tento termín</p>
+            <p class="text-primary-800 dark:text-primary-200 text-xs font-bold uppercase">Odporúčaný výber pre tento termín</p>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <h3 class="text-2xl font-black">{{ preferredRangeRow.peg.label }}</h3>
               <AvailabilityBadge :availability="preferredRangeRow.availability" />
@@ -375,7 +375,7 @@ watch(
               />
             </div>
             <p class="text-foreground-muted mt-2 text-sm">{{ preferredRangeRow.peg.notes }}</p>
-            <p class="text-primary-900 mt-2 text-sm font-semibold">
+            <p class="text-primary-900 dark:text-primary-100 mt-2 text-sm font-semibold">
               {{ preferredRangeRow.availability.reasons[0] || preferredRangeRow.availability.description }}
             </p>
             <div v-if="recommendedRangeRows.length > 1" class="mt-4 flex flex-wrap gap-2">
@@ -383,7 +383,7 @@ watch(
                 v-for="row in recommendedRangeRows"
                 :key="row.peg.id"
                 :to="reservationTargetForPeg(row.peg)"
-                class="inline-flex items-center gap-2 rounded-md border border-primary-200 bg-white px-3 py-2 text-sm font-bold text-primary-900 transition hover:border-primary-400 hover:bg-primary-100"
+                class="inline-flex items-center gap-2 rounded-md border border-primary-200 bg-surface px-3 py-2 text-sm font-bold text-primary-900 dark:text-primary-100 transition hover:border-primary-400 hover:bg-primary-100"
               >
                 <UIcon :name="row.peg.type === 'cabin' ? 'i-heroicons-home-modern' : 'i-heroicons-map-pin'" class="h-4 w-4" />
                 {{ row.peg.label }}
@@ -416,7 +416,7 @@ watch(
             <h3 class="font-bold">Najbližších 7 dní</h3>
             <span class="text-foreground-muted text-xs">od {{ availabilityDays[0]?.dayNumber }} {{ availabilityDays[0]?.monthName }}</span>
           </div>
-          <div class="mt-3 divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
+          <div class="mt-3 divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
             <NuxtLink
               v-for="row in availabilityPreviewRows"
               :key="`mobile-${row.day.iso}`"
@@ -441,7 +441,7 @@ watch(
                   {{ row.firstPeg ? `Odporúčané: ${row.firstPeg.label}` : 'Skúste iný deň alebo mapu.' }}
                 </p>
               </div>
-              <UIcon name="i-heroicons-chevron-right" class="text-primary-800 h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+              <UIcon name="i-heroicons-chevron-right" class="text-primary-800 dark:text-primary-200 h-5 w-5 transition-transform group-hover:translate-x-0.5" />
             </NuxtLink>
           </div>
         </div>
@@ -451,7 +451,7 @@ watch(
             v-for="row in availabilityPreviewRows"
             :key="row.day.iso"
             :to="row.target"
-            class="group rounded-md border border-border bg-white p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
+            class="group rounded-md border border-border bg-surface p-3 transition-colors hover:border-primary-300 hover:bg-primary-50"
           >
             <p class="text-xs font-bold uppercase">{{ row.day.dayName }}</p>
             <p class="mt-1 text-lg font-black">{{ row.day.dayNumber }} {{ row.day.monthName }}</p>
@@ -468,7 +468,7 @@ watch(
             <p class="mt-1 min-h-8 text-xs opacity-80">
               {{ row.firstPeg ? `Najbližšie: ${row.firstPeg.label}` : 'Skúste iný deň alebo zavolajte správcovi.' }}
             </p>
-            <span class="text-primary-800 mt-3 inline-flex items-center gap-1 text-xs font-black">
+            <span class="text-primary-800 dark:text-primary-200 mt-3 inline-flex items-center gap-1 text-xs font-black">
               {{ row.firstPeg ? 'Vybrať deň' : 'Pozrieť možnosti' }}
               <UIcon name="i-heroicons-arrow-right" class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
@@ -505,7 +505,7 @@ watch(
 
         <aside class="rounded-card border border-border bg-surface p-5">
           <div class="flex items-start gap-3">
-            <div class="rounded-md bg-primary-50 p-2 text-primary-800">
+            <div class="rounded-md bg-primary-50 dark:bg-primary-950/50 p-2 text-primary-800 dark:text-primary-200">
               <UIcon name="i-heroicons-shield-check" class="h-5 w-5" />
             </div>
             <div>

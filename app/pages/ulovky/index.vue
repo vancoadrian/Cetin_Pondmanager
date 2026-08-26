@@ -94,9 +94,9 @@ const {
     />
 
     <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div class="mb-6 flex flex-col gap-3 border-y border-primary-200 bg-primary-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="mb-6 flex flex-col gap-3 border-y border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-start gap-3">
-          <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-6 w-6 shrink-0 text-primary-800" />
+          <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-6 w-6 shrink-0 text-primary-800 dark:text-primary-200" />
           <div>
             <p class="font-bold">
               {{ isAnglerLoggedIn ? `Prihlásený rybár: ${anglerAccount?.name}` : 'Verejný denník úlovkov' }}
@@ -163,7 +163,7 @@ const {
           <section v-if="activeLogbook" class="border-border bg-surface rounded-card border p-5">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p class="text-primary-800 text-sm font-bold">
+                <p class="text-primary-800 dark:text-primary-200 text-sm font-bold">
                   {{ tripLogbookModeLabels[activeLogbook.mode] }} zápisník
                 </p>
                 <h2 class="mt-1 text-2xl font-bold">{{ activeLogbook.title }}</h2>
@@ -284,7 +284,7 @@ const {
           <section aria-labelledby="verejne-ulovky" class="space-y-4">
             <div class="flex items-end justify-between gap-4">
               <div>
-                <p class="text-primary-800 text-sm font-bold">Verejný denník</p>
+                <p class="text-primary-800 dark:text-primary-200 text-sm font-bold">Verejný denník</p>
                 <h2 id="verejne-ulovky" class="mt-1 text-2xl font-bold">Posledné úlovky</h2>
               </div>
               <StatusBadge
@@ -370,7 +370,7 @@ const {
                   Zadajte kód od partie a tabuľka sa otvorí v tomto zariadení.
                 </p>
               </div>
-              <UIcon name="i-heroicons-key" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-key" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
 
             <label for="trip-logbook-code" class="mt-5 block text-sm font-semibold">
@@ -380,7 +380,7 @@ const {
               <input
                 id="trip-logbook-code"
                 v-model="logbookCodeForm.code"
-                class="h-11 flex-1 rounded-md border border-border bg-white px-3 text-sm font-semibold uppercase"
+                class="h-11 flex-1 rounded-md border border-border bg-surface px-3 text-sm font-semibold uppercase"
                 placeholder="CETIN-..."
                 autocomplete="off"
                 autocapitalize="characters"
@@ -431,7 +431,7 @@ const {
                   Posledný zápis: {{ latestLogbookEntry.angler }} · {{ latestLogbookEntry.weightKg }} kg
                 </p>
               </div>
-              <UIcon name="i-heroicons-table-cells" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-table-cells" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
 
             <DataStatusNotice
@@ -457,7 +457,7 @@ const {
                     class="min-h-11 rounded-md px-2 py-2 text-xs font-bold transition-colors"
                     :class="
                       selectedLogbookMode === option.value
-                        ? 'bg-white text-primary-900 shadow-sm'
+                        ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm'
                         : 'text-foreground-muted hover:text-foreground'
                     "
                     :aria-pressed="selectedLogbookMode === option.value"
@@ -472,7 +472,7 @@ const {
                 <span class="text-sm font-semibold">Názov výpravy</span>
                 <input
                   v-model="logbookForm.title"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
               </label>
 
@@ -481,7 +481,7 @@ const {
                 <textarea
                   v-model="logbookForm.membersText"
                   rows="3"
-                  class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  class="border-border mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -490,7 +490,7 @@ const {
                   <span class="text-sm font-semibold">Jazero</span>
                   <select
                     v-model="logbookForm.lake"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                     <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                   </select>
@@ -499,7 +499,7 @@ const {
                   <span class="text-sm font-semibold">Miesto</span>
                   <select
                     v-model="logbookForm.pegId"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                     <option v-for="peg in logbookPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
                   </select>
@@ -626,7 +626,7 @@ const {
                 <span class="text-sm font-semibold">Jazero</span>
                 <select
                   v-model="catchForm.lake"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
                   <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                 </select>
@@ -635,7 +635,7 @@ const {
                 <span class="text-sm font-semibold">Lovné miesto</span>
                 <select
                   v-model="catchForm.pegId"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
                   <option v-for="peg in catchPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
                 </select>
@@ -644,7 +644,7 @@ const {
                 <span class="text-sm font-semibold">Zápisník partie</span>
                 <select
                   v-model="selectedCatchLogbookId"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
                   <option value="">Samostatný úlovok</option>
                   <option
@@ -659,11 +659,11 @@ const {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Rybár</span>
-                  <input v-model="catchForm.angler" class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm" >
+                  <input v-model="catchForm.angler" class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm" >
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Druh</span>
-                  <input v-model="catchForm.species" class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm" >
+                  <input v-model="catchForm.species" class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm" >
                 </label>
               </div>
               <div class="grid gap-3 sm:grid-cols-2">
@@ -674,7 +674,7 @@ const {
                     type="number"
                     min="0"
                     step="0.1"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -684,7 +684,7 @@ const {
                     type="number"
                     min="0"
                     step="1"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -776,7 +776,7 @@ const {
                     <button
                       v-if="['waiting', 'on-route'].includes(activeAssistance.status)"
                       type="button"
-                      class="inline-flex h-10 items-center rounded-md border border-border bg-white px-3 text-sm font-bold text-foreground"
+                      class="inline-flex h-10 items-center rounded-md border border-border bg-surface px-3 text-sm font-bold text-foreground"
                       :disabled="assistanceStatus === 'submitting'"
                       @click="cancelManagerAssistance"
                     >
@@ -785,7 +785,7 @@ const {
                     <button
                       v-if="['cancelled', 'completed', 'expired', 'release-without-manager'].includes(activeAssistance.status)"
                       type="button"
-                      class="inline-flex h-10 items-center rounded-md border border-border bg-white px-3 text-sm font-bold text-foreground"
+                      class="inline-flex h-10 items-center rounded-md border border-border bg-surface px-3 text-sm font-bold text-foreground"
                       @click="clearAssistanceAccess"
                     >
                       Zavrieť stav
@@ -801,7 +801,7 @@ const {
                       type="tel"
                       inputmode="tel"
                       placeholder="+421 9..."
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm text-foreground"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground"
                     >
                   </label>
                   <UButton
@@ -833,7 +833,7 @@ const {
                 <input
                   v-model="catchForm.bait"
                   placeholder="boilies, kukurica, pelety..."
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
               </label>
               <label class="block">
@@ -841,7 +841,7 @@ const {
                 <input
                   v-model="catchForm.caughtAt"
                   type="datetime-local"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
               </label>
               <label class="flex items-center gap-2 rounded-md bg-muted p-3 text-sm font-semibold">
@@ -853,13 +853,13 @@ const {
                 <input
                   type="file"
                   accept="image/*"
-                  class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  class="border-border mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm"
                   @change="handleCatchPhotoChange"
                 >
               </label>
               <div
                 v-if="catchPhotoDraft"
-                class="grid gap-3 rounded-md border border-primary-200 bg-primary-50 p-3 sm:grid-cols-[88px_1fr]"
+                class="grid gap-3 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3 sm:grid-cols-[88px_1fr]"
               >
                 <img
                   :src="catchPhotoDraft.previewUrl"
@@ -867,8 +867,8 @@ const {
                   class="h-20 w-full rounded-md object-cover sm:w-20"
                 >
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-bold text-primary-950">{{ catchPhotoDraft.fileName }}</p>
-                  <p class="mt-1 text-xs text-primary-800">
+                  <p class="truncate text-sm font-bold text-primary-950 dark:text-primary-100">{{ catchPhotoDraft.fileName }}</p>
+                  <p class="mt-1 text-xs text-primary-800 dark:text-primary-200">
                     {{ formatFileSize(catchPhotoDraft.sizeBytes) }} · pripravené na uloženie
                   </p>
                   <p class="mt-2 text-xs text-primary-700">
@@ -876,7 +876,7 @@ const {
                   </p>
                   <button
                     type="button"
-                    class="mt-2 text-xs font-bold text-primary-900 underline"
+                    class="mt-2 text-xs font-bold text-primary-900 dark:text-primary-100 underline"
                     @click="clearCatchPhoto"
                   >
                     Odobrať fotku
