@@ -323,8 +323,8 @@ onBeforeUnmount(() => {
               <p class="text-success-700 text-xs font-semibold">Voľné miesta</p>
               <p class="mt-1 text-2xl font-black">{{ availableCount }}</p>
             </div>
-            <div class="rounded-md border border-primary-200 bg-primary-50 p-3">
-              <p class="text-primary-800 text-xs font-semibold">Voľné chaty</p>
+            <div class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3">
+              <p class="text-primary-800 dark:text-primary-200 text-xs font-semibold">Voľné chaty</p>
               <p class="mt-1 text-2xl font-black">{{ freeCabinCount }}/{{ cabinCount }}</p>
             </div>
             <div class="rounded-md border border-border bg-muted p-3">

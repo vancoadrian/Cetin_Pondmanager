@@ -50,7 +50,7 @@ async function submit() {
 
     <section class="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
       <div class="rounded-card border border-border bg-surface p-5 sm:p-7">
-        <div class="flex h-11 w-11 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+        <div class="flex h-11 w-11 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
           <UIcon name="i-heroicons-key" class="h-6 w-6" />
         </div>
         <h2 class="mt-5 text-2xl font-bold">Obnoviť prístup k účtu</h2>
@@ -81,7 +81,7 @@ async function submit() {
                 autocomplete="email"
                 required
                 maxlength="120"
-                class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+                class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
                 placeholder="vas@email.sk"
               >
             </div>
@@ -100,7 +100,7 @@ async function submit() {
         </form>
 
         <div class="mt-5 text-center">
-          <NuxtLink to="/login" class="text-sm font-semibold text-primary-700 hover:text-primary-900">
+          <NuxtLink to="/login" class="text-sm font-semibold text-primary-700 hover:text-primary-900 dark:hover:text-primary-100">
             Späť na prihlásenie
           </NuxtLink>
         </div>

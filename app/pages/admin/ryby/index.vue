@@ -218,7 +218,7 @@ const {
             v-for="request in openAssistanceRequests"
             :key="request.id"
             :data-assistance-id="request.id"
-            class="rounded-md border bg-white p-4 shadow-sm"
+            class="rounded-md border bg-surface p-4 shadow-sm"
             :class="route.query.privolanie === request.id
               ? 'border-warning-500 ring-2 ring-warning-500/20'
               : 'border-border'"
@@ -289,7 +289,7 @@ const {
                   <select
                     v-model.number="assistanceEtaMinutes[request.id]"
                     :aria-label="`Odhad príchodu k ${request.pegLabel}`"
-                    class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+                    class="h-11 rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option :value="5">do 5 min</option>
                     <option :value="10">do 10 min</option>
@@ -382,7 +382,7 @@ const {
         </div>
 
         <div class="mt-5 grid gap-4 lg:grid-cols-2">
-          <div class="rounded-md border border-border bg-white p-4">
+          <div class="rounded-md border border-border bg-surface p-4">
             <div class="flex items-start gap-3">
               <UIcon name="i-heroicons-identification" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
               <div class="min-w-0 flex-1">
@@ -395,7 +395,7 @@ const {
 
             <label class="mt-4 block space-y-1 text-sm font-semibold">
               <span>Ryba podľa čipu alebo mena</span>
-              <select v-model="assistanceFishId" class="w-full rounded-md border border-border bg-white px-3 py-2">
+              <select v-model="assistanceFishId" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                 <option value="">Vyberte rybu</option>
                 <option v-for="fish in registryState.fish" :key="fish.id" :value="fish.id">
                   {{ fish.chipCode }} · {{ fish.name || 'bez mena' }} · {{ fish.species }}
@@ -415,7 +415,7 @@ const {
             </UButton>
           </div>
 
-          <div class="rounded-md border border-border bg-white p-4">
+          <div class="rounded-md border border-border bg-surface p-4">
             <div class="flex items-start gap-3">
               <UIcon name="i-heroicons-tag" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
               <div class="min-w-0 flex-1">
@@ -480,8 +480,8 @@ const {
                 :key="rule.lake"
                 class="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold"
                 :class="selectedPresenceLakes.includes(rule.lake)
-                  ? 'border-primary-600 bg-primary-50 text-primary-900'
-                  : 'border-border bg-white text-foreground-muted'"
+                  ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50 text-primary-900 dark:text-primary-100'
+                  : 'border-border bg-surface text-foreground-muted'"
               >
                 <input
                   v-model="selectedPresenceLakes"
@@ -498,7 +498,7 @@ const {
             <select
               v-model.number="bulkPresenceDurationHours"
               aria-label="Spoločné trvanie dostupnosti"
-              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-surface px-3 text-sm"
             >
               <option :value="2">na 2 hodiny</option>
               <option :value="4">na 4 hodiny</option>
@@ -571,7 +571,7 @@ const {
                   v-if="liveManagerAvailability(rule).source !== 'presence'"
                   v-model.number="presenceDurationHours[rule.lake]"
                   :aria-label="`Trvanie dostupnosti ${getLakeName(rule.lake)}`"
-                  class="h-11 rounded-md border border-border bg-white px-3 text-sm text-foreground"
+                  class="h-11 rounded-md border border-border bg-surface px-3 text-sm text-foreground"
                 >
                   <option :value="2">na 2 hodiny</option>
                   <option :value="4">na 4 hodiny</option>
@@ -661,11 +661,11 @@ const {
 
       <section
         v-show="activeFishAdminView === 'kontrola'"
-        class="mt-5 border-y border-primary-200 bg-primary-50 px-4 py-5 sm:px-5"
+        class="mt-5 border-y border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-4 py-5 sm:px-5"
       >
         <div class="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(18rem,1.1fr)] lg:items-end">
           <div>
-            <p class="text-sm font-bold text-primary-800">Čítačka čipu</p>
+            <p class="text-sm font-bold text-primary-800 dark:text-primary-200">Čítačka čipu</p>
             <h2 class="mt-1 text-lg font-bold">Načítať alebo zadať čip</h2>
             <p class="mt-1 text-sm text-foreground-muted">
               RFID čítačka alebo ručné zadanie pri vode.
@@ -680,7 +680,7 @@ const {
               type="text"
               inputmode="text"
               autocomplete="off"
-              class="h-11 rounded-md border border-primary-200 bg-white px-3 font-mono text-sm"
+              class="h-11 rounded-md border border-primary-200 bg-surface px-3 font-mono text-sm"
               placeholder="985141000..."
               @keyup.enter="processChipScan"
             >
@@ -712,7 +712,7 @@ const {
         />
 
         <div v-if="lastScannedChipCode && chipScanStatus !== 'error'" class="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div v-if="lastScannedFish" class="rounded-md border border-border bg-white px-4 py-3">
+          <div v-if="lastScannedFish" class="rounded-md border border-border bg-surface px-4 py-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p class="text-xs font-semibold uppercase text-foreground-muted">Nájdená ryba</p>
@@ -724,7 +724,7 @@ const {
               <StatusBadge :label="fishRegistryStatusLabels[lastScannedFish.status]" :tone="statusTone(lastScannedFish.status)" size="xs" />
             </div>
           </div>
-          <div v-else class="rounded-md border border-border bg-white px-4 py-3">
+          <div v-else class="rounded-md border border-border bg-surface px-4 py-3">
             <p class="text-xs font-semibold uppercase text-foreground-muted">Nový čip</p>
             <p class="mt-1 break-all font-mono font-bold">{{ lastScannedChipCode }}</p>
             <p class="mt-1 text-sm text-foreground-muted">Číslo je pripravené na založenie ryby.</p>
@@ -774,7 +774,7 @@ const {
           <article
             v-for="candidate in candidateState.candidates"
             :key="candidate.id"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -827,21 +827,21 @@ const {
               <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-2.5 h-5 w-5 text-foreground-muted" />
               <input
                 v-model="searchQuery"
-                class="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm"
+                class="h-11 w-full rounded-md border border-border bg-surface pl-10 pr-3 text-sm"
                 placeholder="napr. 985141... alebo Aurora"
               >
             </div>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Jazero</span>
-            <select v-model="lakeFilter" class="h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+            <select v-model="lakeFilter" class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
               <option value="all">Všetky jazerá</option>
               <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
             </select>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Stav</span>
-            <select v-model="statusFilter" class="h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+            <select v-model="statusFilter" class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
               <option value="all">Všetky stavy</option>
               <option v-for="(label, value) in fishRegistryStatusLabels" :key="value" :value="value">
                 {{ label }}
@@ -884,7 +884,7 @@ const {
       <section
         v-if="activeFishAdminView === 'kontrola' && activePanel === 'candidate' && activeCandidate"
         ref="candidatePanelElement"
-        class="mt-6 rounded-card border border-primary-200 bg-primary-50 p-5"
+        class="mt-6 rounded-card border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-5"
       >
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -905,7 +905,7 @@ const {
         <div class="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <label class="space-y-1 text-sm font-semibold">
             <span>Čip už existuje</span>
-            <select v-model="candidateFishId" class="w-full rounded-md border border-border bg-white px-3 py-2">
+            <select v-model="candidateFishId" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               <option value="">Vyberte rybu podľa čipu alebo mena</option>
               <option v-for="fish in registryState.fish" :key="fish.id" :value="fish.id">
                 {{ fish.chipCode }} · {{ fish.name || 'bez mena' }} · {{ fish.species }}
@@ -953,7 +953,7 @@ const {
           <section
             v-for="rule in settingsForm.largeCatchRules"
             :key="rule.lake"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -973,7 +973,7 @@ const {
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Spôsob kontaktu</span>
-                <select v-model="rule.contactMode" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <select v-model="rule.contactMode" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                   <option v-for="(label, value) in fishManagerContactModeLabels" :key="value" :value="value">{{ label }}</option>
                 </select>
               </label>
@@ -1023,15 +1023,15 @@ const {
                   <div class="grid gap-4 lg:grid-cols-[minmax(10rem,1fr)_9rem_9rem_auto] lg:items-end">
                     <label class="space-y-1 text-sm font-semibold">
                       <span>Názov služby</span>
-                      <input v-model="window.label" required class="w-full rounded-md border border-border bg-white px-3 py-2">
+                      <input v-model="window.label" required class="w-full rounded-md border border-border bg-surface px-3 py-2">
                     </label>
                     <label class="space-y-1 text-sm font-semibold">
                       <span>Od</span>
-                      <input v-model="window.startsAt" required type="time" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                      <input v-model="window.startsAt" required type="time" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                     </label>
                     <label class="space-y-1 text-sm font-semibold">
                       <span>Do</span>
-                      <input v-model="window.endsAt" required type="time" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                      <input v-model="window.endsAt" required type="time" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                     </label>
                     <UButton
                       type="button"
@@ -1052,8 +1052,8 @@ const {
                         :key="day.value"
                         class="flex h-10 min-w-10 cursor-pointer items-center justify-center rounded-md border px-3 text-sm font-bold transition-colors"
                         :class="window.daysOfWeek.includes(day.value)
-                          ? 'border-primary-600 bg-primary-50 text-primary-900'
-                          : 'border-border bg-white text-foreground-muted'"
+                          ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50 text-primary-900 dark:text-primary-100'
+                          : 'border-border bg-surface text-foreground-muted'"
                       >
                         <input
                           v-model="window.daysOfWeek"
@@ -1107,19 +1107,19 @@ const {
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Stav</span>
-            <select v-model="registrationForm.status" class="w-full rounded-md border border-border bg-white px-3 py-2">
+            <select v-model="registrationForm.status" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               <option v-for="(label, value) in fishRegistryStatusLabels" :key="value" :value="value">{{ label }}</option>
             </select>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Jazero</span>
-            <select v-model="registrationForm.lake" class="w-full rounded-md border border-border bg-white px-3 py-2">
+            <select v-model="registrationForm.lake" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
             </select>
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Miesto označenia</span>
-            <select v-model="registrationForm.taggedPegId" required class="w-full rounded-md border border-border bg-white px-3 py-2">
+            <select v-model="registrationForm.taggedPegId" required class="w-full rounded-md border border-border bg-surface px-3 py-2">
               <option value="" disabled>Vyberte konkrétne miesto</option>
               <option v-for="peg in registrationPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
             </select>
@@ -1130,7 +1130,7 @@ const {
           </label>
           <label class="space-y-1 text-sm font-semibold">
             <span>Dôvod označenia</span>
-            <select v-model="registrationForm.taggingContext" class="w-full rounded-md border border-border bg-white px-3 py-2">
+            <select v-model="registrationForm.taggingContext" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               <option v-for="(label, value) in fishTaggingContextLabels" :key="value" :value="value">{{ label }}</option>
             </select>
           </label>
@@ -1222,13 +1222,13 @@ const {
               :key="fish.id"
               type="button"
               class="min-w-0 w-full rounded-md border p-4 text-left transition-colors hover:border-primary-200 hover:bg-muted"
-              :class="selectedFish?.id === fish.id ? 'border-primary-700 bg-primary-50 shadow-sm' : 'border-border bg-white'"
+              :class="selectedFish?.id === fish.id ? 'border-primary-700 bg-primary-50 dark:bg-primary-950/50 shadow-sm' : 'border-border bg-surface'"
               @click="selectedFishId = fish.id"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="truncate font-bold">{{ fish.name || 'Ryba bez mena' }}</p>
-                  <p class="mt-1 font-mono text-sm text-primary-800">{{ fish.chipCode }}</p>
+                  <p class="mt-1 font-mono text-sm text-primary-800 dark:text-primary-200">{{ fish.chipCode }}</p>
                 </div>
                 <StatusBadge :label="fishRegistryStatusLabels[fish.status]" :tone="statusTone(fish.status)" size="xs" />
               </div>
@@ -1257,7 +1257,7 @@ const {
                   <h2 class="text-2xl font-bold">{{ selectedFish.name || 'Ryba bez mena' }}</h2>
                   <StatusBadge :label="fishRegistryStatusLabels[selectedFish.status]" :tone="statusTone(selectedFish.status)" />
                 </div>
-                <p class="mt-2 font-mono text-lg font-bold text-primary-800">{{ selectedFish.chipCode }}</p>
+                <p class="mt-2 font-mono text-lg font-bold text-primary-800 dark:text-primary-200">{{ selectedFish.chipCode }}</p>
                 <p class="mt-2 text-sm text-foreground-muted">
                   {{ selectedFish.species }} · {{ getLakeName(selectedFish.lake) }}
                 </p>
@@ -1315,7 +1315,7 @@ const {
             v-if="activePanel === 'edit'"
             ref="editFormElement"
             data-testid="fish-edit-form"
-            class="rounded-card border border-primary-200 bg-primary-50 p-5"
+            class="rounded-card border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-5"
             @submit.prevent="submitFishEdit"
           >
             <div class="flex items-start justify-between gap-3">
@@ -1328,26 +1328,26 @@ const {
               <UButton icon="i-heroicons-x-mark" variant="ghost" aria-label="Zavrieť úpravu ryby" @click="closeActivePanel" />
             </div>
 
-            <div class="mt-4 rounded-md border border-primary-200 bg-white px-4 py-3">
+            <div class="mt-4 rounded-md border border-primary-200 bg-surface px-4 py-3">
               <p class="text-xs font-semibold text-foreground-muted">Číslo čipu (nemeniteľné)</p>
-              <p class="mt-1 break-all font-mono font-bold text-primary-800">{{ selectedFish.chipCode }}</p>
+              <p class="mt-1 break-all font-mono font-bold text-primary-800 dark:text-primary-200">{{ selectedFish.chipCode }}</p>
             </div>
 
             <fieldset class="mt-4 grid gap-4 sm:grid-cols-2" :disabled="mutationStatus === 'submitting'">
               <label class="space-y-1 text-sm font-semibold">
                 <span>Meno ryby</span>
-                <input v-model="editForm.name" maxlength="80" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="editForm.name" maxlength="80" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Druh</span>
-                <input v-model="editForm.species" required maxlength="100" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="editForm.species" required maxlength="100" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Stav</span>
                 <select
                   v-model="editForm.status"
                   data-testid="fish-edit-status"
-                  class="w-full rounded-md border border-border bg-white px-3 py-2"
+                  class="w-full rounded-md border border-border bg-surface px-3 py-2"
                 >
                   <option value="active">aktívna</option>
                   <option value="missing">dlho nepotvrdená</option>
@@ -1362,13 +1362,13 @@ const {
                   required
                   minlength="3"
                   maxlength="500"
-                  class="w-full rounded-md border border-border bg-white px-3 py-2"
+                  class="w-full rounded-md border border-border bg-surface px-3 py-2"
                   placeholder="Napr. potvrdené správcom pri kontrole"
                 >
               </label>
               <label class="space-y-1 text-sm font-semibold sm:col-span-2">
                 <span>Interná poznámka</span>
-                <textarea v-model="editForm.notes" maxlength="1000" class="min-h-24 w-full rounded-md border border-border bg-white px-3 py-2" />
+                <textarea v-model="editForm.notes" maxlength="1000" class="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2" />
               </label>
             </fieldset>
 
@@ -1391,7 +1391,7 @@ const {
           <form
             v-if="activePanel === 'measurement'"
             ref="measurementFormElement"
-            class="rounded-card border border-primary-200 bg-primary-50 p-5"
+            class="rounded-card border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-5"
             @submit.prevent="submitObservation"
           >
             <div class="flex items-start justify-between gap-3">
@@ -1405,24 +1405,24 @@ const {
             <fieldset class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" :disabled="mutationStatus === 'submitting'">
               <label class="space-y-1 text-sm font-semibold">
                 <span>Dátum a čas</span>
-                <input v-model="observationForm.observedAt" required type="datetime-local" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="observationForm.observedAt" required type="datetime-local" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Jazero</span>
-                <select v-model="observationForm.lake" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <select v-model="observationForm.lake" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                   <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                 </select>
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Stanovisko</span>
-                <select v-model="observationForm.pegId" required class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <select v-model="observationForm.pegId" required class="w-full rounded-md border border-border bg-surface px-3 py-2">
                   <option value="" disabled>Vyberte konkrétne miesto</option>
                   <option v-for="peg in observationPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
                 </select>
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Zdroj</span>
-                <select v-model="observationForm.source" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <select v-model="observationForm.source" class="w-full rounded-md border border-border bg-surface px-3 py-2">
                   <option value="manager">správca</option>
                   <option value="public-catch">bežný úlovok</option>
                   <option value="tournament">súťaž</option>
@@ -1430,35 +1430,35 @@ const {
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Váha (kg)</span>
-                <input v-model.number="observationForm.weightKg" required type="number" step="0.01" min="0.1" max="80" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model.number="observationForm.weightKg" required type="number" step="0.01" min="0.1" max="80" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Dĺžka (cm)</span>
-                <input v-model.number="observationForm.lengthCm" required type="number" step="1" min="1" max="250" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model.number="observationForm.lengthCm" required type="number" step="1" min="1" max="250" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Čip načítal</span>
-                <input v-model="observationForm.chipReadBy" required class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="observationForm.chipReadBy" required class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Rybár alebo tím</span>
-                <input v-model="observationForm.anglerName" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="observationForm.anglerName" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>Nástraha</span>
-                <input v-model="observationForm.bait" class="w-full rounded-md border border-border bg-white px-3 py-2">
+                <input v-model="observationForm.bait" class="w-full rounded-md border border-border bg-surface px-3 py-2">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>ID bežného úlovku</span>
-                <input v-model="observationForm.catchId" class="w-full rounded-md border border-border bg-white px-3 py-2" placeholder="voliteľné">
+                <input v-model="observationForm.catchId" class="w-full rounded-md border border-border bg-surface px-3 py-2" placeholder="voliteľné">
               </label>
               <label class="space-y-1 text-sm font-semibold">
                 <span>ID súťažného úlovku</span>
-                <input v-model="observationForm.tournamentCatchId" class="w-full rounded-md border border-border bg-white px-3 py-2" placeholder="voliteľné">
+                <input v-model="observationForm.tournamentCatchId" class="w-full rounded-md border border-border bg-surface px-3 py-2" placeholder="voliteľné">
               </label>
               <label class="space-y-1 text-sm font-semibold sm:col-span-2 xl:col-span-4">
                 <span>Poznámka ku kondícii ryby</span>
-                <textarea v-model="observationForm.notes" class="min-h-20 w-full rounded-md border border-border bg-white px-3 py-2" />
+                <textarea v-model="observationForm.notes" class="min-h-20 w-full rounded-md border border-border bg-surface px-3 py-2" />
               </label>
             </fieldset>
 
@@ -1493,7 +1493,7 @@ const {
               <article
                 v-for="observation in [...selectedObservations].reverse()"
                 :key="observation.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>

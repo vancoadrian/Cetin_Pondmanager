@@ -329,7 +329,7 @@ function selectFromKeyboard(event: KeyboardEvent, action: () => void) {
           {{ editingBackground ? 'Potiahnutím mapy posuniete podkladový obrázok.' : drawingShape ? 'Kliknutím do mapy pridáte vrchol kreslenej plochy.' : editable ? 'Potiahnutím bodu upravíte pozíciu v SVG vrstve.' : 'Náhľad SVG vrstiev.' }}
         </p>
       </div>
-      <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
+      <span class="rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 text-xs font-bold text-primary-800 dark:text-primary-200">
         viewBox 100 x 75
       </span>
     </div>

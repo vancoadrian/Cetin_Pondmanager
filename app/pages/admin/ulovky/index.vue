@@ -193,7 +193,7 @@ function parseCatchAdminView(value: unknown): CatchAdminView {
 
 function catchAdminTabClass(isActive: boolean) {
   return isActive
-    ? 'border-primary-700 text-primary-900'
+    ? 'border-primary-700 text-primary-900 dark:text-primary-100'
     : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
 }
 
@@ -369,7 +369,7 @@ watch(
             <span class="text-sm font-semibold">Sezónne okno</span>
             <select
               v-model="analyticsFilter.seasonWindowId"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
               @change="applySeasonWindow"
             >
               <option value="custom">Vlastný rozsah</option>
@@ -387,7 +387,7 @@ watch(
             <input
               v-model="analyticsFilter.dateFrom"
               type="date"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
               @change="markCustomSeasonWindow"
             >
           </label>
@@ -396,7 +396,7 @@ watch(
             <input
               v-model="analyticsFilter.dateTo"
               type="date"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
               @change="markCustomSeasonWindow"
             >
           </label>
@@ -404,7 +404,7 @@ watch(
             <span class="text-sm font-semibold">Jazero</span>
             <select
               v-model="analyticsFilter.lake"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
             >
               <option value="all">Všetky jazerá</option>
               <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
@@ -414,7 +414,7 @@ watch(
             <span class="text-sm font-semibold">Druh</span>
             <select
               v-model="analyticsFilter.species"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
             >
               <option value="all">Všetky druhy</option>
               <option v-for="species in analyticsSpeciesOptions" :key="species" :value="species">{{ species }}</option>
@@ -434,7 +434,7 @@ watch(
                   Aktuálny filter sa uloží ako interný report pre správcu, majiteľa alebo účtovníka.
                 </p>
               </div>
-              <span class="w-fit rounded-md bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-800">
+              <span class="w-fit rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 text-xs font-bold text-primary-800 dark:text-primary-200">
                 bez odosielania
               </span>
             </div>
@@ -446,7 +446,7 @@ watch(
                   <input
                     v-model="reportForm.title"
                     type="text"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                   >
                 </label>
                 <label class="block">
@@ -454,7 +454,7 @@ watch(
                   <input
                     v-model="reportForm.recipients"
                     type="text"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     placeholder="emaily oddelené čiarkou"
                   >
                 </label>
@@ -462,7 +462,7 @@ watch(
                   <span class="text-sm font-semibold">Pre koho</span>
                   <select
                     v-model="reportForm.audience"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                   >
                     <option value="manager">{{ catchReportAudienceLabels.manager }}</option>
                     <option value="owner">{{ catchReportAudienceLabels.owner }}</option>
@@ -473,7 +473,7 @@ watch(
                   <span class="text-sm font-semibold">Periodicita</span>
                   <select
                     v-model="reportForm.cadence"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                   >
                     <option value="manual">{{ catchReportCadenceLabels.manual }}</option>
                     <option value="weekly">{{ catchReportCadenceLabels.weekly }}</option>
@@ -484,7 +484,7 @@ watch(
                   <span class="text-sm font-semibold">Doručenie</span>
                   <select
                     v-model="reportForm.delivery"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                   >
                     <option value="in-app">{{ catchReportDeliveryLabels['in-app'] }}</option>
                     <option value="email-ready">{{ catchReportDeliveryLabels['email-ready'] }}</option>
@@ -495,7 +495,7 @@ watch(
                   <input
                     v-model="reportForm.description"
                     type="text"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     placeholder="voliteľná poznámka"
                   >
                 </label>
@@ -565,7 +565,7 @@ watch(
 
             <div
               v-if="schedulerRunMessage"
-              class="mt-4 rounded-md border border-border bg-white p-3"
+              class="mt-4 rounded-md border border-border bg-surface p-3"
             >
               <DataStatusNotice
                 :description="schedulerRunMessage"
@@ -615,7 +615,7 @@ watch(
                 <div
                   v-for="row in schedulerRunRows"
                   :key="row.reportId"
-                  class="rounded-md border bg-white p-2"
+                  class="rounded-md border bg-surface p-2"
                 >
                   <div class="flex items-start justify-between gap-2">
                     <div>
@@ -639,7 +639,7 @@ watch(
               <article
                 v-for="report in savedCatchReports"
                 :key="report.id"
-                class="rounded-md border border-border bg-white p-3"
+                class="rounded-md border border-border bg-surface p-3"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div>
@@ -704,7 +704,7 @@ watch(
             />
             <div
               v-if="generatedCatchReport"
-              class="mt-4 rounded-md border border-primary-200 bg-primary-50 p-3"
+              class="mt-4 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3"
             >
               <p class="text-xs font-bold uppercase text-primary-700">Posledný vygenerovaný výstup</p>
               <h4 class="mt-1 font-semibold">
@@ -827,22 +827,22 @@ watch(
             </span>
           </div>
           <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-md border border-border bg-white p-3">
+            <div class="rounded-md border border-border bg-surface p-3">
               <p class="text-foreground-muted text-xs">Miesto</p>
               <p class="mt-1 font-bold">{{ catchAnalytics.topPegs[0]?.label ?? 'bez dát' }}</p>
               <p class="text-foreground-muted text-xs">{{ catchAnalytics.topPegs[0]?.count ?? 0 }} úlovkov</p>
             </div>
-            <div class="rounded-md border border-border bg-white p-3">
+            <div class="rounded-md border border-border bg-surface p-3">
               <p class="text-foreground-muted text-xs">Čas</p>
               <p class="mt-1 font-bold">{{ catchAnalytics.busiestHour?.label ?? 'bez dát' }}</p>
               <p class="text-foreground-muted text-xs">{{ catchAnalytics.busiestHour?.count ?? 0 }} úlovkov</p>
             </div>
-            <div class="rounded-md border border-border bg-white p-3">
+            <div class="rounded-md border border-border bg-surface p-3">
               <p class="text-foreground-muted text-xs">Nástraha</p>
               <p class="mt-1 font-bold">{{ catchAnalytics.topBaits[0]?.label ?? 'bez dát' }}</p>
               <p class="text-foreground-muted text-xs">{{ catchAnalytics.topBaits[0]?.count ?? 0 }} úlovkov</p>
             </div>
-            <div class="rounded-md border border-border bg-white p-3">
+            <div class="rounded-md border border-border bg-surface p-3">
               <p class="text-foreground-muted text-xs">Počasie</p>
               <p class="mt-1 font-bold">{{ catchAnalytics.topConditions[0]?.label ?? 'bez dát' }}</p>
               <p class="text-foreground-muted text-xs">{{ catchAnalytics.weatherSummary.weatherCount }} zápisov s počasím</p>
@@ -900,7 +900,7 @@ watch(
           <div
             v-for="month in visibleMonthlyTrendMonths"
             :key="month.key"
-            class="rounded-md border border-border bg-white p-3"
+            class="rounded-md border border-border bg-surface p-3"
           >
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -1039,7 +1039,7 @@ watch(
           <div
             v-for="row in visibleSpeciesPegTrendRows"
             :key="row.key"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1128,7 +1128,7 @@ watch(
             <select
               v-model="statusFilterModel"
               aria-label="Filtrovať úlovky podľa stavu"
-              class="h-11 rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+              class="h-11 rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
             >
               <option v-for="filter in statusFilters" :key="filter.value" :value="filter.value">
                 {{ filter.label }}
@@ -1142,7 +1142,7 @@ watch(
               :key="catchItem.id"
               type="button"
               class="w-full rounded-md border p-4 text-left transition-colors hover:bg-muted"
-              :class="selectedCatchId === catchItem.id ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
+              :class="selectedCatchId === catchItem.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'border-border bg-surface'"
               @click="selectedCatchId = catchItem.id"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1239,7 +1239,7 @@ watch(
               </div>
             </div>
 
-            <div v-if="selectedCatchPhoto" class="mt-5 overflow-hidden rounded-md border border-border bg-white">
+            <div v-if="selectedCatchPhoto" class="mt-5 overflow-hidden rounded-md border border-border bg-surface">
               <img
                 :src="selectedCatchPhoto.publicUrl"
                 :alt="`Fotka úlovku ${selectedCatch.species}`"
@@ -1251,7 +1251,7 @@ watch(
                   {{ selectedCatchPhoto.aiNotes }}
                 </p>
                 <div class="mt-3 flex flex-wrap gap-2 text-xs font-bold">
-                  <span class="rounded-md bg-primary-50 px-2.5 py-1 text-primary-800">
+                  <span class="rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 text-primary-800 dark:text-primary-200">
                     {{ selectedCatchPhoto.status }}
                   </span>
                   <span class="rounded-md bg-muted px-2.5 py-1 text-foreground-muted">
@@ -1316,7 +1316,7 @@ watch(
               </UButton>
             </div>
 
-            <form class="mt-5 rounded-md border border-border bg-white p-4" @submit.prevent="saveCorrection">
+            <form class="mt-5 rounded-md border border-border bg-surface p-4" @submit.prevent="saveCorrection">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="text-sm font-bold">Oprava údajov</p>
@@ -1335,21 +1335,21 @@ watch(
                     <span class="text-sm font-semibold">Rybár</span>
                     <input
                       v-model="correctionForm.angler"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Druh</span>
                     <input
                       v-model="correctionForm.species"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Jazero</span>
                     <select
                       v-model="correctionForm.lake"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                       <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                     </select>
@@ -1358,7 +1358,7 @@ watch(
                     <span class="text-sm font-semibold">Miesto</span>
                     <select
                       v-model="correctionForm.pegId"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                       <option v-for="peg in correctionPegs" :key="peg.id" :value="peg.id">{{ peg.label }}</option>
                     </select>
@@ -1370,7 +1370,7 @@ watch(
                       type="number"
                       min="0"
                       step="0.1"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
@@ -1380,14 +1380,14 @@ watch(
                       type="number"
                       min="0"
                       step="1"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block sm:col-span-2">
                     <span class="text-sm font-semibold">Nástraha</span>
                     <input
                       v-model="correctionForm.bait"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="block">
@@ -1395,7 +1395,7 @@ watch(
                     <input
                       v-model="correctionForm.caughtAt"
                       type="datetime-local"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                     >
                   </label>
                   <label class="flex items-center gap-2 self-end rounded-md bg-muted p-3 text-sm font-semibold">
@@ -1407,7 +1407,7 @@ watch(
                     <textarea
                       v-model="correctionForm.notes"
                       rows="3"
-                      class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                      class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                     />
                   </label>
                   <div class="sm:col-span-2 rounded-md border border-border bg-muted/40 p-4">
@@ -1420,7 +1420,7 @@ watch(
                       </div>
                       <span
                         v-if="selectedLogbook"
-                        class="w-fit rounded-md bg-white px-2.5 py-1 text-xs font-bold text-foreground-muted"
+                        class="w-fit rounded-md bg-surface px-2.5 py-1 text-xs font-bold text-foreground-muted"
                       >
                         {{ tripLogbookModeLabels[selectedLogbook.mode] }}
                       </span>
@@ -1435,8 +1435,8 @@ watch(
                         class="rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                         :class="
                           correctionForm.logbookLinkMode === option.value
-                            ? 'border-primary-600 bg-primary-50 text-primary-950'
-                            : 'border-border bg-white text-foreground hover:bg-muted'
+                            ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:text-primary-100'
+                            : 'border-border bg-surface text-foreground hover:bg-muted'
                         "
                         @click="correctionForm.logbookLinkMode = option.value"
                       >
@@ -1454,7 +1454,7 @@ watch(
                       <span class="text-sm font-semibold">Cieľový zápisník</span>
                       <select
                         v-model="correctionForm.targetLogbookId"
-                        class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm sm:h-10"
+                        class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm sm:h-10"
                         :disabled="!canManageCatches || compatibleCorrectionLogbooks.length === 0"
                       >
                         <option v-if="compatibleCorrectionLogbooks.length === 0" value="">
@@ -1503,26 +1503,26 @@ watch(
               </UButton>
             </form>
 
-            <div class="mt-5 rounded-md border border-border bg-white p-4">
+            <div class="mt-5 rounded-md border border-border bg-surface p-4">
               <p class="text-sm font-bold">Poznámka rybára</p>
               <p class="text-foreground-muted mt-2 text-sm">{{ selectedCatch.notes }}</p>
             </div>
 
-            <div v-if="selectedLogbookEntry && selectedLogbook" class="mt-5 rounded-md border border-primary-200 bg-primary-50 p-4">
-              <p class="text-sm font-bold text-primary-900">Aktuálny zápisník</p>
-              <p class="text-primary-800 mt-1 text-sm">
+            <div v-if="selectedLogbookEntry && selectedLogbook" class="mt-5 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-4">
+              <p class="text-sm font-bold text-primary-900 dark:text-primary-100">Aktuálny zápisník</p>
+              <p class="text-primary-800 dark:text-primary-200 mt-1 text-sm">
                 {{ selectedLogbook.title }} · {{ selectedLogbook.shareCode }} · {{ tripLogbookStatusLabels[selectedLogbook.status] }}
               </p>
             </div>
 
-            <div class="mt-5 rounded-md border border-border bg-white p-4">
+            <div class="mt-5 rounded-md border border-border bg-surface p-4">
               <p class="text-sm font-bold">Rozhodnutie správcu</p>
               <div class="mt-3 grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
                   class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
-                  :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-white'"
+                  :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-surface'"
                   @click="decisionMode = 'approve'"
                 >
                   Schváliť
@@ -1531,7 +1531,7 @@ watch(
                   type="button"
                   class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
-                  :class="decisionMode === 'pending' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-white'"
+                  :class="decisionMode === 'pending' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-surface'"
                   @click="decisionMode = 'pending'"
                 >
                   Nechať čakať
@@ -1540,7 +1540,7 @@ watch(
                   type="button"
                   class="min-h-11 rounded-md border px-3 py-2 text-sm font-semibold sm:min-h-10"
                   :disabled="!canManageCatches"
-                  :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-white'"
+                  :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-surface'"
                   @click="decisionMode = 'reject'"
                 >
                   Zamietnuť
@@ -1552,7 +1552,7 @@ watch(
                   v-model="reviewNote"
                   rows="4"
                   :readonly="!canManageCatches"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
               <UButton

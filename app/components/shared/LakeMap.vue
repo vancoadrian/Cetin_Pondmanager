@@ -342,7 +342,7 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
 
       <aside class="border-border bg-muted/50 border-t p-4 lg:border-t-0 lg:border-l">
         <div v-if="selectedPeg" class="space-y-4">
-          <div class="rounded-md border border-border bg-white p-4">
+          <div class="rounded-md border border-border bg-surface p-4">
             <p class="text-foreground-muted text-xs font-semibold uppercase">Váš výber</p>
             <div class="flex items-center justify-between gap-3">
               <p class="text-foreground mt-1 text-xl font-black">{{ selectedPeg.label }}</p>
@@ -365,16 +365,16 @@ function selectFromKeyboard(event: KeyboardEvent, point: Peg) {
               </div>
             </div>
             <p class="text-foreground-muted mt-4 text-sm">{{ selectedPeg.notes }}</p>
-            <p class="text-primary-800 mt-3 text-sm font-semibold">
+            <p class="text-primary-800 dark:text-primary-200 mt-3 text-sm font-semibold">
               {{ reservationHint }}
             </p>
           </div>
           <dl class="grid grid-cols-2 gap-3 text-sm">
-            <div class="rounded-md bg-white p-3">
+            <div class="rounded-md bg-surface p-3">
               <dt class="text-foreground-muted text-xs">Typ</dt>
               <dd class="font-semibold">{{ selectedPeg.type === 'cabin' ? 'chata' : 'breh' }}</dd>
             </div>
-            <div class="rounded-md bg-white p-3">
+            <div class="rounded-md bg-surface p-3">
               <dt class="text-foreground-muted text-xs">Kapacita</dt>
               <dd class="font-semibold">{{ selectedPeg.capacity }} osoby</dd>
             </div>

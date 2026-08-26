@@ -53,7 +53,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
 
 <template>
   <div
-    class="rounded-md border border-primary-200 bg-primary-50/90 px-4"
+    class="border-primary-200 bg-primary-50/90 dark:border-primary-800 dark:bg-primary-950/50 rounded-md border px-4"
     :class="compactOnMobile ? 'py-3 sm:py-4' : 'py-4'"
   >
     <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -61,7 +61,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-calendar-days" class="h-5 w-5 text-primary-800" />
+              <UIcon name="i-heroicons-calendar-days" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
               <p class="font-bold">Termín dostupnosti</p>
             </div>
             <p class="mt-1 truncate text-sm text-foreground-muted">{{ rangeLabel }}</p>
@@ -69,7 +69,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
           <button
             v-if="compactOnMobile"
             type="button"
-            class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-primary-200 bg-white px-3 text-sm font-semibold text-primary-900 shadow-sm sm:hidden"
+            class="border-primary-200 bg-surface text-primary-900 dark:border-primary-800 dark:text-primary-100 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-semibold shadow-sm sm:hidden"
             :aria-controls="controlsId"
             :aria-expanded="isMobileExpanded"
             @click="isMobileExpanded = !isMobileExpanded"
@@ -82,7 +82,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
           </button>
         </div>
         <p
-          class="mt-1 text-xs font-semibold text-primary-800"
+          class="text-primary-800 dark:text-primary-200 mt-1 text-xs font-semibold"
           :class="compactOnMobile && !isMobileExpanded ? 'hidden sm:block' : ''"
         >
           Tento rozsah sa použije v mape, prehľade voľných miest aj v rezervácii.
@@ -94,7 +94,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
         class="flex-col gap-3 sm:flex sm:flex-row sm:items-end"
         :class="compactOnMobile && !isMobileExpanded ? 'hidden' : 'flex'"
       >
-        <div class="grid grid-cols-3 rounded-md border border-border bg-white p-1 shadow-sm">
+        <div class="grid grid-cols-3 rounded-md border border-border bg-surface p-1 shadow-sm">
           <button
             v-for="preset in presets"
             :key="preset.value"
@@ -103,7 +103,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
             :class="
               activePreset === preset.value
                 ? 'bg-primary-900 text-white shadow-sm'
-                : 'text-foreground-muted hover:bg-muted hover:text-primary-900'
+                : 'text-foreground-muted hover:bg-muted hover:text-primary-900 dark:hover:text-primary-100'
             "
             :aria-pressed="activePreset === preset.value"
             @click="applyPreset(preset.value)"
@@ -118,7 +118,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
             <input
               :value="dateFrom"
               type="date"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 font-semibold text-foreground shadow-sm"
+              class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 font-semibold text-foreground shadow-sm"
               @input="setDateFrom(($event.target as HTMLInputElement).value)"
             >
           </label>
@@ -128,7 +128,7 @@ function applyPreset(preset: AvailabilityRangePreset) {
               :value="dateTo"
               :min="dateFrom"
               type="date"
-              class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 font-semibold text-foreground shadow-sm"
+              class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 font-semibold text-foreground shadow-sm"
               @input="setDateTo(($event.target as HTMLInputElement).value)"
             >
           </label>
