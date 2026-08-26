@@ -458,7 +458,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Názov</span>
               <input
                 v-model="newRentalItemDraft.label"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="napr. Nafukovací čln"
               >
             </label>
@@ -466,7 +466,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Kategória</span>
               <select
                 v-model="newRentalItemDraft.category"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
                 <option value="fish-care">Starostlivosť o rybu</option>
                 <option value="cabin">K chate</option>
@@ -480,7 +480,7 @@ async function saveRentalCatalogSettings() {
                 type="number"
                 min="0"
                 max="100"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
             </label>
             <label class="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-semibold">
@@ -495,7 +495,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Popis</span>
               <input
                 v-model="newRentalItemDraft.description"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="Stručne čo rybár dostane a kedy sa hodí."
               >
             </label>
@@ -503,7 +503,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Cenníkový text</span>
               <input
                 v-model="newRentalItemDraft.priceLabel"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
             </label>
           </fieldset>
@@ -532,7 +532,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Názov</span>
               <input
                 v-model="newReservationExtraDraft.label"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="napr. Bednička dreva"
               >
             </label>
@@ -540,7 +540,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Dostupnosť</span>
               <select
                 v-model="newReservationExtraDraft.appliesTo"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
                 <option value="all">Všetky rezervácie</option>
                 <option value="cabin">Iba chata</option>
@@ -550,7 +550,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Jazero</span>
               <select
                 v-model="newReservationExtraDraft.lake"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
                 <option value="all">Všetky jazerá</option>
                 <option value="velky-cetin">{{ getLakeName('velky-cetin') }}</option>
@@ -561,7 +561,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Zdroj</span>
               <select
                 v-model="newReservationExtraDraft.source"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
                 <option value="proposal">Návrh správcu</option>
                 <option value="web">Z verejného webu</option>
@@ -571,7 +571,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Popis</span>
               <input
                 v-model="newReservationExtraDraft.description"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="Kedy sa doplnok ponúka a čo má správca pripraviť."
               >
             </label>
@@ -579,7 +579,7 @@ async function saveRentalCatalogSettings() {
               <span class="text-xs font-semibold text-foreground-muted">Cenníkový text</span>
               <input
                 v-model="newReservationExtraDraft.priceLabel"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
             </label>
           </fieldset>
@@ -625,7 +625,7 @@ async function saveRentalCatalogSettings() {
               <input
                 v-model="rangeFrom"
                 type="date"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
             </label>
             <label class="block">
@@ -633,7 +633,7 @@ async function saveRentalCatalogSettings() {
               <input
                 v-model="rangeTo"
                 type="date"
-                class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               >
             </label>
           </div>
@@ -642,7 +642,7 @@ async function saveRentalCatalogSettings() {
             <div
               v-for="row in rentalAvailabilityRows"
               :key="row.item.id"
-              class="grid gap-3 border-b border-border bg-white p-4 last:border-b-0 md:grid-cols-[1fr_auto]"
+              class="grid gap-3 border-b border-border bg-surface p-4 last:border-b-0 md:grid-cols-[1fr_auto]"
               :class="!row.item.active ? 'opacity-70' : ''"
             >
               <div>
@@ -669,7 +669,7 @@ async function saveRentalCatalogSettings() {
                   />
                 </div>
                 <p class="text-foreground-muted mt-1 text-sm">{{ row.item.description }}</p>
-                <p class="text-primary-800 mt-2 text-xs font-semibold">{{ row.item.priceLabel }}</p>
+                <p class="text-primary-800 dark:text-primary-200 mt-2 text-xs font-semibold">{{ row.item.priceLabel }}</p>
                 <p class="text-foreground-muted mt-1 text-xs">
                   {{ row.availability.reasons[0] }}
                 </p>
@@ -697,7 +697,7 @@ async function saveRentalCatalogSettings() {
                     <input
                       v-model="row.item.priceLabel"
                       :disabled="!canOperateRentals"
-                      class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                      class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                       placeholder="cena po potvrdení správcom"
                     >
                   </label>
@@ -730,7 +730,7 @@ async function saveRentalCatalogSettings() {
                     min="0"
                     max="100"
                     :disabled="!canOperateRentals"
-                    class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2 text-center text-lg font-bold"
+                    class="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2 text-center text-lg font-bold"
                     aria-label="Sklad"
                   >
                 </div>
@@ -828,7 +828,7 @@ async function saveRentalCatalogSettings() {
                   </div>
                 </div>
                 <div class="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
-                  <label class="flex items-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold">
+                  <label class="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold">
                     <input
                       v-model="extra.active"
                       type="checkbox"
@@ -842,7 +842,7 @@ async function saveRentalCatalogSettings() {
                     <select
                       v-model="extra.source"
                       :disabled="!canOperateRentals"
-                      class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
+                      class="h-10 w-full rounded-md border border-border bg-surface px-2 text-xs"
                     >
                       <option value="web">existujúca ponuka</option>
                       <option value="proposal">nový doplnok</option>
@@ -853,7 +853,7 @@ async function saveRentalCatalogSettings() {
                     <input
                       v-model="extra.priceLabel"
                       :disabled="!canOperateRentals"
-                      class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                      class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                     >
                   </label>
                 </div>

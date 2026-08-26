@@ -113,7 +113,7 @@ const {
           />
 
           <div class="mt-5 space-y-3">
-            <div v-for="sponsor in sponsorDraft" :key="sponsor.id" class="rounded-md border border-border bg-white p-4" :class="!sponsor.active ? 'opacity-75' : ''">
+            <div v-for="sponsor in sponsorDraft" :key="sponsor.id" class="rounded-md border border-border bg-surface p-4" :class="!sponsor.active ? 'opacity-75' : ''">
               <div class="flex items-start gap-4">
                 <div class="w-24 shrink-0 space-y-2">
                   <div class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border border-primary-900 bg-primary-900 text-lg font-black text-accent-300">
@@ -121,7 +121,7 @@ const {
                       v-if="sponsorLogoPreview(sponsor)"
                       :src="sponsorLogoPreview(sponsor)"
                       :alt="`Logo ${sponsor.name}`"
-                      class="h-full w-full object-contain bg-white p-2"
+                      class="h-full w-full object-contain bg-surface p-2"
                     >
                     <span v-else>{{ sponsor.logoText }}</span>
                   </div>
@@ -131,12 +131,12 @@ const {
                       v-model="sponsor.logoText"
                       maxlength="6"
                       :disabled="!canOperateSponsors"
-                      class="h-9 w-full rounded-md border border-border bg-white px-2 text-center text-xs font-black text-primary-900"
+                      class="h-9 w-full rounded-md border border-border bg-surface px-2 text-center text-xs font-black text-primary-900 dark:text-primary-100"
                       aria-label="Text loga sponzora"
                     >
                   </label>
                   <label
-                    class="flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-xs font-bold text-primary-800"
+                    class="flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-xs font-bold text-primary-800 dark:text-primary-200"
                     :class="!canOperateSponsors ? 'pointer-events-none opacity-50' : ''"
                   >
                     <UIcon name="i-heroicons-photo" class="h-4 w-4" />
@@ -152,7 +152,7 @@ const {
                   <p class="text-foreground-muted text-[11px] leading-snug">
                     {{ logoRuleHint(sponsor.placementType) }}
                   </p>
-                  <p v-if="sponsorLogoDimensions(sponsor)" class="text-[11px] font-semibold text-primary-800">
+                  <p v-if="sponsorLogoDimensions(sponsor)" class="text-[11px] font-semibold text-primary-800 dark:text-primary-200">
                     {{ sponsorLogoDimensions(sponsor) }}
                   </p>
                   <button
@@ -173,7 +173,7 @@ const {
                         <input
                           v-model="sponsor.name"
                           :disabled="!canOperateSponsors"
-                          class="h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-bold"
+                          class="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm font-bold"
                           placeholder="Názov sponzora"
                         >
                       </label>
@@ -183,7 +183,7 @@ const {
                           v-model="sponsor.description"
                           rows="2"
                           :disabled="!canOperateSponsors"
-                          class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground-muted"
+                          class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground-muted"
                           placeholder="Krátky popis partnerstva"
                         />
                       </label>
@@ -211,7 +211,7 @@ const {
                       <select
                         v-model="sponsor.tier"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs font-semibold"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-2 text-xs font-semibold"
                       >
                         <option value="main">{{ tierLabels.main }}</option>
                         <option value="partner">{{ tierLabels.partner }}</option>
@@ -224,7 +224,7 @@ const {
                       <input
                         v-model="sponsor.placement"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                         placeholder="homepage, súťaž, sektor..."
                       >
                     </label>
@@ -233,7 +233,7 @@ const {
                       <select
                         v-model="sponsor.placementType"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-2 text-xs"
                       >
                         <option
                           v-for="(label, placementType) in placementTypeLabels"
@@ -252,7 +252,7 @@ const {
                         min="1"
                         max="999"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                         placeholder="poradie"
                       >
                     </label>
@@ -264,7 +264,7 @@ const {
                       <select
                         v-model="sponsor.tournamentId"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-2 text-xs"
                       >
                         <option value="">Vyberte súťaž</option>
                         <option v-for="tournament in tournaments" :key="tournament.id" :value="tournament.id">
@@ -280,7 +280,7 @@ const {
                       <select
                         v-model="sponsor.sectorId"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-2 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-2 text-xs"
                       >
                         <option value="">Vyberte sektor</option>
                         <option
@@ -298,7 +298,7 @@ const {
                         v-model="sponsor.validFrom"
                         type="date"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                       >
                     </label>
                     <label class="block">
@@ -307,7 +307,7 @@ const {
                         v-model="sponsor.validTo"
                         type="date"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                       >
                     </label>
                     <label class="block sm:col-span-3">
@@ -315,7 +315,7 @@ const {
                       <input
                         v-model="sponsor.website"
                         :disabled="!canOperateSponsors"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-xs"
+                        class="h-10 w-full rounded-md border border-border bg-surface px-3 text-xs"
                         placeholder="https://..."
                       >
                     </label>
@@ -331,14 +331,14 @@ const {
                     </p>
                   </div>
                 </div>
-                <div class="mt-3 grid gap-3 rounded-md border border-border bg-white p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+                <div class="mt-3 grid gap-3 rounded-md border border-border bg-surface p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
                   <div class="flex items-center gap-3">
                     <div class="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-xs font-black text-accent-300">
                       <img
                         v-if="sponsorLogoVariantSourcePreview(sponsor)"
                         :src="sponsorLogoVariantSourcePreview(sponsor)"
                         :alt="`Zdroj loga ${sponsor.name}`"
-                        class="h-full w-full bg-white object-contain p-1.5"
+                        class="h-full w-full bg-surface object-contain p-1.5"
                       >
                       <span v-else>{{ sponsor.logoText }}</span>
                     </div>
@@ -347,7 +347,7 @@ const {
                       <p class="text-foreground-muted truncate text-[11px]">
                         {{ sponsor.logoVariantSourceFileName || sponsor.logoSourceFileName || sponsor.logoFileName || 'hlavné logo alebo nový zdroj' }}
                       </p>
-                      <p v-if="sponsorLogoVariantSourceDimensions(sponsor)" class="mt-0.5 text-[11px] font-semibold text-primary-800">
+                      <p v-if="sponsorLogoVariantSourceDimensions(sponsor)" class="mt-0.5 text-[11px] font-semibold text-primary-800 dark:text-primary-200">
                         {{ sponsorLogoVariantSourceDimensions(sponsor) }}
                       </p>
                       <p class="text-foreground-muted mt-0.5 line-clamp-2 text-[11px] leading-snug">
@@ -357,7 +357,7 @@ const {
                   </div>
                   <div class="grid gap-2 sm:grid-cols-2 xl:w-[28rem]">
                     <label
-                      class="flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-[11px] font-bold text-primary-800"
+                      class="flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-[11px] font-bold text-primary-800 dark:text-primary-200"
                       :class="!canOperateSponsors ? 'pointer-events-none opacity-50' : ''"
                     >
                       <UIcon name="i-heroicons-photo" class="h-3.5 w-3.5" />
@@ -387,7 +387,7 @@ const {
                       <select
                         v-model="sponsor.logoVariantGenerateMode"
                         :disabled="!canOperateSponsors"
-                        class="h-9 w-full rounded-md border border-border bg-white px-2 text-[11px] font-semibold"
+                        class="h-9 w-full rounded-md border border-border bg-surface px-2 text-[11px] font-semibold"
                       >
                         <option
                           v-for="(label, mode) in logoVariantModeLabels"
@@ -429,7 +429,7 @@ const {
                   <div
                     v-for="variant in sponsor.logoVariants ?? []"
                     :key="variant.placementType"
-                    class="rounded-md border border-border bg-white p-3"
+                    class="rounded-md border border-border bg-surface p-3"
                   >
                     <div class="flex items-center gap-3">
                       <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-xs font-black text-accent-300">
@@ -437,7 +437,7 @@ const {
                           v-if="logoVariantPreview(variant)"
                           :src="logoVariantPreview(variant)"
                           :alt="`Variant loga ${sponsor.name} pre ${placementTypeLabels[variant.placementType]}`"
-                          class="h-full w-full bg-white object-contain p-1.5"
+                          class="h-full w-full bg-surface object-contain p-1.5"
                         >
                         <span v-else>{{ sponsor.logoText }}</span>
                       </div>
@@ -446,7 +446,7 @@ const {
                         <p class="text-foreground-muted text-[11px] leading-snug">
                           {{ logoRuleHint(variant.placementType) }}
                         </p>
-                        <p v-if="logoVariantDimensions(variant)" class="mt-0.5 text-[11px] font-semibold text-primary-800">
+                        <p v-if="logoVariantDimensions(variant)" class="mt-0.5 text-[11px] font-semibold text-primary-800 dark:text-primary-200">
                           {{ logoVariantDimensions(variant) }}
                         </p>
                         <p v-if="variant.cropPreset" class="mt-0.5 text-[11px] font-semibold text-success-700">
@@ -457,7 +457,7 @@ const {
                     <div class="mt-3 rounded-md border border-border bg-muted p-2">
                       <button
                         type="button"
-                        class="relative mb-3 w-full touch-none overflow-hidden rounded-md border border-border bg-white bg-center shadow-inner disabled:cursor-not-allowed disabled:opacity-60"
+                        class="relative mb-3 w-full touch-none overflow-hidden rounded-md border border-border bg-surface bg-center shadow-inner disabled:cursor-not-allowed disabled:opacity-60"
                         :aria-label="`Nastaviť ohnisko variantu ${placementTypeLabels[variant.placementType]}`"
                         :disabled="!canUseLogoVariantCropEditor(sponsor)"
                         :style="logoVariantCropPreviewStyle(sponsor, variant)"
@@ -523,7 +523,7 @@ const {
                     </div>
                     <div class="mt-2 flex gap-2">
                       <label
-                        class="flex h-8 flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-[11px] font-bold text-primary-800"
+                        class="flex h-8 flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-muted px-2 text-[11px] font-bold text-primary-800 dark:text-primary-200"
                         :class="!canOperateSponsors ? 'pointer-events-none opacity-50' : ''"
                       >
                         <UIcon name="i-heroicons-arrow-up-tray" class="h-3.5 w-3.5" />
@@ -562,7 +562,7 @@ const {
                   <span class="text-sm font-semibold">Názov</span>
                   <input
                     v-model="newSponsorDraft.name"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="Názov partnera"
                   >
                 </label>
@@ -570,7 +570,7 @@ const {
                   <span class="text-sm font-semibold">Tier</span>
                   <select
                     v-model="newSponsorDraft.tier"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option value="main">hlavný partner</option>
                     <option value="partner">partner revíru</option>
@@ -583,7 +583,7 @@ const {
                   <input
                     v-model="newSponsorDraft.logoText"
                     maxlength="6"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="napr. RC, pri prázdnom sa doplnia iniciály"
                   >
                 </label>
@@ -594,7 +594,7 @@ const {
                         v-if="newSponsorDraft.logoPreviewUrl"
                         :src="newSponsorDraft.logoPreviewUrl"
                         alt="Náhľad loga nového partnera"
-                        class="h-full w-full bg-white object-contain p-2"
+                        class="h-full w-full bg-surface object-contain p-2"
                       >
                       <span v-else>{{ newSponsorDraft.logoText || sponsorInitials(newSponsorDraft.name) }}</span>
                     </div>
@@ -602,12 +602,12 @@ const {
                       <p class="text-sm font-semibold">Logo partnera</p>
                       <p class="text-foreground-muted text-xs">JPG, PNG alebo WebP do {{ formatLogoSize(MAX_SPONSOR_LOGO_BYTES) }}.</p>
                       <p class="text-foreground-muted mt-1 text-xs">{{ logoRuleHint(newSponsorDraft.placementType) }}</p>
-                      <p v-if="newSponsorDraft.logoUpload" class="mt-1 text-xs font-semibold text-primary-800">
+                      <p v-if="newSponsorDraft.logoUpload" class="mt-1 text-xs font-semibold text-primary-800 dark:text-primary-200">
                         {{ newSponsorDraft.logoUpload.width }} x {{ newSponsorDraft.logoUpload.height }} px
                       </p>
                     </div>
                   </div>
-                  <label class="mt-3 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-primary-800">
+                  <label class="mt-3 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-bold text-primary-800 dark:text-primary-200">
                     <UIcon name="i-heroicons-arrow-up-tray" class="h-4 w-4" />
                     Nahrať logo
                     <input
@@ -622,7 +622,7 @@ const {
                   <span class="text-sm font-semibold">Umiestnenie</span>
                   <input
                     v-model="newSponsorDraft.placement"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="homepage, sektor B4..."
                   >
                 </label>
@@ -630,7 +630,7 @@ const {
                   <span class="text-sm font-semibold">Typ umiestnenia</span>
                   <select
                     v-model="newSponsorDraft.placementType"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option
                       v-for="(label, placementType) in placementTypeLabels"
@@ -648,7 +648,7 @@ const {
                     type="number"
                     min="1"
                     max="999"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label
@@ -658,7 +658,7 @@ const {
                   <span class="text-sm font-semibold">Súťaž</span>
                   <select
                     v-model="newSponsorDraft.tournamentId"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option value="">Vyberte súťaž</option>
                     <option v-for="tournament in tournaments" :key="tournament.id" :value="tournament.id">
@@ -670,7 +670,7 @@ const {
                   <span class="text-sm font-semibold">Sektor</span>
                   <select
                     v-model="newSponsorDraft.sectorId"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option value="">Vyberte sektor</option>
                     <option
@@ -688,7 +688,7 @@ const {
                     <input
                       v-model="newSponsorDraft.validFrom"
                       type="date"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                   </label>
                   <label class="block">
@@ -696,7 +696,7 @@ const {
                     <input
                       v-model="newSponsorDraft.validTo"
                       type="date"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                   </label>
                 </div>
@@ -705,7 +705,7 @@ const {
                   <textarea
                     v-model="newSponsorDraft.description"
                     rows="3"
-                    class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                    class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                     placeholder="Čo partner podporuje a kde sa zobrazí."
                   />
                 </label>
@@ -713,7 +713,7 @@ const {
                   <span class="text-sm font-semibold">Web</span>
                   <input
                     v-model="newSponsorDraft.website"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="https://..."
                   >
                 </label>

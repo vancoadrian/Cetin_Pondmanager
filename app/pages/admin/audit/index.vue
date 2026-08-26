@@ -600,7 +600,7 @@ onBeforeUnmount(() => {
               <input
                 v-model="searchFilter"
                 type="search"
-                class="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm outline-none transition focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
+                class="h-11 w-full rounded-md border border-border bg-surface pl-10 pr-3 text-sm outline-none transition focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
                 placeholder="Názov, osoba, miesto alebo ID"
                 @input="handleSearchInput"
               >
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
             <span class="text-xs font-bold uppercase text-foreground-muted">Oblasť</span>
             <select
               v-model="selectedArea"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
               @change="handleFilterChange"
             >
               <option v-for="option in areaOptions" :key="option.value" :value="option.value">
@@ -624,7 +624,7 @@ onBeforeUnmount(() => {
             <span class="text-xs font-bold uppercase text-foreground-muted">Závažnosť</span>
             <select
               v-model="selectedSeverity"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
               @change="handleFilterChange"
             >
               <option v-for="option in severityOptions" :key="option.value" :value="option.value">
@@ -637,7 +637,7 @@ onBeforeUnmount(() => {
             <span class="text-xs font-bold uppercase text-foreground-muted">Obdobie</span>
             <select
               v-model="selectedPeriod"
-              class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
+              class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
               @change="handleFilterChange"
             >
               <option v-for="option in periodOptions" :key="option.value" :value="option.value">
@@ -713,7 +713,7 @@ onBeforeUnmount(() => {
           >
             <div class="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div class="flex min-w-0 gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-800">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200">
                   <UIcon :name="areaIcon(event.area)" class="h-5 w-5" />
                 </div>
                 <div class="min-w-0">

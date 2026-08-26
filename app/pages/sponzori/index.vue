@@ -151,7 +151,7 @@ function cardLogo(sponsor: Sponsor) {
 
 function sponsorCardClass(group: SponsorGroup) {
   return group.id === 'main'
-    ? 'border-accent-500/30 bg-white shadow-sm'
+    ? 'border-accent-500/30 bg-surface shadow-sm'
     : 'border-border bg-surface'
 }
 
@@ -213,7 +213,7 @@ async function retrySponsors() {
             :key="item.label"
             class="border-border bg-surface rounded-card flex min-h-28 items-start gap-3 border p-4"
           >
-            <div class="bg-primary-50 text-primary-800 flex h-10 w-10 shrink-0 items-center justify-center rounded-md">
+            <div class="bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200 flex h-10 w-10 shrink-0 items-center justify-center rounded-md">
               <UIcon :name="item.icon" class="h-5 w-5" />
             </div>
             <div class="min-w-0">
@@ -261,7 +261,7 @@ async function retrySponsors() {
                     v-if="cardLogo(sponsor).url"
                     :src="cardLogo(sponsor).url"
                     :alt="cardLogo(sponsor).alt"
-                    class="h-full w-full bg-white object-contain p-2"
+                    class="h-full w-full bg-surface object-contain p-2"
                   >
                   <span v-else>{{ cardLogo(sponsor).text }}</span>
                 </div>

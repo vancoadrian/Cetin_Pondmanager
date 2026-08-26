@@ -80,7 +80,7 @@ async function signOut() {
           class="rounded-md px-3 py-2 text-sm font-medium transition-colors"
           :class="
             isActive(item.to)
-              ? 'bg-accent-400 text-primary-950'
+              ? 'bg-accent-400 text-primary-950 dark:text-primary-100'
               : 'text-white/80 hover:bg-white/10 hover:text-white'
           "
         >
@@ -95,7 +95,7 @@ async function signOut() {
             variant="ghost"
             trailing-icon="i-heroicons-chevron-down"
             class="text-white hover:bg-white/10"
-            :class="isSecondaryActive ? 'bg-accent-400 text-primary-950 hover:bg-accent-300' : 'text-white/80'"
+            :class="isSecondaryActive ? 'bg-accent-400 text-primary-950 dark:text-primary-100 hover:bg-accent-300' : 'text-white/80'"
           >
             Viac
           </UButton>
@@ -103,6 +103,7 @@ async function signOut() {
       </nav>
 
       <div class="flex items-center gap-2">
+        <ColorModeToggle class="hidden sm:inline-flex" />
         <UButton
           to="/notifikacie"
           icon="i-heroicons-bell-alert"
@@ -122,7 +123,7 @@ async function signOut() {
         <NuxtLink
           v-if="offlineQueueTotal > 0"
           to="/offline"
-          class="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-warning-400 text-primary-950 transition-colors hover:bg-warning-300"
+          class="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-warning-400 text-primary-950 dark:text-primary-100 transition-colors hover:bg-warning-300"
           :aria-label="offlineQueueLabel"
         >
           <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5" />
@@ -195,7 +196,7 @@ async function signOut() {
         <NuxtLink
           v-if="offlineQueueTotal > 0"
           to="/offline"
-          class="mb-3 flex items-center justify-between gap-3 rounded-md border border-warning-300 bg-warning-100 px-3 py-3 text-warning-900"
+          class="border-warning-300 bg-warning-100 text-warning-900 dark:border-warning-500/40 dark:bg-warning-500/15 mb-3 flex items-center justify-between gap-3 rounded-md border px-3 py-3"
           @click="mobileOpen = false"
         >
           <span class="flex items-center gap-3 font-bold">
@@ -214,7 +215,7 @@ async function signOut() {
             class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
             :class="
               isActive(item.to)
-                ? 'bg-primary-50 text-primary-900'
+                ? 'bg-primary-50 dark:bg-primary-950/50 text-primary-900 dark:text-primary-100'
                 : 'text-foreground hover:bg-muted'
             "
             @click="mobileOpen = false"
@@ -223,6 +224,9 @@ async function signOut() {
             {{ item.label }}
           </NuxtLink>
         </nav>
+        <div class="mt-2 border-t border-border pt-2">
+          <ColorModeToggle variant="menu" />
+        </div>
         <NuxtLink
           :to="accountAction.to"
           class="mt-3 flex items-center gap-3 border-t border-border px-3 pt-4 text-base font-medium text-foreground"

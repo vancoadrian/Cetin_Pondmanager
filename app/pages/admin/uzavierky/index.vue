@@ -187,7 +187,7 @@ async function submitClosure() {
             <div
               v-for="closure in liveClosures"
               :key="closure.id"
-              class="rounded-md border bg-white p-4 transition"
+              class="rounded-md border bg-surface p-4 transition"
               :class="
                 closureDraft.id === closure.id
                   ? 'border-primary-400 ring-2 ring-primary-100'
@@ -235,7 +235,7 @@ async function submitClosure() {
                 </div>
               </div>
               <p class="text-foreground-muted mt-3 text-sm">{{ closure.notes }}</p>
-              <p v-if="closure.organization" class="text-primary-800 mt-3 text-sm font-semibold">
+              <p v-if="closure.organization" class="text-primary-800 dark:text-primary-200 mt-3 text-sm font-semibold">
                 Organizácia: {{ closure.organization }}
               </p>
               <div v-if="closure.pegIds?.length" class="mt-3 flex flex-wrap gap-2 text-xs">
@@ -248,7 +248,7 @@ async function submitClosure() {
                 </span>
               </div>
             </div>
-            <div v-if="!liveClosures.length" class="rounded-md border border-dashed border-border bg-white p-5 text-sm text-foreground-muted">
+            <div v-if="!liveClosures.length" class="rounded-md border border-dashed border-border bg-surface p-5 text-sm text-foreground-muted">
               Zatiaľ nie je evidovaná žiadna uzávierka.
             </div>
           </div>
@@ -284,18 +284,18 @@ async function submitClosure() {
               <fieldset :disabled="!canManageClosures" class="contents">
                 <label class="block">
                   <span class="text-sm font-semibold">Názov</span>
-                  <input v-model="closureDraft.title" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model="closureDraft.title" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Jazero</span>
-                  <select v-model="closureDraft.lake" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="closureDraft.lake" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option value="all">Všetky jazerá</option>
                     <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">{{ lake.name }}</option>
                   </select>
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Dôvod</span>
-                  <select v-model="closureDraft.reason" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="closureDraft.reason" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in reasonOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -304,24 +304,24 @@ async function submitClosure() {
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="block">
                     <span class="text-sm font-semibold">Od</span>
-                    <input v-model="closureDraft.from" type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                    <input v-model="closureDraft.from" type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Do</span>
-                    <input v-model="closureDraft.to" type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                    <input v-model="closureDraft.to" type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                   </label>
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="block">
                   <span class="text-sm font-semibold">Viditeľnosť</span>
-                  <select v-model="closureDraft.visibility" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="closureDraft.visibility" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                       <option value="public">Verejné</option>
                       <option value="internal">Interné</option>
                   </select>
                 </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Organizácia</span>
-                    <input v-model="closureDraft.organization" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="voliteľné">
+                    <input v-model="closureDraft.organization" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" placeholder="voliteľné">
                   </label>
                 </div>
                 <label class="flex items-center gap-2 rounded-md bg-muted p-3 text-sm font-semibold">
@@ -330,7 +330,7 @@ async function submitClosure() {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Poznámka</span>
-                  <textarea v-model="closureDraft.notes" rows="3" class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm" />
+                  <textarea v-model="closureDraft.notes" rows="3" class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" />
                 </label>
                 <div>
                   <p class="text-sm font-semibold">Konkrétne miesta</p>
@@ -339,7 +339,7 @@ async function submitClosure() {
                     <label
                       v-for="peg in availablePegTargets"
                       :key="peg.id"
-                      class="flex items-center gap-2 rounded bg-white px-2 py-1.5 text-xs font-semibold"
+                      class="flex items-center gap-2 rounded bg-surface px-2 py-1.5 text-xs font-semibold"
                     >
                       <input v-model="closureDraft.pegIds" type="checkbox" :value="peg.id" class="h-4 w-4 accent-primary-700">
                       {{ peg.label }}

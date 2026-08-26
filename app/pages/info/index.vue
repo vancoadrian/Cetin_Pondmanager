@@ -135,7 +135,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
     />
 
     <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-      <div class="rounded-card border border-primary-200 bg-primary-50 p-4 sm:p-5">
+      <div class="rounded-card border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-4 sm:p-5">
         <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div class="flex min-w-0 items-start gap-3">
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-900 text-white">
@@ -146,7 +146,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
               <p class="mt-1 max-w-2xl text-sm text-foreground-muted">
                 Vyberte si voľné miesto, skontrolujte povinnú výbavu a odošlite žiadosť. Rezervácia platí až po potvrdení správcom.
               </p>
-              <p class="mt-3 text-xs font-semibold text-primary-900">
+              <p class="mt-3 text-xs font-semibold text-primary-900 dark:text-primary-100">
                 {{ permitProducts.length }} dĺžky povoleniek · {{ rentableRequiredEquipmentCount }} povinné položky sa dajú požičať · {{ enabledPaymentMethods.length }} možnosti platby
               </p>
             </div>
@@ -172,7 +172,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
             v-for="item in sectionNavigation"
             :key="item.id"
             :href="`#${item.id}`"
-            class="flex min-h-12 min-w-24 shrink-0 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-foreground-muted transition-colors hover:border-primary-600 hover:text-primary-900 focus-visible:border-primary-600 focus-visible:text-primary-900"
+            class="flex min-h-12 min-w-24 shrink-0 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-foreground-muted transition-colors hover:border-primary-600 hover:text-primary-900 dark:hover:text-primary-100 focus-visible:border-primary-600 focus-visible:text-primary-900 dark:text-primary-100"
           >
             <UIcon :name="item.icon" class="h-4 w-4 shrink-0" />
             {{ item.label }}
@@ -184,7 +184,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
         <section id="pravidla" class="min-w-0 scroll-mt-24">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p class="text-xs font-bold text-primary-800">PODMIENKY PRI VODE</p>
+              <p class="text-xs font-bold text-primary-800 dark:text-primary-200">PODMIENKY PRI VODE</p>
               <h2 class="mt-1 text-2xl font-bold">Pravidlá revíru</h2>
               <p class="mt-1 text-sm text-foreground-muted">Vyberte oblasť, ktorú si potrebujete overiť.</p>
             </div>
@@ -217,7 +217,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
                 </span>
                 <UIcon
                   name="i-heroicons-chevron-down"
-                  class="h-5 w-5 shrink-0 text-primary-800 transition-transform"
+                  class="h-5 w-5 shrink-0 text-primary-800 dark:text-primary-200 transition-transform"
                   :class="expandedRuleSections.includes(index) ? 'rotate-180' : ''"
                 />
               </button>
@@ -238,7 +238,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
         </section>
 
         <section id="cennik" class="min-w-0 scroll-mt-24">
-          <p class="text-xs font-bold text-primary-800">CENNÍK A ÚHRADA</p>
+          <p class="text-xs font-bold text-primary-800 dark:text-primary-200">CENNÍK A ÚHRADA</p>
           <h2 class="mt-1 text-2xl font-bold">Povolenky</h2>
           <p class="mt-1 text-sm text-foreground-muted">Základná cena za rybolov podľa dĺžky pobytu.</p>
 
@@ -251,14 +251,14 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
                 </div>
                 <p class="shrink-0 text-xl font-bold">{{ permit.priceEur }} €</p>
               </div>
-              <p v-if="permit.note" class="mt-2 text-sm text-primary-800">{{ permit.note }}</p>
+              <p v-if="permit.note" class="mt-2 text-sm text-primary-800 dark:text-primary-200">{{ permit.note }}</p>
             </div>
           </div>
 
           <h3 class="mt-8 text-lg font-bold">Platba rezervácie</h3>
           <div class="mt-3 space-y-3">
             <div v-for="method in enabledPaymentMethods" :key="method.id" class="flex items-start gap-3 rounded-card bg-muted p-4">
-              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-primary-700">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface text-primary-700">
                 <UIcon :name="paymentMethodIcon(method.kind)" class="h-5 w-5" />
               </span>
               <div class="min-w-0">
@@ -272,7 +272,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
 
       <section id="vybava" class="scroll-mt-24 border-t border-border pt-10 mt-12">
         <div class="max-w-3xl">
-          <p class="text-xs font-bold text-primary-800">PRED ZAČATÍM LOVU</p>
+          <p class="text-xs font-bold text-primary-800 dark:text-primary-200">PRED ZAČATÍM LOVU</p>
           <h2 class="mt-1 text-2xl font-bold">Povinná výbava</h2>
           <p class="mt-1 text-sm text-foreground-muted">
             Výbavu majte pripravenú pri lovnom mieste. Označené položky si môžete vyžiadať spolu s rezerváciou.
@@ -288,7 +288,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
             <div class="flex items-start gap-3">
               <span
                 class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
-                :class="item.rentable ? 'bg-primary-50 text-primary-800' : 'bg-warning-500/10 text-warning-900'"
+                :class="item.rentable ? 'bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200' : 'bg-warning-500/10 text-warning-900'"
               >
                 <UIcon :name="item.rentable ? 'i-heroicons-arrow-path-rounded-square' : 'i-heroicons-ticket'" class="h-5 w-5" />
               </span>
@@ -319,7 +319,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
       <section id="chaty" class="scroll-mt-24 border-t border-border pt-10 mt-12">
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div class="max-w-3xl">
-            <p class="text-xs font-bold text-primary-800">POBYT PRI VODE</p>
+            <p class="text-xs font-bold text-primary-800 dark:text-primary-200">POBYT PRI VODE</p>
             <h2 class="mt-1 text-2xl font-bold">Chaty pri lovných miestach</h2>
             <p class="mt-1 text-sm text-foreground-muted">Chata sa rezervuje spolu s priradeným lovným miestom.</p>
           </div>
@@ -344,7 +344,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
                 <p class="text-xs text-foreground-muted">za 24 h</p>
               </div>
             </div>
-            <p class="mt-4 text-sm text-primary-800">{{ cabin.requiresPermitNote }}</p>
+            <p class="mt-4 text-sm text-primary-800 dark:text-primary-200">{{ cabin.requiresPermitNote }}</p>
             <p class="mt-3 text-sm text-foreground-muted">{{ cabin.equipment.join(' · ') }}</p>
             <UButton
               :to="reservationWithCabin(cabin)"
@@ -360,7 +360,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
       </section>
 
       <section id="sluzby" class="scroll-mt-24 border-t border-border pt-10 mt-12">
-        <p class="text-xs font-bold text-primary-800">VOLITEĽNÉ SLUŽBY</p>
+        <p class="text-xs font-bold text-primary-800 dark:text-primary-200">VOLITEĽNÉ SLUŽBY</p>
         <h2 class="mt-1 text-2xl font-bold">Výbava a doplnky</h2>
         <p class="mt-1 max-w-3xl text-sm text-foreground-muted">
           Položku pridajte do žiadosti. Dostupnosť a konečnú cenu potvrdí správca spolu s rezerváciou.
@@ -379,7 +379,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
             aria-controls="catalog-panel-rentals"
             :tabindex="activeCatalogView === 'rentals' ? 0 : -1"
             class="flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors"
-            :class="activeCatalogView === 'rentals' ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
+            :class="activeCatalogView === 'rentals' ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
             @click="selectCatalogView('rentals')"
             @keydown.left.prevent="selectCatalogView('extras', true)"
             @keydown.right.prevent="selectCatalogView('extras', true)"
@@ -396,7 +396,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
             aria-controls="catalog-panel-extras"
             :tabindex="activeCatalogView === 'extras' ? 0 : -1"
             class="flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors"
-            :class="activeCatalogView === 'extras' ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
+            :class="activeCatalogView === 'extras' ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
             @click="selectCatalogView('extras')"
             @keydown.left.prevent="selectCatalogView('rentals', true)"
             @keydown.right.prevent="selectCatalogView('rentals', true)"
@@ -428,7 +428,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
                 </span>
               </div>
               <p class="mt-1 text-sm text-foreground-muted">{{ item.description }}</p>
-              <p class="mt-2 text-xs font-semibold text-primary-800">{{ item.priceLabel }}</p>
+              <p class="mt-2 text-xs font-semibold text-primary-800 dark:text-primary-200">{{ item.priceLabel }}</p>
             </div>
             <UButton
               :to="reservationWithRental(item.id)"
@@ -462,7 +462,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
                 </span>
               </div>
               <p class="mt-1 text-sm text-foreground-muted">{{ extra.description }}</p>
-              <p class="mt-2 text-xs font-semibold text-primary-800">{{ extra.priceLabel }}</p>
+              <p class="mt-2 text-xs font-semibold text-primary-800 dark:text-primary-200">{{ extra.priceLabel }}</p>
             </div>
             <UButton
               :to="reservationWithExtra(extra)"
@@ -492,7 +492,7 @@ async function selectCatalogView(view: 'rentals' | 'extras', focusTab = false) {
           </div>
           <a
             :href="`tel:${contactInfo.phoneHref}`"
-            class="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-base font-bold text-primary-900 transition-colors hover:bg-primary-50"
+            class="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-surface px-5 py-3 text-base font-bold text-primary-900 dark:text-primary-100 transition-colors hover:bg-primary-50"
           >
             <UIcon name="i-heroicons-phone" class="h-5 w-5" />
             {{ contactInfo.phoneDisplay }}

@@ -123,7 +123,7 @@ const body = computed(() =>
       @keydown.esc.stop.prevent="dismiss"
     >
       <div class="flex items-start gap-3">
-        <div class="bg-primary-50 text-primary-700 shrink-0 rounded-full p-2">
+        <div class="bg-primary-50 dark:bg-primary-950/50 text-primary-700 shrink-0 rounded-full p-2">
           <UIcon name="i-heroicons-device-phone-mobile" class="h-5 w-5" />
         </div>
         <div class="min-w-0 flex-1">

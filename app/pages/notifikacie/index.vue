@@ -307,7 +307,7 @@ function formatAlertValidUntil(value: string) {
       <div class="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <div class="border-border bg-surface rounded-card border p-5">
           <div class="flex items-start gap-3">
-            <div class="bg-primary-50 text-primary-700 rounded-md p-2">
+            <div class="bg-primary-50 dark:bg-primary-950/50 text-primary-700 rounded-md p-2">
               <UIcon name="i-heroicons-bell-alert" class="h-6 w-6" />
             </div>
             <div>

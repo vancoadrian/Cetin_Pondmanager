@@ -107,7 +107,7 @@ async function submit() {
               required
               minlength="2"
               maxlength="80"
-              class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
               placeholder="Vaše meno"
             >
           </div>
@@ -126,7 +126,7 @@ async function submit() {
               autocomplete="email"
               required
               maxlength="120"
-              class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
               placeholder="vas@email.sk"
             >
           </div>
@@ -146,7 +146,7 @@ async function submit() {
               required
               minlength="10"
               maxlength="128"
-              class="h-12 w-full rounded-md border border-border bg-white pr-11 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-11 pl-10 text-sm"
               placeholder="Aspoň 10 znakov"
             >
             <button
@@ -177,7 +177,7 @@ async function submit() {
               required
               minlength="10"
               maxlength="128"
-              class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
               placeholder="Rovnaké heslo"
             >
           </div>
@@ -205,7 +205,7 @@ async function submit() {
 
         <p class="mt-5 text-center text-sm text-foreground-muted">
           Už máte účet?
-          <NuxtLink to="/login" class="font-semibold text-primary-700 hover:text-primary-900">
+          <NuxtLink to="/login" class="font-semibold text-primary-700 hover:text-primary-900 dark:hover:text-primary-100">
             Prihlásiť sa
           </NuxtLink>
         </p>

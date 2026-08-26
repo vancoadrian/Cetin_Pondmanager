@@ -250,10 +250,10 @@ const {
         </dl>
 
         <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <p class="rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground-muted">
+          <p class="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground-muted">
             Kontakt odosielateľa: <span class="font-semibold text-foreground">{{ deliveryDiagnostics.subject || 'nenastavený' }}</span>
           </p>
-          <p class="rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground-muted">
+          <p class="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground-muted">
             Časový limit: <span class="font-semibold text-foreground">{{ formatDurationSeconds(deliveryDiagnostics.timeoutMs / 1000) }}</span>
           </p>
         </div>
@@ -306,7 +306,7 @@ const {
         </div>
 
         <div class="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-          <div class="rounded-md border border-border bg-white p-4">
+          <div class="rounded-md border border-border bg-surface p-4">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h3 class="font-bold">Zariadenia pre veľkú rybu</h3>
@@ -367,7 +367,7 @@ const {
             </p>
           </div>
 
-          <div class="rounded-md border border-border bg-white p-4">
+          <div class="rounded-md border border-border bg-surface p-4">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h3 class="font-bold">Posledná veľká ryba</h3>
@@ -403,7 +403,7 @@ const {
                 <div
                   v-for="delivery in latestLargeFishDeliveryLogs.slice(0, 3)"
                   :key="delivery.id"
-                  class="flex items-start justify-between gap-3 rounded-md bg-white px-3 py-2"
+                  class="flex items-start justify-between gap-3 rounded-md bg-surface px-3 py-2"
                 >
                   <div class="min-w-0">
                     <p class="truncate text-sm font-semibold">{{ delivery.deviceLabel }}</p>
@@ -448,7 +448,7 @@ const {
                   <input
                     v-model="testBroadcastForm.title"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -456,7 +456,7 @@ const {
                   <textarea
                     v-model="testBroadcastForm.body"
                     rows="3"
-                    class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                    class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                   />
                 </label>
                 <div>
@@ -518,7 +518,7 @@ const {
                     type="number"
                     min="0"
                     max="365"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -528,7 +528,7 @@ const {
                     type="number"
                     min="0"
                     max="50"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -573,7 +573,7 @@ const {
                   <input
                     v-model="broadcastForm.title"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -581,7 +581,7 @@ const {
                   <textarea
                     v-model="broadcastForm.body"
                     rows="4"
-                    class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                    class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                   />
                 </label>
                 <div class="grid gap-3 md:grid-cols-3">
@@ -589,7 +589,7 @@ const {
                     <span class="text-sm font-semibold">Typ</span>
                     <select
                       v-model="broadcastForm.severity"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                       <option value="storm">búrka</option>
                       <option value="water">voda/vietor</option>
@@ -604,14 +604,14 @@ const {
                       type="datetime-local"
                       :min="minimumNotificationExpiryInput()"
                       required
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                   </label>
                   <label class="block">
                     <span class="text-sm font-semibold">Jazero</span>
                     <select
                       v-model="broadcastLakeScope"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                       <option value="all">všetky jazerá</option>
                       <option v-for="lake in lakes" :key="lake.slug" :value="lake.slug">
@@ -670,7 +670,7 @@ const {
                   <input
                     v-model="mockSubscriptionForm.deviceLabel"
                     type="text"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <div class="grid gap-3 sm:grid-cols-2">
@@ -678,7 +678,7 @@ const {
                     <span class="text-sm font-semibold">Rola</span>
                     <select
                       v-model="mockSubscriptionForm.audienceRole"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                       <option v-for="role in internalAudienceRoles" :key="role" :value="role">
                         {{ notificationAudienceRoleLabels[role] }}
@@ -689,7 +689,7 @@ const {
                     <span class="text-sm font-semibold">Turnaj</span>
                     <select
                       v-model="mockSubscriptionForm.tournamentId"
-                      class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                       <option value="">všetky turnaje</option>
                       <option v-for="tournament in tournaments" :key="tournament.id" :value="tournament.id">
@@ -702,7 +702,7 @@ const {
                   <span class="text-sm font-semibold">Kontrolór</span>
                   <select
                     v-model="mockSubscriptionForm.marshalId"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option v-for="marshal in tournamentMarshals" :key="marshal.id" :value="marshal.id">
                       {{ marshal.name }}
@@ -715,7 +715,7 @@ const {
                     <label
                       v-for="sector in mockTournamentSectors"
                       :key="sector.id"
-                      class="rounded-md border border-border bg-white px-2.5 py-1.5"
+                      class="rounded-md border border-border bg-surface px-2.5 py-1.5"
                     >
                       <input
                         v-model="mockSubscriptionForm.sectorIds"
@@ -854,7 +854,7 @@ const {
               </div>
             </div>
             <div class="mt-4 space-y-3">
-              <article v-for="broadcast in filteredBroadcasts.slice(0, 5)" :key="broadcast.id" class="rounded-md border border-border bg-white p-4">
+              <article v-for="broadcast in filteredBroadcasts.slice(0, 5)" :key="broadcast.id" class="rounded-md border border-border bg-surface p-4">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div class="flex flex-wrap items-center gap-2">
@@ -929,7 +929,7 @@ const {
               </div>
             </div>
             <div class="mt-4 space-y-3">
-              <article v-for="delivery in filteredDeliveryLogs.slice(0, 6)" :key="delivery.id" class="rounded-md border border-border bg-white p-4">
+              <article v-for="delivery in filteredDeliveryLogs.slice(0, 6)" :key="delivery.id" class="rounded-md border border-border bg-surface p-4">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-semibold">{{ delivery.deviceLabel }}</p>

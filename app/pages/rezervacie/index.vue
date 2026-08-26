@@ -111,7 +111,7 @@ const {
             class="min-h-11 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
             :class="
               selectedLake === lake.slug
-                ? 'bg-white text-primary-900 shadow-sm'
+                ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm'
                 : 'text-foreground-muted hover:text-foreground'
             "
             :aria-pressed="selectedLake === lake.slug"
@@ -122,15 +122,15 @@ const {
         </div>
 
         <div class="grid grid-cols-3 gap-2 text-sm">
-          <div class="rounded-md border border-border bg-white px-3 py-2">
+          <div class="rounded-md border border-border bg-surface px-3 py-2">
             <p class="text-foreground-muted text-xs">Voľné miesta</p>
             <p class="font-bold">{{ formatPlaceCount(actionablePegs.length) }}</p>
           </div>
-          <div class="rounded-md border border-border bg-white px-3 py-2">
+          <div class="rounded-md border border-border bg-surface px-3 py-2">
             <p class="text-foreground-muted text-xs">Voľné chaty</p>
             <p class="font-bold">{{ freeCabins.length }}</p>
           </div>
-          <div class="rounded-md border border-border bg-white px-3 py-2">
+          <div class="rounded-md border border-border bg-surface px-3 py-2">
             <p class="text-foreground-muted text-xs">Nedostupné</p>
             <p class="font-bold">{{ formatPlaceCount(blockedPegs.length) }}</p>
           </div>
@@ -206,7 +206,7 @@ const {
 
             <div
               v-if="selectedPeg && !isPlaceListExpanded"
-              class="mt-5 rounded-md border border-primary-300 bg-primary-50 p-4 md:hidden"
+              class="mt-5 rounded-md border border-primary-300 bg-primary-50 dark:bg-primary-950/50 p-4 md:hidden"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
@@ -232,7 +232,7 @@ const {
                 :key="row.peg.id"
                 type="button"
                 class="border-border rounded-md border p-4 text-left transition-colors hover:bg-muted"
-                :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50' : 'bg-white'"
+                :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'bg-surface'"
                 :aria-pressed="selectedPegId === row.peg.id"
                 @click="selectedPegId = row.peg.id"
               >
@@ -243,7 +243,7 @@ const {
                       {{ row.peg.type === 'cabin' ? 'miesto s chatou' : 'lovné miesto' }} ·
                       {{ row.peg.capacity }} osoby
                     </p>
-                    <p v-if="row.peg.requiresCabinReservation" class="mt-1 text-xs font-semibold text-primary-800">
+                    <p v-if="row.peg.requiresCabinReservation" class="mt-1 text-xs font-semibold text-primary-800 dark:text-primary-200">
                       chata povinná
                     </p>
                   </div>
@@ -278,7 +278,7 @@ const {
               <div
                 v-for="item in requiredEquipment"
                 :key="item.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div>
@@ -329,15 +329,15 @@ const {
             </div>
 
             <div class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
-              <div class="rounded-md border border-border bg-white px-3 py-2">
+              <div class="rounded-md border border-border bg-surface px-3 py-2">
                 <p class="text-foreground-muted text-xs">Rozsah</p>
                 <p class="font-bold">{{ availabilityOverviewRangeLabel }}</p>
               </div>
-              <div class="rounded-md border border-border bg-white px-3 py-2">
+              <div class="rounded-md border border-border bg-surface px-3 py-2">
                 <p class="text-foreground-muted text-xs">Jazero</p>
                 <p class="font-bold">{{ getLakeName(selectedLake) }}</p>
               </div>
-              <div class="rounded-md border border-border bg-white px-3 py-2">
+              <div class="rounded-md border border-border bg-surface px-3 py-2">
                 <p class="text-foreground-muted text-xs">Voľné miesto-dni</p>
                 <p class="font-bold">{{ availabilityOverviewFreeCells }}</p>
               </div>
@@ -360,7 +360,7 @@ const {
               id="availability-overview-table"
               role="region"
               aria-labelledby="availability-overview-toggle"
-              class="mt-5 max-w-full overflow-x-auto rounded-md border border-border bg-white [contain:layout_paint]"
+              class="mt-5 max-w-full overflow-x-auto rounded-md border border-border bg-surface [contain:layout_paint]"
             >
               <table class="w-full min-w-[860px] border-collapse text-sm">
                 <thead>
@@ -384,7 +384,7 @@ const {
                     :key="row.peg.id"
                     class="border-border border-t"
                   >
-                    <th class="sticky left-0 z-10 bg-white px-3 py-3 text-left align-top">
+                    <th class="sticky left-0 z-10 bg-surface px-3 py-3 text-left align-top">
                       <button
                         type="button"
                         class="text-left font-semibold hover:text-primary-800"
@@ -592,13 +592,13 @@ const {
                 </div>
               </div>
 
-              <div v-if="selectedCabin" class="rounded-md border border-primary-200 bg-primary-50 p-4">
-                <p class="text-sm font-bold text-primary-900">{{ selectedCabin.label }}</p>
-                <p class="text-primary-800 mt-1 text-sm">
+              <div v-if="selectedCabin" class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-4">
+                <p class="text-sm font-bold text-primary-900 dark:text-primary-100">{{ selectedCabin.label }}</p>
+                <p class="text-primary-800 dark:text-primary-200 mt-1 text-sm">
                   {{ selectedCabin.pricePer24hEur }} € / 24 h · minimum
                   {{ selectedCabin.minimumHours }} h · kapacita {{ selectedCabin.capacity }}
                 </p>
-                <p class="text-primary-800 mt-2 text-xs">
+                <p class="text-primary-800 dark:text-primary-200 mt-2 text-xs">
                   {{ selectedCabin.requiresPermitNote }}
                 </p>
               </div>
@@ -609,8 +609,8 @@ const {
                   <label
                     v-for="permit in permitProducts"
                     :key="permit.id"
-                    class="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-white p-3 transition-colors hover:bg-muted"
-                    :class="selectedPermitId === permit.id ? 'border-primary-600 bg-primary-50' : ''"
+                    class="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-surface p-3 transition-colors hover:bg-muted"
+                    :class="selectedPermitId === permit.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : ''"
                   >
                     <input
                       v-model="selectedPermitId"
@@ -624,7 +624,7 @@ const {
                       <span class="text-foreground-muted block text-sm">
                         {{ permit.priceEur }} € · {{ permit.durationHours }} h
                       </span>
-                      <span v-if="permit.note" class="text-primary-800 mt-1 block text-xs">
+                      <span v-if="permit.note" class="text-primary-800 dark:text-primary-200 mt-1 block text-xs">
                         {{ permit.note }}
                       </span>
                     </span>
@@ -641,10 +641,10 @@ const {
                     class="flex items-start gap-3 rounded-md border p-3 transition-colors"
                     :class="
                       selectedRentalIds.includes(row.item.id)
-                        ? 'border-primary-600 bg-primary-50'
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50'
                         : !row.availability.reservable
                           ? 'cursor-not-allowed border-error-500/25 bg-error-500/5 opacity-80'
-                          : 'cursor-pointer border-border bg-white hover:bg-muted'
+                          : 'cursor-pointer border-border bg-surface hover:bg-muted'
                     "
                     :aria-disabled="!row.availability.reservable"
                   >
@@ -668,7 +668,7 @@ const {
                       <span class="text-foreground-muted mt-1 block text-sm">
                         {{ row.item.description }}
                       </span>
-                      <span class="text-primary-800 mt-1 block text-xs">{{ row.item.priceLabel }}</span>
+                      <span class="text-primary-800 dark:text-primary-200 mt-1 block text-xs">{{ row.item.priceLabel }}</span>
                       <span class="text-foreground-muted mt-1 block text-xs">
                         {{ row.availability.availableQuantity }} z {{ row.availability.stock }} ks voľné ·
                         {{ row.availability.reasons[0] }}
@@ -684,7 +684,7 @@ const {
                   <label
                     v-for="extra in availableExtras"
                     :key="extra.id"
-                    class="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-white p-3 transition-colors hover:bg-muted"
+                    class="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-surface p-3 transition-colors hover:bg-muted"
                   >
                     <input
                       v-model="selectedExtraIds"
@@ -705,7 +705,7 @@ const {
                       <span class="text-foreground-muted mt-1 block text-sm">
                         {{ extra.description }}
                       </span>
-                      <span class="text-primary-800 mt-1 block text-xs">{{ extra.priceLabel }}</span>
+                      <span class="text-primary-800 dark:text-primary-200 mt-1 block text-xs">{{ extra.priceLabel }}</span>
                     </span>
                   </label>
                 </div>
@@ -716,13 +716,13 @@ const {
                 <div class="mt-2 grid gap-3 sm:grid-cols-2">
                   <div
                     v-if="reservationAccountHint"
-                    class="rounded-md border border-primary-200 bg-primary-50 p-3 text-sm text-primary-950 sm:col-span-2"
+                    class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3 text-sm text-primary-950 dark:text-primary-100 sm:col-span-2"
                   >
                     <div class="flex items-start gap-2">
                       <UIcon name="i-heroicons-user-circle" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
                       <div>
                         <p class="font-bold">Rezervácia sa uloží k vášmu účtu</p>
-                        <p class="mt-1 text-primary-800">{{ reservationAccountHint }}</p>
+                        <p class="mt-1 text-primary-800 dark:text-primary-200">{{ reservationAccountHint }}</p>
                       </div>
                     </div>
                   </div>
@@ -733,7 +733,7 @@ const {
                       v-model="reservationContactName"
                       type="text"
                       autocomplete="name"
-                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                       placeholder="Meno a priezvisko"
                       required
                     >
@@ -744,7 +744,7 @@ const {
                       v-model="reservationContactEmail"
                       type="email"
                       autocomplete="email"
-                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                       placeholder="meno@example.com"
                     >
                   </label>
@@ -754,7 +754,7 @@ const {
                       v-model="reservationContactPhone"
                       type="tel"
                       autocomplete="tel"
-                      class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                      class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                       placeholder="+421 ..."
                       required
                     >
@@ -770,7 +770,7 @@ const {
                       {{ formatReservationItemCount(reservationServiceLines.length) }} v žiadosti.
                     </p>
                   </div>
-                  <UIcon name="i-heroicons-clipboard-document-check" class="text-primary-800 h-5 w-5 shrink-0" />
+                  <UIcon name="i-heroicons-clipboard-document-check" class="text-primary-800 dark:text-primary-200 h-5 w-5 shrink-0" />
                 </div>
                 <div class="border-border divide-border mt-3 divide-y border-y">
                   <div
@@ -778,7 +778,7 @@ const {
                     :key="line.id"
                     class="flex items-start gap-3 py-3"
                   >
-                    <UIcon :name="line.icon" class="text-primary-800 mt-0.5 h-4 w-4 shrink-0" />
+                    <UIcon :name="line.icon" class="text-primary-800 dark:text-primary-200 mt-0.5 h-4 w-4 shrink-0" />
                     <div class="min-w-0">
                       <p class="font-semibold">{{ line.label }}</p>
                       <p class="text-foreground-muted mt-0.5">{{ line.meta }}</p>
@@ -787,7 +787,7 @@ const {
                 </div>
               </div>
 
-              <fieldset class="min-w-0 rounded-md border border-border bg-white p-4 text-sm">
+              <fieldset class="min-w-0 rounded-md border border-border bg-surface p-4 text-sm">
                 <legend class="px-1 font-bold">Spôsob platby (povinné)</legend>
                 <p id="payment-method-help" class="text-foreground-muted mt-1">
                   Platobné pokyny dostanete až po potvrdení rezervácie správcom.
@@ -797,7 +797,7 @@ const {
                     v-for="method in enabledPaymentMethods"
                     :key="method.id"
                     class="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
-                    :class="selectedPaymentMethodId === method.id ? 'border-primary-600 bg-primary-50' : 'border-border bg-white hover:bg-muted'"
+                    :class="selectedPaymentMethodId === method.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'border-border bg-surface hover:bg-muted'"
                   >
                     <input
                       v-model="selectedPaymentMethodId"
@@ -811,7 +811,7 @@ const {
                     >
                     <UIcon
                       :name="method.kind === 'cash' ? 'i-heroicons-banknotes' : method.kind === 'bank-transfer' ? 'i-heroicons-building-library' : 'i-heroicons-credit-card'"
-                      class="text-primary-800 mt-0.5 h-5 w-5 shrink-0"
+                      class="text-primary-800 dark:text-primary-200 mt-0.5 h-5 w-5 shrink-0"
                     />
                     <div class="min-w-0">
                       <p class="font-semibold">{{ method.label }}</p>
