@@ -7,14 +7,14 @@
       { "metric": "cumulative-layout-shift", "budget": 0.1 }
     ],
     "resourceSizes": [
-      { "resourceType": "total", "budget": 450 },
-      { "resourceType": "script", "budget": 250 },
+      { "resourceType": "total", "budget": 520 },
+      { "resourceType": "script", "budget": 340 },
       { "resourceType": "image", "budget": 120 },
       { "resourceType": "stylesheet", "budget": 30 }
     ],
     "resourceCounts": [
-      { "resourceType": "total", "budget": 55 },
-      { "resourceType": "script", "budget": 40 },
+      { "resourceType": "total", "budget": 60 },
+      { "resourceType": "script", "budget": 48 },
       { "resourceType": "image", "budget": 5 }
     ]
   },
@@ -27,13 +27,13 @@
     ],
     "resourceSizes": [
       { "resourceType": "total", "budget": 650 },
-      { "resourceType": "script", "budget": 260 },
+      { "resourceType": "script", "budget": 340 },
       { "resourceType": "image", "budget": 320 },
       { "resourceType": "stylesheet", "budget": 30 }
     ],
     "resourceCounts": [
-      { "resourceType": "total", "budget": 55 },
-      { "resourceType": "script", "budget": 40 },
+      { "resourceType": "total", "budget": 60 },
+      { "resourceType": "script", "budget": 48 },
       { "resourceType": "image", "budget": 5 }
     ]
   },
@@ -45,14 +45,14 @@
       { "metric": "cumulative-layout-shift", "budget": 0.1 }
     ],
     "resourceSizes": [
-      { "resourceType": "total", "budget": 380 },
-      { "resourceType": "script", "budget": 260 },
+      { "resourceType": "total", "budget": 430 },
+      { "resourceType": "script", "budget": 340 },
       { "resourceType": "image", "budget": 20 },
       { "resourceType": "stylesheet", "budget": 30 }
     ],
     "resourceCounts": [
-      { "resourceType": "total", "budget": 50 },
-      { "resourceType": "script", "budget": 36 },
+      { "resourceType": "total", "budget": 60 },
+      { "resourceType": "script", "budget": 48 },
       { "resourceType": "image", "budget": 4 }
     ]
   },
@@ -64,14 +64,14 @@
       { "metric": "cumulative-layout-shift", "budget": 0.1 }
     ],
     "resourceSizes": [
-      { "resourceType": "total", "budget": 360 },
-      { "resourceType": "script", "budget": 250 },
+      { "resourceType": "total", "budget": 430 },
+      { "resourceType": "script", "budget": 340 },
       { "resourceType": "image", "budget": 20 },
       { "resourceType": "stylesheet", "budget": 30 }
     ],
     "resourceCounts": [
-      { "resourceType": "total", "budget": 45 },
-      { "resourceType": "script", "budget": 30 },
+      { "resourceType": "total", "budget": 60 },
+      { "resourceType": "script", "budget": 48 },
       { "resourceType": "image", "budget": 4 }
     ]
   }

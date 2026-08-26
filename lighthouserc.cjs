@@ -73,7 +73,7 @@ module.exports = {
       },
       startServerCommand: externalBaseUrl
         ? undefined
-        : 'pnpm build && HOST=127.0.0.1 PORT=4173 node .output/server/index.mjs',
+        : 'pnpm build && HOST=127.0.0.1 PORT=4173 node --env-file-if-exists=.env .output/server/index.mjs',
       startServerReadyPattern: 'Listening on http://127.0.0.1:4173',
       startServerReadyTimeout: 240_000,
       url: budgets.map(budget => `${baseUrl}${budget.path}`),
