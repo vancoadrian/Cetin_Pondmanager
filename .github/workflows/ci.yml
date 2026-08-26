@@ -39,3 +39,53 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  e2e:
+    name: Integration & e2e (Supabase + Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: pnpm supabase:start
+
+      - name: Apply migrations and seed
+        run: pnpm supabase:reset
+
+      - name: Write local env (.env)
+        run: pnpm local:setup
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: Install Playwright Chrome
+        run: pnpm exec playwright install --with-deps chrome
+
+      - name: E2E tests (production build)
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/playwright
+          retention-days: 7
