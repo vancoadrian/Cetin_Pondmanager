@@ -606,7 +606,7 @@ async function submitAccountDeletion() {
       <div class="rounded-card border border-border bg-surface p-5 shadow-sm">
         <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
           <div class="flex items-start gap-4">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
               <UIcon name="i-heroicons-user-circle" class="h-7 w-7" />
             </div>
             <div>
@@ -712,12 +712,12 @@ async function submitAccountDeletion() {
 
         <section
           v-if="primaryActiveLogbook || nextReservation"
-          class="mt-6 rounded-card border border-primary-200 bg-primary-50 p-5"
+          class="mt-6 rounded-card border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-5"
         >
           <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p class="text-sm font-semibold uppercase text-primary-800">Najbližší krok</p>
-              <h2 class="mt-1 text-xl font-bold text-primary-950">Pokračujte tam, kde má účet najväčší zmysel</h2>
+              <p class="text-sm font-semibold uppercase text-primary-800 dark:text-primary-200">Najbližší krok</p>
+              <h2 class="mt-1 text-xl font-bold text-primary-950 dark:text-primary-100">Pokračujte tam, kde má účet najväčší zmysel</h2>
             </div>
             <StatusBadge icon="i-heroicons-user-circle" label="osobný panel" tone="primary" size="xs" />
           </div>
@@ -725,7 +725,7 @@ async function submitAccountDeletion() {
           <div class="mt-5 grid gap-4 lg:grid-cols-2">
             <div
               v-if="primaryActiveLogbook"
-              class="rounded-md border border-primary-200 bg-white p-4"
+              class="rounded-md border border-primary-200 bg-surface p-4"
             >
               <div class="flex items-start gap-3">
                 <UIcon name="i-heroicons-book-open" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
@@ -761,7 +761,7 @@ async function submitAccountDeletion() {
 
             <div
               v-if="nextReservation"
-              class="rounded-md border border-primary-200 bg-white p-4"
+              class="rounded-md border border-primary-200 bg-surface p-4"
             >
               <div class="flex items-start gap-3">
                 <UIcon name="i-heroicons-calendar-days" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
@@ -846,7 +846,7 @@ async function submitAccountDeletion() {
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p class="text-sm font-bold text-primary-800">{{ getLakeName(reservation.lake) }}</p>
+                  <p class="text-sm font-bold text-primary-800 dark:text-primary-200">{{ getLakeName(reservation.lake) }}</p>
                   <h3 class="mt-1 text-xl font-bold">{{ getPegLabel(reservation.pegId) }}</h3>
                   <p class="mt-1 text-sm text-foreground-muted">
                     {{ formatDateRange(reservation.from, reservation.to) }} · {{ permitLabel(reservation.permitId) }}
@@ -865,7 +865,7 @@ async function submitAccountDeletion() {
                   :tone="paymentStatusTone(reservation.paymentStatus)"
                   size="xs"
                 />
-                <span v-if="cabinLabel(reservation)" class="rounded-md bg-primary-50 px-2.5 py-1 font-semibold text-primary-800">
+                <span v-if="cabinLabel(reservation)" class="rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 font-semibold text-primary-800 dark:text-primary-200">
                   {{ cabinLabel(reservation) }}
                 </span>
                 <span v-if="reservationRentalStatus(reservation.id)" class="rounded-md bg-muted px-2.5 py-1 font-semibold">
@@ -884,7 +884,7 @@ async function submitAccountDeletion() {
                 </div>
               </div>
 
-              <div class="mt-4 rounded-md border border-border bg-white p-3 text-sm">
+              <div class="mt-4 rounded-md border border-border bg-surface p-3 text-sm">
                 <div class="flex items-start gap-2">
                   <UIcon name="i-heroicons-banknotes" class="mt-0.5 h-5 w-5 shrink-0 text-primary-700" />
                   <div>
@@ -999,7 +999,7 @@ async function submitAccountDeletion() {
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <p class="text-sm font-bold text-primary-800">{{ getLakeName(logbook.lake) }}</p>
+                  <p class="text-sm font-bold text-primary-800 dark:text-primary-200">{{ getLakeName(logbook.lake) }}</p>
                   <h3 class="mt-1 text-xl font-bold">{{ logbook.title }}</h3>
                 </div>
                 <StatusBadge :label="logbook.status === 'active' ? 'aktívny' : 'rozpracovaný'" :tone="logbook.status === 'active' ? 'success' : 'warning'" size="xs" />
@@ -1102,7 +1102,7 @@ async function submitAccountDeletion() {
           <div class="mt-6 border-y border-border py-5">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-start gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
                   <UIcon name="i-heroicons-identification" class="h-5 w-5" />
                 </div>
                 <div>
@@ -1138,7 +1138,7 @@ async function submitAccountDeletion() {
                     required
                     minlength="2"
                     maxlength="80"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="Meno rybára"
                   >
                 </label>
@@ -1149,7 +1149,7 @@ async function submitAccountDeletion() {
                     type="tel"
                     autocomplete="tel"
                     :aria-invalid="!profilePhoneIsValid"
-                    class="mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                     :class="profilePhoneIsValid ? 'border-border' : 'border-error-500'"
                     placeholder="+421 900 123 456"
                   >
@@ -1159,7 +1159,7 @@ async function submitAccountDeletion() {
                 </label>
               </div>
 
-              <div class="mt-4 flex items-center gap-2 rounded-md border border-border bg-white px-3 py-2.5">
+              <div class="mt-4 flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2.5">
                 <UIcon name="i-heroicons-lock-closed" class="h-4 w-4 shrink-0 text-foreground-muted" />
                 <div class="min-w-0">
                   <p class="text-xs font-semibold text-foreground-muted">Prihlasovací e-mail</p>
@@ -1208,7 +1208,7 @@ async function submitAccountDeletion() {
 
           <div class="mt-6 flex flex-col gap-4 border-y border-border py-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-start gap-3">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
                 <UIcon name="i-heroicons-arrow-down-tray" class="h-5 w-5" />
               </div>
               <div>
@@ -1240,7 +1240,7 @@ async function submitAccountDeletion() {
           <div class="mt-6 border-b border-border pb-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-start gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
                   <UIcon name="i-heroicons-key" class="h-5 w-5" />
                 </div>
                 <div>
@@ -1270,7 +1270,7 @@ async function submitAccountDeletion() {
                 <p class="text-sm font-semibold">Bezpečnostné overenie</p>
                 <button
                   type="button"
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-white hover:text-foreground"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-surface hover:text-foreground"
                   :aria-label="showPasswordChangeValues ? 'Skryť heslá' : 'Zobraziť heslá'"
                   :title="showPasswordChangeValues ? 'Skryť heslá' : 'Zobraziť heslá'"
                   @click="showPasswordChangeValues = !showPasswordChangeValues"
@@ -1290,7 +1290,7 @@ async function submitAccountDeletion() {
                     :type="showPasswordChangeValues ? 'text' : 'password'"
                     autocomplete="current-password"
                     required
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="Vaše heslo"
                   >
                 </label>
@@ -1303,7 +1303,7 @@ async function submitAccountDeletion() {
                     required
                     minlength="10"
                     maxlength="128"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="Aspoň 10 znakov"
                   >
                 </label>
@@ -1316,7 +1316,7 @@ async function submitAccountDeletion() {
                     required
                     minlength="10"
                     maxlength="128"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     placeholder="Rovnaké heslo"
                   >
                 </label>
@@ -1399,7 +1399,7 @@ async function submitAccountDeletion() {
                   v-model="accountDeletionPassword"
                   type="password"
                   autocomplete="current-password"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   placeholder="Vaše heslo"
                 >
               </label>
@@ -1409,7 +1409,7 @@ async function submitAccountDeletion() {
                   v-model="accountDeletionConfirmation"
                   type="text"
                   autocomplete="off"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   :placeholder="ACCOUNT_DELETION_CONFIRMATION"
                 >
               </label>

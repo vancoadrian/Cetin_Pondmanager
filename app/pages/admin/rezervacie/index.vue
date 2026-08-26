@@ -207,7 +207,7 @@ const {
           <label
             v-for="method in paymentMethodDraft"
             :key="method.id"
-            class="flex min-h-32 flex-col justify-between rounded-md border border-border bg-white p-4"
+            class="flex min-h-32 flex-col justify-between rounded-md border border-border bg-surface p-4"
           >
             <span>
               <span class="flex items-start justify-between gap-3">
@@ -268,7 +268,7 @@ const {
               <input
                 v-model="adminReservationDraft.contactName"
                 required
-                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="napr. Peter Novák"
               >
             </label>
@@ -277,7 +277,7 @@ const {
               <input
                 v-model="adminReservationDraft.contactPhone"
                 required
-                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="+421 ..."
               >
             </label>
@@ -287,34 +287,34 @@ const {
                 v-model="adminReservationDraft.contactEmail"
                 type="email"
                 autocomplete="email"
-                class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 placeholder="meno@example.com"
               >
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Zdroj</span>
-              <select v-model="adminReservationDraft.source" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.source" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option value="phone">Telefonát</option>
                 <option value="admin">Admin / osobne</option>
               </select>
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Stav po uložení</span>
-              <select v-model="adminReservationDraft.status" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.status" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option value="pending">Čaká na potvrdenie</option>
                 <option value="confirmed">Rovno potvrdená</option>
               </select>
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Jazero</span>
-              <select v-model="adminReservationDraft.lake" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.lake" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option value="velky-cetin">Veľký Cetín</option>
                 <option value="strkovisko-kocka">Štrkovisko Kocka</option>
               </select>
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Lovné miesto</span>
-              <select v-model="adminReservationDraft.pegId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.pegId" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option v-for="peg in adminReservationPegs" :key="peg.id" :value="peg.id">
                   {{ peg.label }} · {{ peg.type === 'cabin' ? 's chatou' : 'miesto' }}
                 </option>
@@ -322,15 +322,15 @@ const {
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Od</span>
-              <input v-model="adminReservationDraft.dateFrom" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <input v-model="adminReservationDraft.dateFrom" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Do</span>
-              <input v-model="adminReservationDraft.dateTo" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <input v-model="adminReservationDraft.dateTo" required type="date" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Povolenka</span>
-              <select v-model="adminReservationDraft.permitId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.permitId" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option v-for="permit in permitProducts" :key="permit.id" :value="permit.id">
                   {{ permit.label }} · {{ permit.priceEur }} €
                 </option>
@@ -338,7 +338,7 @@ const {
             </label>
             <label class="block">
               <span class="text-sm font-semibold">Platba</span>
-              <select v-model="adminReservationDraft.paymentMethodId" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+              <select v-model="adminReservationDraft.paymentMethodId" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 <option value="">Bez platby v zázname</option>
                 <option v-for="method in enabledPaymentMethods" :key="method.id" :value="method.id">
                   {{ method.label }}
@@ -350,7 +350,7 @@ const {
               <textarea
                 v-model="adminReservationDraft.internalNote"
                 rows="3"
-                class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 placeholder="napr. potvrdené telefonicky, príchod večer, drevo pripraviť pri chate..."
               />
             </label>
@@ -372,9 +372,9 @@ const {
               </div>
             </div>
 
-            <div v-if="adminReservationCabin" class="rounded-md bg-primary-50 p-4 text-primary-900">
+            <div v-if="adminReservationCabin" class="rounded-md bg-primary-50 dark:bg-primary-950/50 p-4 text-primary-900 dark:text-primary-100">
               <p class="text-sm font-bold">{{ adminReservationCabin.label }}</p>
-              <p class="mt-1 text-xs text-primary-800">
+              <p class="mt-1 text-xs text-primary-800 dark:text-primary-200">
                 {{ adminReservationCabin.pricePer24hEur }} € / 24 h · kapacita {{ adminReservationCabin.capacity }}
               </p>
             </div>
@@ -385,7 +385,7 @@ const {
                 <label
                   v-for="row in adminReservationRentalRows"
                   :key="row.item.id"
-                  class="flex items-start gap-2 rounded-md border border-border bg-white p-3 text-sm"
+                  class="flex items-start gap-2 rounded-md border border-border bg-surface p-3 text-sm"
                   :class="!row.availability.reservable ? 'opacity-55' : ''"
                 >
                   <input
@@ -411,7 +411,7 @@ const {
                 <label
                   v-for="extra in adminReservationAvailableExtras"
                   :key="extra.id"
-                  class="flex items-start gap-2 rounded-md border border-border bg-white p-3 text-sm"
+                  class="flex items-start gap-2 rounded-md border border-border bg-surface p-3 text-sm"
                 >
                   <input
                     v-model="adminReservationDraft.extraIds"
@@ -464,12 +464,12 @@ const {
             <select
               v-model="calendarLake"
               aria-label="Jazero v kalendári"
-              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-surface px-3 text-sm"
             >
               <option value="velky-cetin">Veľký Cetín</option>
               <option value="strkovisko-kocka">Štrkovisko Kocka</option>
             </select>
-            <div class="flex rounded-md border border-border bg-white p-1">
+            <div class="flex rounded-md border border-border bg-surface p-1">
               <button
                 type="button"
                 class="min-h-9 rounded px-3 py-1.5 text-sm font-semibold"
@@ -493,7 +493,7 @@ const {
             <input
               v-model="calendarStart"
               type="date"
-              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-surface px-3 text-sm"
               aria-label="Začiatok kalendára"
             >
             <UButton icon="i-heroicons-chevron-right" color="neutral" variant="soft" @click="moveCalendar(7)">
@@ -525,7 +525,7 @@ const {
           <div
             v-for="summary in calendarDaySummaries"
             :key="summary.day.iso"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -547,11 +547,11 @@ const {
                 v-for="item in summary.reservations"
                 :key="`${summary.day.iso}-${item.reservation.id}-${item.peg.id}`"
                 type="button"
-                class="w-full rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-left text-sm text-primary-900"
+                class="w-full rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-3 py-2 text-left text-sm text-primary-900 dark:text-primary-100"
                 @click="selectCalendarCell(item.reservation)"
               >
                 <span class="block font-semibold">{{ item.reservation.guest }}</span>
-                <span class="mt-0.5 block text-xs text-primary-800">
+                <span class="mt-0.5 block text-xs text-primary-800 dark:text-primary-200">
                   {{ item.peg.label }} · {{ statusLabel(item.reservation.status) }}
                 </span>
               </button>
@@ -582,7 +582,7 @@ const {
               class="grid border-b border-border last:border-b-0"
               :style="{ gridTemplateColumns: calendarGridTemplate }"
             >
-              <div class="bg-white px-3 py-3">
+              <div class="bg-surface px-3 py-3">
                 <p class="font-semibold">{{ row.peg.label }}</p>
                 <p class="text-foreground-muted text-xs">
                   {{ row.peg.type === 'cabin' ? 'chata' : 'miesto' }} · {{ row.peg.capacity }} osoby
@@ -591,7 +591,7 @@ const {
               <div
                 v-for="cell in row.cells"
                 :key="`${row.peg.id}-${cell.day.iso}`"
-                class="border-l border-border bg-white p-1.5"
+                class="border-l border-border bg-surface p-1.5"
               >
                 <button
                   type="button"
@@ -682,7 +682,7 @@ const {
             <select
               v-model="reservationLakeFilter"
               aria-label="Filtrovať rezervácie podľa jazera"
-              class="h-11 rounded-md border border-border bg-white px-3 text-sm"
+              class="h-11 rounded-md border border-border bg-surface px-3 text-sm"
             >
               <option value="all">Všetky jazerá</option>
               <option value="velky-cetin">Veľký Cetín</option>
@@ -696,7 +696,7 @@ const {
               :key="reservation.id"
               type="button"
               class="w-full rounded-md border p-4 text-left transition-colors hover:bg-muted"
-              :class="selectedReservationId === reservation.id ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
+              :class="selectedReservationId === reservation.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'border-border bg-surface'"
               @click="selectReservation(reservation)"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -779,10 +779,10 @@ const {
                   {{ selectedPermit.priceEur }} € · {{ selectedPermit.durationHours }} h
                 </p>
               </div>
-              <div v-if="selectedCabin" class="rounded-md bg-primary-50 p-3 text-primary-900">
-                <p class="text-xs font-semibold text-primary-800">Chata</p>
+              <div v-if="selectedCabin" class="rounded-md bg-primary-50 dark:bg-primary-950/50 p-3 text-primary-900 dark:text-primary-100">
+                <p class="text-xs font-semibold text-primary-800 dark:text-primary-200">Chata</p>
                 <p class="font-semibold">{{ selectedCabin.label }}</p>
-                <p class="mt-1 text-xs text-primary-800">
+                <p class="mt-1 text-xs text-primary-800 dark:text-primary-200">
                   {{ selectedCabin.pricePer24hEur }} € / 24 h · kapacita {{ selectedCabin.capacity }}
                 </p>
               </div>
@@ -806,7 +806,7 @@ const {
 
             <div
               v-if="selectedReservationNotification"
-              class="mt-5 rounded-md border border-primary-200 bg-primary-50 p-4 text-primary-900"
+              class="mt-5 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-4 text-primary-900 dark:text-primary-100"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -814,7 +814,7 @@ const {
                   <p class="mt-1 text-sm">
                     {{ selectedReservationNotification.title }}
                   </p>
-                  <p class="mt-1 text-xs text-primary-800">
+                  <p class="mt-1 text-xs text-primary-800 dark:text-primary-200">
                     {{ formatDateTime(selectedReservationNotification.createdAt) }} ·
                     {{ selectedReservationNotification.recipientCount }} zariadení ·
                     {{ selectedReservationNotification.message }}
@@ -871,7 +871,7 @@ const {
                 <div
                   v-for="row in selectedRentalRows"
                   :key="row.item.id"
-                  class="rounded-md border border-border bg-white p-3"
+                  class="rounded-md border border-border bg-surface p-3"
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div>
@@ -915,14 +915,14 @@ const {
               </div>
             </div>
 
-            <div class="mt-5 rounded-md border border-border bg-white p-4">
+            <div class="mt-5 rounded-md border border-border bg-surface p-4">
               <p class="text-sm font-bold">Pracovné rozhodnutie</p>
               <div class="mt-3 grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
                   :disabled="!canOperateReservations"
-                  :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-white'"
+                  :class="decisionMode === 'approve' ? 'border-success-500 bg-success-500/10 text-success-700' : 'border-border bg-surface'"
                   @click="decisionMode = 'approve'"
                 >
                   Schváliť
@@ -931,7 +931,7 @@ const {
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
                   :disabled="!canOperateReservations"
-                  :class="decisionMode === 'call' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-white'"
+                  :class="decisionMode === 'call' ? 'border-warning-500 bg-warning-500/10 text-warning-800' : 'border-border bg-surface'"
                   @click="decisionMode = 'call'"
                 >
                   Telefonát
@@ -940,7 +940,7 @@ const {
                   type="button"
                   class="rounded-md border px-3 py-2 text-sm font-semibold"
                   :disabled="!canOperateReservations"
-                  :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-white'"
+                  :class="decisionMode === 'reject' ? 'border-error-500 bg-error-500/10 text-error-700' : 'border-border bg-surface'"
                   @click="decisionMode = 'reject'"
                 >
                   Zamietnuť
@@ -953,7 +953,7 @@ const {
                   v-model="adminNoteDraft"
                   rows="4"
                   :readonly="!canOperateReservations"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
               <div class="mt-4 flex flex-wrap gap-2">
@@ -987,7 +987,7 @@ const {
               />
               <div
                 v-if="decisionCommunicationDraft"
-                class="mt-4 rounded-md border border-border bg-white p-4"
+                class="mt-4 rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>

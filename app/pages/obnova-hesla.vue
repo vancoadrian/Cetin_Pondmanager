@@ -67,7 +67,7 @@ async function submit() {
         />
 
         <form v-else @submit.prevent="submit">
-          <div class="flex h-11 w-11 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+          <div class="flex h-11 w-11 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700">
             <UIcon name="i-heroicons-lock-closed" class="h-6 w-6" />
           </div>
           <h2 class="mt-5 text-2xl font-bold">Nové heslo</h2>
@@ -89,7 +89,7 @@ async function submit() {
                 required
                 minlength="10"
                 maxlength="128"
-                class="h-12 w-full rounded-md border border-border bg-white pr-11 pl-10 text-sm"
+                class="h-12 w-full rounded-md border border-border bg-surface pr-11 pl-10 text-sm"
                 placeholder="Aspoň 10 znakov"
               >
               <button
@@ -117,7 +117,7 @@ async function submit() {
                 required
                 minlength="10"
                 maxlength="128"
-                class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+                class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
                 placeholder="Rovnaké heslo"
               >
             </div>
@@ -145,7 +145,7 @@ async function submit() {
         </form>
 
         <div class="mt-5 text-center">
-          <NuxtLink :to="token ? '/login' : '/zabudnute-heslo'" class="text-sm font-semibold text-primary-700 hover:text-primary-900">
+          <NuxtLink :to="token ? '/login' : '/zabudnute-heslo'" class="text-sm font-semibold text-primary-700 hover:text-primary-900 dark:hover:text-primary-100">
             {{ token ? 'Späť na prihlásenie' : 'Vyžiadať nový odkaz' }}
           </NuxtLink>
         </div>

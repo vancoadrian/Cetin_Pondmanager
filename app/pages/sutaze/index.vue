@@ -264,8 +264,8 @@ const {
                 hasActivePenalty(sector.id)
                   ? 'bg-error-500 text-white'
                   : hasMapShapeForSector(sector.id)
-                    ? 'bg-accent-400 text-primary-950'
-                    : 'bg-white/90 text-primary-950'
+                    ? 'bg-accent-400 text-primary-950 dark:text-primary-100'
+                    : 'bg-white/90 text-primary-950 dark:text-primary-100'
               "
               :style="{ left: `${sector.x}%`, top: `${sector.y}%` }"
               :aria-label="sector.label"
@@ -273,7 +273,7 @@ const {
               {{ sector.label }}
               <span
                 v-if="canViewCompetitionOperations && requestsForSector(sector.id).length"
-                class="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-xs text-error-700"
+                class="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-surface px-1 text-xs text-error-700"
               >
                 {{ requestsForSector(sector.id).length }}
               </span>
@@ -285,7 +285,7 @@ const {
 
           <div
             v-if="tournamentSponsors.length > 0"
-            class="border-t border-border bg-white p-4"
+            class="border-t border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -303,7 +303,7 @@ const {
                       v-if="sponsorLogo(sponsor, 'tournament').url"
                       :src="sponsorLogo(sponsor, 'tournament').url"
                       :alt="sponsorLogo(sponsor, 'tournament').alt"
-                      class="h-full w-full bg-white object-contain p-1"
+                      class="h-full w-full bg-surface object-contain p-1"
                     >
                     <span v-else>{{ sponsorLogo(sponsor, 'tournament').text }}</span>
                   </span>
@@ -315,14 +315,14 @@ const {
 
           <div
             v-if="sectorSponsorEntries.length > 0"
-            class="border-t border-border bg-primary-50 p-4"
+            class="border-t border-border bg-primary-50 dark:bg-primary-950/50 p-4"
           >
             <p class="text-xs font-bold uppercase text-primary-700">Sektoroví partneri</p>
             <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <div
                 v-for="entry in sectorSponsorEntries"
                 :key="entry.sector.id"
-                class="flex items-center gap-2 rounded-md bg-white px-3 py-2"
+                class="flex items-center gap-2 rounded-md bg-surface px-3 py-2"
               >
                 <span class="rounded-md bg-primary-900 px-2 py-1 text-xs font-black text-accent-300">
                   {{ entry.sector.label }}
@@ -379,12 +379,12 @@ const {
               <div
                 v-for="row in tournamentLeaderboard"
                 :key="row.sectorId"
-                class="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-border bg-white px-3 py-3 last:border-b-0"
+                class="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-border bg-surface px-3 py-3 last:border-b-0"
                 :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-50' : ''"
               >
                 <span
                   class="flex h-8 min-w-8 items-center justify-center rounded-md text-sm font-black"
-                  :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-400 text-primary-950' : 'bg-muted text-foreground-muted'"
+                  :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-400 text-primary-950 dark:text-primary-100' : 'bg-muted text-foreground-muted'"
                 >
                   {{ row.rank }}.
                 </span>
@@ -428,7 +428,7 @@ const {
                 <input
                   v-model="teamRegistrationForm.teamName"
                   maxlength="120"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   placeholder="Napr. Cetín Carp Juniors"
                 >
               </label>
@@ -439,7 +439,7 @@ const {
                   <input
                     v-model="teamRegistrationForm.contactName"
                     maxlength="100"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                     placeholder="Meno a priezvisko"
                   >
                 </label>
@@ -449,7 +449,7 @@ const {
                     v-model="teamRegistrationForm.contactPhone"
                     maxlength="32"
                     inputmode="tel"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                     placeholder="+421..."
                   >
                 </label>
@@ -462,7 +462,7 @@ const {
                     v-model="teamRegistrationForm.contactEmail"
                     maxlength="120"
                     inputmode="email"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                     placeholder="voliteľné"
                   >
                 </label>
@@ -473,7 +473,7 @@ const {
                     type="number"
                     min="1"
                     max="8"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -484,7 +484,7 @@ const {
                   <input
                     v-model="teamRegistrationForm.city"
                     maxlength="80"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                     placeholder="voliteľné"
                   >
                 </label>
@@ -492,7 +492,7 @@ const {
                   <span class="text-sm font-semibold">Preferovaný sektor</span>
                   <select
                     v-model="teamRegistrationForm.preferredSectorId"
-                    class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                    class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                   >
                     <option value="">Bez preferencie</option>
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
@@ -509,7 +509,7 @@ const {
                   rows="3"
                   maxlength="500"
                   placeholder="Napr. preferovaný príchod, veková kategória, vybavenie..."
-                  class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  class="border-border mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -569,7 +569,7 @@ const {
               <div
                 v-for="registration in tournamentTeamRegistrations.slice(0, 3)"
                 :key="registration.id"
-                class="rounded-md border border-border bg-white p-3"
+                class="rounded-md border border-border bg-surface p-3"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
@@ -670,7 +670,7 @@ const {
                 <select
                   v-model="requestForm.sectorId"
                   :disabled="Boolean(teamScopedSector)"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
                   <option v-for="sector in teamRequestSectors" :key="sector.id" :value="sector.id">
                     {{ sector.label }} · {{ sector.team }}
@@ -682,7 +682,7 @@ const {
                 <span class="text-sm font-semibold">Dôvod</span>
                 <select
                   v-model="requestForm.type"
-                  class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+                  class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
                 >
                   <option v-for="[value, label] in requestTypeOptions" :key="value" :value="value">
                     {{ label }}
@@ -696,7 +696,7 @@ const {
                   v-model="requestForm.description"
                   rows="3"
                   placeholder="Napr. úlovok pripravený na váženie pri sektore..."
-                  class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  class="border-border mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -759,7 +759,7 @@ const {
               <div
                 v-for="marshal in liveTournamentMarshals"
                 :key="marshal.id"
-                class="rounded-md border border-border bg-white p-4"
+                class="rounded-md border border-border bg-surface p-4"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div>
@@ -788,14 +788,14 @@ const {
             <div
               v-for="request in liveTournamentRequests"
               :key="request.id"
-              class="rounded-md border border-border bg-white p-4"
+              class="rounded-md border border-border bg-surface p-4"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="font-bold">
                     {{ sectorById(request.sectorId)?.label }} · {{ request.team }}
                   </p>
-                  <p class="text-primary-800 text-sm font-semibold">
+                  <p class="text-primary-800 dark:text-primary-200 text-sm font-semibold">
                     {{ tournamentRequestTypeLabels[request.type] }}
                   </p>
                 </div>
@@ -833,14 +833,14 @@ const {
               <div
                 v-for="sponsor in scoreboardSponsors"
                 :key="sponsor.id"
-                class="flex h-10 min-w-24 items-center gap-2 rounded-md border border-border bg-white px-2"
+                class="flex h-10 min-w-24 items-center gap-2 rounded-md border border-border bg-surface px-2"
               >
                 <span class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded bg-primary-900 text-[10px] font-black text-accent-300">
                   <img
                     v-if="sponsorLogo(sponsor, 'scoreboard').url"
                     :src="sponsorLogo(sponsor, 'scoreboard').url"
                     :alt="sponsorLogo(sponsor, 'scoreboard').alt"
-                    class="h-full w-full bg-white object-contain p-0.5"
+                    class="h-full w-full bg-surface object-contain p-0.5"
                   >
                   <span v-else>{{ sponsorLogo(sponsor, 'scoreboard').text }}</span>
                 </span>
@@ -852,7 +852,7 @@ const {
             <div
               v-for="catchItem in liveTournamentCatches"
               :key="catchItem.id"
-              class="grid gap-3 border-b border-border bg-white p-4 last:border-b-0 md:grid-cols-[1fr_auto]"
+              class="grid gap-3 border-b border-border bg-surface p-4 last:border-b-0 md:grid-cols-[1fr_auto]"
             >
               <div>
                 <p class="font-bold">
@@ -889,7 +889,7 @@ const {
             <div
               v-for="penalty in liveTournamentPenalties"
               :key="penalty.id"
-              class="rounded-md border border-border bg-white p-4"
+              class="rounded-md border border-border bg-surface p-4"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -921,7 +921,7 @@ const {
             <div
               v-for="check in liveTournamentRuleChecks"
               :key="check.id"
-              class="rounded-md border border-border bg-white p-4"
+              class="rounded-md border border-border bg-surface p-4"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
