@@ -48,7 +48,7 @@ export default defineConfig({
   webServer: externalBaseUrl
     ? undefined
     : {
-        command: 'pnpm build && HOST=127.0.0.1 PORT=3000 node .output/server/index.mjs',
+        command: 'pnpm build && HOST=127.0.0.1 PORT=3000 node --env-file-if-exists=.env .output/server/index.mjs',
         gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
         reuseExistingServer: !process.env.CI,
         stderr: 'pipe',
