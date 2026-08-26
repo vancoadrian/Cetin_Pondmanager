@@ -14,7 +14,7 @@ withDefaults(defineProps<Props>(), {
 <template>
   <section class="border-border bg-muted border-b">
     <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-      <p v-if="eyebrow" class="text-primary-700 mb-2 text-sm font-semibold tracking-wide uppercase">
+      <p v-if="eyebrow" class="text-primary-700 dark:text-primary-300 mb-2 text-sm font-semibold tracking-wide uppercase">
         {{ eyebrow }}
       </p>
       <h1 class="text-foreground max-w-full break-words text-3xl font-bold tracking-tight sm:text-4xl">

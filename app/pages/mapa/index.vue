@@ -255,7 +255,7 @@ function mapSummaryToneClass(tone: MapSummaryTone) {
   if (tone === 'success') return 'border-success-500/25 bg-success-500/10 text-success-800'
   if (tone === 'warning') return 'border-warning-200 bg-warning-500/10 text-warning-950'
 
-  return 'border-primary-200 bg-primary-50 text-primary-950'
+  return 'border-primary-200 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:border-primary-800 dark:bg-primary-950/60 dark:text-primary-100'
 }
 
 async function retryMapState() {
@@ -537,7 +537,7 @@ onBeforeUnmount(() => {
             class="min-h-11 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
             :class="
               selectedLake === lake.slug
-                ? 'bg-white text-primary-900 shadow-sm'
+                ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm'
                 : 'text-foreground-muted hover:text-foreground'
             "
             :aria-pressed="selectedLake === lake.slug"
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label class="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold">
+          <label class="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-semibold">
             <input v-model="showOnlyReservable" type="checkbox" class="h-4 w-4 accent-primary-700">
             Len rezervovateľné
           </label>
@@ -607,7 +607,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-5 rounded-md border border-border bg-white p-4">
+      <div class="mt-5 rounded-md border border-border bg-surface p-4">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="flex items-start gap-3">
             <UIcon
@@ -712,7 +712,7 @@ onBeforeUnmount(() => {
                     v-for="template in issueTemplateCards"
                     :key="template.title"
                     type="button"
-                    class="rounded-md border border-border bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                    class="rounded-md border border-border bg-surface p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
                     @click="applyIssueTemplate(template)"
                   >
                     <div class="flex items-start gap-2">
@@ -729,7 +729,7 @@ onBeforeUnmount(() => {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Kategória</span>
-                  <select v-model="issueForm.category" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm">
+                  <select v-model="issueForm.category" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm">
                     <option v-for="option in issueCategoryOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -737,7 +737,7 @@ onBeforeUnmount(() => {
                 </label>
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Týka sa</span>
-                  <select v-model="issueForm.targetKey" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm">
+                  <select v-model="issueForm.targetKey" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm">
                     <option v-for="option in issueTargetOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -832,7 +832,7 @@ onBeforeUnmount(() => {
               :key="row.peg.id"
               type="button"
               class="border-border rounded-md border p-3 text-left transition-colors hover:bg-muted"
-              :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50' : 'bg-white'"
+              :class="selectedPegId === row.peg.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'bg-surface'"
               :aria-pressed="selectedPegId === row.peg.id"
               @click="selectPeg(row.peg)"
             >
@@ -841,7 +841,7 @@ onBeforeUnmount(() => {
                 <AvailabilityBadge :availability="row.availability" />
               </div>
               <p class="text-foreground-muted mt-2 line-clamp-2 text-sm">{{ row.peg.notes }}</p>
-              <p class="text-primary-800 mt-2 line-clamp-1 text-xs font-semibold">
+              <p class="text-primary-800 dark:text-primary-200 mt-2 line-clamp-1 text-xs font-semibold">
                 {{ row.availability.reasons[0] }}
               </p>
             </button>

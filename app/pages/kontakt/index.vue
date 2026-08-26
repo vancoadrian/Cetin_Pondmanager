@@ -220,7 +220,7 @@ watch(contactForm, () => {
                 :key="topic.label"
                 type="button"
                 class="rounded-md border p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50"
-                :class="contactForm.topic === topic.label ? 'border-primary-600 bg-primary-50' : 'border-border bg-white'"
+                :class="contactForm.topic === topic.label ? 'border-primary-600 bg-primary-50 dark:bg-primary-950/50' : 'border-border bg-surface'"
                 :aria-pressed="contactForm.topic === topic.label"
                 @click="selectTopic(topic.label)"
               >
@@ -242,7 +242,7 @@ watch(contactForm, () => {
             <span class="text-sm font-semibold">Typ správy</span>
             <select
               :value="contactForm.topic"
-              class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+              class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
               @change="handleTopicSelect"
             >
               <option v-for="topic in contactTopics" :key="topic.label">
@@ -256,7 +256,7 @@ watch(contactForm, () => {
               v-model.trim="contactForm.contact"
               placeholder="Meno, telefón alebo email"
               required
-              class="border-border mt-1 h-11 w-full rounded-md border bg-white px-3 text-sm"
+              class="border-border mt-1 h-11 w-full rounded-md border bg-surface px-3 text-sm"
             >
           </label>
           <label class="block">
@@ -266,7 +266,7 @@ watch(contactForm, () => {
               rows="5"
               placeholder="Napíšte, čo potrebujete..."
               required
-              class="border-border mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+              class="border-border mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm"
             />
           </label>
           <div class="rounded-md border border-border bg-muted p-4">

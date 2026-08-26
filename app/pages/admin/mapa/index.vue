@@ -266,7 +266,7 @@ const {
           :key="lake.slug"
           type="button"
           class="rounded-md px-4 py-2 text-sm font-semibold transition-colors"
-          :class="selectedLake === lake.slug ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
+          :class="selectedLake === lake.slug ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted hover:text-foreground'"
           @click="selectedLake = lake.slug"
         >
           {{ lake.name }}
@@ -310,7 +310,7 @@ const {
           <button
             v-if="activeMapAdminView !== 'publikovanie' && (changedItemsCount > 0 || mapState.hasUnpublishedChanges)"
             type="button"
-            class="inline-flex shrink-0 items-center gap-1.5 text-left text-sm font-bold text-primary-800 hover:text-primary-950"
+            class="inline-flex shrink-0 items-center gap-1.5 text-left text-sm font-bold text-primary-800 dark:text-primary-200 hover:text-primary-950"
             @click="selectMapAdminView('publikovanie')"
           >
             <UIcon name="i-heroicons-arrow-right-circle" class="h-4 w-4" />
@@ -321,7 +321,7 @@ const {
 
       <div
         v-if="mapQualityFocusMessage"
-        class="mb-5 flex items-start justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-950"
+        class="mb-5 flex items-start justify-between gap-3 rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 px-4 py-3 text-sm text-primary-950 dark:text-primary-100"
       >
         <div class="flex items-start gap-2">
           <UIcon name="i-heroicons-information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
@@ -329,7 +329,7 @@ const {
         </div>
         <button
           type="button"
-          class="shrink-0 text-primary-800 hover:text-primary-950"
+          class="shrink-0 text-primary-800 dark:text-primary-200 hover:text-primary-950"
           aria-label="Zavrieť správu"
           @click="mapQualityFocusMessage = ''"
         >
@@ -384,13 +384,13 @@ const {
                 <h2 class="text-lg font-bold">Pridať do mapy</h2>
                 <p class="text-foreground-muted mt-1 text-sm">Body, servisné miesta a kreslené plochy pre revír.</p>
               </div>
-              <UIcon name="i-heroicons-map-pin" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-map-pin" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
             <div class="mt-4 grid gap-2 sm:grid-cols-2">
               <div
                 v-for="row in addPanelLayerReadinessRows"
                 :key="row.id"
-                class="rounded-md border border-border bg-white px-3 py-2"
+                class="rounded-md border border-border bg-surface px-3 py-2"
               >
                 <div class="flex items-center justify-between gap-2">
                   <span class="flex min-w-0 items-center gap-2">
@@ -504,8 +504,8 @@ const {
                   class="rounded-md border px-3 py-2 text-left transition-colors"
                   :class="
                     sectorShapeAlignmentMode === option.value
-                      ? 'border-warning-300 bg-white text-warning-950'
-                      : 'border-warning-200 bg-warning-50/50 text-foreground hover:bg-white'
+                      ? 'border-warning-300 bg-surface text-warning-950'
+                      : 'border-warning-200 bg-warning-50/50 text-foreground hover:bg-surface'
                   "
                   @click="sectorShapeAlignmentMode = option.value"
                 >
@@ -530,7 +530,7 @@ const {
                     max="40"
                     step="1"
                     :readonly="!canManageMap"
-                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-white px-2 text-sm"
+                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-surface px-2 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -542,7 +542,7 @@ const {
                     max="40"
                     step="1"
                     :readonly="!canManageMap"
-                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-white px-2 text-sm"
+                    class="mt-1 h-9 w-full rounded-md border border-warning-200 bg-surface px-2 text-sm"
                   >
                 </label>
               </div>
@@ -552,7 +552,7 @@ const {
               <div class="grid gap-3 sm:grid-cols-[1fr_1fr]">
                 <label class="block">
                   <span class="text-sm font-semibold">Kreslená plocha</span>
-                  <select v-model="drawShapeType" :disabled="!canManageMap || isDrawingShape" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="drawShapeType" :disabled="!canManageMap || isDrawingShape" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in shapeTypeOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -560,7 +560,7 @@ const {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Názov</span>
-                  <input v-model="drawShapeLabel" :readonly="!canManageMap || isDrawingShape" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" placeholder="napr. Zákaz kŕmenia">
+                  <input v-model="drawShapeLabel" :readonly="!canManageMap || isDrawingShape" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" placeholder="napr. Zákaz kŕmenia">
                 </label>
               </div>
               <p class="text-foreground-muted mt-2 text-xs">
@@ -585,7 +585,7 @@ const {
                 </label>
                 <label class="block">
                   <span class="sr-only">Krok mriežky</span>
-                  <select v-model.number="snapSize" class="h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold">
+                  <select v-model.number="snapSize" class="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm font-semibold">
                     <option v-for="option in snapSizeOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -650,7 +650,7 @@ const {
                 <h2 class="text-lg font-bold">Vrstvy mapy</h2>
                 <p class="text-foreground-muted mt-1 text-sm">{{ activeLayerPresetLabel }} · {{ selectedLayerSummary }}</p>
               </div>
-              <UIcon name="i-heroicons-squares-2x2" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-squares-2x2" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
             <div class="mt-4">
               <p class="text-xs font-bold uppercase text-foreground-muted">Pracovný režim</p>
@@ -662,10 +662,10 @@ const {
                   class="min-h-16 rounded-md border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   :class="
                     activeLayerPresetId === preset.id
-                      ? 'border-primary-300 bg-primary-50 text-primary-950'
+                      ? 'border-primary-300 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:text-primary-100'
                       : preset.missingLayerLabels.length > 0
                         ? 'border-warning-200 bg-warning-50/70 text-warning-950 hover:bg-warning-50'
-                      : 'border-border bg-white text-foreground hover:bg-muted'
+                      : 'border-border bg-surface text-foreground hover:bg-muted'
                   "
                   :disabled="!canManageMap"
                   :title="preset.missingLayerLabels.length > 0 ? `Kliknutie doplní vrstvy: ${preset.missingLayerLabels.join(', ')}.` : preset.description"
@@ -673,10 +673,10 @@ const {
                 >
                   <span class="flex items-center justify-between gap-2">
                     <span class="flex min-w-0 items-center gap-2">
-                      <UIcon :name="preset.icon" class="h-4 w-4 shrink-0 text-primary-800" />
+                      <UIcon :name="preset.icon" class="h-4 w-4 shrink-0 text-primary-800 dark:text-primary-200" />
                       <span class="truncate text-sm font-bold">{{ preset.label }}</span>
                     </span>
-                    <span class="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-primary-900">
+                    <span class="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-primary-900 dark:text-primary-100">
                       {{ preset.layerCount }}/{{ preset.expectedLayerCount }}
                     </span>
                   </span>
@@ -755,10 +755,10 @@ const {
                 class="flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors"
                 :class="
                   row.enabled
-                    ? 'border-primary-200 bg-primary-50'
+                    ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50'
                     : row.hasHiddenContent
                       ? 'border-warning-200 bg-warning-50/80 hover:bg-warning-50'
-                    : 'border-border bg-white hover:bg-muted'
+                    : 'border-border bg-surface hover:bg-muted'
                 "
                 @click="toggleLayer(row.layer.id)"
               >
@@ -775,7 +775,7 @@ const {
                 <span class="flex shrink-0 items-center gap-2">
                   <span
                     v-if="row.contentSummary.totalCount > 0"
-                    class="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-primary-900"
+                    class="rounded-full bg-surface px-2 py-0.5 text-xs font-bold text-primary-900 dark:text-primary-100"
                   >
                     {{ row.contentSummary.totalCount }}
                   </span>
@@ -795,10 +795,10 @@ const {
                   class="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-2 text-sm"
                 >
                   <span class="flex min-w-0 items-center gap-2">
-                    <UIcon :name="preset.icon" class="h-4 w-4 shrink-0 text-primary-800" />
+                    <UIcon :name="preset.icon" class="h-4 w-4 shrink-0 text-primary-800 dark:text-primary-200" />
                     <span class="truncate font-semibold">{{ preset.label }}</span>
                   </span>
-                  <span class="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-primary-900">{{ preset.count }}</span>
+                  <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-bold text-primary-900 dark:text-primary-100">{{ preset.count }}</span>
                 </div>
               </div>
             </div>
@@ -816,7 +816,7 @@ const {
                   {{ currentBackgroundLayer?.source ? 'Aktívny obrázkový podklad' : 'Generovaný SVG podklad' }}
                 </p>
               </div>
-              <UIcon name="i-heroicons-photo" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-photo" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
 
             <div class="mt-4 overflow-hidden rounded-md border border-border bg-muted">
@@ -844,7 +844,7 @@ const {
                   <p class="text-sm font-bold">Exportný rám</p>
                   <p class="text-foreground-muted mt-1 text-xs">{{ mapExportFramePreset.description }}</p>
                 </div>
-                <span class="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-900">
+                <span class="shrink-0 rounded-full bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 text-xs font-bold text-primary-900 dark:text-primary-100">
                   {{ mapExportFrame.width }} × {{ mapExportFrame.height }}
                 </span>
               </div>
@@ -856,8 +856,8 @@ const {
                   class="rounded-md border px-3 py-2 text-left text-sm transition-colors"
                   :class="
                     mapExportFramePresetId === preset.id
-                      ? 'border-primary-200 bg-primary-50 text-primary-950'
-                      : 'border-border bg-white text-foreground hover:bg-muted'
+                      ? 'border-primary-200 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:border-primary-800 dark:bg-primary-950/60 dark:text-primary-100'
+                      : 'border-border bg-surface text-foreground hover:bg-muted'
                   "
                   @click="mapExportFramePresetId = preset.id"
                 >
@@ -883,14 +883,14 @@ const {
               </dl>
             </div>
 
-            <div v-if="currentBackgroundLayer?.source" class="mt-4 rounded-md border border-border bg-white p-3">
+            <div v-if="currentBackgroundLayer?.source" class="mt-4 rounded-md border border-border bg-surface p-3">
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Napasovanie</span>
                   <select
                     :value="normalizedBackgroundImageSettings.fit"
                     :disabled="!canManageMap"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     @change="updateBackgroundImageFit"
                   >
                     <option v-for="option in backgroundFitOptions" :key="option.value" :value="option.value">
@@ -978,7 +978,7 @@ const {
 
             <label
               ref="backgroundUploadRef"
-              class="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary-300 bg-primary-50 px-3 py-3 text-sm font-bold text-primary-900 transition-colors hover:bg-primary-100"
+              class="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary-300 bg-primary-50 dark:bg-primary-950/50 px-3 py-3 text-sm font-bold text-primary-900 dark:text-primary-100 transition-colors hover:bg-primary-100"
               :class="[
                 !canManageMap || backgroundUploadStatus === 'uploading' ? 'pointer-events-none opacity-60' : '',
                 highlightBackgroundUpload ? 'ring-2 ring-warning-300 shadow-sm' : '',
@@ -1016,14 +1016,14 @@ const {
                   Prepni typ alebo klikni priamo do SVG mapy.
                 </p>
               </div>
-              <UIcon name="i-heroicons-cursor-arrow-rays" class="text-primary-800 h-5 w-5" />
+              <UIcon name="i-heroicons-cursor-arrow-rays" class="text-primary-800 dark:text-primary-200 h-5 w-5" />
             </div>
 
             <div class="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted p-1">
               <button
                 type="button"
                 class="rounded-md px-2 py-2 text-xs font-bold transition-colors"
-                :class="selectedKind === 'peg' ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted'"
+                :class="selectedKind === 'peg' ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted'"
                 @click="selectedKind = 'peg'"
               >
                 Miesto
@@ -1031,7 +1031,7 @@ const {
               <button
                 type="button"
                 class="rounded-md px-2 py-2 text-xs font-bold transition-colors"
-                :class="selectedKind === 'facility' ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted'"
+                :class="selectedKind === 'facility' ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted'"
                 @click="selectedKind = 'facility'"
               >
                 Bod
@@ -1039,7 +1039,7 @@ const {
               <button
                 type="button"
                 class="rounded-md px-2 py-2 text-xs font-bold transition-colors"
-                :class="selectedKind === 'shape' ? 'bg-white text-primary-900 shadow-sm' : 'text-foreground-muted'"
+                :class="selectedKind === 'shape' ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm' : 'text-foreground-muted'"
                 @click="selectedKind = 'shape'"
               >
                 Plocha
@@ -1048,7 +1048,7 @@ const {
 
             <div
               v-if="selectedElementLayerReadiness"
-              class="mt-4 rounded-md border border-border bg-white p-3"
+              class="mt-4 rounded-md border border-border bg-surface p-3"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -1081,12 +1081,12 @@ const {
             </div>
 
             <form v-if="selectedKind === 'peg' && selectedPeg" class="mt-5 space-y-4">
-              <div class="rounded-md border border-primary-200 bg-primary-50 p-3">
+              <div class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="text-sm font-bold">Rezervačný režim</p>
                     <p class="text-foreground-muted mt-1 text-xs">{{ selectedPegReservationSummary }}</p>
-                    <p v-if="selectedPeg.type === 'cabin'" class="mt-2 text-xs font-semibold text-primary-900">
+                    <p v-if="selectedPeg.type === 'cabin'" class="mt-2 text-xs font-semibold text-primary-900 dark:text-primary-100">
                       {{ selectedPegCabinProduct ? selectedPegCabinProduct.label : 'Chata zatiaľ nie je naviazaná v cenníku.' }}
                     </p>
                   </div>
@@ -1110,7 +1110,7 @@ const {
               <div
                 v-if="selectedPeg.type === 'cabin'"
                 ref="cabinCatalogPanelRef"
-                class="rounded-md border border-border bg-white p-3 transition-shadow"
+                class="rounded-md border border-border bg-surface p-3 transition-shadow"
                 :class="highlightCabinCatalogPanel ? 'ring-2 ring-warning-300 shadow-sm' : ''"
               >
                 <div class="flex items-start justify-between gap-3">
@@ -1119,7 +1119,7 @@ const {
                     <p class="text-foreground-muted mt-1 text-xs">
                       Naviazané miesta v katalógu: {{ linkedCabinPegIds.size }}.
                     </p>
-                    <p class="mt-2 text-xs font-semibold text-primary-900">
+                    <p class="mt-2 text-xs font-semibold text-primary-900 dark:text-primary-100">
                       {{ selectedPegCabinCatalogHint }}
                     </p>
                   </div>
@@ -1136,7 +1136,7 @@ const {
                   <select
                     :value="selectedPegCabinProductId"
                     :disabled="!canManageMap"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     @change="updateSelectedPegCabinProduct"
                   >
                     <option value="">Bez naviazanej chaty</option>
@@ -1179,22 +1179,22 @@ const {
               </div>
               <label class="block">
                 <span class="text-sm font-semibold">Názov</span>
-                <input v-model="selectedPeg.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <input v-model="selectedPeg.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
               </label>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">X pozícia</span>
-                  <input v-model.number="selectedPeg.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Y pozícia</span>
-                  <input v-model.number="selectedPeg.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
               </div>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Typ</span>
-                  <select v-model="selectedPeg.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" @change="updateSelectedPegType">
+                  <select v-model="selectedPeg.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" @change="updateSelectedPegType">
                     <option value="shore">lovné miesto</option>
                     <option value="cabin">miesto s chatou</option>
                   </select>
@@ -1204,11 +1204,11 @@ const {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Kapacita</span>
-                  <input v-model.number="selectedPeg.capacity" type="number" min="1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedPeg.capacity" type="number" min="1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Stav</span>
-                  <select v-model="selectedPeg.status" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedPeg.status" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in pegStatusOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1226,19 +1226,19 @@ const {
               </label>
               <label class="block">
                 <span class="text-sm font-semibold">Poznámka</span>
-                <textarea v-model="selectedPeg.notes" :readonly="!canManageMap" rows="3" class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm" />
+                <textarea v-model="selectedPeg.notes" :readonly="!canManageMap" rows="3" class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" />
               </label>
             </form>
 
             <form v-else-if="selectedKind === 'facility' && selectedFacility" class="mt-5 space-y-4">
               <label class="block">
                 <span class="text-sm font-semibold">Názov bodu</span>
-                <input v-model="selectedFacility.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <input v-model="selectedFacility.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
               </label>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Typ</span>
-                  <select v-model="selectedFacility.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedFacility.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in facilityTypeOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1246,7 +1246,7 @@ const {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Viditeľnosť</span>
-                  <select v-model="selectedFacility.visibility" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedFacility.visibility" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in visibilityOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1256,21 +1256,21 @@ const {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">X pozícia</span>
-                  <input v-model.number="selectedFacility.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedFacility.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Y pozícia</span>
-                  <input v-model.number="selectedFacility.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <input v-model.number="selectedFacility.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                 </label>
               </div>
               <label class="block">
                 <span class="text-sm font-semibold">Poznámka</span>
-                <textarea v-model="selectedFacility.notes" :readonly="!canManageMap" rows="3" class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm" />
+                <textarea v-model="selectedFacility.notes" :readonly="!canManageMap" rows="3" class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" />
               </label>
             </form>
 
             <form v-else-if="selectedKind === 'shape' && selectedShape" class="mt-5 space-y-4">
-              <div class="rounded-md border border-primary-200 bg-primary-50 p-3">
+              <div class="rounded-md border border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 p-3">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="text-sm font-bold">{{ selectedShapePreset?.label ?? mapShapeTypeLabels[selectedShape.type] }}</p>
@@ -1278,7 +1278,7 @@ const {
                       {{ selectedShapeLayerName }} · {{ selectedShapeVisibilityLabel }}
                     </p>
                   </div>
-                  <UIcon :name="selectedShapePreset?.icon ?? 'i-heroicons-squares-2x2'" class="h-5 w-5 text-primary-800" />
+                  <UIcon :name="selectedShapePreset?.icon ?? 'i-heroicons-squares-2x2'" class="h-5 w-5 text-primary-800 dark:text-primary-200" />
                 </div>
               </div>
               <div class="grid gap-2 sm:grid-cols-2">
@@ -1297,7 +1297,7 @@ const {
               </div>
               <label class="block">
                 <span class="text-sm font-semibold">Názov plochy</span>
-                <input v-model="selectedShape.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                <input v-model="selectedShape.label" :readonly="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
               </label>
               <div
                 v-if="selectedShape.type === 'sector'"
@@ -1318,7 +1318,7 @@ const {
                     <select
                       v-model="selectedShape.tournamentId"
                       :disabled="!canManageMap || selectedLakeTournaments.length === 0"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                       @change="syncSelectedShapeTournament"
                     >
                       <option value="">Bez súťaže</option>
@@ -1332,7 +1332,7 @@ const {
                     <select
                       v-model="selectedShape.sectorId"
                       :disabled="!canManageMap || !selectedShape.tournamentId || selectedShapeSectorOptions.length === 0"
-                      class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                      class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                     >
                       <option value="">Bez sektora</option>
                       <option v-for="sector in selectedShapeSectorOptions" :key="sector.id" :value="sector.id">
@@ -1345,7 +1345,7 @@ const {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
                   <span class="text-sm font-semibold">Typ</span>
-                  <select v-model="selectedShape.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm" @change="updateSelectedShapeType">
+                  <select v-model="selectedShape.type" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" @change="updateSelectedShapeType">
                     <option v-for="option in shapeTypeOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1353,7 +1353,7 @@ const {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Viditeľnosť</span>
-                  <select v-model="selectedShape.visibility" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedShape.visibility" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in visibilityOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1361,7 +1361,7 @@ const {
                 </label>
                 <label class="block">
                   <span class="text-sm font-semibold">Farba vrstvy</span>
-                  <select v-model="selectedShape.tone" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm">
+                  <select v-model="selectedShape.tone" :disabled="!canManageMap" class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm">
                     <option v-for="option in shapeToneOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -1372,14 +1372,14 @@ const {
                   <p class="font-semibold">{{ selectedShape.points.length }}</p>
                 </div>
               </div>
-              <div class="max-h-72 space-y-2 overflow-auto rounded-md border border-border bg-white p-3">
+              <div class="max-h-72 space-y-2 overflow-auto rounded-md border border-border bg-surface p-3">
                 <div
                   v-for="(point, pointIndex) in selectedShape.points"
                   :key="pointIndex"
                   class="rounded-md border border-border bg-muted/40 p-3 text-sm"
                 >
                   <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-bold text-primary-900">Vrchol {{ pointIndex + 1 }}</span>
+                    <span class="text-xs font-bold text-primary-900 dark:text-primary-100">Vrchol {{ pointIndex + 1 }}</span>
                     <span class="text-foreground-muted text-xs">
                       {{ point.role ? mapShapePointRoleLabels[point.role] : 'bez typu' }}
                     </span>
@@ -1387,15 +1387,15 @@ const {
                   <div class="mt-2 grid gap-2 sm:grid-cols-2">
                     <label class="block">
                       <span class="text-foreground-muted text-xs font-semibold">X</span>
-                      <input v-model.number="point.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                      <input v-model.number="point.x" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2">
                     </label>
                     <label class="block">
                       <span class="text-foreground-muted text-xs font-semibold">Y</span>
-                      <input v-model.number="point.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                      <input v-model.number="point.y" type="number" min="0" max="100" step="0.1" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2">
                     </label>
                     <label class="block">
                       <span class="text-foreground-muted text-xs font-semibold">Typ bodu</span>
-                      <select v-model="point.role" :disabled="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2">
+                      <select v-model="point.role" :disabled="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2">
                         <option value="">Bez typu</option>
                         <option v-for="option in shapePointRoleOptions" :key="option.value" :value="option.value">
                           {{ option.label }}
@@ -1404,7 +1404,7 @@ const {
                     </label>
                     <label class="block">
                       <span class="text-foreground-muted text-xs font-semibold">Názov</span>
-                      <input v-model="point.label" maxlength="40" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2" placeholder="napr. severný breh">
+                      <input v-model="point.label" maxlength="40" :readonly="!canManageMap" class="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2" placeholder="napr. severný breh">
                     </label>
                   </div>
                 </div>
@@ -1448,17 +1448,17 @@ const {
                   Najprv ulož pracovnú verziu, potom ju po kontrole zverejni návštevníkom.
                 </p>
               </div>
-              <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5 shrink-0 text-primary-800" />
+              <UIcon name="i-heroicons-cloud-arrow-up" class="h-5 w-5 shrink-0 text-primary-800 dark:text-primary-200" />
             </div>
 
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
               <div class="rounded-md bg-muted p-3">
                 <p class="text-foreground-muted text-xs font-semibold">Neuložené zmeny</p>
-                <p class="mt-1 text-xl font-bold text-primary-950">{{ changedItemsCount }}</p>
+                <p class="mt-1 text-xl font-bold text-primary-950 dark:text-primary-100">{{ changedItemsCount }}</p>
               </div>
               <div class="rounded-md bg-muted p-3">
                 <p class="text-foreground-muted text-xs font-semibold">Uložený draft</p>
-                <p class="mt-1 text-xl font-bold text-primary-950">{{ draftChangeTotal }}</p>
+                <p class="mt-1 text-xl font-bold text-primary-950 dark:text-primary-100">{{ draftChangeTotal }}</p>
               </div>
             </div>
 
@@ -1732,7 +1732,7 @@ const {
                   {{ filteredShapePointLegendRows.length }}/{{ shapePointLegendRows.length }} označených bodov podľa filtrov.
                 </p>
               </div>
-              <UIcon name="i-heroicons-book-open" class="h-5 w-5 text-primary-800" />
+              <UIcon name="i-heroicons-book-open" class="h-5 w-5 text-primary-800 dark:text-primary-200" />
             </div>
 
             <div class="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1740,7 +1740,7 @@ const {
                 <span class="text-xs font-semibold text-foreground-muted">Typ bodu</span>
                 <select
                   v-model="shapePointLegendRoleFilter"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-2 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-2 text-sm"
                 >
                   <option value="all">Všetky typy</option>
                   <option v-for="option in shapePointRoleOptions" :key="option.value" :value="option.value">
@@ -1752,7 +1752,7 @@ const {
                 <span class="text-xs font-semibold text-foreground-muted">Viditeľnosť plochy</span>
                 <select
                   v-model="shapePointLegendVisibilityFilter"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-2 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-2 text-sm"
                 >
                   <option
                     v-for="option in shapePointLegendVisibilityOptions"
@@ -1790,7 +1790,7 @@ const {
               <span
                 v-for="row in shapePointLegendSummary"
                 :key="row.role"
-                class="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-900"
+                class="rounded-full bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 text-xs font-bold text-primary-900 dark:text-primary-100"
               >
                 {{ row.label }} · {{ row.count }}
               </span>
@@ -1804,19 +1804,19 @@ const {
                 class="w-full rounded-md border px-3 py-2 text-left text-sm transition-colors"
                 :class="
                   selectedKind === 'shape' && selectedShapeId === row.shapeId
-                    ? 'border-primary-200 bg-primary-50'
-                    : 'border-border bg-muted hover:bg-white'
+                    ? 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50'
+                    : 'border-border bg-muted hover:bg-surface'
                 "
                 @click="selectShapePointLegendRow(row)"
               >
                 <span class="flex items-start justify-between gap-3">
                   <span class="min-w-0">
-                    <span class="block truncate font-bold text-primary-950">{{ row.label }}</span>
+                    <span class="block truncate font-bold text-primary-950 dark:text-primary-100">{{ row.label }}</span>
                     <span class="text-foreground-muted mt-0.5 block truncate text-xs">
                       {{ row.shapeLabel }} · vrchol {{ row.pointIndex + 1 }}
                     </span>
                   </span>
-                  <span class="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-primary-900">
+                  <span class="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-bold text-primary-900 dark:text-primary-100">
                     {{ row.roleLabel }}
                   </span>
                 </span>
@@ -1848,7 +1848,7 @@ const {
                 class="rounded-md border border-border bg-muted px-3 py-2"
               >
                 <p class="text-foreground-muted text-xs font-semibold uppercase tracking-wide">{{ row.label }}</p>
-                <p class="mt-1 text-xl font-bold text-primary-950">{{ row.value }}</p>
+                <p class="mt-1 text-xl font-bold text-primary-950 dark:text-primary-100">{{ row.value }}</p>
               </div>
             </div>
             <p class="text-foreground-muted mt-4 text-sm">

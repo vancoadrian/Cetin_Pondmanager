@@ -42,13 +42,13 @@ const toneClasses = computed(() => {
     case 'info':
       return 'border-info-500/30 bg-info-500/10 text-info-800'
     case 'primary':
-      return 'border-primary-200 bg-primary-50 text-primary-900'
+      return 'border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/50 text-primary-900 dark:text-primary-100'
     case 'success':
       return 'border-success-500/30 bg-success-500/10 text-success-800'
     case 'warning':
       return 'border-warning-500/30 bg-warning-500/10 text-warning-900'
     case 'neutral':
-      return 'border-border bg-white text-foreground'
+      return 'border-border bg-surface text-foreground'
     default:
       return 'border-border bg-muted text-foreground-muted'
   }

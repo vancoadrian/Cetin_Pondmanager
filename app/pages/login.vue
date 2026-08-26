@@ -209,7 +209,7 @@ async function submit() {
               type="email"
               autocomplete="email"
               required
-              class="h-12 w-full rounded-md border border-border bg-white pr-3 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-3 pl-10 text-sm"
               placeholder="vas@email.sk"
             >
           </div>
@@ -227,7 +227,7 @@ async function submit() {
               :type="showPassword ? 'text' : 'password'"
               autocomplete="current-password"
               required
-              class="h-12 w-full rounded-md border border-border bg-white pr-11 pl-10 text-sm"
+              class="h-12 w-full rounded-md border border-border bg-surface pr-11 pl-10 text-sm"
               placeholder="Vaše heslo"
             >
             <button
@@ -242,7 +242,7 @@ async function submit() {
         </label>
 
         <div class="mt-4 flex items-center justify-end">
-          <NuxtLink to="/zabudnute-heslo" class="text-sm font-semibold text-primary-700 hover:text-primary-900">
+          <NuxtLink to="/zabudnute-heslo" class="text-sm font-semibold text-primary-700 hover:text-primary-900 dark:hover:text-primary-100">
             Zabudli ste heslo?
           </NuxtLink>
         </div>
@@ -269,7 +269,7 @@ async function submit() {
 
         <p class="mt-5 text-center text-sm text-foreground-muted">
           Nemáte účet?
-          <NuxtLink to="/registracia" class="font-semibold text-primary-700 hover:text-primary-900">
+          <NuxtLink to="/registracia" class="font-semibold text-primary-700 hover:text-primary-900 dark:hover:text-primary-100">
             Vytvoriť rybársky účet
           </NuxtLink>
         </p>

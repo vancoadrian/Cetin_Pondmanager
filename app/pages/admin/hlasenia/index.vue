@@ -392,7 +392,7 @@ async function submitIssueAction() {
           type="button"
           class="rounded-card border p-4 text-left transition-colors"
           :class="isMetricActive(metric.id)
-            ? 'border-primary-300 bg-primary-50 shadow-sm'
+            ? 'border-primary-300 bg-primary-50 dark:bg-primary-950/50 shadow-sm'
             : 'border-border bg-surface hover:border-primary-200 hover:bg-muted'"
           @click="applyMetricFilter(metric.id)"
         >
@@ -408,7 +408,7 @@ async function submitIssueAction() {
             </div>
             <span
               class="grid h-10 w-10 place-items-center rounded-md border"
-              :class="isMetricActive(metric.id) ? 'border-primary-200 bg-white text-primary-800' : 'border-border bg-muted text-foreground-muted'"
+              :class="isMetricActive(metric.id) ? 'border-primary-200 bg-surface text-primary-800 dark:text-primary-200' : 'border-border bg-muted text-foreground-muted'"
             >
               <UIcon :name="metric.icon" class="h-5 w-5" />
             </span>
@@ -427,7 +427,7 @@ async function submitIssueAction() {
             <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <label class="space-y-1 text-xs font-bold text-foreground-muted">
                 <span>Jazero</span>
-                <select v-model="lakeFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground">
+                <select v-model="lakeFilter" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground">
                   <option v-for="option in lakeOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
@@ -435,7 +435,7 @@ async function submitIssueAction() {
               </label>
               <label class="space-y-1 text-xs font-bold text-foreground-muted">
                 <span>Priorita</span>
-                <select v-model="priorityFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground">
+                <select v-model="priorityFilter" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground">
                   <option value="all">Všetky</option>
                   <option v-for="option in priorityOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
@@ -444,7 +444,7 @@ async function submitIssueAction() {
               </label>
               <label class="space-y-1 text-xs font-bold text-foreground-muted">
                 <span>Stav</span>
-                <select v-model="statusFilter" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground">
+                <select v-model="statusFilter" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground">
                   <option value="open">Otvorené</option>
                   <option value="all">Všetky</option>
                   <option v-for="option in statusOptions" :key="option.value" :value="option.value">
@@ -471,7 +471,7 @@ async function submitIssueAction() {
               type="button"
               class="w-full rounded-md border p-4 text-left transition-colors hover:border-primary-200 hover:bg-muted"
               :class="[
-                selectedIssue?.id === issue.id ? 'border-primary-700 bg-primary-50 shadow-sm' : 'border-border bg-white',
+                selectedIssue?.id === issue.id ? 'border-primary-700 bg-primary-50 dark:bg-primary-950/50 shadow-sm' : 'border-border bg-surface',
                 issue.priority === 'urgent' && selectedIssue?.id !== issue.id ? 'border-l-error-500 border-l-4' : '',
               ]"
               @click="selectIssue(issue)"
@@ -519,7 +519,7 @@ async function submitIssueAction() {
           <div v-if="selectedIssue" class="space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p class="text-sm font-semibold text-primary-800">{{ getLakeName(selectedIssue.lake) }} · {{ selectedIssue.targetLabel }}</p>
+                <p class="text-sm font-semibold text-primary-800 dark:text-primary-200">{{ getLakeName(selectedIssue.lake) }} · {{ selectedIssue.targetLabel }}</p>
                 <h2 class="mt-1 text-2xl font-bold">{{ selectedIssue.title }}</h2>
                 <p class="mt-2 text-sm text-foreground-muted">{{ selectedIssue.description }}</p>
                 <div class="mt-3 flex flex-wrap gap-2">
@@ -589,7 +589,7 @@ async function submitIssueAction() {
             </dl>
 
             <form class="space-y-4 border-t border-border pt-5" @submit.prevent="submitIssueAction">
-              <div class="rounded-md border border-border bg-white p-3">
+              <div class="rounded-md border border-border bg-surface p-3">
                 <p class="text-sm font-bold">Rýchle kroky</p>
                 <div class="mt-3 flex flex-wrap gap-2">
                   <UButton
@@ -638,7 +638,7 @@ async function submitIssueAction() {
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Stav</span>
-                  <select v-model="actionForm.status" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm" :disabled="!canOperate">
+                  <select v-model="actionForm.status" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" :disabled="!canOperate">
                     <option v-for="option in statusOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>
@@ -646,7 +646,7 @@ async function submitIssueAction() {
                 </label>
                 <label class="space-y-1 text-sm font-semibold">
                   <span>Priorita</span>
-                  <select v-model="actionForm.priority" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm" :disabled="!canOperate">
+                  <select v-model="actionForm.priority" class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" :disabled="!canOperate">
                     <option v-for="option in priorityOptions" :key="option.value" :value="option.value">
                       {{ option.label }}
                     </option>

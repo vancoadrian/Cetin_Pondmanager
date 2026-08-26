@@ -33,7 +33,7 @@ const noticeClasses = computed(() => {
   if (props.tone === 'error') return 'border-error-200 bg-error-500/10 text-error-950'
   if (props.tone === 'success') return 'border-success-500/25 bg-success-500/10 text-success-800'
   if (props.tone === 'warning') return 'border-warning-200 bg-warning-500/10 text-warning-950'
-  return 'border-primary-200 bg-primary-50 text-primary-950'
+  return 'border-primary-200 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:border-primary-800 dark:bg-primary-950/60 dark:text-primary-100'
 })
 
 const shouldSpin = computed(() => props.loading && props.tone === 'info' && !props.icon)

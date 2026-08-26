@@ -131,7 +131,7 @@ const lakeCards = computed(() =>
           <div class="border-border bg-muted/50 border-t p-5">
             <h3 class="font-semibold">Prevádzkové pravidlá</h3>
             <ul class="mt-3 grid gap-2 text-sm md:grid-cols-3">
-              <li v-for="rule in card.lake.rules" :key="rule" class="rounded-md bg-white p-3">
+              <li v-for="rule in card.lake.rules" :key="rule" class="rounded-md bg-surface p-3">
                 {{ rule }}
               </li>
             </ul>
