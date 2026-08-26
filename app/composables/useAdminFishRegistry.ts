@@ -29,6 +29,8 @@ export type FishAdminView = 'dostupnost' | 'kontrola' | 'privolania' | 'register
 type NoticeTone = 'error' | 'info' | 'success' | 'warning'
 
 export async function useAdminFishRegistry() {
+  // Po prvom await stráca Vue aktívnu inštanciu — hooky sa viažu na ňu explicitne
+  const componentInstance = getCurrentInstance()
   const { getLakeName, getPegLabel, lakes, pegs } = usePondData()
   const { canManage, canOperate, isReadOnly, label: accessLabel, readOnlyMessage } = useAdminModuleAccess('fish')
   const requestFetch = useRequestFetch()
@@ -305,12 +307,12 @@ export async function useAdminFishRegistry() {
       void refreshAssistance()
     }, 10_000)
     void revealActiveFishAdminTab()
-  })
+  }, componentInstance)
 
   onBeforeUnmount(() => {
     if (availabilityTimer) clearInterval(availabilityTimer)
     if (assistanceTimer) clearInterval(assistanceTimer)
-  })
+  }, componentInstance)
 
   watch(filteredFish, (items) => {
     if (!items.some((item) => item.id === selectedFishId.value)) {

@@ -110,6 +110,9 @@ export default defineNuxtConfig({
       __SENTRY_BUILD_ENVIRONMENT__: sentryBuildEnvironmentLiteral,
       __SENTRY_BUILD_RELEASE__: sentryBuildReleaseLiteral,
     },
+    optimizeDeps: {
+      include: ['zod'],
+    },
   },
 
   routeRules: {
