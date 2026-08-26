@@ -13,7 +13,7 @@ import {
 } from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataSafetyBackupCleanupResponse> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const body = await readBody<LocalDataSafetyBackupCleanupRequest>(event)
     .catch((): LocalDataSafetyBackupCleanupRequest => ({}))
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event): Promise<LocalDataSafetyBackupCl
       ?? 0
 
     await appendLocalAuditEvent({
-      ...resolveAuditActor(event),
+      ...await resolveAuditActor(event),
       action: 'system.data_backup.cleanup',
       area: 'system',
       details: {

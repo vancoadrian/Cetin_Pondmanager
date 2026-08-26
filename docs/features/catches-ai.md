@@ -79,7 +79,7 @@ Verejný formulár pri rybe nad limitom počas služby ponúkne akciu `Privolať
 - Formulár úlovku a skupinového zápisníka používa Zod validácie a zapisuje cez `POST /api/catches` a `POST /api/logbooks`.
 - Formulár úlovku má klientsku offline frontu v IndexedDB. Ak odoslanie zlyhá kvôli výpadku siete, validovaný payload vrátane fotky ostane v zariadení, UI ukáže čakajúce záznamy a po návrate internetu sa fronta odošle na `POST /api/catches`.
 - Nový úlovok sa uloží ako čakajúci na schválenie. Verejný zoznam filtruje iba schválené úlovky.
-- Verejný formulár podporuje JPG, PNG a WebP fotku do 6 MB. Server ju uloží do `.data/rybolov-cetin/catch-photos/` a metadata do `catchPhotos`.
+- Verejný formulár podporuje JPG, PNG a WebP fotku do 6 MB. Server ju uloží do privátneho Storage bucketu `catch-photos` a metadata do `catchPhotos`.
 - Fotka sa číta cez `GET /api/catch-photos/:id`; v produkcii sa tento kontrakt nahradí Supabase Storage URL.
 - Metadata fotky už obsahujú `storagePath`, `publicUrl`, `aiStatus`, `aiNotes`, MIME typ a veľkosť súboru.
 - `/admin/ulovky` má prvý schvaľovací workflow: správca vie úlovok schváliť, ponechať v kontrole alebo zamietnuť s poznámkou.
@@ -96,7 +96,7 @@ Verejný formulár pri rybe nad limitom počas služby ponúkne akciu `Privolať
 - Trend druh + lovné miesto ukáže najsilnejšie rastové aj klesajúce signály na konkrétnych miestach.
 - Export trendových signálov skladá sezónne, mesačné, druhové a miesto-druhové porovnania do jednej tabuľky so stavom rast/pokles/bez bázy.
 - Správca si vie uložiť aktuálny filter ako manuálny, týždenný alebo mesačný report pre majiteľa, správcu alebo účtovníka.
-- Uložené reporty sa čítajú a zapisujú cez `GET/POST /api/admin/catch-reports`, majú lokálny store `.data/rybolov-cetin/catch-reports.json` a audit udalosť `catch.report.saved`.
+- Uložené reporty sa čítajú a zapisujú cez `GET/POST /api/admin/catch-reports`, žijú v runtime store `catch-reports` a majú audit udalosť `catch.report.saved`.
 - Uložený report sa dá vygenerovať cez `POST /api/admin/catch-reports/:id/generate`; výsledok obsahuje manažérsky súhrn, voliteľný CSV export úlovkov, voliteľný CSV export trendových signálov a audit udalosť `catch.report.generated`.
 - E-mailový draft reportu sa pripraví cez `POST /api/admin/catch-reports/:id/email-draft`; podľa providera vznikne lokálny draft, preskočené doručenie alebo reálne odoslanie cez Resend a vždy lokálny delivery log.
 - Plánovač reportov sa dá spustiť cez `POST /api/admin/catch-reports/run-due`; prejde aktívne týždenné a mesačné reporty, spracuje iba splatné položky, aktualizuje `lastGeneratedAt`, delivery logy a audit udalosť `catch.report.schedule.run`. Výsledok aj admin panel ukazujú provider doručovania a počty odoslaných, pripravených, preskočených a chybných reportov.
@@ -107,10 +107,10 @@ Verejný formulár pri rybe nad limitom počas služby ponúkne akciu `Privolať
 - Weather resolver má provider konfiguráciu cez `.env`: `mock`, `station`, `manual`, `weather-api` alebo `disabled`. Stanica a manuálny režim môžu posielať kompletný snapshot; neúplný provider bezpečne padá na mock, ak je zapnutý fallback.
 - Ak správca opraví čas, jazero alebo lovné miesto úlovku, korekcia prepočíta aj weather snapshot, aby analytika neskôr nepracovala s nesprávnym kontextom.
 - Admin report počíta priemernú vodu, vzduch, tlak, vietor a najčastejšie podmienky pri zábere.
-- Lokálny stav sa ukladá do `.data/rybolov-cetin/catch-state.json`.
+- Runtime stav žije v store `catch-state` (dokument v `runtime_store_states`).
 - Súťažné úlovky sú oddelené v `tournamentCatches`.
 - `/admin/ryby` má interný register čipovaných rýb, vyhľadávanie podľa čipu alebo mena, graf váhy a dĺžky, históriu miest a CSV import/export. Obrazovka je rozdelená na odkazovateľné pracovné pohľady `Privolania`, `Kontrola čipu`, `Register` a `Dostupnosť`; počty v navigácii ukazujú otvorené požiadavky, kandidátov, ryby a aktívne jazerné pravidlá. Na mobile sa aktívny pohľad aj aktívny admin modul automaticky posunú do viditeľnej časti navigácie.
-- Register má lokálny store `.data/rybolov-cetin/fish-registry-state.json` a chránené endpointy `/api/admin/fish-registry`.
+- Register má runtime store `fish-registry-state` a chránené endpointy `/api/admin/fish-registry`.
 - `PATCH /api/admin/fish-registry/:id` upravuje iba meno, druh, poznámku a stav. Čip aj pôvodné označenie ostávajú nemeniteľné; zmena stavu vyžaduje dôvod a zapisuje `fish.status.changed` do auditu.
 - `GET /api/admin/fish-registry/candidates` odvodzuje úlovky nad konfigurovaným limitom jazera bez čipovej väzby. Kandidát sa dá priradiť k existujúcemu čipu alebo použiť na založenie novej ryby; formuláre preberú váhu, dĺžku, čas, rybára, nástrahu a miesto.
 - `/admin/ryby` upravuje pravidlá veľkej ryby cez `POST /api/admin/fish-registry/settings`; správca môže pridať viac týždenných kontaktných okien s dňami a časom. Verejný formulár úlovku číta bezpečný výber aktívnych pravidiel z `GET /api/fish-registry/rules` a pri prekročení limitu podľa času úlovku zobrazí buď kontakt, alebo pokyn mimo služby.

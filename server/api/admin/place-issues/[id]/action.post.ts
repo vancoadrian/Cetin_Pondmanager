@@ -9,7 +9,7 @@ import {
 } from '../../../../utils/localPlaceIssueStore'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'issues', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'issues', mode: 'operate' })
 
   const issueId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     placeIssues: result.placeIssues,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

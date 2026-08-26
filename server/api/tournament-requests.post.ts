@@ -20,7 +20,7 @@ function marshalIdsForSector(state: Awaited<ReturnType<typeof readLocalTournamen
 
 export default defineEventHandler(async (event) => {
   const payload = await readBody(event)
-  const sessionUser = resolveAppSessionUser(event)
+  const sessionUser = await resolveAppSessionUser(event)
   if (!canUseTournamentTeamScope(sessionUser, payload?.tournamentId, payload?.sectorId)) {
     throw createError({
       statusCode: sessionUser ? 403 : 401,
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
 
   await appendLocalTournamentRequest(result.request)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'public-team',
       actorLabel: result.request.team,
       actorRole: 'tournament_team',

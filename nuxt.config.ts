@@ -1,3 +1,10 @@
+import { execFileSync } from 'node:child_process'
+import {
+  resolveSentryBuildIdentity,
+  resolveSentryDsn,
+  resolveSentrySourceMapBuildSettings,
+} from './app/utils/sentry'
+
 const normalizeSiteUrl = (value?: string) => {
   const trimmed = value?.trim()
   if (!trimmed) return undefined
@@ -11,6 +18,32 @@ const appName = 'Rybolov Cetín'
 const venueName = 'Veľký Cetín & Kocka'
 const fullTitle = `${appName} · ${venueName}`
 const configuredSiteUrl = normalizeSiteUrl(process.env.NUXT_PUBLIC_SITE_URL)
+
+const gitRelease = (() => {
+  try {
+    const release = execFileSync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+
+    return /^[a-f0-9]{40,64}$/i.test(release) ? release : undefined
+  }
+  catch {
+    return undefined
+  }
+})()
+
+// Resolve exactly once at build time. Vite and Nitro receive the same frozen
+// identity, and the Sentry uploader uses its release below.
+const sentryBuildIdentity = resolveSentryBuildIdentity(process.env, gitRelease)
+const sentryBuildEnvironmentLiteral = JSON.stringify(sentryBuildIdentity.environment)
+const sentryBuildReleaseLiteral = JSON.stringify(sentryBuildIdentity.release || '')
+const publicSentryDsn = resolveSentryDsn(
+  process.env.NUXT_PUBLIC_SENTRY_DSN,
+  process.env.NEXT_PUBLIC_SENTRY_DSN,
+) || ''
+const sentrySourceMaps = resolveSentrySourceMapBuildSettings(process.env)
 
 if (process.env.RYBOLOV_ENVIRONMENT === 'production' && !configuredSiteUrl) {
   throw new Error('NUXT_PUBLIC_SITE_URL is required when RYBOLOV_ENVIRONMENT=production.')
@@ -26,9 +59,22 @@ export default defineNuxtConfig({
     typescriptBundlerResolution: true,
   },
 
+  experimental: {
+    // Keeps the Nuxt/Vue instance context alive across awaits inside
+    // composables (AsyncLocalStorage). Without it, production SSR of pages
+    // whose composables chain multiple `await useAsyncData(...)` calls and
+    // then touch useRoute()/useRouter() dies with "[nuxt] instance
+    // unavailable" (reproducible on /rezervacie in a production build).
+    asyncContext: true,
+  },
+
   devtools: { enabled: import.meta.dev },
 
-  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@vite-pwa/nuxt'],
+  ...(sentrySourceMaps.nuxtSourceMap
+    ? { sourcemap: sentrySourceMaps.nuxtSourceMap }
+    : {}),
+
+  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@vite-pwa/nuxt', '@sentry/nuxt/module'],
 
   ui: {
     fonts: false,
@@ -36,6 +82,37 @@ export default defineNuxtConfig({
 
   nitro: {
     compressPublicAssets: true,
+    ...(sentrySourceMaps.nitroSourceMap === false
+      ? {
+          sourceMap: sentrySourceMaps.nitroSourceMap,
+          rollupConfig: {
+            output: {
+              sourcemap: sentrySourceMaps.nitroRollupSourceMap,
+            },
+          },
+        }
+      : {}),
+    replace: {
+      __SENTRY_BUILD_ENVIRONMENT__: sentryBuildEnvironmentLiteral,
+      __SENTRY_BUILD_RELEASE__: sentryBuildReleaseLiteral,
+    },
+  },
+
+  vite: {
+    ...(sentrySourceMaps.viteSourceMap === false
+      ? {
+          build: {
+            sourcemap: sentrySourceMaps.viteSourceMap,
+          },
+        }
+      : {}),
+    define: {
+      __SENTRY_BUILD_ENVIRONMENT__: sentryBuildEnvironmentLiteral,
+      __SENTRY_BUILD_RELEASE__: sentryBuildReleaseLiteral,
+    },
+    optimizeDeps: {
+      include: ['zod'],
+    },
   },
 
   routeRules: {
@@ -91,8 +168,31 @@ export default defineNuxtConfig({
         || process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY
         || '',
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || '',
+      sentry: {
+        dsn: publicSentryDsn,
+        tracesSampleRate: process.env.NUXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || '0.05',
+      },
       vapidPublicKey: process.env.NUXT_PUBLIC_VAPID_PUBLIC_KEY || '',
     },
+  },
+
+  sentry: {
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    autoInjectServerSentry: 'top-level-import',
+    bundleSizeOptimizations: {
+      excludeDebugStatements: true,
+    },
+    release: sentryBuildIdentity.release
+      ? { name: sentryBuildIdentity.release }
+      : undefined,
+    sourcemaps: {
+      // With complete CI credentials, the Nuxt module enables hidden maps and
+      // automatically removes generated map files after a successful upload.
+      disable: !sentrySourceMaps.uploadEnabled,
+    },
+    telemetry: false,
   },
 
   pwa: {
@@ -132,6 +232,7 @@ export default defineNuxtConfig({
       ],
     },
     workbox: {
+      sourcemap: false,
       navigateFallback: null,
       globPatterns: [
         'offline-fallback.html',

@@ -1,16 +1,21 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneCatchReportState,
   createEmptyCatchReportState,
   type CatchReportState,
 } from '~/services/catchReportService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalCatchReportState extends CatchReportState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'catch-reports'
 
 export function resolveLocalCatchReportStorePath() {
   return process.env.RYBOLOV_LOCAL_CATCH_REPORT_STORE
@@ -39,10 +44,10 @@ function isCatchReportState(value: unknown): value is LocalCatchReportState {
 export async function readLocalCatchReportState(
   filePath = resolveLocalCatchReportStorePath(),
 ): Promise<LocalCatchReportState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
+  if (document.found) {
+    const parsed = document.payload
     if (isCatchReportState(parsed)) {
       return {
         ...cloneCatchReportState({
@@ -53,12 +58,7 @@ export async function readLocalCatchReportState(
         version: 1,
       }
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálne reporty úlovkov: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedCatchReportState()
@@ -77,7 +77,7 @@ export async function writeLocalCatchReportState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

@@ -7,6 +7,7 @@ import type {
 import {
   DEFAULT_PUBLIC_PUSH_LAKES,
   DEFAULT_PUBLIC_PUSH_TOPICS,
+  describePushAvailability,
   getClientPushSupport,
   PUBLIC_NOTIFICATION_LAKES,
   PUSH_ENDPOINT_STORAGE_KEY,
@@ -46,17 +47,9 @@ const notificationSelectionLabel = computed(() => [
 const notificationPrimaryActionLabel = computed(() =>
   subscriptionEndpoint.value ? 'Uložiť výber' : 'Zapnúť vybrané upozornenia',
 )
-const notificationAvailabilityMessage = computed(() => {
-  if (notificationsAvailable.value) {
-    return 'Toto zariadenie vie prijímať výstrahy z revíru.'
-  }
-
-  if (pushSupport.value.reason === 'missing-notification' || pushSupport.value.reason === 'missing-push-manager') {
-    return 'Tento prehliadač nevie prijímať výstrahy. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
-  }
-
-  return 'Upozornenia momentálne nie sú dostupné. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
-})
+const notificationAvailabilityMessage = computed(() =>
+  describePushAvailability(pushSupport.value, notificationStatus.value),
+)
 const subscriptionNoticeTitle = computed(() => {
   if (subscriptionSubmitStatus.value === 'error') return 'Upozornenia sa nepodarilo nastaviť'
   if (subscriptionSubmitStatus.value === 'submitting') return 'Spracúvam upozornenia'

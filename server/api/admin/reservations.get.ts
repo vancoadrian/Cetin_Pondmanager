@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalReservationState } from '../../utils/localReservationStore'
 
 export default defineEventHandler(async (event): Promise<ReservationStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'reservations' })
+  await requireAdminAccess(event, { moduleId: 'reservations' })
 
   const state = await readLocalReservationState()
 

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PaymentMethod } from '~/data/pond'
 import { paymentMethods } from '~/data/pond'
@@ -6,12 +5,18 @@ import {
   sortPaymentMethods,
   type PaymentMethodWorkflowState,
 } from '~/services/paymentMethodService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalPaymentMethodState extends PaymentMethodWorkflowState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'payment-method-state'
 
 export function resolveLocalPaymentMethodStorePath() {
   return process.env.RYBOLOV_LOCAL_PAYMENT_METHOD_STORE
@@ -39,22 +44,17 @@ function isPaymentMethodState(value: unknown): value is LocalPaymentMethodState 
 export async function readLocalPaymentMethodState(
   filePath = resolveLocalPaymentMethodStorePath(),
 ): Promise<LocalPaymentMethodState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
+  if (document.found) {
+    const parsed = document.payload
     if (isPaymentMethodState(parsed)) {
       return {
         ...parsed,
         paymentMethods: sortPaymentMethods(parsed.paymentMethods),
       }
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav platieb: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedPaymentMethodState()
@@ -73,7 +73,7 @@ export async function writeLocalPaymentMethodState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

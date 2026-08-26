@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalRentalCatalogState } from '../../utils/localRentalCatalogStore'
 
 export default defineEventHandler(async (event): Promise<RentalCatalogStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'rentals' })
+  await requireAdminAccess(event, { moduleId: 'rentals' })
   const state = await readLocalRentalCatalogState()
 
   return {

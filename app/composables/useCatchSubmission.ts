@@ -63,6 +63,8 @@ function currentDateTimeInput() {
 }
 
 export async function useCatchSubmission() {
+  // Po prvom await stráca Vue aktívnu inštanciu — hooky sa viažu na ňu explicitne
+  const componentInstance = getCurrentInstance()
   const route = useRoute()
   const { account: anglerAccount, isLoggedIn: isAnglerLoggedIn } = useMockAnglerAuth()
   const {
@@ -965,7 +967,7 @@ export async function useCatchSubmission() {
         void refreshLargeFishAssistance({ silent: true })
       }
     }, 5_000)
-  })
+  }, componentInstance)
 
   onBeforeUnmount(() => {
     if (!import.meta.client) return
@@ -973,7 +975,7 @@ export async function useCatchSubmission() {
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
     if (assistancePollTimer) clearInterval(assistancePollTimer)
-  })
+  }, componentInstance)
 
   watch(() => logbookForm.lake, () => {
     logbookForm.pegId = logbookPegs.value[0]?.id ?? ''

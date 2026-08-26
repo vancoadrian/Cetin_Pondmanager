@@ -19,7 +19,7 @@ function createEmptyDeliveryCounts(): Record<NotificationDeliveryStatus, number>
 }
 
 export default defineEventHandler(async (event): Promise<ReservationNotificationSummaryResponse> => {
-  requireAdminAccess(event, { moduleId: 'reservations' })
+  await requireAdminAccess(event, { moduleId: 'reservations' })
 
   const state = await readLocalNotificationState()
   const notifications: ReservationNotificationSummary[] = state.broadcasts

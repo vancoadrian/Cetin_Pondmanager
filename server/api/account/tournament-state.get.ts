@@ -5,7 +5,7 @@ import { resolveAppSessionUser } from '../../utils/appSession'
 import { readLocalTournamentState } from '../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event): Promise<TournamentStateResponse> => {
-  const user = resolveAppSessionUser(event)
+  const user = await resolveAppSessionUser(event)
   if (user?.role !== 'team' && user?.role !== 'marshal') {
     throw createError({
       statusCode: user ? 403 : 401,

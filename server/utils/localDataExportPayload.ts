@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   LocalDataExportAssetFile,
@@ -10,6 +9,7 @@ import type {
   LocalDataExportPayload,
   LocalDataExportStoreSummary,
 } from '~/services/localDataExportService'
+import { listAssetObjects, readAssetObject, type AssetBucket } from './assetObjectStore'
 import { readLocalAccountState, resolveLocalAccountStorePath } from './localAccountStore'
 import { readLocalAuditLogState, resolveLocalAuditLogStorePath } from './localAuditLogStore'
 import { readLocalCabinCatalogState, resolveLocalCabinCatalogStorePath } from './localCabinCatalogStore'
@@ -52,9 +52,13 @@ export interface LocalDataStoreDefinition {
   label: string
   path: string
   read: () => Promise<LocalDataExportState>
+  /** runtime_store_states document name (file name without .json). */
+  storeKey: string
 }
 
 export interface LocalDataAssetDefinition {
+  /** Supabase Storage bucket backing this asset group. */
+  bucket: AssetBucket
   directory: string
   id: string
   label: string
@@ -118,108 +122,126 @@ export function getDefaultLocalDataStoreDefinitions(): LocalDataStoreDefinition[
       label: 'Stav používateľských účtov',
       path: resolveLocalAccountStorePath(),
       read: () => toExportState(readLocalAccountState()),
+      storeKey: 'account-state',
     },
     {
       id: 'reservations',
       label: 'Rezervácie a obsadenosť',
       path: resolveLocalReservationStorePath(),
       read: () => toExportState(readLocalReservationState()),
+      storeKey: 'reservation-state',
     },
     {
       id: 'paymentMethods',
       label: 'Platobné metódy',
       path: resolveLocalPaymentMethodStorePath(),
       read: () => toExportState(readLocalPaymentMethodState()),
+      storeKey: 'payment-method-state',
     },
     {
       id: 'rentalCatalog',
       label: 'Požičovňa a doplnky',
       path: resolveLocalRentalCatalogStorePath(),
       read: () => toExportState(readLocalRentalCatalogState()),
+      storeKey: 'rental-catalog-state',
     },
     {
       id: 'cabinCatalog',
       label: 'Cenník chát',
       path: resolveLocalCabinCatalogStorePath(),
       read: () => toExportState(readLocalCabinCatalogState()),
+      storeKey: 'cabin-catalog-state',
     },
     {
       id: 'sponsors',
       label: 'Sponzori',
       path: resolveLocalSponsorStorePath(),
       read: () => toExportState(readLocalSponsorState()),
+      storeKey: 'sponsor-state',
     },
     {
       id: 'map',
       label: 'Mapa revíru',
       path: resolveLocalMapStorePath(),
       read: () => toExportState(readLocalMapState()),
+      storeKey: 'map-state',
     },
     {
       id: 'mapDraft',
       label: 'Rozpracovaná mapa revíru',
       path: resolveLocalMapDraftStorePath(),
       read: async () => toExportState(readLocalMapDraftState(undefined, await readLocalMapState())),
+      storeKey: 'map-draft-state',
     },
     {
       id: 'closures',
       label: 'Uzávierky a sezóny',
       path: resolveLocalClosureStorePath(),
       read: () => toExportState(readLocalClosureState()),
+      storeKey: 'closure-state',
     },
     {
       id: 'placeIssues',
       label: 'Hlásenia nedostatkov',
       path: resolveLocalPlaceIssueStorePath(),
       read: () => toExportState(readLocalPlaceIssueState()),
+      storeKey: 'place-issue-state',
     },
     {
       id: 'catches',
       label: 'Úlovky a zápisníky',
       path: resolveLocalCatchStorePath(),
       read: () => toExportState(readLocalCatchState()),
+      storeKey: 'catch-state',
     },
     {
       id: 'fishRegistry',
       label: 'Register čipovaných rýb',
       path: resolveLocalFishRegistryStorePath(),
       read: () => toExportState(readLocalFishRegistryState()),
+      storeKey: 'fish-registry-state',
     },
     {
       id: 'largeFishAssistance',
       label: 'Privolania správcu k veľkým rybám',
       path: resolveLocalLargeFishAssistanceStorePath(),
       read: () => toExportState(readLocalLargeFishAssistanceState()),
+      storeKey: 'large-fish-assistance-state',
     },
     {
       id: 'catchReports',
       label: 'Uložené reporty úlovkov',
       path: resolveLocalCatchReportStorePath(),
       read: () => toExportState(readLocalCatchReportState()),
+      storeKey: 'catch-reports',
     },
     {
       id: 'tournaments',
       label: 'Súťažný dispečing',
       path: resolveLocalTournamentStorePath(),
       read: () => toExportState(readLocalTournamentState()),
+      storeKey: 'tournament-state',
     },
     {
       id: 'notifications',
       label: 'Notifikácie a odbery',
       path: resolveLocalNotificationStorePath(),
       read: () => toExportState(readLocalNotificationState()),
+      storeKey: 'notification-state',
     },
     {
       id: 'auditLog',
       label: 'Audit log',
       path: resolveLocalAuditLogStorePath(),
       read: () => toExportState(readLocalAuditLogState()),
+      storeKey: 'audit-log',
     },
     {
       id: 'errorLog',
       label: 'Error log',
       path: resolveLocalErrorLogStorePath(),
       read: () => toExportState(readLocalErrorLogState()),
+      storeKey: 'error-log',
     },
   ]
 }
@@ -227,16 +249,19 @@ export function getDefaultLocalDataStoreDefinitions(): LocalDataStoreDefinition[
 export function getDefaultLocalDataAssetDefinitions(): LocalDataAssetDefinition[] {
   return [
     {
+      bucket: 'catch-photos',
       directory: resolveLocalCatchPhotoDir(),
       id: 'catchPhotos',
       label: 'Fotky úlovkov',
     },
     {
+      bucket: 'map-assets',
       directory: resolveLocalMapAssetDir(),
       id: 'mapAssets',
       label: 'Podklady máp',
     },
     {
+      bucket: 'sponsor-assets',
       directory: resolveLocalSponsorAssetDir(),
       id: 'sponsorAssets',
       label: 'Logá sponzorov',
@@ -352,7 +377,7 @@ function getMimeType(fileName: string) {
   return 'image/jpeg'
 }
 
-async function collectAssetDirectory(
+async function collectAssetBucket(
   definition: LocalDataAssetDefinition,
   assetPolicy: LocalDataExportAssetPolicy,
 ): Promise<LocalDataExportAssetSummary> {
@@ -368,34 +393,23 @@ async function collectAssetDirectory(
   }
 
   const files: LocalDataExportAssetFile[] = []
+  const objects = await listAssetObjects(definition.bucket, { fileDirectory: definition.directory })
 
-  try {
-    const fileNames = await readdir(definition.directory)
-
-    for (const fileName of fileNames.sort((a, b) => a.localeCompare(b, 'sk'))) {
-      const filePath = join(definition.directory, fileName)
-      const fileStat = await stat(filePath)
-      if (!fileStat.isFile()) continue
-
-      const file: LocalDataExportAssetFile = {
-        mimeType: getMimeType(fileName),
-        name: fileName,
-        path: filePath,
-        sizeBytes: fileStat.size,
-      }
-
-      if (assetPolicy === 'inline') {
-        file.dataBase64 = (await readFile(filePath)).toString('base64')
-      }
-
-      files.push(file)
+  for (const object of [...objects].sort((a, b) => a.name.localeCompare(b.name, 'sk'))) {
+    const file: LocalDataExportAssetFile = {
+      mimeType: getMimeType(object.name),
+      name: object.name,
+      path: join(definition.directory, object.name),
+      sizeBytes: object.sizeBytes ?? 0,
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať asset adresár ${definition.directory}: ${maybeNodeError.message}`)
+
+    if (assetPolicy === 'inline') {
+      const { data } = await readAssetObject(definition.bucket, object.name, { fileDirectory: definition.directory })
+      file.dataBase64 = data.toString('base64')
+      file.sizeBytes = data.byteLength
     }
+
+    files.push(file)
   }
 
   return {
@@ -440,7 +454,7 @@ export async function createLocalDataExportPayload(options: LocalDataExportOptio
   }
 
   const assets = await Promise.all(
-    assetDefinitions.map((definition) => collectAssetDirectory(definition, assetPolicy)),
+    assetDefinitions.map((definition) => collectAssetBucket(definition, assetPolicy)),
   )
 
   return attachLocalDataPayloadIntegrity({

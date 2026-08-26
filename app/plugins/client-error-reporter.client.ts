@@ -1,4 +1,9 @@
 import type { ObservedErrorSeverity } from '~/services/observabilityService'
+import {
+  resolveSentryEnvironment,
+  sanitizeObservabilityPayload,
+  shouldUseLocalClientErrorReporter,
+} from '~/utils/sentry'
 
 function serializeError(error: unknown) {
   if (error instanceof Error) {
@@ -26,10 +31,10 @@ function postClientError(payload: {
   severity?: ObservedErrorSeverity
   stack?: string
 }) {
-  const body = JSON.stringify({
+  const body = JSON.stringify(sanitizeObservabilityPayload({
     ...payload,
-    route: window.location.href,
-  })
+    route: window.location.pathname,
+  }))
 
   if (navigator.sendBeacon) {
     const blob = new Blob([body], { type: 'application/json' })
@@ -47,6 +52,14 @@ function postClientError(payload: {
 }
 
 export default defineNuxtPlugin((nuxtApp) => {
+  const runtimeConfig = useRuntimeConfig()
+  const dsn = String(runtimeConfig.public.sentry.dsn || '')
+  const environment = resolveSentryEnvironment(__SENTRY_BUILD_ENVIRONMENT__)
+
+  // The local reporter is a development/fallback path only. Sentry already
+  // captures all three handlers below, so keeping both active duplicates events.
+  if (!shouldUseLocalClientErrorReporter(dsn, environment)) return
+
   const previousErrorHandler = nuxtApp.vueApp.config.errorHandler
 
   nuxtApp.vueApp.config.errorHandler = (error, instance, info) => {

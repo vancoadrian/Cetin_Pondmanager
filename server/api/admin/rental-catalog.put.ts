@@ -10,7 +10,7 @@ import { readLocalRentalCatalogState, writeLocalRentalCatalogState } from '../..
 import { readLocalReservationState } from '../../utils/localReservationStore'
 
 export default defineEventHandler(async (event): Promise<RentalCatalogMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'rentals', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'rentals', mode: 'operate' })
 
   const [state, reservationState] = await Promise.all([
     readLocalRentalCatalogState(),
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event): Promise<RentalCatalogMutationSu
     reservationExtras: result.reservationExtras,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

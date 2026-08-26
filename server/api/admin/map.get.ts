@@ -9,7 +9,7 @@ import {
 } from '../../utils/localMapStore'
 
 export default defineEventHandler(async (event): Promise<MapStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'map' })
+  await requireAdminAccess(event, { moduleId: 'map' })
 
   const publishedState = await readLocalMapState()
   const draftState = await readLocalMapDraftState(undefined, publishedState)

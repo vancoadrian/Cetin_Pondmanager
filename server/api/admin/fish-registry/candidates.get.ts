@@ -10,7 +10,7 @@ import { readLocalFishRegistryState } from '../../../utils/localFishRegistryStor
 import { readLocalTournamentState } from '../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event): Promise<FishCatchCandidateResponse> => {
-  requireAdminAccess(event, { moduleId: 'fish' })
+  await requireAdminAccess(event, { moduleId: 'fish' })
   const [catchState, registryState, tournamentState] = await Promise.all([
     readLocalCatchState(),
     readLocalFishRegistryState(),

@@ -6,7 +6,7 @@ import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import { restoreLocalDataBackup } from '../../../utils/localDataRestore'
 
 export default defineEventHandler(async (event): Promise<LocalDataRestoreResponse> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const body = await readBody<LocalDataRestoreRequest>(event)
 
@@ -17,7 +17,7 @@ export default defineEventHandler(async (event): Promise<LocalDataRestoreRespons
       restoreAssets: body?.restoreAssets,
     })
     await appendLocalAuditEvent({
-      ...resolveAuditActor(event),
+      ...await resolveAuditActor(event),
       action: 'system.data_import.restored',
       area: 'system',
       details: {

@@ -13,8 +13,8 @@ import {
 } from '../../../../utils/localLargeFishAssistanceStore'
 
 export default defineEventHandler(async (event): Promise<LargeFishAssistanceMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
-  const actor = resolveAuditActor(event)
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
+  const actor = await resolveAuditActor(event)
   const requestId = getRouterParam(event, 'id') ?? ''
   const state = await readLocalLargeFishAssistanceState()
   const normalizedState = expireLargeFishAssistanceRequests(state)

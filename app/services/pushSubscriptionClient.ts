@@ -203,3 +203,22 @@ export function createMockPushSubscriptionPayload(
     permission,
   }
 }
+
+export function describePushAvailability(
+  support: ClientPushSupport,
+  permission: PublicNotificationDeviceState['permission'] = 'unknown',
+) {
+  if (permission === 'denied') {
+    return 'Upozornenia sú v prehliadači zamietnuté. Povoľte ich v nastaveniach stránky a skúste to znova.'
+  }
+
+  if (support.mode === 'web-push') {
+    return 'Toto zariadenie vie prijímať výstrahy z revíru.'
+  }
+
+  if (support.reason === 'missing-notification' || support.reason === 'missing-push-manager') {
+    return 'Tento prehliadač nevie prijímať výstrahy. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
+  }
+
+  return 'Upozornenia momentálne nie sú dostupné. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
+}

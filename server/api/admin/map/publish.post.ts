@@ -15,7 +15,7 @@ import {
 import { readLocalTournamentState } from '../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event): Promise<MapPublishSuccess> => {
-  requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
   const previousPublishedState = await readLocalMapState()
   const draftState = await readLocalMapDraftState(undefined, previousPublishedState)
@@ -54,7 +54,7 @@ export default defineEventHandler(async (event): Promise<MapPublishSuccess> => {
   })
 
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

@@ -10,7 +10,7 @@ import { readLocalClosureState, writeLocalClosureState } from '../../utils/local
 import { readLocalMapState } from '../../utils/localMapStore'
 
 export default defineEventHandler(async (event): Promise<ClosureMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'closures', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'closures', mode: 'full' })
 
   const [closureState, mapState] = await Promise.all([
     readLocalClosureState(),
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event): Promise<ClosureMutationSuccess>
     lakeClosures: result.lakeClosures,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: result.statusCode === 201 ? 'closure.created' : 'closure.updated',
     area: 'reservations',
     details: {

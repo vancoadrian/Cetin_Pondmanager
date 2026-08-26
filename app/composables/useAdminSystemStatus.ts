@@ -48,6 +48,8 @@ type SystemAdminView = 'chyby' | 'data' | 'prehlad'
  * hasSystemFetchError feeding DataStatusNotice) exactly as implemented.
  */
 export async function useAdminSystemStatus() {
+  // Po prvom await stráca Vue aktívnu inštanciu — hooky sa viažu na ňu explicitne
+  const componentInstance = getCurrentInstance()
   const route = useRoute()
   const router = useRouter()
 
@@ -1118,7 +1120,7 @@ export async function useAdminSystemStatus() {
 
   onMounted(() => {
     void centerActiveSystemAdminTab(false)
-  })
+  }, componentInstance)
 
   return {
     activeSystemAdminView,

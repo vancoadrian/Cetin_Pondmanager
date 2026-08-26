@@ -31,6 +31,8 @@ import { getRentalAvailability } from '~/utils/rentals'
  * template bindings.
  */
 export async function useReservationRequest() {
+  // Po prvom await stráca Vue aktívnu inštanciu — hooky sa viažu na ňu explicitne
+  const componentInstance = getCurrentInstance()
   const {
     cabinProducts: seedCabinProducts,
     contactInfo,
@@ -953,14 +955,14 @@ export async function useReservationRequest() {
     })
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-  })
+  }, componentInstance)
 
   onBeforeUnmount(() => {
     if (!import.meta.client) return
 
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
-  })
+  }, componentInstance)
 
   watch(selectedLake, () => {
     selectedPegId.value = ''

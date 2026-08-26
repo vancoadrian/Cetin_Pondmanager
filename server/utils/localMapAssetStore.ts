@@ -1,14 +1,19 @@
-import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { z } from 'zod'
 import type { mapBackgroundUploadSchema } from '~/schemas/pondSchemas'
-import { atomicWriteFile } from './jsonFileStore'
+import {
+  readAssetObject,
+  resolveAssetBucketFileDirectory,
+  writeAssetObject,
+} from './assetObjectStore'
 
 export type MapBackgroundUpload = z.infer<typeof mapBackgroundUploadSchema>
 
+export const MAP_ASSET_BUCKET = 'map-assets'
+
+/** File-driver directory (dev/test adapter); Supabase driver uses the map-assets bucket. */
 export function resolveLocalMapAssetDir() {
-  return process.env.RYBOLOV_LOCAL_MAP_ASSET_DIR
-    ?? join(process.cwd(), '.data', 'rybolov-cetin', 'map-assets')
+  return resolveAssetBucketFileDirectory(MAP_ASSET_BUCKET)
 }
 
 export function extensionForMapBackgroundMimeType(mimeType: MapBackgroundUpload['mimeType']) {
@@ -37,11 +42,13 @@ export async function writeLocalMapAssetFile(
   dir = resolveLocalMapAssetDir(),
 ) {
   const buffer = decodeMapBackgroundDataUrl(upload)
-  await atomicWriteFile(resolveMapAssetFilePath(assetId, dir), buffer)
+  await writeAssetObject(MAP_ASSET_BUCKET, basename(assetId), buffer, upload.mimeType, { fileDirectory: dir })
 }
 
 export async function readLocalMapAssetFile(assetId: string, dir = resolveLocalMapAssetDir()) {
-  return readFile(resolveMapAssetFilePath(assetId, dir))
+  const { data } = await readAssetObject(MAP_ASSET_BUCKET, basename(assetId), { fileDirectory: dir })
+
+  return data
 }
 
 export function getMapAssetMimeType(assetId: string) {

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneFishRegistryState,
@@ -10,13 +9,19 @@ import {
   normalizeFishRegistrySettings,
   type FishRegistrySettings,
 } from '~/services/fishRegistrySettingsService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalFishRegistryState extends FishRegistryState {
   settings: FishRegistrySettings
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'fish-registry-state'
 
 const seedFish: TaggedFish[] = [
   {
@@ -181,27 +186,28 @@ function migrateLegacyFishNotes(state: FishRegistryState) {
   } satisfies FishRegistryState
 }
 
+function parseLocalFishRegistryState(payload: unknown): LocalFishRegistryState | undefined {
+  if (!isFishRegistryState(payload)) return undefined
+
+  const migratedState = migrateLegacyFishNotes(payload)
+
+  return {
+    ...cloneFishRegistryState(migratedState),
+    settings: normalizeFishRegistrySettings(payload.settings),
+    updatedAt: payload.updatedAt,
+    version: 1,
+  }
+}
+
 export async function readLocalFishRegistryState(
   filePath = resolveLocalFishRegistryStorePath(),
 ): Promise<LocalFishRegistryState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    if (isFishRegistryState(parsed)) {
-      const migratedState = migrateLegacyFishNotes(parsed)
-      return {
-        ...cloneFishRegistryState(migratedState),
-        settings: normalizeFishRegistrySettings(parsed.settings),
-        updatedAt: parsed.updatedAt,
-        version: 1,
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať register čipovaných rýb: ${maybeNodeError.message}`)
-    }
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
+
+  if (document.found) {
+    const parsed = parseLocalFishRegistryState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedFishRegistryState()
@@ -220,6 +226,6 @@ export async function writeLocalFishRegistryState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
   return nextState
 }

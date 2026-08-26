@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalPaymentMethodState } from '../../utils/localPaymentMethodStore'
 
 export default defineEventHandler(async (event): Promise<PaymentMethodStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'reservations' })
+  await requireAdminAccess(event, { moduleId: 'reservations' })
 
   const state = await readLocalPaymentMethodState()
 

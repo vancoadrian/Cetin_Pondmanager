@@ -1,14 +1,19 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Sponsor } from '~/data/pond'
 import { sponsors as seedSponsors } from '~/data/pond'
 import { sortSponsors, type SponsorWorkflowState } from '~/services/sponsorService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalSponsorState extends SponsorWorkflowState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'sponsor-state'
 
 export function resolveLocalSponsorStorePath() {
   return process.env.RYBOLOV_LOCAL_SPONSOR_STORE
@@ -72,25 +77,24 @@ function isSponsorState(value: unknown): value is LocalSponsorState {
   )
 }
 
+function parseLocalSponsorState(payload: unknown): LocalSponsorState | undefined {
+  if (!isSponsorState(payload)) return undefined
+
+  return {
+    ...payload,
+    sponsors: sortSponsors(payload.sponsors.map(normalizeSponsor)),
+  }
+}
+
 export async function readLocalSponsorState(
   filePath = resolveLocalSponsorStorePath(),
 ): Promise<LocalSponsorState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isSponsorState(parsed)) {
-      return {
-        ...parsed,
-        sponsors: sortSponsors(parsed.sponsors.map(normalizeSponsor)),
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav sponzorov: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalSponsorState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedSponsorState()
@@ -109,7 +113,7 @@ export async function writeLocalSponsorState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

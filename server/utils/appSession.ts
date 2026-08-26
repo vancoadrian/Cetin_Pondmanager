@@ -23,14 +23,26 @@ function sessionCookieOptions() {
   }
 }
 
+interface AppSessionEventContext {
+  __appSessionUser?: PublicMockUser | null
+}
+
 /**
  * Resolves the mock user tied to the current session cookie. The cookie only
  * carries an opaque, server-issued token now (see localSessionStore.ts) — its
  * value can no longer be forged into an arbitrary account id or role name.
+ * The lookup hits the session store once per request and is memoized on the
+ * event context.
  */
-export function resolveAppSessionUser(event: H3Event): PublicMockUser | undefined {
-  const session = resolveLocalSession(getCookie(event, AUTH_SESSION_COOKIE))
-  return session ? findMockUserById(session.accountId) : undefined
+export async function resolveAppSessionUser(event: H3Event): Promise<PublicMockUser | undefined> {
+  const context = event.context as AppSessionEventContext
+  if (context.__appSessionUser !== undefined) return context.__appSessionUser ?? undefined
+
+  const session = await resolveLocalSession(getCookie(event, AUTH_SESSION_COOKIE))
+  const user = session ? findMockUserById(session.accountId) : undefined
+  context.__appSessionUser = user ?? null
+
+  return user
 }
 
 export function applySessionCookies(event: H3Event, token: string, role: MockRole) {

@@ -11,7 +11,7 @@ import {
 } from '../../utils/localDataExportPayload'
 
 export default defineEventHandler(async (event): Promise<LocalDataExportPayload | string> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const query = getQuery(event)
   const mode = normalizeLocalDataExportMode(query.mode)
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<LocalDataExportPayload 
 
   if (query.download === '1' || query.download === 'true') {
     await appendLocalAuditEvent({
-      ...resolveAuditActor(event),
+      ...await resolveAuditActor(event),
       action: 'system.data_export.downloaded',
       area: 'system',
       details: {

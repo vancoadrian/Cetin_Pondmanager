@@ -6,7 +6,7 @@ import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import { readLocalDataSafetyBackup } from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataExportPayload | string> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const id = getRouterParam(event, 'id') ?? ''
   const query = getQuery(event)
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event): Promise<LocalDataExportPayload 
     const backup = await readLocalDataSafetyBackup(id)
 
     await appendLocalAuditEvent({
-      ...resolveAuditActor(event),
+      ...await resolveAuditActor(event),
       action: isDownload ? 'system.data_backup.downloaded' : 'system.data_backup.loaded',
       area: 'system',
       details: {

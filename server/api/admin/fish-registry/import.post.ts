@@ -14,7 +14,7 @@ import {
 import { readLocalMapState } from '../../../utils/localMapStore'
 
 export default defineEventHandler(async (event): Promise<FishRegistryImportSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
   const payload = fishRegistryImportInputSchema.safeParse(await readBody(event))
   if (!payload.success) {
     throw createError({
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event): Promise<FishRegistryImportSucce
     settings: state.settings,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'fish.csv.imported',
     area: 'fish',
     details: {

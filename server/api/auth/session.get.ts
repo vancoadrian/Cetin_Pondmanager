@@ -14,7 +14,7 @@ export interface AuthSessionResponse {
  * ever learns "who is logged in" through this endpoint's response.
  */
 export default defineEventHandler(async (event): Promise<AuthSessionResponse> => {
-  const session = resolveLocalSession(getCookie(event, AUTH_SESSION_COOKIE))
+  const session = await resolveLocalSession(getCookie(event, AUTH_SESSION_COOKIE))
   if (!session) return { user: null }
 
   if (session.role !== 'angler') {

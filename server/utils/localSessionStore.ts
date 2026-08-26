@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { MockRole } from '~/composables/useMockAuth'
 import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import { getServerSupabaseClient } from './serverSupabaseClient'
+import { resolveRuntimeStorageDriverKind } from './runtimeStorageDriver'
 
 export interface LocalSessionRecord {
   accountId: string
@@ -13,6 +15,8 @@ export interface LocalSessionRecord {
 }
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14
+
+export const APP_SESSIONS_TABLE = 'app_sessions'
 
 export function resolveLocalSessionStorePath() {
   return process.env.RYBOLOV_LOCAL_SESSION_STORE
@@ -53,11 +57,23 @@ function isExpired(record: LocalSessionRecord, now = Date.now()) {
   return new Date(record.expiresAt).getTime() <= now
 }
 
+function createSessionRecord(accountId: string, role: MockRole, ttlMs: number) {
+  const token = randomBytes(32).toString('base64url')
+  const now = Date.now()
+  const record: LocalSessionRecord = {
+    accountId,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + ttlMs).toISOString(),
+    role,
+    tokenHash: hashSessionToken(token),
+  }
+
+  return { record, token }
+}
+
 /**
- * In-memory, synchronously-readable session cache backed by a JSON file.
- * Sessions are looked up on every request, so resolution must stay
- * synchronous (see resolveAppSessionUser and its callers); mutations
- * (create/destroy) are async and persist through the atomic-write helper.
+ * File-driver session cache (explicit dev/test adapter): an in-memory map
+ * backed by a JSON file, mirroring the historical behavior.
  */
 class LocalSessionCache {
   private byTokenHash: Map<string, LocalSessionRecord>
@@ -88,18 +104,10 @@ class LocalSessionCache {
   }
 
   async create(accountId: string, role: MockRole, ttlMs = SESSION_TTL_MS) {
-    const token = randomBytes(32).toString('base64url')
-    const now = Date.now()
-    const record: LocalSessionRecord = {
-      accountId,
-      createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + ttlMs).toISOString(),
-      role,
-      tokenHash: hashSessionToken(token),
-    }
-    this.byTokenHash.set(record.tokenHash, record)
+    const created = createSessionRecord(accountId, role, ttlMs)
+    this.byTokenHash.set(created.record.tokenHash, created.record)
     await this.persist()
-    return { record, token }
+    return created
   }
 
   async destroy(token: string | undefined | null) {
@@ -130,32 +138,133 @@ function getCache(filePath: string): LocalSessionCache {
   return cache
 }
 
-export function resolveLocalSession(
+interface AppSessionRow {
+  account_id: string
+  created_at: string
+  expires_at: string
+  role: string
+  token_hash: string
+}
+
+function toSessionRecord(row: AppSessionRow): LocalSessionRecord {
+  return {
+    accountId: row.account_id,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    role: row.role as MockRole,
+    tokenHash: row.token_hash,
+  }
+}
+
+function describeSupabaseError(error: { code?: string, message?: string }) {
+  return error.code ? `${error.code}: ${error.message}` : error.message ?? 'neznáma chyba'
+}
+
+async function resolveSupabaseSession(token: string | undefined | null) {
+  if (!token) return undefined
+  const client = getServerSupabaseClient()
+  const tokenHash = hashSessionToken(token)
+  const { data, error } = await client
+    .from(APP_SESSIONS_TABLE)
+    .select('token_hash, account_id, role, created_at, expires_at')
+    .eq('token_hash', tokenHash)
+    .maybeSingle<AppSessionRow>()
+
+  if (error) {
+    throw new Error(`Čítanie session zo Supabase zlyhalo (${describeSupabaseError(error)}).`)
+  }
+  if (!data) return undefined
+
+  const record = toSessionRecord(data)
+  if (isExpired(record)) {
+    await client.from(APP_SESSIONS_TABLE).delete().eq('token_hash', tokenHash)
+    return undefined
+  }
+
+  return record
+}
+
+/**
+ * Resolves the session tied to an opaque cookie token. Sessions live in the
+ * `app_sessions` table under the Supabase driver (authoritative across
+ * server instances and restarts) and in the legacy JSON cache under the
+ * file driver.
+ */
+export async function resolveLocalSession(
   token: string | undefined | null,
   filePath = resolveLocalSessionStorePath(),
-): LocalSessionRecord | undefined {
-  return getCache(filePath).resolve(token)
+): Promise<LocalSessionRecord | undefined> {
+  if (resolveRuntimeStorageDriverKind() === 'file') {
+    return getCache(filePath).resolve(token)
+  }
+
+  return resolveSupabaseSession(token)
 }
 
 export async function createLocalSession(
   accountId: string,
   role: MockRole,
-  ttlMs?: number,
+  ttlMs = SESSION_TTL_MS,
   filePath = resolveLocalSessionStorePath(),
 ) {
-  return getCache(filePath).create(accountId, role, ttlMs)
+  if (resolveRuntimeStorageDriverKind() === 'file') {
+    return getCache(filePath).create(accountId, role, ttlMs)
+  }
+
+  const created = createSessionRecord(accountId, role, ttlMs)
+  const client = getServerSupabaseClient()
+  const { error } = await client.from(APP_SESSIONS_TABLE).insert({
+    account_id: created.record.accountId,
+    created_at: created.record.createdAt,
+    expires_at: created.record.expiresAt,
+    role: created.record.role,
+    token_hash: created.record.tokenHash,
+  })
+
+  if (error) {
+    throw new Error(`Vytvorenie session v Supabase zlyhalo (${describeSupabaseError(error)}).`)
+  }
+
+  return created
 }
 
 export async function destroyLocalSession(
   token: string | undefined | null,
   filePath = resolveLocalSessionStorePath(),
 ) {
-  await getCache(filePath).destroy(token)
+  if (resolveRuntimeStorageDriverKind() === 'file') {
+    await getCache(filePath).destroy(token)
+    return
+  }
+
+  if (!token) return
+  const client = getServerSupabaseClient()
+  const { error } = await client
+    .from(APP_SESSIONS_TABLE)
+    .delete()
+    .eq('token_hash', hashSessionToken(token))
+
+  if (error) {
+    throw new Error(`Zrušenie session v Supabase zlyhalo (${describeSupabaseError(error)}).`)
+  }
 }
 
 export async function destroyAllLocalSessionsForAccount(
   accountId: string,
   filePath = resolveLocalSessionStorePath(),
 ) {
-  await getCache(filePath).destroyAllForAccount(accountId)
+  if (resolveRuntimeStorageDriverKind() === 'file') {
+    await getCache(filePath).destroyAllForAccount(accountId)
+    return
+  }
+
+  const client = getServerSupabaseClient()
+  const { error } = await client
+    .from(APP_SESSIONS_TABLE)
+    .delete()
+    .eq('account_id', accountId)
+
+  if (error) {
+    throw new Error(`Zrušenie sessions účtu v Supabase zlyhalo (${describeSupabaseError(error)}).`)
+  }
 }

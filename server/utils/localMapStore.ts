@@ -1,8 +1,11 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { MapFacility, MapLayer, MapShape, Peg } from '~/data/pond'
 import { mapFacilities, mapLayers, mapShapes, pegs } from '~/data/pond'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalMapState {
   mapFacilities: MapFacility[]
@@ -12,6 +15,9 @@ export interface LocalMapState {
   updatedAt: string
   version: 1
 }
+
+const MAP_STORE_KEY = 'map-state'
+const MAP_DRAFT_STORE_KEY = 'map-draft-state'
 
 export function resolveLocalMapStorePath() {
   return process.env.RYBOLOV_LOCAL_MAP_STORE
@@ -100,37 +106,37 @@ function isMapState(value: unknown): value is Omit<LocalMapState, 'mapFacilities
   )
 }
 
-async function readExistingLocalMapState(filePath: string): Promise<LocalMapState | undefined> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+/**
+ * Shared reader for both map documents (published + draft). The migration
+ * write-back must land under the same store key the read used, so it goes
+ * through the key-aware `writeLocalMapDocument` helper.
+ */
+async function readExistingLocalMapState(storeKey: string, filePath: string): Promise<LocalMapState | undefined> {
+  const document = await readRuntimeDocument(storeKey, filePath)
+  if (!document.found) return undefined
 
-    if (isMapState(parsed)) {
-      const migratedState = {
-        ...parsed,
-        mapFacilities: cloneMapFacilities(parsed.mapFacilities ?? mapFacilities),
-        mapShapes: cloneMapShapes(mergeMapShapesWithSeedMetadata(parsed.mapShapes)),
-      }
+  const parsed = document.payload
+  if (!isMapState(parsed)) {
+    guardCorruptRuntimeState(storeKey)
 
-      if (migratedState.mapShapes.length !== parsed.mapShapes.length || JSON.stringify(migratedState.mapShapes) !== JSON.stringify(parsed.mapShapes)) {
-        return writeLocalMapState(migratedState, filePath)
-      }
-
-      return migratedState
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav mapy: ${maybeNodeError.message}`)
-    }
+    return undefined
   }
 
-  return undefined
+  const migratedState = {
+    ...parsed,
+    mapFacilities: cloneMapFacilities(parsed.mapFacilities ?? mapFacilities),
+    mapShapes: cloneMapShapes(mergeMapShapesWithSeedMetadata(parsed.mapShapes)),
+  }
+
+  if (migratedState.mapShapes.length !== parsed.mapShapes.length || JSON.stringify(migratedState.mapShapes) !== JSON.stringify(parsed.mapShapes)) {
+    return writeLocalMapDocument(storeKey, filePath, migratedState)
+  }
+
+  return migratedState
 }
 
 export async function readLocalMapState(filePath = resolveLocalMapStorePath()): Promise<LocalMapState> {
-  const existingState = await readExistingLocalMapState(filePath)
+  const existingState = await readExistingLocalMapState(MAP_STORE_KEY, filePath)
   if (existingState) return existingState
 
   const seedState = createSeedMapState()
@@ -143,15 +149,16 @@ export async function readLocalMapDraftState(
   draftFilePath = resolveLocalMapDraftStorePath(),
   publishedState?: LocalMapState,
 ): Promise<LocalMapState> {
-  const existingDraft = await readExistingLocalMapState(draftFilePath)
+  const existingDraft = await readExistingLocalMapState(MAP_DRAFT_STORE_KEY, draftFilePath)
   if (existingDraft) return existingDraft
 
   return cloneLocalMapState(publishedState ?? await readLocalMapState())
 }
 
-export async function writeLocalMapState(
+async function writeLocalMapDocument(
+  storeKey: string,
+  filePath: string,
   state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
-  filePath = resolveLocalMapStorePath(),
 ): Promise<LocalMapState> {
   const nextState: LocalMapState = {
     mapFacilities: cloneMapFacilities(state.mapFacilities),
@@ -162,16 +169,23 @@ export async function writeLocalMapState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(storeKey, filePath, nextState)
 
   return nextState
+}
+
+export async function writeLocalMapState(
+  state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
+  filePath = resolveLocalMapStorePath(),
+): Promise<LocalMapState> {
+  return writeLocalMapDocument(MAP_STORE_KEY, filePath, state)
 }
 
 export async function writeLocalMapDraftState(
   state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>,
   filePath = resolveLocalMapDraftStorePath(),
 ): Promise<LocalMapState> {
-  return writeLocalMapState(state, filePath)
+  return writeLocalMapDocument(MAP_DRAFT_STORE_KEY, filePath, state)
 }
 
 function comparableMapState(state: Pick<LocalMapState, 'mapFacilities' | 'mapLayers' | 'mapShapes' | 'pegs'>) {

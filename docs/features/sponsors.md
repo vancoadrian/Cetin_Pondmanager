@@ -52,7 +52,7 @@ Možné umiestnenia:
 - Každý variant má vlastné X/Y ohnisko, vizuálny drag editor nad náhľadom a samostatné prepočítanie orezu. Pri širokých alebo úzkych logách sa tak dá rýchlo posunúť dôležitá časť loga bez ručného exportu v grafickom editore.
 - Vygenerované varianty ukladajú aj `cropPreset`: režim, odsadenie, X/Y ohnisko a základné rozmery/názov zdrojového loga. Zdrojové logo pre generovanie variantov sa dá uložiť ako samostatný lokálny asset, aby po reloade admin nemusel znovu hľadať pôvodný súbor.
 - Produkčný export posiela hlavné logo, zdrojové logo aj varianty do `sponsor_assets`; zdroj má metadata `kind: source`, varianty nesú `cropPreset`.
-- Dáta sú seedované zo `sponsors` a prechodovo uložené v `.data/rybolov-cetin/sponsor-state.json`; logo súbory sú dočasne v `.data/rybolov-cetin/sponsor-assets/` a servujú sa cez `/api/sponsor-assets/:id`.
+- Dáta sú seedované zo `sponsors` a uložené v runtime store `sponsor-state`; logo súbory žijú v privátnom Storage buckete `sponsor-assets` a servujú sa cez `/api/sponsor-assets/:id`.
 
 ## Ďalšie kroky
 

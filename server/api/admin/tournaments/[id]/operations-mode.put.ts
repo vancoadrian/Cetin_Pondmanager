@@ -7,7 +7,7 @@ import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import { readLocalTournamentState, writeLocalTournamentState } from '../../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'tournaments', mode: 'full' })
 
   const tournamentId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
   const storedState = await writeLocalTournamentState(result)
   const capabilities = getTournamentOperationalCapabilities(result.tournament)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

@@ -10,7 +10,7 @@ import {
 } from '../../utils/localLargeFishAssistanceStore'
 
 export default defineEventHandler(async (event): Promise<LargeFishAssistanceStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'fish' })
+  await requireAdminAccess(event, { moduleId: 'fish' })
   const state = await readLocalLargeFishAssistanceState()
   const normalizedState = expireLargeFishAssistanceRequests(state)
   const changed = normalizedState.requests.some((request, index) =>

@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalClosureState } from '../../utils/localClosureStore'
 
 export default defineEventHandler(async (event): Promise<ClosureStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'closures' })
+  await requireAdminAccess(event, { moduleId: 'closures' })
 
   const state = await readLocalClosureState()
 

@@ -7,7 +7,8 @@ import type {
   LocalDataRestoreStoreResult,
 } from '~/services/localDataExportService'
 import { LOCAL_DATA_RESTORE_CONFIRMATION } from '~/services/localDataExportService'
-import { atomicWriteFile, atomicWriteJsonFile } from './jsonFileStore'
+import { writeAssetObject } from './assetObjectStore'
+import { writeRuntimeDocument } from './runtimeStateStore'
 import type { LocalDataAssetDefinition, LocalDataStoreDefinition } from './localDataExportPayload'
 import {
   createLocalDataExportPayload,
@@ -33,10 +34,6 @@ export interface LocalDataRestoreOptions extends LocalDataImportPreviewOptions {
   safetyBackupDirectory?: string
 }
 
-async function writeJsonFile(filePath: string, value: unknown) {
-  await atomicWriteJsonFile(filePath, value)
-}
-
 async function writeSafetyBackup(
   restoredAt: string,
   options: Pick<LocalDataRestoreOptions, 'assetDefinitions' | 'safetyBackupDirectory' | 'storeDefinitions'>,
@@ -48,12 +45,13 @@ async function writeSafetyBackup(
     mode: 'full',
     storeDefinitions: options.storeDefinitions ?? getDefaultLocalDataStoreDefinitions(),
   })
-  const filePath = join(
-    options.safetyBackupDirectory ?? resolveLocalDataSafetyBackupDirectory(),
-    `restore-safety-${restoredAt.slice(0, 19).replaceAll(':', '-')}.json`,
-  )
+  const fileName = `restore-safety-${restoredAt.slice(0, 19).replaceAll(':', '-')}.json`
+  const backupDirectory = options.safetyBackupDirectory ?? resolveLocalDataSafetyBackupDirectory()
+  const filePath = join(backupDirectory, fileName)
 
-  await writeJsonFile(filePath, payload)
+  await writeAssetObject('data-backups', fileName, Buffer.from(`${JSON.stringify(payload, null, 2)}\n`), 'application/json', {
+    fileDirectory: backupDirectory,
+  })
 
   return filePath
 }
@@ -74,7 +72,7 @@ async function restoreStores(
 
     if (!dataSection || !summary || previewStore?.status !== 'matched') continue
 
-    await writeJsonFile(definition.path, dataSection)
+    await writeRuntimeDocument(definition.storeKey, definition.path, dataSection)
     restoredStores.push({
       id: definition.id,
       label: definition.label,
@@ -107,9 +105,10 @@ async function restoreInlineAssets(
       if (!file.dataBase64) continue
 
       const fileBuffer = Buffer.from(file.dataBase64, 'base64')
-      const filePath = join(definition.directory, basename(file.name))
 
-      await atomicWriteFile(filePath, fileBuffer)
+      await writeAssetObject(definition.bucket, basename(file.name), fileBuffer, file.mimeType, {
+        fileDirectory: definition.directory,
+      })
       fileCount += 1
       totalSizeBytes += fileBuffer.byteLength
     }

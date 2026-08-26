@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneObservedErrors,
@@ -7,7 +6,12 @@ import {
   type ObservedErrorEntry,
   type ObservedErrorInput,
 } from '~/services/observabilityService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalErrorLogState extends ErrorLogState {
   updatedAt: string
@@ -18,6 +22,8 @@ export interface StoredObservedErrorAppend {
   error: ObservedErrorEntry
   state: LocalErrorLogState
 }
+
+const STORE_KEY = 'error-log'
 
 export function resolveLocalErrorLogStorePath() {
   return process.env.RYBOLOV_LOCAL_ERROR_LOG_STORE
@@ -42,25 +48,32 @@ function isErrorLogState(value: unknown): value is LocalErrorLogState {
   )
 }
 
+function parseLocalErrorLogState(payload: unknown): LocalErrorLogState | undefined {
+  if (!isErrorLogState(payload)) return undefined
+
+  return {
+    ...payload,
+    errors: cloneObservedErrors(payload.errors),
+  }
+}
+
+function composeErrorLogState(state: ErrorLogState): LocalErrorLogState {
+  return {
+    errors: cloneObservedErrors(state.errors),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
 export async function readLocalErrorLogState(
   filePath = resolveLocalErrorLogStorePath(),
 ): Promise<LocalErrorLogState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isErrorLogState(parsed)) {
-      return {
-        ...parsed,
-        errors: cloneObservedErrors(parsed.errors),
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny error log: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalErrorLogState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedErrorLogState()
@@ -73,13 +86,8 @@ export async function writeLocalErrorLogState(
   state: ErrorLogState,
   filePath = resolveLocalErrorLogStorePath(),
 ): Promise<LocalErrorLogState> {
-  const nextState: LocalErrorLogState = {
-    errors: cloneObservedErrors(state.errors),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composeErrorLogState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -88,19 +96,22 @@ export async function appendLocalObservedError(
   input: ObservedErrorInput,
   filePath = resolveLocalErrorLogStorePath(),
 ): Promise<StoredObservedErrorAppend> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalErrorLogState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalErrorLogState | undefined
+    if (document.found) {
+      currentState = parseLocalErrorLogState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedErrorLogState()
+
     const error = createObservedErrorEntry(input, currentState.errors)
-    const state = await writeLocalErrorLogState(
-      {
-        errors: [error, ...currentState.errors].slice(0, 300),
-      },
-      filePath,
-    )
+    const state = composeErrorLogState({
+      errors: [error, ...currentState.errors].slice(0, 300),
+    })
 
     return {
-      error,
-      state,
+      payload: state,
+      result: { error, state },
     }
   })
 }

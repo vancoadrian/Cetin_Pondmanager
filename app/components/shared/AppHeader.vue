@@ -21,6 +21,8 @@ const secondaryNav: NavItem[] = [
 const route = useRoute()
 const config = useRuntimeConfig()
 const mobileOpen = useMobileNavState()
+// Pod lg otvára menu tlačidlo „Viac" v spodnej lište — hamburger by ho duplikoval
+const showBottomTabBar = computed(() => isBottomTabBarRoute(route.path))
 const { isLoggedIn, logout, user } = useMockAuth()
 const { total: offlineQueueTotal } = useOfflineQueueSummary()
 const accountAction = computed(() => {
@@ -198,7 +200,8 @@ async function signOut() {
           color="neutral"
           variant="ghost"
           size="lg"
-          class="text-white hover:bg-white/10 xl:hidden"
+          class="text-white hover:bg-white/10"
+          :class="showBottomTabBar ? 'hidden lg:inline-flex xl:hidden' : 'xl:hidden'"
           aria-label="Otvoriť menu"
           @click="mobileOpen = true"
         />

@@ -41,7 +41,10 @@ describe('environmentReadinessService', () => {
       .toEqual(expect.arrayContaining([
         'RYBOLOV_ENVIRONMENT',
         'NUXT_PUBLIC_SITE_URL',
-        'RYBOLOV_LOCAL_DATA_DIR',
+        'NUXT_PUBLIC_SENTRY_DSN',
+        'NUXT_PUBLIC_SUPABASE_URL',
+        'NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+        'SUPABASE_SECRET_KEY',
         'RYBOLOV_REPORT_SCHEDULER_SECRET',
       ]))
   })
@@ -50,12 +53,14 @@ describe('environmentReadinessService', () => {
     const report = createEnvironmentReadinessReport(
       {
         NUXT_PUBLIC_REZERVACIE_PHONE: '+421 911 298 702',
+        NUXT_PUBLIC_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1',
         NUXT_PUBLIC_SITE_URL: 'https://rybolov-cetin.sk',
         NUXT_PUBLIC_VAPID_PUBLIC_KEY: 'public-key',
         RYBOLOV_AUTH_DELIVERY_PROVIDER: 'resend',
         RYBOLOV_AUTH_EMAIL_FROM: 'Rybolov Cetín <ucet@rybolov-cetin.sk>',
+        NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+        NUXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co',
         RYBOLOV_ENVIRONMENT: 'production',
-        RYBOLOV_LOCAL_DATA_DIR: '/var/lib/rybolov-cetin',
         RYBOLOV_PUSH_PROVIDER: 'web-push',
         RYBOLOV_PUSH_SUBJECT: 'mailto:spravca@rybolov-cetin.sk',
         RYBOLOV_REPORT_DELIVERY_PROVIDER: 'resend',
@@ -70,6 +75,8 @@ describe('environmentReadinessService', () => {
         RYBOLOV_WEATHER_LATITUDE: '48.2',
         RYBOLOV_WEATHER_LONGITUDE: '18.2',
         RYBOLOV_WEATHER_PROVIDER: 'weather-api',
+        SUPABASE_DB_URL: 'postgresql://postgres:secret@db.project.supabase.co:5432/postgres',
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
       },
       '2026-06-04T09:00:00.000Z',
     )

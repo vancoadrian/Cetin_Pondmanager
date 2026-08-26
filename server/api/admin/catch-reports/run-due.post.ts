@@ -5,10 +5,10 @@ import { resolveAuditActor } from '../../../utils/auditActor'
 import { runAndPersistCatchReportScheduler } from '../../../utils/catchReportSchedulerRunner'
 
 export default defineEventHandler(async (event): Promise<CatchReportScheduleRunSuccess> => {
-  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
 
   const result = await runAndPersistCatchReportScheduler({
-    actor: resolveAuditActor(event),
+    actor: await resolveAuditActor(event),
     source: 'admin',
   })
   setResponseStatus(event, result.statusCode)

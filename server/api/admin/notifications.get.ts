@@ -5,7 +5,7 @@ import { readLocalNotificationState } from '../../utils/localNotificationStore'
 import { createNotificationDeliveryDiagnostics } from '../../utils/notificationDeliveryProvider'
 
 export default defineEventHandler(async (event): Promise<NotificationStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'notifications' })
+  await requireAdminAccess(event, { moduleId: 'notifications' })
 
   const state = await readLocalNotificationState()
 

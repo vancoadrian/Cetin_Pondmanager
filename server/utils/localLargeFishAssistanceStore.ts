@@ -1,15 +1,20 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneLargeFishAssistanceState,
   type LargeFishAssistanceState,
 } from '~/services/largeFishAssistanceService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalLargeFishAssistanceState extends LargeFishAssistanceState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'large-fish-assistance-state'
 
 export function resolveLocalLargeFishAssistanceStorePath() {
   return process.env.RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE
@@ -33,24 +38,25 @@ function isLargeFishAssistanceState(value: unknown): value is LocalLargeFishAssi
     && Array.isArray(candidate.requests)
 }
 
+function parseLocalLargeFishAssistanceState(payload: unknown): LocalLargeFishAssistanceState | undefined {
+  if (!isLargeFishAssistanceState(payload)) return undefined
+
+  return {
+    ...cloneLargeFishAssistanceState(payload),
+    updatedAt: payload.updatedAt,
+    version: 1,
+  }
+}
+
 export async function readLocalLargeFishAssistanceState(
   filePath = resolveLocalLargeFishAssistanceStorePath(),
 ): Promise<LocalLargeFishAssistanceState> {
-  try {
-    const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
-    if (isLargeFishAssistanceState(parsed)) {
-      return {
-        ...cloneLargeFishAssistanceState(parsed),
-        updatedAt: parsed.updatedAt,
-        version: 1,
-      }
-    }
-  }
-  catch (error) {
-    const maybeError = error as NodeJS.ErrnoException
-    if (maybeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať privolania správcu: ${maybeError.message}`)
-    }
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
+
+  if (document.found) {
+    const parsed = parseLocalLargeFishAssistanceState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const state = createEmptyLargeFishAssistanceState()
@@ -68,6 +74,6 @@ export async function writeLocalLargeFishAssistanceState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
   return nextState
 }

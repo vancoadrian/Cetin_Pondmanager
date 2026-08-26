@@ -1,12 +1,17 @@
-import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { CatchPhoto } from '~/data/pond'
 import type { CatchPhotoUpload } from '~/services/catchApiService'
-import { atomicWriteFile } from './jsonFileStore'
+import {
+  readAssetObject,
+  resolveAssetBucketFileDirectory,
+  writeAssetObject,
+} from './assetObjectStore'
 
+export const CATCH_PHOTO_BUCKET = 'catch-photos'
+
+/** File-driver directory (dev/test adapter); Supabase driver uses the catch-photos bucket. */
 export function resolveLocalCatchPhotoDir() {
-  return process.env.RYBOLOV_LOCAL_CATCH_PHOTO_DIR
-    ?? join(process.cwd(), '.data', 'rybolov-cetin', 'catch-photos')
+  return resolveAssetBucketFileDirectory(CATCH_PHOTO_BUCKET)
 }
 
 export function decodeCatchPhotoDataUrl(upload: CatchPhotoUpload) {
@@ -18,8 +23,12 @@ export function decodeCatchPhotoDataUrl(upload: CatchPhotoUpload) {
   return Buffer.from(upload.dataUrl.slice(prefix.length), 'base64')
 }
 
+export function resolveCatchPhotoObjectName(photo: Pick<CatchPhoto, 'storagePath'>) {
+  return basename(photo.storagePath)
+}
+
 export function resolveCatchPhotoFilePath(photo: Pick<CatchPhoto, 'storagePath'>, dir = resolveLocalCatchPhotoDir()) {
-  return join(dir, basename(photo.storagePath))
+  return join(dir, resolveCatchPhotoObjectName(photo))
 }
 
 export async function writeLocalCatchPhotoFile(
@@ -28,9 +37,18 @@ export async function writeLocalCatchPhotoFile(
   dir = resolveLocalCatchPhotoDir(),
 ) {
   const buffer = decodeCatchPhotoDataUrl(upload)
-  await atomicWriteFile(resolveCatchPhotoFilePath(photo, dir), buffer)
+  await writeAssetObject(CATCH_PHOTO_BUCKET, resolveCatchPhotoObjectName(photo), buffer, upload.mimeType, {
+    fileDirectory: dir,
+  })
 }
 
-export async function readLocalCatchPhotoFile(photo: Pick<CatchPhoto, 'storagePath'>, dir = resolveLocalCatchPhotoDir()) {
-  return readFile(resolveCatchPhotoFilePath(photo, dir))
+export async function readLocalCatchPhotoFile(
+  photo: Pick<CatchPhoto, 'storagePath'>,
+  dir = resolveLocalCatchPhotoDir(),
+) {
+  const { data } = await readAssetObject(CATCH_PHOTO_BUCKET, resolveCatchPhotoObjectName(photo), {
+    fileDirectory: dir,
+  })
+
+  return data
 }

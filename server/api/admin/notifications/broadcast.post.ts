@@ -11,10 +11,10 @@ import { runServerNotificationDelivery } from '../../../utils/notificationDelive
 import { resolveNotificationDeliveryOptions } from '../../../utils/notificationDeliveryProvider'
 
 export default defineEventHandler(async (event): Promise<NotificationBroadcastSuccess> => {
-  requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
 
   const state = await readLocalNotificationState()
-  const actor = resolveAuditActor(event)
+  const actor = await resolveAuditActor(event)
   const result = createNotificationBroadcast(await readBody(event), state, actor.actorLabel)
 
   if (!result.ok) {

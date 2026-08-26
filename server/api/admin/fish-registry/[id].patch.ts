@@ -13,7 +13,7 @@ import {
 } from '../../../utils/localFishRegistryStore'
 
 export default defineEventHandler(async (event): Promise<FishRegistryUpdateSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
   const fishId = getRouterParam(event, 'id') ?? ''
   const state = await readLocalFishRegistryState()
   const result = updateTaggedFishIdentity(fishId, await readBody(event), state)
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event): Promise<FishRegistryUpdateSucce
     ...result,
     settings: state.settings,
   })
-  const actor = resolveAuditActor(event)
+  const actor = await resolveAuditActor(event)
   await appendLocalAuditEvent({
     ...actor,
     action: result.previousStatus === result.fishRecord.status

@@ -1,12 +1,17 @@
-import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { Sponsor } from '~/data/pond'
 import type { SponsorLogoUpload } from '~/services/sponsorService'
-import { atomicWriteFile } from './jsonFileStore'
+import {
+  readAssetObject,
+  resolveAssetBucketFileDirectory,
+  writeAssetObject,
+} from './assetObjectStore'
 
+export const SPONSOR_ASSET_BUCKET = 'sponsor-assets'
+
+/** File-driver directory (dev/test adapter); Supabase driver uses the sponsor-assets bucket. */
 export function resolveLocalSponsorAssetDir() {
-  return process.env.RYBOLOV_LOCAL_SPONSOR_ASSET_DIR
-    ?? join(process.cwd(), '.data', 'rybolov-cetin', 'sponsor-assets')
+  return resolveAssetBucketFileDirectory(SPONSOR_ASSET_BUCKET)
 }
 
 export function decodeSponsorLogoDataUrl(upload: SponsorLogoUpload) {
@@ -18,15 +23,19 @@ export function decodeSponsorLogoDataUrl(upload: SponsorLogoUpload) {
   return Buffer.from(upload.dataUrl.slice(prefix.length), 'base64')
 }
 
-export function resolveSponsorLogoFilePath(
-  sponsor: Pick<Sponsor, 'logoStoragePath'>,
-  dir = resolveLocalSponsorAssetDir(),
-) {
+export function resolveSponsorLogoObjectName(sponsor: Pick<Sponsor, 'logoStoragePath'>) {
   if (!sponsor.logoStoragePath) {
     throw new Error('Logo nemá úložnú cestu.')
   }
 
-  return join(dir, basename(sponsor.logoStoragePath))
+  return basename(sponsor.logoStoragePath)
+}
+
+export function resolveSponsorLogoFilePath(
+  sponsor: Pick<Sponsor, 'logoStoragePath'>,
+  dir = resolveLocalSponsorAssetDir(),
+) {
+  return join(dir, resolveSponsorLogoObjectName(sponsor))
 }
 
 export async function writeLocalSponsorLogoFile(
@@ -35,12 +44,18 @@ export async function writeLocalSponsorLogoFile(
   dir = resolveLocalSponsorAssetDir(),
 ) {
   const buffer = decodeSponsorLogoDataUrl(upload)
-  await atomicWriteFile(resolveSponsorLogoFilePath(sponsor, dir), buffer)
+  await writeAssetObject(SPONSOR_ASSET_BUCKET, resolveSponsorLogoObjectName(sponsor), buffer, upload.mimeType, {
+    fileDirectory: dir,
+  })
 }
 
 export async function readLocalSponsorLogoFile(
   sponsor: Pick<Sponsor, 'logoStoragePath'>,
   dir = resolveLocalSponsorAssetDir(),
 ) {
-  return readFile(resolveSponsorLogoFilePath(sponsor, dir))
+  const { data } = await readAssetObject(SPONSOR_ASSET_BUCKET, resolveSponsorLogoObjectName(sponsor), {
+    fileDirectory: dir,
+  })
+
+  return data
 }

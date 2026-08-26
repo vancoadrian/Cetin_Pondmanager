@@ -7,7 +7,7 @@ import { readLocalAuditLogState } from '../../utils/localAuditLogStore'
 const auditAreaSet = new Set<AuditArea>(auditAreas)
 
 export default defineEventHandler(async (event): Promise<AuditLogResponse> => {
-  requireAdminAccess(event, { moduleId: 'audit' })
+  await requireAdminAccess(event, { moduleId: 'audit' })
 
   const state = await readLocalAuditLogState()
   const query = getQuery(event)

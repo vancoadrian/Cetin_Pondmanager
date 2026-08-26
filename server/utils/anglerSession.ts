@@ -18,7 +18,7 @@ import {
 
 export async function resolveMockAnglerAccount(event: H3Event): Promise<MockAnglerAccount | undefined> {
   const token = getCookie(event, ANGLER_SESSION_COOKIE) ?? getCookie(event, AUTH_SESSION_COOKIE)
-  const session = resolveLocalSession(token)
+  const session = await resolveLocalSession(token)
   if (!session || session.role !== 'angler') return undefined
   const sessionAccountId = session.accountId
 

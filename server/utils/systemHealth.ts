@@ -1,6 +1,9 @@
 import { constants } from 'node:fs'
 import { access, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { probeAssetObjectBackend } from './assetObjectStore'
+import { probeRuntimeStateBackend } from './runtimeStateStore'
+import { resolveRuntimeStorageDriverKind } from './runtimeStorageDriver'
 import {
   createErrorPressureCheck,
   getRecentErrorStats,
@@ -37,6 +40,17 @@ export function resolveLocalDataDirectory() {
     ?? join(process.cwd(), '.data', 'rybolov-cetin')
 }
 
+function describeDataLocation() {
+  try {
+    return resolveRuntimeStorageDriverKind() === 'file'
+      ? resolveLocalDataDirectory()
+      : 'Supabase (runtime_store_states + Storage buckety)'
+  }
+  catch {
+    return 'neplatná konfigurácia úložiska'
+  }
+}
+
 function runtimeHealthCheck(checkedAt: string): SystemHealthCheck {
   const majorVersion = Number.parseInt(process.version.replace(/^v/, '').split('.')[0] ?? '', 10)
   const status: SystemHealthStatus = Number.isFinite(majorVersion) && majorVersion >= 22 ? 'ok' : 'degraded'
@@ -55,7 +69,7 @@ function runtimeHealthCheck(checkedAt: string): SystemHealthCheck {
   }
 }
 
-async function localDataHealthCheck(checkedAt: string, includePrivateDetails = false): Promise<SystemHealthCheck> {
+async function fileDriverHealthCheck(checkedAt: string, includePrivateDetails: boolean): Promise<SystemHealthCheck> {
   const dataDirectory = resolveLocalDataDirectory()
 
   try {
@@ -64,10 +78,10 @@ async function localDataHealthCheck(checkedAt: string, includePrivateDetails = f
 
     return {
       checkedAt,
-      detail: 'Lokálny dátový adresár je dostupný na čítanie aj zápis.',
-      id: 'local-data',
-      label: 'Lokálne dáta',
-      metadata: includePrivateDetails ? { path: dataDirectory } : undefined,
+      detail: 'Beží explicitný filesystem dev/test adaptér; dátový adresár je dostupný na čítanie aj zápis.',
+      id: 'persistence',
+      label: 'Dátové úložisko',
+      metadata: includePrivateDetails ? { driver: 'file', path: dataDirectory } : { driver: 'file' },
       status: 'ok',
     }
   }
@@ -76,10 +90,69 @@ async function localDataHealthCheck(checkedAt: string, includePrivateDetails = f
 
     return {
       checkedAt,
-      detail: `Lokálny dátový adresár nie je zapisovateľný: ${message}`,
-      id: 'local-data',
-      label: 'Lokálne dáta',
-      metadata: includePrivateDetails ? { path: dataDirectory } : undefined,
+      detail: `Filesystem dev/test adaptér nemá zapisovateľný adresár: ${message}`,
+      id: 'persistence',
+      label: 'Dátové úložisko',
+      metadata: includePrivateDetails ? { driver: 'file', path: dataDirectory } : { driver: 'file' },
+      status: 'down',
+    }
+  }
+}
+
+/**
+ * Persistence health: verifies the active driver end to end. The Supabase
+ * driver must reach both the runtime state table and the Storage buckets —
+ * there is no filesystem fallback to hide behind.
+ */
+async function persistenceHealthCheck(checkedAt: string, includePrivateDetails = false): Promise<SystemHealthCheck> {
+  let driver: 'file' | 'supabase'
+
+  try {
+    driver = resolveRuntimeStorageDriverKind()
+  }
+  catch (error) {
+    return {
+      checkedAt,
+      detail: error instanceof Error ? error.message : 'Neplatná konfigurácia dátového úložiska.',
+      id: 'persistence',
+      label: 'Dátové úložisko',
+      status: 'down',
+    }
+  }
+
+  if (driver === 'file') {
+    return fileDriverHealthCheck(checkedAt, includePrivateDetails)
+  }
+
+  try {
+    const [stateProbe, storageProbe] = await Promise.all([
+      probeRuntimeStateBackend(),
+      probeAssetObjectBackend(),
+    ])
+    const missingBuckets = storageProbe.missingBuckets
+
+    return {
+      checkedAt,
+      detail: missingBuckets.length === 0
+        ? 'Supabase databáza aj Storage buckety sú dostupné.'
+        : `Supabase je dostupný, ale chýbajú Storage buckety: ${missingBuckets.join(', ')}.`,
+      id: 'persistence',
+      label: 'Dátové úložisko',
+      metadata: {
+        driver: 'supabase',
+        missingBuckets: missingBuckets.length,
+        storeDocuments: stateProbe.documentCount,
+      },
+      status: missingBuckets.length === 0 ? 'ok' : 'degraded',
+    }
+  }
+  catch (error) {
+    return {
+      checkedAt,
+      detail: error instanceof Error ? error.message : 'Supabase úložisko nie je dostupné.',
+      id: 'persistence',
+      label: 'Dátové úložisko',
+      metadata: { driver: 'supabase' },
       status: 'down',
     }
   }
@@ -141,7 +214,7 @@ export async function collectSystemHealth(
   const recentErrorEntries = errorState.errors.slice(0, 20)
   const checks = [
     runtimeHealthCheck(checkedAt),
-    await localDataHealthCheck(checkedAt, options.includePrivateDetails),
+    await persistenceHealthCheck(checkedAt, options.includePrivateDetails),
     environmentReadinessHealthCheck(environmentReadiness, checkedAt),
     notificationHealthCheck(checkedAt),
     createErrorPressureCheck(errorState.errors, checkedAt),
@@ -161,7 +234,7 @@ export async function collectSystemHealth(
 
   return {
     ...baseResponse,
-    dataDirectory: resolveLocalDataDirectory(),
+    dataDirectory: describeDataLocation(),
     environmentReadiness,
     recentErrorEntries: recentErrorEntries.map((error: ObservedErrorEntry) => ({
       ...error,

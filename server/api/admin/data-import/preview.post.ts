@@ -6,12 +6,12 @@ import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import { createLocalDataImportPreview } from '../../../utils/localDataImportPreview'
 
 export default defineEventHandler(async (event): Promise<LocalDataImportPreviewResponse> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const body: unknown = await readBody(event)
   const preview = await createLocalDataImportPreview(body)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'system.data_import.previewed',
     area: 'system',
     details: {

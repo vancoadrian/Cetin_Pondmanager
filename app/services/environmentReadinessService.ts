@@ -1,5 +1,5 @@
 export type DeploymentEnvironment = 'development' | 'production' | 'staging'
-export type EnvironmentReadinessCategory = 'accounts' | 'core' | 'notifications' | 'reports' | 'reservations' | 'storage' | 'weather'
+export type EnvironmentReadinessCategory = 'accounts' | 'core' | 'notifications' | 'observability' | 'reports' | 'reservations' | 'storage' | 'weather'
 export type EnvironmentReadinessSeverity = 'optional' | 'recommended' | 'required'
 export type EnvironmentReadinessStatus = 'configured' | 'missing' | 'mock' | 'not-applicable'
 export type EnvironmentReadinessSummaryStatus = 'attention' | 'blocked' | 'ready'
@@ -47,6 +47,7 @@ export const environmentReadinessCategoryLabels: Record<EnvironmentReadinessCate
   accounts: 'Používateľské účty',
   core: 'Jadro',
   notifications: 'Notifikácie',
+  observability: 'Monitoring',
   reports: 'Reporty',
   reservations: 'Rezervácie',
   storage: 'Úložisko',
@@ -68,10 +69,12 @@ export const environmentReadinessSummaryLabels: Record<EnvironmentReadinessSumma
 
 const providerValueLabels: Record<string, string> = {
   disabled: 'vypnuté',
+  file: 'filesystem (dev/test)',
   manual: 'manuálne',
   mock: 'skúšobné',
   resend: 'Resend',
   station: 'lokálna stanica',
+  supabase: 'Supabase',
   'weather-api': 'Weather API',
   'web-push': 'Web Push',
 }
@@ -198,6 +201,18 @@ export function createEnvironmentReadinessReport(
       label: 'Rezervačný telefón',
       recommended: true,
     }),
+    createRequirement(env, {
+      category: 'observability',
+      description: 'Verejné DSN pre Sentry error reporting v klientovi aj ako serverový fallback.',
+      key: envValue(env, 'NEXT_PUBLIC_SENTRY_DSN') && !envValue(env, 'NUXT_PUBLIC_SENTRY_DSN')
+        ? 'NEXT_PUBLIC_SENTRY_DSN'
+        : 'NUXT_PUBLIC_SENTRY_DSN',
+      label: 'Sentry DSN',
+      missingMessage: 'Pre stage/prod vytvor samostatný Sentry projekt a nastav jeho verejné DSN.',
+      recommended: environment === 'staging',
+      required: isProduction,
+      sensitive: true,
+    }),
     createMockProviderItem({
       category: 'accounts',
       description: 'Provider jednorazových e-mailov na obnovu hesla.',
@@ -225,12 +240,52 @@ export function createEnvironmentReadinessReport(
     }),
     createRequirement(env, {
       category: 'storage',
-      description: 'Perzistentný adresár pre runtime JSON dáta a nahraté súbory.',
-      key: 'RYBOLOV_LOCAL_DATA_DIR',
-      label: 'Lokálny dátový adresár',
-      missingMessage: 'Pre produkčný beh nastav perzistentný volume path.',
-      recommended: environment === 'staging',
-      required: isProduction,
+      description: 'URL Supabase projektu (lokálne API URL zo `supabase start`, na hostingu URL projektu).',
+      key: 'NUXT_PUBLIC_SUPABASE_URL',
+      label: 'Supabase URL',
+      missingMessage: 'Runtime dáta žijú v Supabase; bez URL server nevie čítať ani zapisovať stav.',
+      recommended: !isProductionLike,
+      required: isProductionLike,
+    }),
+    createRequirement(env, {
+      category: 'storage',
+      description: 'Publikovateľný (anon) kľúč pre klientske RLS flow; smie byť dostupný klientovi.',
+      key: envValue(env, 'NUXT_PUBLIC_SUPABASE_ANON_KEY') && !envValue(env, 'NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
+        ? 'NUXT_PUBLIC_SUPABASE_ANON_KEY'
+        : 'NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+      label: 'Supabase publishable key',
+      recommended: !isProductionLike,
+      required: isProductionLike,
+      sensitive: true,
+    }),
+    createRequirement(env, {
+      category: 'storage',
+      description: 'Secret/service-role kľúč pre serverové repository operácie. Nikdy nesmie ísť do klienta.',
+      key: envValue(env, 'SUPABASE_SERVICE_ROLE_KEY') && !envValue(env, 'SUPABASE_SECRET_KEY')
+        ? 'SUPABASE_SERVICE_ROLE_KEY'
+        : 'SUPABASE_SECRET_KEY',
+      label: 'Supabase secret key',
+      missingMessage: 'Server bez secret kľúča nevie pristupovať k runtime stavu ani Storage bucketom.',
+      recommended: !isProductionLike,
+      required: isProductionLike,
+      sensitive: true,
+    }),
+    createRequirement(env, {
+      category: 'storage',
+      description: 'Priame Postgres pripojenie pre migrácie, import a RLS testy (CLI tooling, nie runtime).',
+      key: 'SUPABASE_DB_URL',
+      label: 'Supabase DB URL',
+      recommended: !isProductionLike,
+      sensitive: true,
+    }),
+    createMockProviderItem({
+      category: 'storage',
+      description: 'Driver runtime úložiska. `file` je explicitný dev/test adaptér a v produkcii je zakázaný.',
+      environment,
+      key: 'RYBOLOV_STORAGE_DRIVER',
+      label: 'Storage driver',
+      provider: envValue(env, 'RYBOLOV_STORAGE_DRIVER') || 'supabase',
+      recommendedProvider: 'supabase',
     }),
     createMockProviderItem({
       category: 'notifications',

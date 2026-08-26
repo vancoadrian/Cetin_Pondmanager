@@ -91,7 +91,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('appinstalled', onAppInstalled)
 })
 
-const showing = computed(() => visible.value && (deferred.value !== null || mode.value === 'ios'))
+const route = useRoute()
+// Na auth stránkach prompt prekrýva formulár, výzva počká na ďalšiu stránku
+const showing = computed(() =>
+  visible.value && (deferred.value !== null || mode.value === 'ios') && isPwaInstallPromptRoute(route.path),
+)
 const title = computed(() => (mode.value === 'ios' ? 'Pridať Rybolov Cetín na plochu' : 'Inštalovať Rybolov Cetín'))
 const body = computed(() =>
   mode.value === 'ios'

@@ -6,13 +6,13 @@ import {
 } from '~/utils/tournamentMarshalScope'
 import { resolveAppSessionUser } from './appSession'
 
-export function requireTournamentMarshalMutationScope(
+export async function requireTournamentMarshalMutationScope(
   event: H3Event,
   marshals: TournamentMarshal[],
   input: TournamentMarshalScopeInput,
 ) {
   const decision = getTournamentMarshalScopeDecision(
-    resolveAppSessionUser(event),
+    await resolveAppSessionUser(event),
     marshals,
     input,
   )

@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalSponsorState } from '../../utils/localSponsorStore'
 
 export default defineEventHandler(async (event): Promise<SponsorStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'sponsors' })
+  await requireAdminAccess(event, { moduleId: 'sponsors' })
   const state = await readLocalSponsorState()
 
   return {

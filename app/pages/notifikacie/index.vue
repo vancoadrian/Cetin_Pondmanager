@@ -5,6 +5,7 @@ import type { PublicNotificationStateResponse } from '~/services/notificationBro
 import {
   DEFAULT_PUBLIC_PUSH_LAKES,
   DEFAULT_PUBLIC_PUSH_TOPICS,
+  describePushAvailability,
   FALLBACK_PUBLIC_NOTIFICATION_ALERTS,
   getClientPushSupport,
   PUBLIC_NOTIFICATION_LAKE_LABELS,
@@ -117,17 +118,9 @@ const lastNotificationUpdateLabel = computed(() => {
 })
 const notificationsAvailable = computed(() => pushSupport.value.mode === 'web-push')
 const notificationsEnabled = computed(() => notificationsAvailable.value && Boolean(subscriptionEndpoint.value))
-const notificationAvailabilityMessage = computed(() => {
-  if (notificationsAvailable.value) {
-    return 'Toto zariadenie vie prijímať výstrahy z revíru.'
-  }
-
-  if (pushSupport.value.reason === 'missing-notification' || pushSupport.value.reason === 'missing-push-manager') {
-    return 'Tento prehliadač nevie prijímať výstrahy. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
-  }
-
-  return 'Upozornenia momentálne nie sú dostupné. Aktuálne oznamy zostávajú dostupné na tejto stránke.'
-})
+const notificationAvailabilityMessage = computed(() =>
+  describePushAvailability(pushSupport.value, notificationStatus.value),
+)
 const notificationStatusBadge = computed<{
   icon: string
   label: string

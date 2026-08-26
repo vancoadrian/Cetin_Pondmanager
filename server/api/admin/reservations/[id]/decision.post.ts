@@ -13,7 +13,7 @@ import {
 } from '../../../../utils/localReservationStore'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
 
   const reservationId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
   )
 
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',
