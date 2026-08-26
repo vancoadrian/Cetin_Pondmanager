@@ -160,7 +160,11 @@ Repo má pripravený oficiálny `@sentry/nuxt` client/server setup pre samostatn
 - Browser tracing začína na `0.05`, server na `0.02`; zvýšenie vyžaduje reálne volume a cost dáta.
 - PII, cookies, hlavičky, body, všetky `query.*` hodnoty a capability kódy odstraňuje SDK data-collection config aj spoločná finálna sanitizácia; console aj DOM/UI breadcrumbs sa vôbec neposielajú a UI span názvy sa normalizujú.
 - Replay a Sentry Logs nie sú zapnuté.
-- Hidden source mapy sa vytvoria iba s kompletnými build credentials, po úspešnom uploade sa odstránia a zlyhaný upload zastaví build; bez kompletnej trojice sú všetky client/server/Nitro/Workbox mapy vypnuté.
+- Hidden source mapy sa vytvoria iba s kompletnými build credentials. Po
+  úspešnom uploade sa odstránia z verejného statického artefaktu; interné Nitro
+  mapy môžu zostať iba v neverejnom function bundle. Zlyhaný upload zastaví
+  build a bez kompletnej trojice sú všetky client/server/Nitro/Workbox mapy
+  vypnuté.
 - Lokálny client error reporter zostáva iba fallback bez aktívneho a syntakticky platného browser Sentry DSN, aby incidenty neduplikoval.
 
 Aktuálne nie je nastavená CSP. Ak sa pridá, `connect-src` smie dostať iba presný ingest origin z DSN, nie wildcard Sentry doménu. Podrobný kontrakt a staging acceptance sú v `docs/features/observability.md`.

@@ -2,7 +2,10 @@
 
 ## Rozsah integrácie
 
-Vercel projekt `cetin-pondmanager` je cez Marketplace integráciu presne namapovaný na Sentry organizáciu/projekt `custommadedigital/cetin-pond-manager`. Kód ani dokumentácia neobsahujú DSN, organization token ani inú reálnu prihlasovaciu hodnotu.
+Vercel projekt `cetin-pondmanager` je cez existujúcu Vercel–Sentry integráciu
+presne namapovaný na Sentry organizáciu/projekt
+`custommadedigital/cetin-pond-manager`. Kód ani dokumentácia neobsahujú DSN,
+organization token ani inú reálnu prihlasovaciu hodnotu.
 
 Oficiálny `@sentry/nuxt` modul načíta:
 
@@ -40,9 +43,20 @@ Build/CI používa:
 
 Environment a release sa vypočítajú raz pri builde. Rovnaké hodnoty sa cez Vite `define` vložia do klienta, cez Nitro `replace` do server initu a release sa odovzdá uploaderu. Server teda po štarte neprepočítava identitu z runtime `VERCEL_*`; Preview build zostane `staging` s pôvodným release aj keď funkcia tieto systémové premenné za behu nevidí.
 
-Upload sa zapne iba s kompletnou trojicou `SENTRY_ORG`, `SENTRY_PROJECT` a `SENTRY_AUTH_TOKEN`. Modul vtedy vytvorí hidden client aj server mapy, uploadne ich a po úspešnom uploade ich automaticky odstráni z artefaktu. Zlyhaný upload štandardne zlyhá spolu s buildom. Bez kompletnej trojice sú Nuxt client/server, Vite, Nitro Rollup aj Workbox source mapy explicitne vypnuté, takže v celom `.vercel/output` artefakte vrátane `functions` nemá zostať žiadny `.map` súbor.
+Upload sa zapne iba s kompletnou trojicou `SENTRY_ORG`, `SENTRY_PROJECT` a
+`SENTRY_AUTH_TOKEN`. Modul vtedy vytvorí hidden client aj server mapy, uploadne
+ich a po úspešnom uploade odstráni verejné klientské mapy. Nitro/Vercel môže
+serverové mapy ponechať iba vo vnútri neverejného function bundle. Zlyhaný
+upload štandardne zlyhá spolu s buildom. Bez kompletnej trojice sú Nuxt
+client/server, Vite, Nitro Rollup aj Workbox source mapy explicitne vypnuté,
+takže v celom `.vercel/output` artefakte vrátane `functions` nemá zostať žiadny
+`.map` súbor.
 
-Verejná politika je preto jednoznačná: source mapy slúžia iba na privátny upload do Sentry. Deploynutý static ani Nitro/function artefakt nesmie obsahovať `.map` súbory ani `sourceMappingURL` odkazy. Mapy sa nesmú sprístupniť ako verejné assety ani pri ručnom preview deployi.
+Verejná politika je preto jednoznačná: source mapy slúžia iba na privátny
+upload do Sentry. Statický verejný artefakt nesmie obsahovať `.map` súbory ani
+`sourceMappingURL` odkazy. Nitro mapy môžu zostať zabalené vo vnútri neverejnej
+serverovej funkcie, ale nesmú mať verejnú HTTP cestu. Mapy sa nesmú sprístupniť
+ako verejné assety ani pri ručnom preview deployi.
 
 ## Overený staging Preview · 2026-08-25
 
@@ -56,7 +70,12 @@ Verejná politika je preto jednoznačná: source mapy slúžia iba na privátny 
 | Kanonický Vercel Preview deployment / URL | [`dpl_4de3XEQTM9cNVJzT5kz86PumfoMw`](https://cetin-pondmanager-rjqiww56t-vancoadrians-projects.vercel.app) |
 | Vercel target | `preview`, stav `READY` |
 
-Build log potvrdil privátny upload client source máp aj server/Nitro source máp do uvedeného Sentry projektu. Build-time identita vložila rovnaký release a `staging` environment do klienta, server initu aj uploadera. Po uploade bolo vo verejnom deploy artefakte overených `0` `.map` súborov a `0` `sourceMappingURL` odkazov.
+Build log potvrdil privátny upload client source máp aj server/Nitro source máp
+do uvedeného Sentry projektu. Build-time identita vložila rovnaký release a
+`staging` environment do klienta, server initu aj uploadera. Po uploade bolo
+medzi 362 verejnými súbormi overených `0` `.map` súborov a `0`
+`sourceMappingURL` odkazov. Ďalších 218 máp zostalo iba vo vnútri neverejného
+server function bundle; nie sú servované ako verejné assety.
 
 Preview je chránený a slúži iba na technické overenie integrácie. Nie je produkčným kanálom ani trvalým zdrojom aplikačných dát.
 
@@ -88,7 +107,9 @@ Produkcia preto zostáva nezmenená na deploymente `dpl_HR4reWjASCpVAjvSwJ7g8dgZ
 
 1. Over mapovanie `cetin-pondmanager` → `custommadedigital/cetin-pond-manager`.
 2. Nastav staging DSN, org, project a build token iba v staging/preview scope; tajné hodnoty nevkladaj do repa ani dokumentácie.
-3. Over úspešný client aj Nitro upload a absenciu `.map` súborov a `sourceMappingURL` odkazov v deploy artefakte.
+3. Over úspešný client aj Nitro upload, absenciu `.map` súborov a
+   `sourceMappingURL` odkazov vo verejnom statickom artefakte a neprístupnosť
+   prípadných interných function máp cez HTTP.
 4. Cez dočasnú neverejnú diagnostiku vyvolaj jednu browser a jednu Nitro chybu.
 5. V Sentry over `environment=staging`, rovnaký release, tag `app.runtime` a symbolikované `.vue`/`.ts` riadky.
 6. V raw evente over absenciu ľubovoľných `query.*` hodnôt, DOM/UI breadcrumbs a pôvodných UI span názvov, ako aj cookies, hlavičiek, e-mailov a telefónov; diagnostiku potom odstráň.
