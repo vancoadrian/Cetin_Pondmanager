@@ -31,6 +31,8 @@ Potom otvor `http://localhost:3000`.
 
 > Sentry integrácia neruší produkčný blokátor: aplikačné repository stále zapisujú do lokálneho `.data`. Projekt sa nesmie nasadiť na serverless hosting, kým mutácie a assety neprejdú na perzistentnú Supabase repository/Storage vrstvu.
 
+Sentry je overené iba na chránenom staging Preview: Vercel `cetin-pondmanager` → `custommadedigital/cetin-pond-manager`, kanonický deployment [`dpl_4de3XEQTM9cNVJzT5kz86PumfoMw`](https://cetin-pondmanager-rjqiww56t-vancoadrians-projects.vercel.app), release `ee76164315436c621d5d6a16b250751485bc446b`. Produkcia ostala nedotknutá na `main` commite `80ad05d108102cb11691e71c92ee7470fc44f3de`; preview-only `/tmp` stores sú zámerne zahoditeľné a nesmú sa skopírovať do Production scope. Prevádzkové detaily sú v `docs/features/observability.md` a `docs/deployment/production-platform.md`.
+
 Pri zmene schémy alebo seed dát spusti `pnpm seed:export && pnpm supabase:reset`. Lokálne služby sú na API `54321`, DB `54322`, Studio `54323` a Mailpit `54324`. Aplikačné repository zatiaľ naďalej používa lokálne JSON stores; Supabase je lokálny migračný/RLS kontrakt, nie potichu zapnutý produkčný backend.
 
 ## Dáta

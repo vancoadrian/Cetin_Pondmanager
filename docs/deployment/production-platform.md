@@ -45,6 +45,53 @@ Minimálne tri oddelené prostredia:
 
 Preview deployment nesmie potichu používať produkčnú databázu. Vercel rozlišuje Development, Preview a Production env scope; staging musí mať vlastné scoped premenné alebo vlastné Vercel environment nastavenie. Supabase Auth musí mať presnú produkčnú `SITE_URL` a povolené iba potrebné lokálne, preview a staging redirecty.
 
+### Aktuálny chránený Preview
+
+Staging overenie Sentry z 2026-08-25 beží iba ako chránený Vercel Preview:
+
+| Položka | Hodnota |
+| --- | --- |
+| Vercel projekt | `cetin-pondmanager` |
+| Sentry mapovanie | `custommadedigital/cetin-pond-manager` |
+| Kanonický Preview deployment / URL | [`dpl_4de3XEQTM9cNVJzT5kz86PumfoMw`](https://cetin-pondmanager-rjqiww56t-vancoadrians-projects.vercel.app) |
+| Git commit / Sentry release | `ee76164315436c621d5d6a16b250751485bc446b` |
+| Vercel / Sentry environment | `preview` / `staging` |
+
+Pre tento jeden Preview dostal build aj runtime explicitný zahoditeľný store setup. Všetky cesty sú pod zapisovateľným, ale **neperzistentným** `/tmp`; reštart, cold start, presun medzi funkciami alebo nový deployment môže dáta stratiť:
+
+```dotenv
+NUXT_PUBLIC_SITE_URL=https://cetin-pondmanager.vercel.app
+RYBOLOV_LOCAL_DATA_DIR=/tmp/rybolov-cetin
+RYBOLOV_LOCAL_ACCOUNT_STORE=/tmp/rybolov-cetin/account-state.json
+RYBOLOV_LOCAL_AUDIT_LOG_STORE=/tmp/rybolov-cetin/audit-log.json
+RYBOLOV_LOCAL_CABIN_CATALOG_STORE=/tmp/rybolov-cetin/cabin-catalog-state.json
+RYBOLOV_LOCAL_CATCH_PHOTO_DIR=/tmp/rybolov-cetin/catch-photos
+RYBOLOV_LOCAL_CATCH_REPORT_STORE=/tmp/rybolov-cetin/catch-reports.json
+RYBOLOV_LOCAL_CATCH_STORE=/tmp/rybolov-cetin/catch-state.json
+RYBOLOV_LOCAL_CLOSURE_STORE=/tmp/rybolov-cetin/closure-state.json
+RYBOLOV_LOCAL_ERROR_LOG_STORE=/tmp/rybolov-cetin/error-log.json
+RYBOLOV_LOCAL_FISH_REGISTRY_STORE=/tmp/rybolov-cetin/fish-registry-state.json
+RYBOLOV_LOCAL_LARGE_FISH_ASSISTANCE_STORE=/tmp/rybolov-cetin/large-fish-assistance-state.json
+RYBOLOV_LOCAL_MAP_ASSET_DIR=/tmp/rybolov-cetin/map-assets
+RYBOLOV_LOCAL_MAP_DRAFT_STORE=/tmp/rybolov-cetin/map-draft-state.json
+RYBOLOV_LOCAL_MAP_STORE=/tmp/rybolov-cetin/map-state.json
+RYBOLOV_LOCAL_NOTIFICATION_STORE=/tmp/rybolov-cetin/notification-state.json
+RYBOLOV_LOCAL_PAYMENT_METHOD_STORE=/tmp/rybolov-cetin/payment-method-state.json
+RYBOLOV_LOCAL_PLACE_ISSUE_STORE=/tmp/rybolov-cetin/place-issue-state.json
+RYBOLOV_LOCAL_RENTAL_CATALOG_STORE=/tmp/rybolov-cetin/rental-catalog-state.json
+RYBOLOV_LOCAL_RESERVATION_STORE=/tmp/rybolov-cetin/reservation-state.json
+RYBOLOV_LOCAL_SESSION_STORE=/tmp/rybolov-cetin/session-state.json
+RYBOLOV_LOCAL_SPONSOR_ASSET_DIR=/tmp/rybolov-cetin/sponsor-assets
+RYBOLOV_LOCAL_SPONSOR_STORE=/tmp/rybolov-cetin/sponsor-state.json
+RYBOLOV_LOCAL_TOURNAMENT_STORE=/tmp/rybolov-cetin/tournament-state.json
+```
+
+Toto nie je vzor pre produkčnú konfiguráciu. Uvedené deployment-only hodnoty nepatria do Production scope ani do zdieľanej Vercel project konfigurácie. Nesmú sa použiť na skutočné rezervácie, účty, mapové úpravy, fotky, notifikácie, reporty alebo backupy.
+
+V Preview môže `GET /api/health` vrátiť HTTP 200 s `ok: true` a `status: "degraded"`. `degraded` znamená nefatálne staging readiness upozornenia, napríklad mock/vypnuté delivery providery alebo chýbajúce odporúčané integrácie; neznamená výpadok HTTP služby. Zároveň to **nie je** dôkaz perzistencie: health vie overiť, že `/tmp` je práve zapisovateľné, nie že dáta prežijú ďalšiu invokáciu alebo deployment. `status: "down"` alebo `ok: false` je výpadkový stav.
+
+Produkcia ostala týmto overením nedotknutá a zostáva na deploymente `dpl_HR4reWjASCpVAjvSwJ7g8dgZt6W1` z `main` commitu `80ad05d108102cb11691e71c92ee7470fc44f3de`. Vetva `codex/sentry-integration` sa nesmie merge-núť ani promotovať do Production pred migráciou všetkých lokálnych stores a assetov na Supabase alebo iné garantovane perzistentné úložisko.
+
 Zdroje:
 
 - [Supabase a Vercel environmenty](https://supabase.com/docs/guides/troubleshooting/vercel-integration-environment-variables-not-syncing-for-persistent-git-branches-b9191e)
