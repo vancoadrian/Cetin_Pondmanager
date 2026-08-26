@@ -428,13 +428,14 @@ const {
             aria-labelledby="ziadost-rezervacie-title"
             class="border-border bg-surface scroll-mt-24 rounded-card border p-5"
           >
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <h2 id="ziadost-rezervacie-title" class="text-lg font-bold">Žiadosť o rezerváciu</h2>
               <UButton
                 to="#vyber-rezervacie"
                 icon="i-heroicons-pencil-square"
                 size="sm"
                 variant="ghost"
+                class="shrink-0"
               >
                 Upraviť výber
               </UButton>

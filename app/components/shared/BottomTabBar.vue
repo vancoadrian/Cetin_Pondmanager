@@ -1,30 +1,14 @@
 <script setup lang="ts">
-interface TabItem {
-  label: string
-  to: string
-  icon: string
-}
-
-const tabs: TabItem[] = [
-  { label: 'Domov', to: '/', icon: 'i-heroicons-home' },
-  { label: 'Mapa', to: '/mapa', icon: 'i-heroicons-map-pin' },
-  { label: 'Rezervácie', to: '/rezervacie', icon: 'i-heroicons-calendar-days' },
-  { label: 'Úlovky', to: '/ulovky', icon: 'i-heroicons-camera' },
-]
-
 const route = useRoute()
 const mobileOpen = useMobileNavState()
 const { total: offlineQueueTotal } = useOfflineQueueSummary()
 
 const visible = computed(() => isBottomTabBarRoute(route.path))
 
-function isActive(to: string) {
-  if (to === '/') return route.path === '/'
-  return route.path.startsWith(to)
-}
+const isActive = (to: string) => isActiveNavPath(route.path, to)
 
 const isMoreActive = computed(() =>
-  mobileOpen.value || (!tabs.some((tab) => isActive(tab.to)) && route.path !== '/'),
+  mobileOpen.value || (!BOTTOM_TAB_ITEMS.some((tab) => isActive(tab.to)) && route.path !== '/'),
 )
 </script>
 
@@ -36,7 +20,7 @@ const isMoreActive = computed(() =>
   >
     <div class="grid grid-cols-5">
       <NuxtLink
-        v-for="tab in tabs"
+        v-for="tab in BOTTOM_TAB_ITEMS"
         :key="tab.to"
         :to="tab.to"
         class="flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold transition-colors"
