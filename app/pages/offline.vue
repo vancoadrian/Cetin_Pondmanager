@@ -632,7 +632,7 @@ onBeforeUnmount(() => {
             class="rounded-card border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-sm"
           >
             <div class="flex items-start gap-3">
-              <div class="rounded-md bg-primary-50 p-2 text-primary-700">
+              <div class="rounded-md bg-primary-50 dark:bg-primary-950/50 p-2 text-primary-700">
                 <UIcon :name="item.icon" class="h-5 w-5" />
               </div>
               <div class="min-w-0 flex-1">
@@ -725,7 +725,7 @@ onBeforeUnmount(() => {
             <div
               v-for="item in offlineReservations"
               :key="item.id"
-              class="rounded-md border bg-white p-3"
+              class="rounded-md border bg-surface p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
             >
               <div class="min-w-0">
@@ -801,7 +801,7 @@ onBeforeUnmount(() => {
             <div
               v-for="item in offlineCatches"
               :key="item.id"
-              class="rounded-md border bg-white p-3"
+              class="rounded-md border bg-surface p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
             >
               <div class="min-w-0">
@@ -874,7 +874,7 @@ onBeforeUnmount(() => {
             <div
               v-for="item in offlinePlaceIssues"
               :key="item.id"
-              class="rounded-md border bg-white p-3"
+              class="rounded-md border bg-surface p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
             >
               <div class="min-w-0">
@@ -948,7 +948,7 @@ onBeforeUnmount(() => {
             <div
               v-for="item in visibleTournamentRequests"
               :key="item.id"
-              class="rounded-md border bg-white p-3"
+              class="rounded-md border bg-surface p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
             >
               <div class="min-w-0">
@@ -1025,7 +1025,7 @@ onBeforeUnmount(() => {
             <div
               v-for="item in visibleTournamentAdminActions"
               :key="item.id"
-              class="rounded-md border bg-white p-3"
+              class="rounded-md border bg-surface p-3"
               :class="item.lastError ? 'border-error-500/30' : 'border-border'"
             >
               <div class="min-w-0">

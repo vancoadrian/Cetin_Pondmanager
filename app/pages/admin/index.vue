@@ -331,7 +331,7 @@ function closureTimingLabel(from: string, to: string) {
 function metricIconClass(tone: DashboardMetric['tone']) {
   if (tone === 'error') return 'bg-error-500/10 text-error-700'
   if (tone === 'warning') return 'bg-warning-500/10 text-warning-800'
-  return 'bg-primary-50 text-primary-800'
+  return 'bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200'
 }
 
 async function signOut() {
@@ -402,7 +402,7 @@ async function refreshDashboard() {
             <UIcon name="i-heroicons-user" class="h-5 w-5" />
           </div>
           <div class="min-w-0">
-            <p class="text-xs font-bold uppercase text-primary-800">{{ user?.roleLabel }}</p>
+            <p class="text-xs font-bold uppercase text-primary-800 dark:text-primary-200">{{ user?.roleLabel }}</p>
             <h2 class="mt-0.5 truncate text-xl font-bold">{{ user?.name }}</h2>
             <p class="mt-1 line-clamp-2 text-sm text-foreground-muted">{{ user?.description }}</p>
           </div>
@@ -451,7 +451,7 @@ async function refreshDashboard() {
         <section class="min-w-0" aria-labelledby="dashboard-tasks-title">
           <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p class="text-xs font-bold uppercase text-primary-800">Podľa naliehavosti</p>
+              <p class="text-xs font-bold uppercase text-primary-800 dark:text-primary-200">Podľa naliehavosti</p>
               <h2 id="dashboard-tasks-title" class="mt-1 text-xl font-bold">Úlohy na spracovanie</h2>
             </div>
             <p class="text-sm font-semibold text-foreground-muted">
@@ -466,7 +466,7 @@ async function refreshDashboard() {
               :to="task.to"
               class="group flex min-w-0 items-start gap-3 rounded-card border border-border bg-surface p-4 transition hover:border-primary-700 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700"
             >
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-800">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200">
                 <UIcon :name="task.icon" class="h-5 w-5" />
               </div>
               <div class="min-w-0 flex-1">
@@ -496,7 +496,7 @@ async function refreshDashboard() {
 
         <aside class="min-w-0 space-y-8">
           <section aria-labelledby="dashboard-actions-title">
-            <p class="text-xs font-bold uppercase text-primary-800">Najčastejšie kroky</p>
+            <p class="text-xs font-bold uppercase text-primary-800 dark:text-primary-200">Najčastejšie kroky</p>
             <h2 id="dashboard-actions-title" class="mt-1 text-xl font-bold">Rýchle akcie</h2>
             <div class="mt-4 grid grid-cols-2 gap-3">
               <NuxtLink
@@ -505,7 +505,7 @@ async function refreshDashboard() {
                 :to="action.to"
                 class="flex min-h-20 min-w-0 flex-col justify-between rounded-card border border-border bg-surface p-3 transition hover:border-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700"
               >
-                <UIcon :name="action.icon" class="h-5 w-5 text-primary-800" />
+                <UIcon :name="action.icon" class="h-5 w-5 text-primary-800 dark:text-primary-200" />
                 <span class="mt-3 break-words text-sm font-bold leading-tight">{{ action.label }}</span>
               </NuxtLink>
             </div>
@@ -514,7 +514,7 @@ async function refreshDashboard() {
           <section class="border-t border-border pt-6" aria-labelledby="dashboard-closures-title">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-xs font-bold uppercase text-primary-800">Dostupnosť</p>
+                <p class="text-xs font-bold uppercase text-primary-800 dark:text-primary-200">Dostupnosť</p>
                 <h2 id="dashboard-closures-title" class="mt-1 text-xl font-bold">Stav revíru</h2>
               </div>
               <UButton to="/admin/uzavierky" icon="i-heroicons-arrow-right" color="neutral" variant="ghost" aria-label="Otvoriť uzávierky" />

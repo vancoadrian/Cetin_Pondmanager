@@ -24,7 +24,7 @@ const stateIcon = computed(() => {
 
 const stateClasses = computed(() => {
   if (props.type === 'error') return 'bg-error-500/10 text-error-700 ring-1 ring-error-200'
-  if (props.type === 'loading') return 'bg-primary-50 text-primary-800 ring-1 ring-primary-100'
+  if (props.type === 'loading') return 'bg-primary-50 dark:bg-primary-950/50 text-primary-800 dark:text-primary-200 ring-1 ring-primary-100'
   return 'bg-muted text-foreground-muted ring-1 ring-border'
 })
 
@@ -35,7 +35,7 @@ const ariaLive = computed(() => (props.type === 'error' ? 'assertive' : 'polite'
 
 <template>
   <div
-    class="rounded-card border border-dashed border-border bg-white text-center"
+    class="rounded-card border border-dashed border-border bg-surface text-center"
     :class="compact ? 'p-4' : 'p-6'"
     :role="stateRole"
     :aria-live="ariaLive"

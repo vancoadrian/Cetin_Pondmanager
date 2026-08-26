@@ -24,7 +24,7 @@ const isMoreActive = computed(() =>
         :key="tab.to"
         :to="tab.to"
         class="flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold transition-colors"
-        :class="isActive(tab.to) ? 'text-primary-700' : 'text-foreground-muted hover:text-foreground'"
+        :class="isActive(tab.to) ? 'text-primary-700 dark:text-primary-300' : 'text-foreground-muted hover:text-foreground'"
         :aria-current="isActive(tab.to) ? 'page' : undefined"
       >
         <UIcon :name="tab.icon" class="h-6 w-6" />
@@ -34,7 +34,7 @@ const isMoreActive = computed(() =>
       <button
         type="button"
         class="relative flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold transition-colors"
-        :class="isMoreActive ? 'text-primary-700' : 'text-foreground-muted hover:text-foreground'"
+        :class="isMoreActive ? 'text-primary-700 dark:text-primary-300' : 'text-foreground-muted hover:text-foreground'"
         :aria-expanded="mobileOpen"
         aria-label="Viac možností a účet"
         @click="mobileOpen = true"

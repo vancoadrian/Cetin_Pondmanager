@@ -302,7 +302,7 @@ const {
             <select
               id="active-tournament"
               :value="activeTournament.id"
-              class="mt-1 h-11 w-full max-w-xl rounded-md border border-border bg-white px-3 text-sm font-bold"
+              class="mt-1 h-11 w-full max-w-xl rounded-md border border-border bg-surface px-3 text-sm font-bold"
               @change="updateActiveTournament"
             >
               <option v-for="tournament in liveTournaments" :key="tournament.id" :value="tournament.id">
@@ -358,7 +358,7 @@ const {
             role="tab"
             class="flex h-10 shrink-0 snap-center items-center justify-center gap-2 rounded px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             :class="activeTournamentAdminView === option.id
-              ? 'bg-white text-primary-900 shadow-sm'
+              ? 'bg-surface text-primary-900 dark:text-primary-100 shadow-sm'
               : 'text-foreground-muted hover:bg-white/70 hover:text-foreground'"
             :aria-selected="activeTournamentAdminView === option.id"
             :tabindex="activeTournamentAdminView === option.id ? 0 : -1"
@@ -398,8 +398,8 @@ const {
             type="button"
             class="rounded-md border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             :class="option.value === tournamentCapabilities.mode
-              ? 'border-primary-500 bg-primary-50 text-primary-950'
-              : 'border-border bg-white hover:border-primary-300'"
+              ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/50 text-primary-950 dark:text-primary-100'
+              : 'border-border bg-surface hover:border-primary-300'"
             :disabled="!canOperateTournaments || operationsModeStatus === 'saving'"
             @click="saveTournamentOperationsMode(option.value)"
           >
@@ -468,7 +468,7 @@ const {
                 :href="leaderboardExportUrl"
                 target="_blank"
                 rel="noopener"
-                class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-3 text-sm font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 dark:bg-primary-950/50 px-3 text-sm font-bold text-primary-800 dark:text-primary-200 transition-colors hover:bg-primary-100"
               >
                 <UIcon name="i-heroicons-arrow-down-tray" class="h-4 w-4" />
                 Stiahnuť výsledkovku
@@ -512,12 +512,12 @@ const {
           <div
             v-for="row in tournamentLeaderboard"
             :key="row.sectorId"
-            class="grid gap-3 border-b border-border bg-white p-3 last:border-b-0 sm:grid-cols-[auto_1fr_auto_auto]"
+            class="grid gap-3 border-b border-border bg-surface p-3 last:border-b-0 sm:grid-cols-[auto_1fr_auto_auto]"
             :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-50' : ''"
           >
             <span
               class="flex h-9 min-w-9 items-center justify-center rounded-md text-sm font-black"
-              :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-400 text-primary-950' : 'bg-muted text-foreground-muted'"
+              :class="row.rank === 1 && row.scoreWeightKg > 0 ? 'bg-accent-400 text-primary-950 dark:text-primary-100' : 'bg-muted text-foreground-muted'"
             >
               {{ row.rank }}.
             </span>
@@ -589,7 +589,7 @@ const {
           <div
             v-for="registration in tournamentTeamRegistrations"
             :key="registration.id"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
@@ -629,7 +629,7 @@ const {
                 <select
                   :value="registrationDecisionDraft(registration.id).assignedSectorId"
                   :disabled="!canOperateTournaments || actionStatus === 'submitting'"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   @change="setRegistrationDecisionSector(registration.id, ($event.target as HTMLSelectElement).value)"
                 >
                   <option value="">Vybrať sektor</option>
@@ -648,7 +648,7 @@ const {
                   :value="registrationDecisionDraft(registration.id).reviewNote"
                   :disabled="!canOperateTournaments || actionStatus === 'submitting'"
                   maxlength="500"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   placeholder="voliteľné"
                   @input="setRegistrationDecisionNote(registration.id, ($event.target as HTMLInputElement).value)"
                 >
@@ -737,7 +737,7 @@ const {
           <div
             v-for="row in sectorMapRows"
             :key="row.sector.id"
-            class="rounded-md border border-border bg-white px-3 py-2"
+            class="rounded-md border border-border bg-surface px-3 py-2"
           >
             <div class="flex items-center justify-between gap-2">
               <p class="font-bold">{{ row.sector.label }}</p>
@@ -754,7 +754,7 @@ const {
             </p>
             <NuxtLink
               :to="tournamentSectorMapEditorUrl(row.sector.id)"
-              class="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white/80 px-2 py-1 text-xs font-bold text-primary-800 transition-colors hover:bg-white"
+              class="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white/80 px-2 py-1 text-xs font-bold text-primary-800 dark:text-primary-200 transition-colors hover:bg-surface"
             >
               <UIcon :name="row.mapped ? 'i-heroicons-pencil-square' : 'i-heroicons-plus-circle'" class="h-4 w-4" />
               {{ row.mapped ? 'Upraviť polygon' : 'Vytvoriť polygon' }}
@@ -813,7 +813,7 @@ const {
           <div
             v-for="row in teamAccessRows"
             :key="row.sectorId"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
@@ -823,13 +823,13 @@ const {
                   </span>
                   <p class="truncate text-sm font-bold">{{ row.teamName }}</p>
                 </div>
-                <p class="mt-2 break-all rounded-md bg-primary-50 px-3 py-2 text-sm font-black text-primary-950">
+                <p class="mt-2 break-all rounded-md bg-primary-50 dark:bg-primary-950/50 px-3 py-2 text-sm font-black text-primary-950 dark:text-primary-100">
                   {{ row.code }}
                 </p>
               </div>
               <NuxtLink
                 :to="row.codeUrl"
-                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 text-xs font-bold text-primary-800 dark:text-primary-200 transition-colors hover:bg-primary-100"
               >
                 <UIcon name="i-heroicons-device-phone-mobile" class="h-4 w-4" />
                 Otvoriť
@@ -885,7 +885,7 @@ const {
           <div
             v-for="sector in sectorDraft"
             :key="sector.id"
-            class="rounded-md border border-border bg-white p-4"
+            class="rounded-md border border-border bg-surface p-4"
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -917,14 +917,14 @@ const {
                 </button>
                 <NuxtLink
                   :to="tournamentTeamAccessUrl(sector.id)"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 text-xs font-bold text-primary-800 dark:text-primary-200 transition-colors hover:bg-primary-100"
                 >
                   <UIcon name="i-heroicons-device-phone-mobile" class="h-4 w-4" />
                   Tímový odkaz
                 </NuxtLink>
                 <NuxtLink
                   :to="tournamentSectorMapEditorUrl(sector.id)"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 px-2.5 text-xs font-bold text-primary-800 transition-colors hover:bg-primary-100"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary-50 dark:bg-primary-950/50 px-2.5 text-xs font-bold text-primary-800 dark:text-primary-200 transition-colors hover:bg-primary-100"
                 >
                   <UIcon name="i-heroicons-map" class="h-4 w-4" />
                   Mapa
@@ -943,7 +943,7 @@ const {
                   v-model="sector.label"
                   :disabled="!canOperateTournaments"
                   maxlength="16"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm font-semibold"
                 >
               </label>
               <label class="block sm:col-span-2 lg:col-span-2">
@@ -952,7 +952,7 @@ const {
                   v-model="sector.team"
                   :disabled="!canOperateTournaments"
                   maxlength="120"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   placeholder="Voľný sektor"
                 >
               </label>
@@ -964,7 +964,7 @@ const {
                   min="0"
                   step="0.1"
                   :disabled="!canOperateTournaments"
-                  class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
               </label>
               <div class="grid grid-cols-2 gap-2">
@@ -977,7 +977,7 @@ const {
                     max="100"
                     step="0.1"
                     :disabled="!canOperateTournaments"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label class="block">
@@ -989,7 +989,7 @@ const {
                     max="100"
                     step="0.1"
                     :disabled="!canOperateTournaments"
-                    class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -1035,7 +1035,7 @@ const {
                   v-if="sponsorLogo(sponsor, slot.placementType).url"
                   :src="sponsorLogo(sponsor, slot.placementType).url"
                   :alt="sponsorLogo(sponsor, slot.placementType).alt"
-                  class="h-full w-full bg-white object-contain p-1"
+                  class="h-full w-full bg-surface object-contain p-1"
                 >
                 <span v-else>{{ sponsorLogo(sponsor, slot.placementType).text }}</span>
               </span>
@@ -1068,11 +1068,11 @@ const {
               Tímy zatiaľ neposlali žiadne hlásenie ani požiadavku na kontrolóra.
             </p>
             <div v-else class="mt-4 space-y-3">
-              <div v-for="request in tournamentRequests" :key="request.id" class="rounded-md border border-border bg-white p-4">
+              <div v-for="request in tournamentRequests" :key="request.id" class="rounded-md border border-border bg-surface p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-bold">{{ request.team }} · {{ sectorLabel(request.sectorId) }}</p>
-                    <p class="text-primary-800 text-sm font-semibold">{{ tournamentRequestTypeLabels[request.type] }}</p>
+                    <p class="text-primary-800 dark:text-primary-200 text-sm font-semibold">{{ tournamentRequestTypeLabels[request.type] }}</p>
                   </div>
                   <StatusBadge
                     class="w-fit"
@@ -1118,7 +1118,7 @@ const {
               K tejto súťaži zatiaľ nie je evidované žiadne váženie.
             </p>
             <div v-else class="mt-4 overflow-hidden rounded-md border border-border">
-              <div v-for="catchItem in tournamentCatches" :key="catchItem.id" class="border-b border-border bg-white p-4 last:border-b-0">
+              <div v-for="catchItem in tournamentCatches" :key="catchItem.id" class="border-b border-border bg-surface p-4 last:border-b-0">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-bold">{{ catchItem.team }} · {{ sectorLabel(catchItem.sectorId) }}</p>
@@ -1214,7 +1214,7 @@ const {
                   <select
                     v-model="penaltyForm.sectorId"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
                       {{ sector.label }} · {{ sector.team }}
@@ -1226,7 +1226,7 @@ const {
                   <select
                     v-model="penaltyForm.marshalId"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(penaltyForm.sectorId)" :key="marshal.id" :value="marshal.id">
                       {{ marshal.name }}
@@ -1240,7 +1240,7 @@ const {
                 <select
                   v-model="penaltyForm.type"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="[value, label] in penaltyTypeOptions" :key="value" :value="value">
                     {{ label }}
@@ -1260,7 +1260,7 @@ const {
                     min="1"
                     max="24"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
                 <label v-if="penaltyForm.type === 'rod-reduction'" class="block">
@@ -1271,7 +1271,7 @@ const {
                     min="1"
                     max="4"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                 </label>
               </div>
@@ -1282,7 +1282,7 @@ const {
                   v-model="penaltyForm.reason"
                   rows="3"
                   :readonly="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -1316,7 +1316,7 @@ const {
                   <select
                     v-model="ruleCheckForm.sectorId"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option v-for="sector in activeTournament.sectors" :key="sector.id" :value="sector.id">
                       {{ sector.label }} · {{ sector.team }}
@@ -1328,7 +1328,7 @@ const {
                   <select
                     v-model="ruleCheckForm.marshalId"
                     :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                    class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                    class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   >
                     <option v-for="marshal in marshalsForSector(ruleCheckForm.sectorId)" :key="marshal.id" :value="marshal.id">
                       {{ marshal.name }}
@@ -1342,7 +1342,7 @@ const {
                 <select
                   v-model="ruleCheckForm.result"
                   :disabled="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 text-sm"
+                  class="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
                 >
                   <option v-for="[value, label] in ruleCheckResultOptions" :key="value" :value="value">
                     {{ label }}
@@ -1356,7 +1356,7 @@ const {
                   v-model="ruleCheckForm.note"
                   rows="3"
                   :readonly="!canOperateTournaments || !canUseTournamentDispatch"
-                  class="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  class="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
 
@@ -1390,7 +1390,7 @@ const {
               V tejto súťaži zatiaľ nebol uložený žiadny trest.
             </p>
             <div v-else class="mt-4 space-y-3">
-              <div v-for="penalty in tournamentPenalties" :key="penalty.id" class="rounded-md border border-border bg-white p-4">
+              <div v-for="penalty in tournamentPenalties" :key="penalty.id" class="rounded-md border border-border bg-surface p-4">
                 <p class="font-bold">{{ penalty.team }} · {{ sectorLabel(penalty.sectorId) }}</p>
                 <StatusBadge
                   class="mt-1"

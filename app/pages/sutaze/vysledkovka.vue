@@ -230,7 +230,7 @@ const formatTime = (value?: string) => {
 }
 
 const scoreboardChipClass = (tone: ScoreboardChipTone) => {
-  if (tone === 'accent') return 'border-accent-300/50 bg-accent-300 text-primary-950'
+  if (tone === 'accent') return 'border-accent-300/50 bg-accent-300 text-primary-950 dark:text-primary-100'
   if (tone === 'success') return 'border-success-300/35 bg-success-400/20 text-success-50'
   if (tone === 'warning') return 'border-warning-300/40 bg-warning-400/20 text-warning-50'
   return 'border-white/15 bg-white/10 text-white/80'
@@ -238,11 +238,11 @@ const scoreboardChipClass = (tone: ScoreboardChipTone) => {
 
 const podiumClass = (row: TournamentLeaderboardRow) => {
   if (row.rank === 1 && row.scoreWeightKg > 0) {
-    return 'border-accent-300 bg-accent-300 text-primary-950'
+    return 'border-accent-300 bg-accent-300 text-primary-950 dark:text-primary-100'
   }
 
   if (row.rank === 2 && row.scoreWeightKg > 0) {
-    return 'border-water-200 bg-water-100 text-primary-950'
+    return 'border-water-200 bg-water-100 text-primary-950 dark:text-primary-100'
   }
 
   if (row.rank === 3 && row.scoreWeightKg > 0) {
@@ -254,7 +254,7 @@ const podiumClass = (row: TournamentLeaderboardRow) => {
 
 const rowBadgeClass = (row: TournamentLeaderboardRow) =>
   row.rank === 1 && row.scoreWeightKg > 0
-    ? 'bg-accent-300 text-primary-950'
+    ? 'bg-accent-300 text-primary-950 dark:text-primary-100'
     : 'bg-white/10 text-white'
 
 async function refreshScoreboard() {
@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
         <div class="flex min-w-0 items-center gap-4">
           <NuxtLink
             to="/sutaze"
-            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-white text-primary-950"
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-surface text-primary-950 dark:text-primary-100"
             aria-label="Rybolov Cetín"
           >
             <img src="/logo.svg" alt="" class="h-9 w-9">
@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
                 v-for="option in tournamentOptions"
                 :key="option.id"
                 :value="option.id"
-                class="text-primary-950"
+                class="text-primary-950 dark:text-primary-100"
               >
                 {{ option.label }}
               </option>
@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
           </label>
           <button
             type="button"
-            class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 text-sm font-black text-primary-950 transition-colors hover:bg-accent-300 disabled:opacity-60"
+            class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 text-sm font-black text-primary-950 dark:text-primary-100 transition-colors hover:bg-accent-300 disabled:opacity-60"
             :disabled="isRefreshing"
             @click="refreshScoreboard"
           >
@@ -372,14 +372,14 @@ onBeforeUnmount(() => {
           <div
             v-for="sponsor in scoreboardSponsors"
             :key="sponsor.id"
-            class="flex h-14 min-w-52 items-center gap-3 rounded-md border border-white/10 bg-white px-3 text-primary-950"
+            class="flex h-14 min-w-52 items-center gap-3 rounded-md border border-white/10 bg-surface px-3 text-primary-950 dark:text-primary-100"
           >
             <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-900 text-xs font-black text-accent-300">
               <img
                 v-if="sponsorLogo(sponsor, 'scoreboard').url"
                 :src="sponsorLogo(sponsor, 'scoreboard').url"
                 :alt="sponsorLogo(sponsor, 'scoreboard').alt"
-                class="h-full w-full bg-white object-contain p-1"
+                class="h-full w-full bg-surface object-contain p-1"
               >
               <span v-else>{{ sponsorLogo(sponsor, 'scoreboard').text }}</span>
             </span>
@@ -425,7 +425,7 @@ onBeforeUnmount(() => {
 
             <div
               v-if="hasRemainingRows"
-              class="overflow-hidden rounded-card border border-white/10 bg-white text-primary-950"
+              class="overflow-hidden rounded-card border border-white/10 bg-surface text-primary-950 dark:text-primary-100"
             >
               <div class="grid grid-cols-[72px_1fr_110px] gap-3 border-b border-border bg-muted px-4 py-3 text-xs font-black text-foreground-muted sm:grid-cols-[80px_120px_1fr_120px_120px_130px]">
                 <span>Poradie</span>
@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
           </template>
           <AppState
             v-else
-            class="text-primary-950"
+            class="text-primary-950 dark:text-primary-100"
             icon="i-heroicons-trophy"
             title="Výsledkovka čaká na prvý overený úlovok"
             description="Po prvom overenom úlovku sa tu automaticky zobrazí poradie tímov, skóre a najväčšie ryby."
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
                 <p class="text-sm font-bold text-white/70">Posledná obnova</p>
                 <p class="mt-1 text-2xl font-black">{{ formatTime(leaderboardFeed.generatedAt) }}</p>
               </div>
-              <span class="rounded-md bg-white px-3 py-1 text-xs font-black text-primary-950">
+              <span class="rounded-md bg-surface px-3 py-1 text-xs font-black text-primary-950 dark:text-primary-100">
                 {{ refreshIntervalSeconds }} s
               </span>
             </div>
@@ -496,7 +496,7 @@ onBeforeUnmount(() => {
                   </p>
                   <button
                     type="button"
-                    class="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-black text-primary-950 transition-colors hover:bg-white/90 disabled:opacity-60"
+                    class="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-surface px-3 text-sm font-black text-primary-950 dark:text-primary-100 transition-colors hover:bg-white/90 disabled:opacity-60"
                     :disabled="isRefreshing"
                     @click="refreshScoreboard"
                   >

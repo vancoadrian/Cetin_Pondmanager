@@ -94,7 +94,7 @@ const chart = computed(() => {
 </script>
 
 <template>
-  <div class="min-w-0 rounded-md border border-border bg-white p-4">
+  <div class="min-w-0 rounded-md border border-border bg-surface p-4">
     <div class="mb-3 flex items-center justify-between gap-3">
       <div>
         <p class="font-bold">{{ metricLabel }}</p>
