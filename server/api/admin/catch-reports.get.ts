@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalCatchReportState } from '../../utils/localCatchReportStore'
 
 export default defineEventHandler(async (event): Promise<CatchReportStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'catches' })
+  await requireAdminAccess(event, { moduleId: 'catches' })
 
   const state = await readLocalCatchReportState()
 

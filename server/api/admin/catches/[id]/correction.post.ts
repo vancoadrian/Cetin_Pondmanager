@@ -38,7 +38,7 @@ function getWeatherLookupInput(rawBody: unknown): CatchWeatherLookupInput | unde
 }
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
 
   const catchId = getRouterParam(event, 'id') ?? ''
   const body = await readBody(event)
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
       }),
     ),
   )
-  const actor = resolveAuditActor(event, {
+  const actor = await resolveAuditActor(event, {
     actorId: 'admin',
     actorLabel: 'Admin',
     actorRole: 'manager',

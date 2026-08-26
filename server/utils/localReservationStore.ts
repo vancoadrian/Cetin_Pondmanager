@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RentalBooking, Reservation } from '~/data/pond'
 import { rentalBookings, reservations } from '~/data/pond'
@@ -6,7 +5,12 @@ import {
   cloneReservationWorkflowState,
   type ReservationWorkflowState,
 } from '~/services/reservationWorkflowService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalReservationState extends ReservationWorkflowState {
   updatedAt: string
@@ -18,6 +22,8 @@ export interface StoredReservationAppend {
   reservation: Reservation
   state: LocalReservationState
 }
+
+const STORE_KEY = 'reservation-state'
 
 export function resolveLocalReservationStorePath() {
   return process.env.RYBOLOV_LOCAL_RESERVATION_STORE
@@ -64,14 +70,34 @@ function isReservationState(value: unknown): value is LocalReservationState {
   )
 }
 
+function parseLocalReservationState(payload: unknown): LocalReservationState | undefined {
+  if (!isReservationState(payload)) return undefined
+
+  return payload
+}
+
+function composeReservationState(state: ReservationWorkflowState): LocalReservationState {
+  return {
+    rentalBookings: state.rentalBookings,
+    reservations: normalizeLocalReservationState({
+      rentalBookings: state.rentalBookings,
+      reservations: state.reservations,
+      updatedAt: new Date(0).toISOString(),
+      version: 1,
+    }).reservations,
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
 export async function readLocalReservationState(
   filePath = resolveLocalReservationStorePath(),
 ): Promise<LocalReservationState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isReservationState(parsed)) {
+  if (document.found) {
+    const parsed = parseLocalReservationState(document.payload)
+    if (parsed) {
       const normalized = normalizeLocalReservationState(parsed)
       if (JSON.stringify(normalized.reservations) !== JSON.stringify(parsed.reservations)) {
         await writeLocalReservationState(normalized, filePath)
@@ -79,12 +105,7 @@ export async function readLocalReservationState(
 
       return normalized
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav rezervácií: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedReservationState()
@@ -97,19 +118,8 @@ export async function writeLocalReservationState(
   state: ReservationWorkflowState,
   filePath = resolveLocalReservationStorePath(),
 ): Promise<LocalReservationState> {
-  const nextState: LocalReservationState = {
-    rentalBookings: state.rentalBookings,
-    reservations: normalizeLocalReservationState({
-      rentalBookings: state.rentalBookings,
-      reservations: state.reservations,
-      updatedAt: new Date(0).toISOString(),
-      version: 1,
-    }).reservations,
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composeReservationState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -119,20 +129,27 @@ export async function appendLocalReservation(
   requestedRentalBookings: RentalBooking[],
   filePath = resolveLocalReservationStorePath(),
 ): Promise<StoredReservationAppend> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalReservationState(filePath)
-    const nextState = await writeLocalReservationState(
-      {
-        rentalBookings: [...currentState.rentalBookings, ...requestedRentalBookings],
-        reservations: [...currentState.reservations, reservation],
-      },
-      filePath,
-    )
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalReservationState | undefined
+    if (document.found) {
+      const parsed = parseLocalReservationState(document.payload)
+      if (parsed) currentState = normalizeLocalReservationState(parsed)
+      else guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedReservationState()
+
+    const state = composeReservationState({
+      rentalBookings: [...currentState.rentalBookings, ...requestedRentalBookings],
+      reservations: [...currentState.reservations, reservation],
+    })
 
     return {
-      rentalBookings: requestedRentalBookings,
-      reservation,
-      state: nextState,
+      payload: state,
+      result: {
+        rentalBookings: requestedRentalBookings,
+        reservation,
+        state,
+      },
     }
   })
 }

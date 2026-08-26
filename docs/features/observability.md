@@ -104,7 +104,7 @@ Projekt momentálne neposiela Content-Security-Policy, takže nebolo čo rozšir
 
 ## Produkčný blokátor
 
-Sentry nemení stav produkčnej pripravenosti aplikácie. Viaceré mutácie stále zapisujú do `.data/rybolov-cetin`, ktoré na Vercel serverless filesysteme nie je perzistentné. Projekt sa nesmie nasadiť, kým tieto stores a assety neprejdú na Supabase alebo iné garantované perzistentné úložisko.
+Sentry samo osebe nemení stav produkčnej pripravenosti aplikácie. Historický blocker neperzistentného `.data` úložiska je odstránený: runtime stores aj assety bežia cez Supabase (tabuľka `runtime_store_states`, tabuľka `app_sessions`, privátne Storage buckety) a health check `persistence` overuje dostupnosť databázy aj bucketov. Filesystem adaptér je iba explicitný dev/test režim `RYBOLOV_STORAGE_DRIVER=file`, v produkcii zakázaný; produkčné `RYBOLOV_LOCAL_*` premenné už neexistujú.
 
 Produkcia preto zostáva nezmenená na deploymente `dpl_HR4reWjASCpVAjvSwJ7g8dgZt6W1` z `main` commitu `80ad05d108102cb11691e71c92ee7470fc44f3de`. Vetva `codex/sentry-integration`, jej Preview ani dočasné `/tmp` store premenné sa nesmú merge-núť alebo promotovať do Production pred dokončením perzistentnej repository/Storage migrácie. Presný preview-only store setup je v `docs/deployment/production-platform.md`.
 

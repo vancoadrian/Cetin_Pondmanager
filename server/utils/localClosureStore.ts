@@ -1,14 +1,19 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { LakeClosure } from '~/data/pond'
 import { lakeClosures } from '~/data/pond'
 import type { ClosureWorkflowState } from '~/services/closureApiService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalClosureState extends ClosureWorkflowState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'closure-state'
 
 export function resolveLocalClosureStorePath() {
   return process.env.RYBOLOV_LOCAL_CLOSURE_STORE
@@ -36,19 +41,14 @@ function isClosureState(value: unknown): value is LocalClosureState {
 export async function readLocalClosureState(
   filePath = resolveLocalClosureStorePath(),
 ): Promise<LocalClosureState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
+  if (document.found) {
+    const parsed = document.payload
     if (isClosureState(parsed)) {
       return parsed
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav uzávierok: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedClosureState()
@@ -67,7 +67,7 @@ export async function writeLocalClosureState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

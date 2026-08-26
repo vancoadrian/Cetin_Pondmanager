@@ -11,7 +11,7 @@ import {
 } from '../../utils/localMapStore'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
   const publishedState = await readLocalMapState()
   const draftState = await readLocalMapDraftState(undefined, publishedState)
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
     pegs: result.pegs,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

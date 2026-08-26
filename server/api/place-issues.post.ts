@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
 
   await appendLocalPlaceIssue(result.issue)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'public',
       actorLabel: result.issue.reporterName ?? 'Verejný formulár',
       actorRole: 'angler',

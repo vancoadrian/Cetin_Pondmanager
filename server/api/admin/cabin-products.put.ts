@@ -14,7 +14,7 @@ import { readLocalMapState } from '../../utils/localMapStore'
 import { readLocalReservationState } from '../../utils/localReservationStore'
 
 export default defineEventHandler(async (event): Promise<CabinCatalogMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
   const [state, mapState, reservationState] = await Promise.all([
     readLocalCabinCatalogState(),
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event): Promise<CabinCatalogMutationSuc
     cabinProducts: result.cabinProducts,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

@@ -83,7 +83,7 @@ Admin má vedieť:
 - Editor má voliteľnú mriežku, snap na krok 1 %, 2.5 %, 5 % alebo 10 % a klávesové ovládanie kreslenia pre rýchle opravy.
 - Vrcholy polygonov môžu mať voliteľný typ a krátky názov, napríklad breh, hranica, vstup, kotva podkladu alebo servisný bod; pri posune bodov a hromadnom zarovnaní sektorov sa tieto metadáta zachovávajú.
 - `/admin/mapa` má pracovnú legendu označených vrcholov pre aktuálne jazero. Riadky legendy vedia vybrať príslušný polygon, legenda sa dá filtrovať podľa typu bodu a viditeľnosti plochy, export modelu obsahuje filtrovaný `shapePointLegend` a správca si vie aktuálny výber vytlačiť alebo stiahnuť ako CSV.
-- Admin vie nahrať nový JPG/PNG/WebP podklad mapy pre vybrané jazero; súbor sa uloží do `.data/rybolov-cetin/map-assets/` a vrstva dostane URL `/api/map-assets/:id`.
+- Admin vie nahrať nový JPG/PNG/WebP podklad mapy pre vybrané jazero; súbor sa uloží do privátneho Storage bucketu `map-assets` a vrstva dostane URL `/api/map-assets/:id`.
 - Admin vie pri obrázkovom podklade meniť `cover`, `contain` alebo `stretch`, mierku, X/Y posun a priehľadnosť; podklad vie posúvať aj priamo ťahaním v SVG mape. Rovnaké nastavenie číta aj verejná mapa.
 - Admin mapa má exportné rámy pre celý viewBox, A4/A3 na šírku, A4 na výšku, štvorec a 16:9. Editor ich ukazuje ako SVG výrez nad mapou a počíta, koľko lovných miest, servisných bodov a vrcholov polygonov ostáva vo vybranom ráme.
 - Karta `Vrstvy mapy` má pracovné režimy Podklad, Miesta, Servis, Súťaž a Všetko. Predvoľby zapnú správne vrstvy aktuálneho jazera, zachovajú ostatné jazerá a správne sa počítajú do draft zmien.
@@ -96,13 +96,13 @@ Admin má vedieť:
 - Publish kontrola prechádza každé jazero samostatne, takže napríklad vodná oblasť na Veľkom Cetíne už nezakryje chýbajúcu vodnú oblasť na Kocke.
 - `mapLayers`, `mapFacilities` a `mapShapes` sú seednuté v `app/data/pond.ts`.
 - Pomocné mapové funkcie sú v `app/utils/map.ts`.
-- `GET /api/map` vracia sanitizovaný publikovaný mapový stav z `.data/rybolov-cetin/map-state.json`: public a súťažné vrstvy/tvary/body áno, interné servisné body, interné zóny a interné vrstvy nie.
-- `GET /api/admin/map` vracia plný rozpracovaný mapový stav z `.data/rybolov-cetin/map-draft-state.json`; ak draft ešte neexistuje, vychádza z publikovanej mapy.
+- `GET /api/map` vracia sanitizovaný publikovaný mapový stav z runtime store `map-state`: public a súťažné vrstvy/tvary/body áno, interné servisné body, interné zóny a interné vrstvy nie.
+- `GET /api/admin/map` vracia plný rozpracovaný mapový stav z runtime store `map-draft-state`; ak draft ešte neexistuje, vychádza z publikovanej mapy.
 - Admin mapové odpovede nesú `draftChanges`, teda počet aj názvy pridaných, upravených a odstránených vrstiev, miest, servisných bodov a plôch oproti verejnej mape.
 - `PUT /api/admin/map` ukladá validované lovné miesta, servisné body, polygonové tvary a aktívne vrstvy do draftu. Payload môže pridať aj novú validnú mapovú vrstvu, ak ide o chýbajúcu pracovnú vrstvu konkrétneho jazera.
 - `POST /api/admin/map/publish` prepíše publikovanú public mapu aktuálnym draftom a zapíše audit stopu.
 - `POST /api/admin/map/discard-draft` zahodí rozpracovaný draft, načíta späť publikovanú mapu a zapíše audit stopu.
-- `GET /api/cabin-products`, `GET /api/admin/cabin-products` a `PUT /api/admin/cabin-products` držia živý katalóg chát a väzby na mapové miesta v `.data/rybolov-cetin/cabin-catalog-state.json`.
+- `GET /api/cabin-products`, `GET /api/admin/cabin-products` a `PUT /api/admin/cabin-products` držia živý katalóg chát a väzby na mapové miesta v runtime store `cabin-catalog-state`.
 - `POST /api/admin/map/background` ukladá nový podkladový obrázok do draftu mapy; `/api/map-assets/:id` verejne vydá iba assety napojené na public alebo súťažnú vrstvu v publikovanej mape.
 - `/sutaze` používa rovnaký mapový podklad a sektorové SVG polygony z `mapShapes`; bodky tímov ostávajú klikateľné nad mapovou vrstvou.
 - Sektorové polygony môžu niesť `tournamentId` a `sectorId`, takže admin mapa vie naviazať kreslenú plochu na konkrétny súťažný sektor.

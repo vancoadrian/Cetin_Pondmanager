@@ -1,16 +1,21 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   cloneNotificationState,
   createEmptyNotificationState,
   type NotificationState,
 } from '~/services/notificationService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalNotificationState extends NotificationState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'notification-state'
 
 export function resolveLocalNotificationStorePath() {
   return process.env.RYBOLOV_LOCAL_NOTIFICATION_STORE
@@ -90,33 +95,32 @@ function migrateLegacyNotificationCopy(state: NotificationState): NotificationSt
   }
 }
 
+function parseLocalNotificationState(payload: unknown): LocalNotificationState | undefined {
+  if (!isNotificationState(payload)) return undefined
+
+  const migratedState = migrateLegacyNotificationCopy({
+    alerts: payload.alerts,
+    broadcasts: payload.broadcasts ?? [],
+    deliveryLogs: payload.deliveryLogs ?? [],
+    subscriptions: payload.subscriptions ?? [],
+  })
+
+  return {
+    ...cloneNotificationState(migratedState),
+    updatedAt: payload.updatedAt,
+    version: 1,
+  }
+}
+
 export async function readLocalNotificationState(
   filePath = resolveLocalNotificationStorePath(),
 ): Promise<LocalNotificationState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isNotificationState(parsed)) {
-      const migratedState = migrateLegacyNotificationCopy({
-        alerts: parsed.alerts,
-        broadcasts: parsed.broadcasts ?? [],
-        deliveryLogs: parsed.deliveryLogs ?? [],
-        subscriptions: parsed.subscriptions ?? [],
-      })
-
-      return {
-        ...cloneNotificationState(migratedState),
-        updatedAt: parsed.updatedAt,
-        version: 1,
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálne notifikácie: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalNotificationState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedNotificationState()
@@ -135,7 +139,7 @@ export async function writeLocalNotificationState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

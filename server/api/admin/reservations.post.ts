@@ -16,7 +16,7 @@ import { appendLocalReservation, readLocalReservationState } from '../../utils/l
 import { readLocalRentalCatalogState } from '../../utils/localRentalCatalogStore'
 
 export default defineEventHandler(async (event): Promise<ReservationSubmissionSuccess> => {
-  requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
 
   const [state, cabinCatalogState, closureState, mapState, paymentMethodState, rentalCatalogState] = await Promise.all([
     readLocalReservationState(),
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event): Promise<ReservationSubmissionSu
 
   await appendLocalReservation(result.reservation, result.rentalBookings)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

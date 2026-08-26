@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalCabinCatalogState } from '../../utils/localCabinCatalogStore'
 
 export default defineEventHandler(async (event): Promise<CabinCatalogStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'map' })
+  await requireAdminAccess(event, { moduleId: 'map' })
 
   const state = await readLocalCabinCatalogState()
 

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AuditEvent } from '~/data/pond'
 import {
@@ -7,7 +6,12 @@ import {
   type AuditEventInput,
   type AuditLogState,
 } from '~/services/auditLogService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalAuditLogState extends AuditLogState {
   updatedAt: string
@@ -18,6 +22,8 @@ export interface StoredAuditEventAppend {
   event: AuditEvent
   state: LocalAuditLogState
 }
+
+const STORE_KEY = 'audit-log'
 
 export function resolveLocalAuditLogStorePath() {
   return process.env.RYBOLOV_LOCAL_AUDIT_LOG_STORE
@@ -42,25 +48,32 @@ function isAuditLogState(value: unknown): value is LocalAuditLogState {
   )
 }
 
+function parseLocalAuditLogState(payload: unknown): LocalAuditLogState | undefined {
+  if (!isAuditLogState(payload)) return undefined
+
+  return {
+    ...payload,
+    events: cloneAuditEvents(payload.events),
+  }
+}
+
+function composeAuditLogState(state: AuditLogState): LocalAuditLogState {
+  return {
+    events: cloneAuditEvents(state.events),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
 export async function readLocalAuditLogState(
   filePath = resolveLocalAuditLogStorePath(),
 ): Promise<LocalAuditLogState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isAuditLogState(parsed)) {
-      return {
-        ...parsed,
-        events: cloneAuditEvents(parsed.events),
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny audit log: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalAuditLogState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedAuditLogState()
@@ -73,13 +86,8 @@ export async function writeLocalAuditLogState(
   state: AuditLogState,
   filePath = resolveLocalAuditLogStorePath(),
 ): Promise<LocalAuditLogState> {
-  const nextState: LocalAuditLogState = {
-    events: cloneAuditEvents(state.events),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composeAuditLogState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -88,19 +96,22 @@ export async function appendLocalAuditEvent(
   input: AuditEventInput,
   filePath = resolveLocalAuditLogStorePath(),
 ): Promise<StoredAuditEventAppend> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalAuditLogState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalAuditLogState | undefined
+    if (document.found) {
+      currentState = parseLocalAuditLogState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedAuditLogState()
+
     const event = createAuditEvent(input, currentState.events)
-    const state = await writeLocalAuditLogState(
-      {
-        events: [event, ...currentState.events].slice(0, 500),
-      },
-      filePath,
-    )
+    const state = composeAuditLogState({
+      events: [event, ...currentState.events].slice(0, 500),
+    })
 
     return {
-      event,
-      state,
+      payload: state,
+      result: { event, state },
     }
   })
 }

@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
 
   await appendLocalCatch(result.catch, result.logbookEntry, result.catchPhoto)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'catch.record.created',
     area: 'catches',
     details: {

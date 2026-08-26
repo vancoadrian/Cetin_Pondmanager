@@ -8,14 +8,14 @@ import {
 } from '~/utils/adminAccess'
 import { resolveAppSessionUser } from './appSession'
 
-export function resolveMockAdminRole(event: H3Event): MockRole | undefined {
-  const role = resolveAppSessionUser(event)?.role
+export async function resolveMockAdminRole(event: H3Event): Promise<MockRole | undefined> {
+  const role = (await resolveAppSessionUser(event))?.role
 
   return isMockAdminRole(role) ? role : undefined
 }
 
-export function requireAdminAccess(event: H3Event, requirement: AdminApiAccessRequirement) {
-  const role = resolveMockAdminRole(event)
+export async function requireAdminAccess(event: H3Event, requirement: AdminApiAccessRequirement) {
+  const role = await resolveMockAdminRole(event)
   const decision = getAdminApiAccessDecision(role, requirement)
 
   if (!decision.allowed) {

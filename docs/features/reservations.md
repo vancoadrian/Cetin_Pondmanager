@@ -86,13 +86,13 @@ Public obrazovka používa sanitizované uzávierky z `/api/closures`, server pr
 - `GET /api/admin/reservations/notifications` vracia iba súhrny interných reservation broadcastov podľa `requestId`, delivery počty a posledný pokus doručenia pre detail rezervácie.
 - Admin endpoint `POST /api/admin/reservations/:id/decision` zapisuje rozhodnutie do lokálneho JSON store, vracia `communicationDraft` a `communicationDelivery` pre hosťa a má rovnaký tvar ako budúca mutácia schválenia rezervácie.
 - Admin endpoint `POST /api/admin/reservations` vytvára telefonickú alebo osobnú rezerváciu cez rovnakú serverovú kontrolu dostupnosti ako public formulár, ale chráni ju admin RBAC guardom.
-- Uzávierky sa ukladajú cez `/api/admin/closures` do `.data/rybolov-cetin/closure-state.json` a rezervačný endpoint ich používa pri kontrole dostupnosti.
+- Uzávierky sa ukladajú cez `/api/admin/closures` do runtime store `closure-state` a rezervačný endpoint ich používa pri kontrole dostupnosti.
 - `/admin/uzavierky` vie existujúcu uzávierku načítať späť do formulára, upraviť ju a uložiť cez rovnaký API kontrakt.
 - Platobné metódy sú pripravené v modeli ako zapínateľný zoznam: hotovosť, prevod a vypnutá budúca brána. `/admin/rezervacie` ich vie zapnúť alebo vypnúť cez lokálny payment store; public info a rezervačný formulár zobrazujú iba zapnuté možnosti.
 - Požičovňa má termínový výpočet dostupnosti cez `rentalBookings` a `getRentalAvailability`.
 - `/admin/pozicovna` ukazuje sklad, potvrdené kusy, čakajúce žiadosti a voľné kusy pre vybraný termín; správca vie pridať novú výbavu alebo doplnok, dočasne vypnúť položku, upraviť sklad, odporúčanie a cenníkový text.
 - Nepoužitú výbavu alebo doplnok vie správca bezpečne odstrániť. Položky použité v rezerváciách alebo výpožičkách sa nemažú kvôli histórii, UI aj API ich navádzajú radšej vypnúť cez `active`.
-- Aktívny katalóg požičovne a doplnkov sa dočasne ukladá do `.data/rybolov-cetin/rental-catalog-state.json`; public rezervácia, info stránka a admin vytváranie rezervácie čítajú iba aktívne položky. Informačná stránka posiela aktívne položky do rezervácie cez query predvýber, takže rybár nemusí tú istú službu hľadať druhýkrát.
+- Aktívny katalóg požičovne a doplnkov žije v runtime store `rental-catalog-state`; public rezervácia, info stránka a admin vytváranie rezervácie čítajú iba aktívne položky. Informačná stránka posiela aktívne položky do rezervácie cez query predvýber, takže rybár nemusí tú istú službu hľadať druhýkrát.
 - Informačná stránka má blok `Pred príchodom k vode`, ktorý spája termín, povinnú výbavu, odporúčané požičovne a potvrdenie správcom do jedného krátkeho toku pred rezerváciou.
 - Dáta sú v `app/data/pond.ts`.
 

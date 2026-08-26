@@ -29,7 +29,7 @@ Preberaj z neho spôsob práce, nie futbalovú doménu:
 
 ## Tech stack
 
-Nuxt 4 · Vue 3 · TypeScript · Tailwind v4 · Nuxt UI v3 · @vite-pwa/nuxt · Zod · Supabase neskôr pre Auth, PostgreSQL, Storage, RLS a Realtime.
+Nuxt 4 · Vue 3 · TypeScript · Tailwind v4 · Nuxt UI v3 · @vite-pwa/nuxt · Zod · Supabase (PostgreSQL + Storage + RLS pre runtime perzistenciu už aktívne cez `runtime_store_states`, `app_sessions` a privátne buckety; Auth a Realtime neskôr).
 
 ## Priority
 

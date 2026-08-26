@@ -20,6 +20,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Unit tests run against the explicit filesystem dev/test adapter with
+    // per-test store paths; the Supabase driver is covered by
+    // tests/integration/** against a live local stack.
+    env: {
+      RYBOLOV_STORAGE_DRIVER: 'file',
+    },
     globals: false,
     include: ['tests/**/*.test.ts'],
     // tests/integration/** needs a live local Supabase (Docker) and has its

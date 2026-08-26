@@ -9,11 +9,11 @@ import { appendLocalAuditEvent } from '../../../../../utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '../../../../../utils/localNotificationStore'
 
 export default defineEventHandler(async (event): Promise<PushSubscriptionMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
 
   const subscriptionId = getRouterParam(event, 'id') ?? ''
   const state = await readLocalNotificationState()
-  const actor = resolveAuditActor(event)
+  const actor = await resolveAuditActor(event)
   const result = disablePushSubscriptionById({ subscriptionId }, state)
 
   if (!result.ok) {

@@ -13,8 +13,8 @@ import {
 } from '../../../utils/localFishRegistryStore'
 
 export default defineEventHandler(async (event): Promise<FishManagerPresenceMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
-  const actor = resolveAuditActor(event)
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
+  const actor = await resolveAuditActor(event)
   const state = await readLocalFishRegistryState()
   const payload = fishManagerPresenceInputSchema.safeParse(await readBody(event))
   if (!payload.success) {

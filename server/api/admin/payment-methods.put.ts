@@ -12,7 +12,7 @@ import {
 } from '../../utils/localPaymentMethodStore'
 
 export default defineEventHandler(async (event): Promise<PaymentMethodMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'reservations', mode: 'operate' })
 
   const state = await readLocalPaymentMethodState()
   const result = updatePaymentMethodSettings(await readBody(event), state)
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event): Promise<PaymentMethodMutationSu
     paymentMethods: result.paymentMethods,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

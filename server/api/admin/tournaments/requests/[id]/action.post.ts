@@ -8,14 +8,14 @@ import { requireTournamentMarshalMutationScope } from '../../../../../utils/tour
 import { tryAppendTournamentNotificationBroadcast } from '../../../../../utils/tournamentNotificationDispatcher'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
 
   const requestId = getRouterParam(event, 'id')
   const state = await readLocalTournamentState()
   const body = await readBody<Record<string, unknown>>(event)
   const request = state.tournamentRequests.find((item) => item.id === requestId)
   const scope = request
-    ? requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
+    ? await requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
         assignedMarshalId: request.assignedMarshalId,
         requestedMarshalId: body.marshalId,
         sectorId: request.sectorId,
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
 
   await writeLocalTournamentState(result)
   if (result.request && !result.idempotentReplay) {
-    const actor = resolveAuditActor(event, {
+    const actor = await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

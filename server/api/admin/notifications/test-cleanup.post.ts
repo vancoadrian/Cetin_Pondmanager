@@ -9,10 +9,10 @@ import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
 import { readLocalNotificationState, writeLocalNotificationState } from '../../../utils/localNotificationStore'
 
 export default defineEventHandler(async (event): Promise<NotificationTestCleanupSuccess> => {
-  requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'notifications', mode: 'operate' })
 
   const state = await readLocalNotificationState()
-  const actor = resolveAuditActor(event)
+  const actor = await resolveAuditActor(event)
   const result = cleanupNotificationTestBroadcasts(await readBody(event), state)
 
   if (!result.ok) {

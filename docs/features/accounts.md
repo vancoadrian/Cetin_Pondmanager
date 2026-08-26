@@ -11,7 +11,7 @@ Verejná obrazovka `/registracia` vytvorí iba účet s rolou `angler`. `POST /a
 - serverovo validuje meno, e-mail a silu hesla,
 - odmietne e-mail existujúceho mock účtu, jeho alias aj už registrovaný e-mail,
 - normalizuje e-mail na malé písmená,
-- uloží iba `scrypt` hash hesla do `.data/rybolov-cetin/account-state.json`,
+- uloží iba `scrypt` hash hesla do runtime store `account-state`,
 - vráti verejný profil bez hesla a klient rybára rovno prihlási,
 - zapíše neosobnú auditnú udalosť `account.created`.
 
@@ -67,7 +67,7 @@ Rybár otvorí nastavenia v `/konto`, zvolí `Zmazať účet`, zadá aktuálne h
 - anonymizuje meno, e-mail a telefón v priradených rezerváciách,
 - odstráni `ownerUserId` a členské `userId` väzby v zápisníkoch,
 - nahradí meno pri zachovaných úlovkoch a zápisoch anonymným označením,
-- uloží tombstone do `.data/rybolov-cetin/account-state.json`,
+- uloží tombstone do runtime store `account-state`,
 - odstráni registrovaný hash, rozpracované reset tokeny aj prípadný lokálny prepis hesla,
 - odstráni profilový prepis, telefón aj interné aliasy predchádzajúcich mien,
 - zruší hlavnú aj kompatibilnú rybársku cookie session,

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PlaceIssue } from '~/data/pond'
 import { placeIssues } from '~/data/pond'
@@ -6,7 +5,12 @@ import {
   clonePlaceIssueWorkflowState,
   type PlaceIssueWorkflowState,
 } from '~/services/placeIssueService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalPlaceIssueState extends PlaceIssueWorkflowState {
   updatedAt: string
@@ -17,6 +21,8 @@ export interface StoredPlaceIssueAppend {
   issue: PlaceIssue
   state: LocalPlaceIssueState
 }
+
+const STORE_KEY = 'place-issue-state'
 
 export function resolveLocalPlaceIssueStorePath() {
   return process.env.RYBOLOV_LOCAL_PLACE_ISSUE_STORE
@@ -41,25 +47,32 @@ function isPlaceIssueState(value: unknown): value is LocalPlaceIssueState {
   )
 }
 
+function parseLocalPlaceIssueState(payload: unknown): LocalPlaceIssueState | undefined {
+  if (!isPlaceIssueState(payload)) return undefined
+
+  return {
+    ...payload,
+    ...clonePlaceIssueWorkflowState(payload.placeIssues),
+  }
+}
+
+function composePlaceIssueState(state: PlaceIssueWorkflowState): LocalPlaceIssueState {
+  return {
+    ...clonePlaceIssueWorkflowState(state.placeIssues),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
 export async function readLocalPlaceIssueState(
   filePath = resolveLocalPlaceIssueStorePath(),
 ): Promise<LocalPlaceIssueState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isPlaceIssueState(parsed)) {
-      return {
-        ...parsed,
-        ...clonePlaceIssueWorkflowState(parsed.placeIssues),
-      }
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálne hlásenia nedostatkov: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalPlaceIssueState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedPlaceIssueState()
@@ -72,13 +85,8 @@ export async function writeLocalPlaceIssueState(
   state: PlaceIssueWorkflowState,
   filePath = resolveLocalPlaceIssueStorePath(),
 ): Promise<LocalPlaceIssueState> {
-  const nextState: LocalPlaceIssueState = {
-    ...clonePlaceIssueWorkflowState(state.placeIssues),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composePlaceIssueState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -87,18 +95,21 @@ export async function appendLocalPlaceIssue(
   issue: PlaceIssue,
   filePath = resolveLocalPlaceIssueStorePath(),
 ): Promise<StoredPlaceIssueAppend> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalPlaceIssueState(filePath)
-    const state = await writeLocalPlaceIssueState(
-      {
-        placeIssues: [issue, ...currentState.placeIssues],
-      },
-      filePath,
-    )
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalPlaceIssueState | undefined
+    if (document.found) {
+      currentState = parseLocalPlaceIssueState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedPlaceIssueState()
+
+    const state = composePlaceIssueState({
+      placeIssues: [issue, ...currentState.placeIssues],
+    })
 
     return {
-      issue,
-      state,
+      payload: state,
+      result: { issue, state },
     }
   })
 }

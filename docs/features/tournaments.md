@@ -97,8 +97,8 @@ Záznam obsahuje:
 - Kontrolórske admin úkony nesú `clientMutationId`; opakovaný sync prevzatia hlásenia, uzavretia hlásenia, overenia váženia, trestu alebo kontroly pravidiel vráti pôvodný výsledok a nevytvorí duplicitný audit ani záznam.
 - `/offline` zobrazuje aj čakajúce kontrolórske úkony z admin dispečingu, vie ich hromadne odoslať alebo odstrániť zo zariadenia.
 - `/admin/sutaze` zobrazuje súhrn súťažných hlásení, vie priradiť kontrolóra, uzavrieť hlásenie, overiť čakajúce váženie, zapísať trest a zapísať kontrolu pravidiel. Z každej karty kontrolóra vedie preklik na jeho samostatný panel.
-- Lokálny stav sa ukladá do `.data/rybolov-cetin/tournament-state.json`.
-- Súťažné zásahy sa zapisujú aj do `.data/rybolov-cetin/audit-log.json` a sú viditeľné v `/admin/audit`.
+- Runtime stav žije v store `tournament-state` (dokument v `runtime_store_states`).
+- Súťažné zásahy sa zapisujú aj do runtime store `audit-log` a sú viditeľné v `/admin/audit`.
 - API kontrakt: `GET /api/tournaments`, `GET /api/tournaments/:id/leaderboard`, `POST /api/tournament-team-registrations`, `POST /api/tournament-requests`, `GET /api/admin/tournaments/:id/leaderboard-export`, `GET /api/admin/tournaments/:id/organizer-export`, `PUT /api/admin/tournaments/:id/sectors`, `PUT /api/admin/tournaments/:id/operations-mode`, `POST /api/admin/tournaments/team-registrations/:id/decision`, `POST /api/admin/tournaments/requests/:id/action`, `POST /api/admin/tournaments/catches/:id/verify`, `POST /api/admin/tournaments/penalties`, `POST /api/admin/tournaments/rule-checks`.
 
 ## Ďalšie kroky

@@ -12,7 +12,7 @@ import {
 } from '../../../utils/localFishRegistryStore'
 
 export default defineEventHandler(async (event): Promise<FishRegistrySettingsMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'full' })
   const parsed = fishRegistrySettingsInputSchema.safeParse(await readBody(event))
 
   if (!parsed.success) {
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event): Promise<FishRegistrySettingsMut
   })
 
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'fish.settings.updated',
     area: 'fish',
     details: {

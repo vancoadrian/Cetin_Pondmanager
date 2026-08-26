@@ -5,8 +5,8 @@ import { resolveAppSessionUser } from '../../../utils/appSession'
 import { readLocalTournamentState } from '../../../utils/localTournamentStore'
 
 export default defineEventHandler(async (event): Promise<TournamentStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'tournaments' })
-  if (resolveAppSessionUser(event)?.role === 'marshal') {
+  await requireAdminAccess(event, { moduleId: 'tournaments' })
+  if ((await resolveAppSessionUser(event))?.role === 'marshal') {
     throw createError({
       statusCode: 403,
       statusMessage: 'Use the scoped marshal tournament endpoint',

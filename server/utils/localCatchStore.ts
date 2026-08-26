@@ -1,9 +1,13 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CatchPhoto, CatchRecord, TripLogbook, TripLogbookEntry } from '~/data/pond'
 import { catches, catchPhotos, tripLogbookEntries, tripLogbooks } from '~/data/pond'
 import type { CatchWorkflowState } from '~/services/catchApiService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalCatchState extends CatchWorkflowState {
   updatedAt: string
@@ -13,6 +17,8 @@ export interface LocalCatchState extends CatchWorkflowState {
 type MaybeLegacyCatchRecord = Omit<CatchRecord, 'status'> & {
   status?: CatchRecord['status']
 }
+
+const STORE_KEY = 'catch-state'
 
 export function resolveLocalCatchStorePath() {
   return process.env.RYBOLOV_LOCAL_CATCH_STORE
@@ -84,26 +90,36 @@ function isCatchState(value: unknown): value is LocalCatchState {
   )
 }
 
-export async function readLocalCatchState(filePath = resolveLocalCatchStorePath()): Promise<LocalCatchState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+function parseLocalCatchState(payload: unknown): LocalCatchState | undefined {
+  if (!isCatchState(payload)) return undefined
 
-    if (isCatchState(parsed)) {
-      return {
-        ...parsed,
-        catchPhotos: cloneCatchPhotos(parsed.catchPhotos),
-        catches: cloneCatches(parsed.catches),
-        tripLogbookEntries: cloneTripLogbookEntries(parsed.tripLogbookEntries),
-        tripLogbooks: cloneTripLogbooks(parsed.tripLogbooks),
-      }
-    }
+  return {
+    ...payload,
+    catchPhotos: cloneCatchPhotos(payload.catchPhotos),
+    catches: cloneCatches(payload.catches),
+    tripLogbookEntries: cloneTripLogbookEntries(payload.tripLogbookEntries),
+    tripLogbooks: cloneTripLogbooks(payload.tripLogbooks),
   }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav úlovkov: ${maybeNodeError.message}`)
-    }
+}
+
+function composeCatchState(state: CatchWorkflowState): LocalCatchState {
+  return {
+    catchPhotos: cloneCatchPhotos(state.catchPhotos),
+    catches: cloneCatches(state.catches),
+    tripLogbookEntries: cloneTripLogbookEntries(state.tripLogbookEntries),
+    tripLogbooks: cloneTripLogbooks(state.tripLogbooks),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
+export async function readLocalCatchState(filePath = resolveLocalCatchStorePath()): Promise<LocalCatchState> {
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
+
+  if (document.found) {
+    const parsed = parseLocalCatchState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedCatchState()
@@ -116,16 +132,8 @@ export async function writeLocalCatchState(
   state: CatchWorkflowState,
   filePath = resolveLocalCatchStorePath(),
 ): Promise<LocalCatchState> {
-  const nextState: LocalCatchState = {
-    catchPhotos: cloneCatchPhotos(state.catchPhotos),
-    catches: cloneCatches(state.catches),
-    tripLogbookEntries: cloneTripLogbookEntries(state.tripLogbookEntries),
-    tripLogbooks: cloneTripLogbooks(state.tripLogbooks),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composeCatchState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -136,22 +144,29 @@ export async function appendLocalCatch(
   catchPhoto?: CatchPhoto,
   filePath = resolveLocalCatchStorePath(),
 ): Promise<LocalCatchState> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalCatchState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalCatchState | undefined
+    if (document.found) {
+      currentState = parseLocalCatchState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedCatchState()
 
-    return writeLocalCatchState(
-      {
-        catchPhotos: catchPhoto
-          ? [catchPhoto, ...currentState.catchPhotos]
-          : currentState.catchPhotos,
-        catches: [catchRecord, ...currentState.catches],
-        tripLogbookEntries: logbookEntry
-          ? [logbookEntry, ...currentState.tripLogbookEntries]
-          : currentState.tripLogbookEntries,
-        tripLogbooks: currentState.tripLogbooks,
-      },
-      filePath,
-    )
+    const state = composeCatchState({
+      catchPhotos: catchPhoto
+        ? [catchPhoto, ...currentState.catchPhotos]
+        : currentState.catchPhotos,
+      catches: [catchRecord, ...currentState.catches],
+      tripLogbookEntries: logbookEntry
+        ? [logbookEntry, ...currentState.tripLogbookEntries]
+        : currentState.tripLogbookEntries,
+      tripLogbooks: currentState.tripLogbooks,
+    })
+
+    return {
+      payload: state,
+      result: state,
+    }
   })
 }
 
@@ -159,18 +174,25 @@ export async function appendLocalTripLogbook(
   logbook: TripLogbook,
   filePath = resolveLocalCatchStorePath(),
 ): Promise<LocalCatchState> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalCatchState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalCatchState | undefined
+    if (document.found) {
+      currentState = parseLocalCatchState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedCatchState()
 
-    return writeLocalCatchState(
-      {
-        catchPhotos: currentState.catchPhotos,
-        catches: currentState.catches,
-        tripLogbookEntries: currentState.tripLogbookEntries,
-        tripLogbooks: [logbook, ...currentState.tripLogbooks],
-      },
-      filePath,
-    )
+    const state = composeCatchState({
+      catchPhotos: currentState.catchPhotos,
+      catches: currentState.catches,
+      tripLogbookEntries: currentState.tripLogbookEntries,
+      tripLogbooks: [logbook, ...currentState.tripLogbooks],
+    })
+
+    return {
+      payload: state,
+      result: state,
+    }
   })
 }
 

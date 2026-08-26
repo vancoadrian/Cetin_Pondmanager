@@ -1,15 +1,20 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CabinProduct } from '~/data/pond'
 import { cabinProducts } from '~/data/pond'
 import { sortCabinProducts } from '~/services/cabinCatalogService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalCabinCatalogState {
   cabinProducts: CabinProduct[]
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'cabin-catalog-state'
 
 export function resolveLocalCabinCatalogStorePath() {
   return process.env.RYBOLOV_LOCAL_CABIN_CATALOG_STORE
@@ -61,22 +66,17 @@ function isCabinCatalogState(value: unknown): value is LocalCabinCatalogState {
 export async function readLocalCabinCatalogState(
   filePath = resolveLocalCabinCatalogStorePath(),
 ): Promise<LocalCabinCatalogState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
+  if (document.found) {
+    const parsed = document.payload
     if (isCabinCatalogState(parsed)) {
       return {
         ...parsed,
         cabinProducts: sortCabinProducts(cloneCabinProducts(parsed.cabinProducts)),
       }
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav chát: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedCabinCatalogState()
@@ -95,7 +95,7 @@ export async function writeLocalCabinCatalogState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

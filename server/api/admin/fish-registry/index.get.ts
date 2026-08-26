@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { readLocalFishRegistryState } from '../../../utils/localFishRegistryStore'
 
 export default defineEventHandler(async (event): Promise<FishRegistryStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'fish' })
+  await requireAdminAccess(event, { moduleId: 'fish' })
   const state = await readLocalFishRegistryState()
 
   return {

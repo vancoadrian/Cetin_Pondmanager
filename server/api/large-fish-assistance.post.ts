@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
   await writeLocalLargeFishAssistanceState({ requests: result.requests })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'public-angler',
       actorLabel: result.request.anglerName,
       actorRole: 'angler',

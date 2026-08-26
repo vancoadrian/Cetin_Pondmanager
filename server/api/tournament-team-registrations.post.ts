@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
 
   await appendLocalTournamentTeamRegistration(result.registration)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'public-team-registration',
       actorLabel: result.registration.contactName,
       actorRole: 'tournament_team',

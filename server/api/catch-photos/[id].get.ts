@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const adminDecision = getAdminApiAccessDecision(resolveMockAdminRole(event), { moduleId: 'catches' })
+  const adminDecision = getAdminApiAccessDecision(await resolveMockAdminRole(event), { moduleId: 'catches' })
   if (catchRecord.status !== 'approved' && !adminDecision.allowed) {
     throw createError({
       statusCode: 404,

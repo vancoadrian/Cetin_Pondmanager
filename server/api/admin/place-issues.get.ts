@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../utils/adminAccessGuard'
 import { readLocalPlaceIssueState } from '../../utils/localPlaceIssueStore'
 
 export default defineEventHandler(async (event): Promise<PlaceIssueStateResponse> => {
-  requireAdminAccess(event, { moduleId: 'issues' })
+  await requireAdminAccess(event, { moduleId: 'issues' })
 
   const state = await readLocalPlaceIssueState()
 

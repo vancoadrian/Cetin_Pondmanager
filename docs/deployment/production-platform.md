@@ -14,7 +14,7 @@
 | Plánované úlohy | Vercel Cron | spustenie idempotentných chránených endpointov |
 | Dostupnosť | nezávislý uptime monitor | kontrola `/api/health` mimo Vercelu a Sentry |
 
-Nuxt na Verceli podporuje SSR aj server API bez vlastného servera. Produkcia však **nesmie** zapisovať do dnešného `.data` adresára: filesystem serverless funkcie nie je trvalá databáza. Nasadenie na Vercel je preto blokované dovtedy, kým rezervačné, účtové, notifikačné, mapové, úlovkové a ďalšie mutácie nebudú za Supabase repository/Storage vrstvou.
+Nuxt na Verceli podporuje SSR aj server API bez vlastného servera. Historický blocker neperzistentného `.data` úložiska je odstránený: všetky runtime mutácie (rezervácie, účty a sessions, notifikácie, mapa, úlovky, register rýb, súťaže, audit, error log, reporty, backupy) bežia cez Supabase repository/Storage vrstvu (`runtime_store_states`, `app_sessions`, privátne buckety). Filesystem adaptér existuje už iba ako explicitný dev/test režim `RYBOLOV_STORAGE_DRIVER=file` a v produkcii je zakázaný — boot guard aj `/api/health` bez kompletnej Supabase konfigurácie zlyhajú nahlas namiesto tichého fallbacku.
 
 ## Cloudflare a Vercel
 
@@ -86,11 +86,11 @@ RYBOLOV_LOCAL_SPONSOR_STORE=/tmp/rybolov-cetin/sponsor-state.json
 RYBOLOV_LOCAL_TOURNAMENT_STORE=/tmp/rybolov-cetin/tournament-state.json
 ```
 
-Toto nie je vzor pre produkčnú konfiguráciu. Uvedené deployment-only hodnoty nepatria do Production scope ani do zdieľanej Vercel project konfigurácie. Nesmú sa použiť na skutočné rezervácie, účty, mapové úpravy, fotky, notifikácie, reporty alebo backupy.
+Toto nie je vzor pre produkčnú konfiguráciu a od migrácie runtime stavu na Supabase je celý tento `RYBOLOV_LOCAL_*` blok historický záznam Preview overenia — produkčné `RYBOLOV_LOCAL_*` premenné už neexistujú. Nový deployment (Preview aj Production) potrebuje namiesto toho Supabase hodnoty: `NUXT_PUBLIC_SUPABASE_URL`, `NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` a `SUPABASE_SECRET_KEY`.
 
 V Preview môže `GET /api/health` vrátiť HTTP 200 s `ok: true` a `status: "degraded"`. `degraded` znamená nefatálne Preview readiness upozornenia, napríklad mock/vypnuté delivery providery alebo chýbajúce odporúčané integrácie; neznamená výpadok HTTP služby. Pri overenom deploymente readiness uviedla 2 chýbajúce povinné a 10 attention položiek. Sentry `environment=staging` ani Vercel target `preview` samy nenastavujú aplikačný `RYBOLOV_ENVIRONMENT`, preto tieto tri stavy pri diagnostike nerozdeľuj iba podľa názvu Sentry environmentu. Zároveň to **nie je** dôkaz perzistencie: health vie overiť, že `/tmp` je práve zapisovateľné, nie že dáta prežijú ďalšiu invokáciu alebo deployment. `status: "down"` alebo `ok: false` je výpadkový stav.
 
-Produkcia ostala týmto overením nedotknutá a zostáva na deploymente `dpl_HR4reWjASCpVAjvSwJ7g8dgZt6W1` z `main` commitu `80ad05d108102cb11691e71c92ee7470fc44f3de`. Vetva `codex/sentry-integration` sa nesmie merge-núť ani promotovať do Production pred migráciou všetkých lokálnych stores a assetov na Supabase alebo iné garantovane perzistentné úložisko.
+Produkcia ostala týmto overením nedotknutá a zostáva na deploymente `dpl_HR4reWjASCpVAjvSwJ7g8dgZt6W1` z `main` commitu `80ad05d108102cb11691e71c92ee7470fc44f3de`. Migrácia lokálnych stores a assetov na Supabase je na vetve `codex/sentry-integration` hotová; pred merge/promote do Production ostáva: vytvoriť/aplikovať migrácie na hostovaný Supabase projekt, nastaviť env premenné vo Vercel scope, spustiť `pnpm data:import` proti produkčnému projektu, prejsť release brány nižšie a overiť Preview s vlastným preview Supabase prostredím.
 
 Zdroje:
 
@@ -125,14 +125,16 @@ Service-role, VAPID private key a Resend key nikdy nedávať pod prefix `NUXT_PU
 
 Lokálny Docker stack je vývojový cieľ, nie produkčný hosting. Poradie migrácie:
 
-1. vytvoriť Supabase client factory pre browser a server bez priameho query v komponentoch,
-2. zaviesť repository implementácie za existujúce service kontrakty,
-3. presunúť Auth a `user_roles`, potom rezervácie/dostupnosť,
-4. presunúť push odbery a delivery logy,
-5. presunúť úlovky, mapové a sponzorské assety do Storage,
-6. presunúť ostatné lokálne stores a audit,
-7. spustiť RLS integračné testy pre každú rolu,
-8. až potom odstrániť produkčnú závislosť od `.data`.
+1. ✅ serverový Supabase client (`server/utils/serverSupabaseClient.ts`) so service kľúčom mimo klienta,
+2. ✅ repository vrstva za existujúcimi service kontraktmi (`runtimeStateStore` + `assetObjectStore` + `local*Store` moduly),
+3. ✅ runtime stores vrátane rezervácií, účtov a cookie sessions (`app_sessions`) v Postgres,
+4. ✅ push odbery a delivery logy v runtime store `notification-state`,
+5. ✅ úlovkové fotky, mapové podklady, sponzorské logá a backupy v privátnych Storage bucketoch,
+6. ✅ audit, error log, reporty a ostatné stores v `runtime_store_states`,
+7. ✅ RLS integračné testy (`tests/integration/rls.test.ts`, `tests/integration/runtimeStores.test.ts`),
+8. ✅ produkčná závislosť od `.data` odstránená (file adaptér je dev/test-only a v produkcii zakázaný).
+
+Ďalšia evolúcia (mimo tohto kroku): Supabase Auth namiesto aplikačného scrypt/cookie loginu a klientske publishable-key repositories nad normalizovanými tabuľkami core migrácie.
 
 Migrácie sa majú aplikovať cez CI na staging a následne produkciu; nie ručným `db push` z notebooku. Pred produkciou treba zapnúť databázové zálohy/PITR podľa zvoleného Supabase plánu, Security Advisor a obnovovací test.
 
@@ -169,7 +171,7 @@ Repo má pripravený oficiálny `@sentry/nuxt` client/server setup pre samostatn
 
 Aktuálne nie je nastavená CSP. Ak sa pridá, `connect-src` smie dostať iba presný ingest origin z DSN, nie wildcard Sentry doménu. Podrobný kontrakt a staging acceptance sú v `docs/features/observability.md`.
 
-Ani funkčné Sentry nie je dôvod na deploy: produkcia zostáva blokovaná zápismi do `.data`, kým ich nenahradí Supabase/perzistentné úložisko.
+Sentry samo osebe nie je dôvod na deploy; `.data` blocker je však odstránený a deploy readiness určujú release brány nižšie.
 
 Zdroje: [Sentry Nuxt manual setup](https://docs.sentry.io/platforms/javascript/guides/nuxt/manual-setup/), [Sentry Nuxt source maps](https://docs.sentry.io/platforms/javascript/guides/nuxt/sourcemaps/)
 
@@ -203,12 +205,14 @@ Pred produkčným deployom musia prejsť:
 
 1. lint, typecheck, Vitest a plné Playwright E2E,
 2. Lighthouse CI budgety pre `/`, `/mapa`, `/rezervacie` a `/notifikacie`,
-3. `supabase db reset` a RLS integračné testy,
-4. preview smoke test s vlastným preview Supabase prostredím,
-5. kontrola source máp a testovací Sentry event bez PII,
-6. test Resend odoslania a bounce webhooku,
-7. reálny test Web Push na Android aj iOS PWA,
-8. databázový backup a overený rollback migrácie/aplikácie,
-9. manuálna klávesnica, screen reader a 200 % zoom kontrola.
+3. `supabase db reset` a RLS integračné testy (`pnpm test:integration` vrátane runtime store/bucket testov),
+4. aplikované migrácie na cieľovom Supabase projekte vrátane `202608260001_runtime_state_sessions_and_buckets.sql` a existujúcich bucketov (overí `/api/health` persistence check),
+5. jednorazový `pnpm data:import --dry-run` a následný import produkčných dát bez `--force` konfliktov,
+6. preview smoke test s vlastným preview Supabase prostredím (registrácia, login, rezervácia, upload fotky, backup export/restore preview),
+7. kontrola source máp a testovací Sentry event bez PII,
+8. test Resend odoslania a bounce webhooku,
+9. reálny test Web Push na Android aj iOS PWA,
+10. databázový backup/PITR zapnutý a overený rollback migrácie/aplikácie,
+11. manuálna klávesnica, screen reader a 200 % zoom kontrola.
 
 Po deployi sa overí `/api/health`, jedna čítacia public cesta, jedna autentifikovaná cesta, testovací push a testovací e-mail. Rollback aplikácie na Verceli nesmie automaticky spätne vracať databázovú schému; migrácie musia byť spätne kompatibilné aspoň počas jedného release okna.

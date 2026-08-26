@@ -7,11 +7,11 @@ import { readLocalTournamentState, writeLocalTournamentState } from '../../../ut
 import { requireTournamentMarshalMutationScope } from '../../../utils/tournamentMarshalScopeGuard'
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'tournaments', mode: 'operate' })
 
   const state = await readLocalTournamentState()
   const body = await readBody<Record<string, unknown>>(event)
-  const scope = requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
+  const scope = await requireTournamentMarshalMutationScope(event, state.tournamentMarshals, {
     requestedMarshalId: body.marshalId,
     sectorId: body.sectorId,
     tournamentId: body.tournamentId,
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   if (!result.idempotentReplay) {
     await writeLocalTournamentState(result)
     await appendLocalAuditEvent({
-      ...resolveAuditActor(event, {
+      ...await resolveAuditActor(event, {
         actorId: 'admin',
         actorLabel: 'Admin',
         actorRole: 'manager',

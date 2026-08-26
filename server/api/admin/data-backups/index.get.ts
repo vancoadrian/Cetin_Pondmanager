@@ -4,7 +4,7 @@ import { requireAdminAccess } from '../../../utils/adminAccessGuard'
 import { listLocalDataSafetyBackups, resolveLocalDataSafetyBackupDirectory } from '../../../utils/localDataSafetyBackups'
 
 export default defineEventHandler(async (event): Promise<LocalDataSafetyBackupArchiveResponse> => {
-  requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
+  await requireAdminAccess(event, { mode: 'full', moduleId: 'system' })
 
   const backups = await listLocalDataSafetyBackups({ limit: 12 })
 

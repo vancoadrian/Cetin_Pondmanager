@@ -1,4 +1,3 @@
-import { readdir, readFile, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   LocalDataExportPayload,
@@ -10,11 +9,21 @@ import {
   LOCAL_DATA_BACKUP_CLEANUP_MAX_KEEP_RECENT,
   LOCAL_DATA_BACKUP_CLEANUP_MIN_KEEP_RECENT,
 } from '~/services/localDataExportService'
+import {
+  listAssetObjects,
+  readAssetObject,
+  removeAssetObject,
+  resolveAssetBucketFileDirectory,
+} from './assetObjectStore'
 import { isExportPayload } from './localDataExportPayload'
 
 // This module owns listing, loading, downloading, and the two-step
 // (preview then confirm) cleanup of automatically-created safety backups
-// (the JSON snapshots written before every restore).
+// (the JSON snapshots written before every restore). Backups live in the
+// private `data-backups` Storage bucket under the Supabase driver and in
+// the legacy backups directory under the file driver.
+
+const SAFETY_BACKUP_BUCKET = 'data-backups'
 
 export interface LocalDataSafetyBackupArchiveOptions {
   limit?: number
@@ -37,15 +46,8 @@ export interface LocalDataSafetyBackupFile {
   summary: LocalDataSafetyBackupSummary
 }
 
-function resolveLocalDataBackupDirectory() {
-  return join(
-    process.env.RYBOLOV_LOCAL_DATA_DIR ?? join(process.cwd(), '.data', 'rybolov-cetin'),
-    'backups',
-  )
-}
-
 export function resolveLocalDataSafetyBackupDirectory() {
-  return resolveLocalDataBackupDirectory()
+  return resolveAssetBucketFileDirectory(SAFETY_BACKUP_BUCKET)
 }
 
 function isLocalDataSafetyBackupFileName(value: string) {
@@ -68,23 +70,28 @@ function resolveLocalDataSafetyBackupPath(id: string, options: LocalDataSafetyBa
 
   return {
     fileName,
-    filePath: join(options.safetyBackupDirectory ?? resolveLocalDataBackupDirectory(), fileName),
+    filePath: join(options.safetyBackupDirectory ?? resolveLocalDataSafetyBackupDirectory(), fileName),
     id: normalizedId,
   }
 }
 
-async function createSafetyBackupSummary(fileName: string, directory: string): Promise<LocalDataSafetyBackupSummary | null> {
+async function loadSafetyBackupFile(
+  fileName: string,
+  fileDirectory?: string,
+): Promise<{ payload: LocalDataExportPayload, sizeBytes: number, updatedAt?: string } | null> {
   if (!isLocalDataSafetyBackupFileName(fileName)) return null
 
-  const filePath = join(directory, fileName)
-  const [fileStat, raw] = await Promise.all([
-    stat(filePath),
-    readFile(filePath, 'utf8'),
-  ])
-  let parsed: unknown
-
+  let raw: Buffer
   try {
-    parsed = JSON.parse(raw) as unknown
+    raw = (await readAssetObject(SAFETY_BACKUP_BUCKET, fileName, { fileDirectory })).data
+  }
+  catch {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.toString('utf8')) as unknown
   }
   catch {
     return null
@@ -93,42 +100,46 @@ async function createSafetyBackupSummary(fileName: string, directory: string): P
   if (!isExportPayload(parsed)) return null
 
   return {
-    assetFiles: parsed.totals.assetFiles,
-    assetPolicy: parsed.assetPolicy,
-    createdAt: parsed.exportedAt,
-    exportId: parsed.exportId,
+    payload: parsed,
+    sizeBytes: raw.byteLength,
+  }
+}
+
+function createSafetyBackupSummary(
+  fileName: string,
+  payload: LocalDataExportPayload,
+  sizeBytes: number,
+  modifiedAt: string | undefined,
+  options: LocalDataSafetyBackupReadOptions = {},
+): LocalDataSafetyBackupSummary {
+  return {
+    assetFiles: payload.totals.assetFiles,
+    assetPolicy: payload.assetPolicy,
+    createdAt: payload.exportedAt,
+    exportId: payload.exportId,
     fileName,
     id: fileName.slice(0, -'.json'.length),
-    modifiedAt: fileStat.mtime.toISOString(),
-    path: filePath,
-    records: parsed.totals.records,
-    sizeBytes: fileStat.size,
-    stores: parsed.totals.stores,
+    modifiedAt: modifiedAt ?? payload.exportedAt,
+    path: join(options.safetyBackupDirectory ?? resolveLocalDataSafetyBackupDirectory(), fileName),
+    records: payload.totals.records,
+    sizeBytes,
+    stores: payload.totals.stores,
   }
 }
 
 export async function listLocalDataSafetyBackups(
   options: LocalDataSafetyBackupArchiveOptions = {},
 ): Promise<LocalDataSafetyBackupSummary[]> {
-  const directory = options.safetyBackupDirectory ?? resolveLocalDataBackupDirectory()
-  let fileNames: string[]
-
-  try {
-    fileNames = await readdir(directory)
-  }
-  catch (error) {
-    const maybeError = error as NodeJS.ErrnoException
-    if (maybeError.code === 'ENOENT') return []
-
-    throw error
-  }
-
+  const objects = await listAssetObjects(SAFETY_BACKUP_BUCKET, { fileDirectory: options.safetyBackupDirectory })
   const summaries = await Promise.all(
-    fileNames
-      .filter(isLocalDataSafetyBackupFileName)
-      .map(async (fileName) => {
+    objects
+      .filter((object) => isLocalDataSafetyBackupFileName(object.name))
+      .map(async (object) => {
         try {
-          return await createSafetyBackupSummary(fileName, directory)
+          const file = await loadSafetyBackupFile(object.name, options.safetyBackupDirectory)
+          if (!file) return null
+
+          return createSafetyBackupSummary(object.name, file.payload, file.sizeBytes, object.updatedAt, options)
         }
         catch {
           return null
@@ -180,14 +191,8 @@ export async function cleanupLocalDataSafetyBackups(
   const removedBackups: LocalDataSafetyBackupSummary[] = []
 
   for (const backup of preview.removableBackups) {
-    try {
-      await unlink(backup.path)
-      removedBackups.push(backup)
-    }
-    catch (error) {
-      const maybeError = error as NodeJS.ErrnoException
-      if (maybeError.code !== 'ENOENT') throw error
-    }
+    await removeAssetObject(SAFETY_BACKUP_BUCKET, backup.fileName, { fileDirectory: options.safetyBackupDirectory })
+    removedBackups.push(backup)
   }
   const nextPreview = await previewLocalDataSafetyBackupCleanup(options)
 
@@ -203,25 +208,16 @@ export async function readLocalDataSafetyBackup(
   options: LocalDataSafetyBackupReadOptions = {},
 ): Promise<LocalDataSafetyBackupFile> {
   const { fileName, filePath } = resolveLocalDataSafetyBackupPath(id, options)
-  const [summary, raw] = await Promise.all([
-    createSafetyBackupSummary(fileName, options.safetyBackupDirectory ?? resolveLocalDataBackupDirectory()),
-    readFile(filePath, 'utf8'),
-  ])
+  const file = await loadSafetyBackupFile(fileName, options.safetyBackupDirectory)
 
-  if (!summary) {
+  if (!file) {
     throw new Error('Safety backup sa nepodarilo načítať alebo nie je platný.')
-  }
-
-  const parsed: unknown = JSON.parse(raw)
-
-  if (!isExportPayload(parsed)) {
-    throw new Error('Safety backup nie je platný export Rybolov Cetín.')
   }
 
   return {
     fileName,
     filePath,
-    payload: parsed,
-    summary,
+    payload: file.payload,
+    summary: createSafetyBackupSummary(fileName, file.payload, file.sizeBytes, file.updatedAt, options),
   }
 }

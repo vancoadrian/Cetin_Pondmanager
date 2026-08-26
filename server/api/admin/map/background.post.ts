@@ -23,7 +23,7 @@ function createMapAssetId(lake: string, mimeType: 'image/jpeg' | 'image/png' | '
 }
 
 export default defineEventHandler(async (event) => {
-  requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
+  await requireAdminAccess(event, { moduleId: 'map', mode: 'full' })
 
   const parsed = mapBackgroundUploadSchema.safeParse(await readBody(event))
   if (!parsed.success) {
@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
   })
 
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

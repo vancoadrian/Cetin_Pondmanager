@@ -13,3 +13,6 @@ playwright-report
 test-results
 .lighthouseci
 .claude/worktrees
+
+# Dev-stack harness state (secrets, pids, logs)
+.dev-stack/

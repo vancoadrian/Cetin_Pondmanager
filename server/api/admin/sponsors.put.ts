@@ -10,7 +10,7 @@ import { writeLocalSponsorLogoFile } from '../../utils/localSponsorAssetStore'
 import { readLocalSponsorState, writeLocalSponsorState } from '../../utils/localSponsorStore'
 
 export default defineEventHandler(async (event): Promise<SponsorMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'sponsors', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'sponsors', mode: 'operate' })
 
   const state = await readLocalSponsorState()
   const result = updateSponsorSettings(await readBody(event), {
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event): Promise<SponsorMutationSuccess>
     sponsors: result.sponsors,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event, {
+    ...await resolveAuditActor(event, {
       actorId: 'admin',
       actorLabel: 'Admin',
       actorRole: 'manager',

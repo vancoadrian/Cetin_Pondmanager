@@ -1,15 +1,20 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RentalItem, ReservationExtra } from '~/data/pond'
 import { rentalItems, reservationExtras } from '~/data/pond'
 import type { RentalCatalogWorkflowState } from '~/services/rentalCatalogService'
 import { sortRentalItems, sortReservationExtras } from '~/services/rentalCatalogService'
-import { atomicWriteJsonFile } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalRentalCatalogState extends RentalCatalogWorkflowState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'rental-catalog-state'
 
 export function resolveLocalRentalCatalogStorePath() {
   return process.env.RYBOLOV_LOCAL_RENTAL_CATALOG_STORE
@@ -113,19 +118,25 @@ function normalizeRentalCatalogStateCopy(state: LocalRentalCatalogState) {
   }
 }
 
+function parseLocalRentalCatalogState(payload: unknown): LocalRentalCatalogState | undefined {
+  if (!isRentalCatalogState(payload)) return undefined
+
+  return {
+    ...payload,
+    rentalItems: sortRentalItems(payload.rentalItems),
+    reservationExtras: sortReservationExtras(payload.reservationExtras),
+  }
+}
+
 export async function readLocalRentalCatalogState(
   filePath = resolveLocalRentalCatalogStorePath(),
 ): Promise<LocalRentalCatalogState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isRentalCatalogState(parsed)) {
-      const normalized = normalizeRentalCatalogStateCopy({
-        ...parsed,
-        rentalItems: sortRentalItems(parsed.rentalItems),
-        reservationExtras: sortReservationExtras(parsed.reservationExtras),
-      })
+  if (document.found) {
+    const parsed = parseLocalRentalCatalogState(document.payload)
+    if (parsed) {
+      const normalized = normalizeRentalCatalogStateCopy(parsed)
 
       if (normalized.changed) {
         return writeLocalRentalCatalogState(normalized.state, filePath)
@@ -133,12 +144,7 @@ export async function readLocalRentalCatalogState(
 
       return normalized.state
     }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav požičovne: ${maybeNodeError.message}`)
-    }
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedRentalCatalogState()
@@ -158,7 +164,7 @@ export async function writeLocalRentalCatalogState(
     version: 1,
   }
 
-  await atomicWriteJsonFile(filePath, nextState)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }

@@ -11,7 +11,7 @@ import { appendLocalAuditEvent } from '../../../../utils/localAuditLogStore'
 import { readLocalCatchReportState, writeLocalCatchReportState } from '../../../../utils/localCatchReportStore'
 
 export default defineEventHandler(async (event): Promise<CatchReportEmailDraftSuccess> => {
-  requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'catches', mode: 'operate' })
 
   const reportId = getRouterParam(event, 'id') ?? ''
   const [reportState, catchState] = await Promise.all([
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event): Promise<CatchReportEmailDraftSu
     savedReports: result.savedReports,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'catch.report.email_draft.prepared',
     area: 'catches',
     details: {

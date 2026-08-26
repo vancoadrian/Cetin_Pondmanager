@@ -55,15 +55,15 @@ const fallbackActors: Record<string, AuditActor> = {
   },
 }
 
-export function resolveAuditActor(
+export async function resolveAuditActor(
   event: H3Event,
   fallback: AuditActor = {
     actorId: 'web',
     actorLabel: 'Webový formulár',
     actorRole: 'angler',
   },
-): AuditActor {
-  const user = resolveAppSessionUser(event)
+): Promise<AuditActor> {
+  const user = await resolveAppSessionUser(event)
   const actorRole = user ? auditRoleByMockRole[user.role] : undefined
   if (user && actorRole) {
     return {

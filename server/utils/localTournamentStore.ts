@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   Tournament,
@@ -20,12 +19,19 @@ import {
   tournaments,
 } from '~/data/pond'
 import type { TournamentWorkflowState } from '~/services/tournamentApiService'
-import { atomicWriteJsonFile, withFileMutex } from './jsonFileStore'
+import {
+  guardCorruptRuntimeState,
+  mutateRuntimeDocument,
+  readRuntimeDocument,
+  writeRuntimeDocument,
+} from './runtimeStateStore'
 
 export interface LocalTournamentState extends TournamentWorkflowState {
   updatedAt: string
   version: 1
 }
+
+const STORE_KEY = 'tournament-state'
 
 export function resolveLocalTournamentStorePath() {
   return process.env.RYBOLOV_LOCAL_TOURNAMENT_STORE
@@ -106,22 +112,35 @@ function normalizeLocalTournamentState(value: LocalTournamentState): LocalTourna
   }
 }
 
+function parseLocalTournamentState(payload: unknown): LocalTournamentState | undefined {
+  if (!isTournamentState(payload)) return undefined
+
+  return normalizeLocalTournamentState(payload)
+}
+
+function composeTournamentState(state: TournamentWorkflowState): LocalTournamentState {
+  return {
+    tournamentCatches: cloneCatches(state.tournamentCatches),
+    tournamentMarshals: cloneMarshals(state.tournamentMarshals),
+    tournamentPenalties: clonePenalties(state.tournamentPenalties),
+    tournamentRequests: cloneRequests(state.tournamentRequests),
+    tournamentRuleChecks: cloneChecks(state.tournamentRuleChecks),
+    tournamentTeamRegistrations: cloneTeamRegistrations(state.tournamentTeamRegistrations),
+    tournaments: cloneTournaments(state.tournaments),
+    updatedAt: new Date().toISOString(),
+    version: 1,
+  }
+}
+
 export async function readLocalTournamentState(
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
+  const document = await readRuntimeDocument(STORE_KEY, filePath)
 
-    if (isTournamentState(parsed)) {
-      return normalizeLocalTournamentState(parsed)
-    }
-  }
-  catch (error) {
-    const maybeNodeError = error as NodeJS.ErrnoException
-    if (maybeNodeError.code !== 'ENOENT') {
-      console.warn(`Nepodarilo sa načítať lokálny stav súťaží: ${maybeNodeError.message}`)
-    }
+  if (document.found) {
+    const parsed = parseLocalTournamentState(document.payload)
+    if (parsed) return parsed
+    guardCorruptRuntimeState(STORE_KEY)
   }
 
   const seedState = createSeedTournamentState()
@@ -134,19 +153,8 @@ export async function writeLocalTournamentState(
   state: TournamentWorkflowState,
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  const nextState: LocalTournamentState = {
-    tournamentCatches: cloneCatches(state.tournamentCatches),
-    tournamentMarshals: cloneMarshals(state.tournamentMarshals),
-    tournamentPenalties: clonePenalties(state.tournamentPenalties),
-    tournamentRequests: cloneRequests(state.tournamentRequests),
-    tournamentRuleChecks: cloneChecks(state.tournamentRuleChecks),
-    tournamentTeamRegistrations: cloneTeamRegistrations(state.tournamentTeamRegistrations),
-    tournaments: cloneTournaments(state.tournaments),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  }
-
-  await atomicWriteJsonFile(filePath, nextState)
+  const nextState = composeTournamentState(state)
+  await writeRuntimeDocument(STORE_KEY, filePath, nextState)
 
   return nextState
 }
@@ -155,21 +163,28 @@ export async function appendLocalTournamentRequest(
   request: TournamentRequest,
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalTournamentState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalTournamentState | undefined
+    if (document.found) {
+      currentState = parseLocalTournamentState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedTournamentState()
 
-    return writeLocalTournamentState(
-      {
-        tournamentCatches: currentState.tournamentCatches,
-        tournamentMarshals: currentState.tournamentMarshals,
-        tournamentPenalties: currentState.tournamentPenalties,
-        tournamentRequests: [request, ...currentState.tournamentRequests],
-        tournamentRuleChecks: currentState.tournamentRuleChecks,
-        tournamentTeamRegistrations: currentState.tournamentTeamRegistrations,
-        tournaments: currentState.tournaments,
-      },
-      filePath,
-    )
+    const state = composeTournamentState({
+      tournamentCatches: currentState.tournamentCatches,
+      tournamentMarshals: currentState.tournamentMarshals,
+      tournamentPenalties: currentState.tournamentPenalties,
+      tournamentRequests: [request, ...currentState.tournamentRequests],
+      tournamentRuleChecks: currentState.tournamentRuleChecks,
+      tournamentTeamRegistrations: currentState.tournamentTeamRegistrations,
+      tournaments: currentState.tournaments,
+    })
+
+    return {
+      payload: state,
+      result: state,
+    }
   })
 }
 
@@ -177,20 +192,27 @@ export async function appendLocalTournamentTeamRegistration(
   registration: TournamentTeamRegistration,
   filePath = resolveLocalTournamentStorePath(),
 ): Promise<LocalTournamentState> {
-  return withFileMutex(filePath, async () => {
-    const currentState = await readLocalTournamentState(filePath)
+  return mutateRuntimeDocument(STORE_KEY, filePath, async (document) => {
+    let currentState: LocalTournamentState | undefined
+    if (document.found) {
+      currentState = parseLocalTournamentState(document.payload)
+      if (!currentState) guardCorruptRuntimeState(STORE_KEY)
+    }
+    currentState ??= createSeedTournamentState()
 
-    return writeLocalTournamentState(
-      {
-        tournamentCatches: currentState.tournamentCatches,
-        tournamentMarshals: currentState.tournamentMarshals,
-        tournamentPenalties: currentState.tournamentPenalties,
-        tournamentRequests: currentState.tournamentRequests,
-        tournamentRuleChecks: currentState.tournamentRuleChecks,
-        tournamentTeamRegistrations: [registration, ...currentState.tournamentTeamRegistrations],
-        tournaments: currentState.tournaments,
-      },
-      filePath,
-    )
+    const state = composeTournamentState({
+      tournamentCatches: currentState.tournamentCatches,
+      tournamentMarshals: currentState.tournamentMarshals,
+      tournamentPenalties: currentState.tournamentPenalties,
+      tournamentRequests: currentState.tournamentRequests,
+      tournamentRuleChecks: currentState.tournamentRuleChecks,
+      tournamentTeamRegistrations: [registration, ...currentState.tournamentTeamRegistrations],
+      tournaments: currentState.tournaments,
+    })
+
+    return {
+      payload: state,
+      result: state,
+    }
   })
 }

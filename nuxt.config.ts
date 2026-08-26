@@ -59,6 +59,15 @@ export default defineNuxtConfig({
     typescriptBundlerResolution: true,
   },
 
+  experimental: {
+    // Keeps the Nuxt/Vue instance context alive across awaits inside
+    // composables (AsyncLocalStorage). Without it, production SSR of pages
+    // whose composables chain multiple `await useAsyncData(...)` calls and
+    // then touch useRoute()/useRouter() dies with "[nuxt] instance
+    // unavailable" (reproducible on /rezervacie in a production build).
+    asyncContext: true,
+  },
+
   devtools: { enabled: import.meta.dev },
 
   ...(sentrySourceMaps.nuxtSourceMap

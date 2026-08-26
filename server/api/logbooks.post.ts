@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
   await appendLocalTripLogbook(result.logbook)
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'trip_logbook.created',
     area: 'logbooks',
     details: {

@@ -13,7 +13,7 @@ import {
 import { readLocalMapState } from '../../../../utils/localMapStore'
 
 export default defineEventHandler(async (event): Promise<FishObservationMutationSuccess> => {
-  requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
+  await requireAdminAccess(event, { moduleId: 'fish', mode: 'operate' })
   const fishId = getRouterParam(event, 'id') ?? ''
   const [state, mapState] = await Promise.all([
     readLocalFishRegistryState(),
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event): Promise<FishObservationMutation
     settings: state.settings,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'fish.observation.created',
     area: 'fish',
     details: {

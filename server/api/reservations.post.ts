@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
     reservation: result.reservation,
   })
   await appendLocalAuditEvent({
-    ...resolveAuditActor(event),
+    ...await resolveAuditActor(event),
     action: 'reservation.request.created',
     area: 'reservations',
     details: {
