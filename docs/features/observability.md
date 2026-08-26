@@ -70,6 +70,11 @@ ako verejné assety ani pri ručnom preview deployi.
 | Kanonický Vercel Preview deployment / URL | [`dpl_4de3XEQTM9cNVJzT5kz86PumfoMw`](https://cetin-pondmanager-rjqiww56t-vancoadrians-projects.vercel.app) |
 | Vercel target | `preview`, stav `READY` |
 
+Toto mapovanie je súčasťou jednej zdieľanej Vercel–Sentry integrácie so
+`Specific Projects` prístupom pre `guest-list-pro`, `saas-contact-point`,
+`fk-knv` a `cetin-pondmanager`. Pri úprave CETIN mapovania zachovaj prístup aj
+mapovania zvyšných troch projektov; nezúž rozsah celej integrácie iba na CETIN.
+
 Build log potvrdil privátny upload client source máp aj server/Nitro source máp
 do uvedeného Sentry projektu. Build-time identita vložila rovnaký release a
 `staging` environment do klienta, server initu aj uploadera. Po uploade bolo
