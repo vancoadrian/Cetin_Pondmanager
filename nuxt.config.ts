@@ -111,7 +111,7 @@ export default defineNuxtConfig({
       __SENTRY_BUILD_RELEASE__: sentryBuildReleaseLiteral,
     },
     optimizeDeps: {
-      include: ['zod'],
+      include: ['zod', '@sentry/nuxt'],
     },
   },
 
@@ -154,6 +154,11 @@ export default defineNuxtConfig({
         { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
     },
+  },
+
+  // localhost strieda IPv4/IPv6 bind a na druhej rodine odpovedá WS listener 426
+  devServer: {
+    host: '127.0.0.1',
   },
 
   runtimeConfig: {
@@ -264,17 +269,22 @@ export default defineNuxtConfig({
           },
           urlPattern: /\/api\/(?:map|catches|payment-methods|rental-catalog|cabin-products|fish-registry\/rules|sponsors)(?:\/|\?|$)/,
         },
-        {
-          handler: 'CacheFirst',
-          options: {
-            cacheName: 'rybolov-nuxt-assets',
-            expiration: {
-              maxAgeSeconds: 30 * 24 * 60 * 60,
-              maxEntries: 120,
-            },
-          },
-          urlPattern: /\/_nuxt\/.*\.(?:js|css)$/i,
-        },
+        // Iba build: v deve servíruje Vite jednu /_nuxt URL raz ako CSS a raz
+        // ako JS modul, takže cache podľa URL vráti modulu text/css a rozbije
+        // hydratáciu (HMR assety sa navyše cachovať nemajú)
+        ...(process.env.NODE_ENV === 'development'
+          ? []
+          : [{
+              handler: 'CacheFirst' as const,
+              options: {
+                cacheName: 'rybolov-nuxt-assets',
+                expiration: {
+                  maxAgeSeconds: 30 * 24 * 60 * 60,
+                  maxEntries: 120,
+                },
+              },
+              urlPattern: /\/_nuxt\/.*\.(?:js|css)$/i,
+            }]),
         {
           handler: 'StaleWhileRevalidate',
           options: {

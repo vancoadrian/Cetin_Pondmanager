@@ -1,23 +1,4 @@
 <script setup lang="ts">
-interface NavItem {
-  label: string
-  to: string
-  icon: string
-}
-
-const primaryNav: NavItem[] = [
-  { label: 'Revíry', to: '/reviry', icon: 'i-heroicons-map' },
-  { label: 'Mapa', to: '/mapa', icon: 'i-heroicons-map-pin' },
-  { label: 'Rezervácie', to: '/rezervacie', icon: 'i-heroicons-calendar-days' },
-  { label: 'Úlovky', to: '/ulovky', icon: 'i-heroicons-camera' },
-  { label: 'Súťaže', to: '/sutaze', icon: 'i-heroicons-trophy' },
-  { label: 'Pravidlá', to: '/info', icon: 'i-heroicons-information-circle' },
-]
-
-const secondaryNav: NavItem[] = [
-  { label: 'Sponzori', to: '/sponzori', icon: 'i-heroicons-building-storefront' },
-]
-
 const route = useRoute()
 const config = useRuntimeConfig()
 const mobileOpen = useMobileNavState()
@@ -60,8 +41,7 @@ const offlineQueueLabel = computed(() =>
 const accountStatusLabel = computed(() =>
   user.value ? `${user.value.name} · ${user.value.roleLabel}` : 'Neprihlásený používateľ',
 )
-const allMobileNav = computed(() => [...primaryNav, ...secondaryNav])
-const isSecondaryActive = computed(() => secondaryNav.some((item) => isActive(item.to)))
+const isSecondaryActive = computed(() => SECONDARY_NAV_ITEMS.some((item) => isActive(item.to)))
 
 watch(
   () => route.fullPath,
@@ -70,10 +50,7 @@ watch(
   },
 )
 
-const isActive = (to: string) => {
-  if (to === '/') return route.path === '/'
-  return route.path.startsWith(to)
-}
+const isActive = (to: string) => isActiveNavPath(route.path, to)
 
 async function signOut() {
   logout()
@@ -97,7 +74,7 @@ async function signOut() {
 
       <nav class="hidden items-center gap-1 xl:flex" aria-label="Hlavná navigácia">
         <NuxtLink
-          v-for="item in primaryNav"
+          v-for="item in PRIMARY_NAV_ITEMS"
           :key="item.to"
           :to="item.to"
           class="rounded-md px-3 py-2 text-sm font-medium transition-colors"
@@ -110,7 +87,7 @@ async function signOut() {
           {{ item.label }}
         </NuxtLink>
         <UDropdownMenu
-          :items="secondaryNav"
+          :items="SECONDARY_NAV_ITEMS"
           :content="{ align: 'end', sideOffset: 8 }"
         >
           <UButton
@@ -231,16 +208,7 @@ async function signOut() {
         </NuxtLink>
         <nav class="flex flex-col gap-1" aria-label="Mobilná navigácia">
           <NuxtLink
-            to="/"
-            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
-            :class="route.path === '/' ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
-            @click="mobileOpen = false"
-          >
-            <UIcon name="i-heroicons-home" class="h-5 w-5" />
-            Domov
-          </NuxtLink>
-          <NuxtLink
-            v-for="item in allMobileNav"
+            v-for="item in MOBILE_MENU_NAV_ITEMS"
             :key="item.to"
             :to="item.to"
             class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
@@ -253,24 +221,6 @@ async function signOut() {
           >
             <UIcon :name="item.icon" class="h-5 w-5" />
             {{ item.label }}
-          </NuxtLink>
-          <NuxtLink
-            to="/notifikacie"
-            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
-            :class="isActive('/notifikacie') ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
-            @click="mobileOpen = false"
-          >
-            <UIcon name="i-heroicons-bell-alert" class="h-5 w-5" />
-            Výstrahy a oznamy
-          </NuxtLink>
-          <NuxtLink
-            to="/kontakt"
-            class="flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium"
-            :class="isActive('/kontakt') ? 'bg-primary-50 text-primary-900' : 'text-foreground hover:bg-muted'"
-            @click="mobileOpen = false"
-          >
-            <UIcon name="i-heroicons-phone" class="h-5 w-5" />
-            Kontakt
           </NuxtLink>
         </nav>
         <NuxtLink

@@ -6,18 +6,34 @@ const props = withDefaults(
     icon?: string
     label: string
     size?: 'sm' | 'xs'
+    /** 'dark' pre badge položený na tmavom podklade (napr. bg-primary-900) */
+    surface?: 'dark' | 'light'
     title?: string
     tone?: StatusBadgeTone
   }>(),
   {
     icon: '',
     size: 'sm',
+    surface: 'light',
     title: '',
     tone: 'muted',
   },
 )
 
 const toneClasses = computed(() => {
+  if (props.surface === 'dark') {
+    switch (props.tone) {
+      case 'error':
+        return 'border-error-300/40 bg-error-400/15 text-error-200'
+      case 'success':
+        return 'border-success-300/40 bg-success-400/15 text-success-200'
+      case 'warning':
+        return 'border-warning-300/40 bg-warning-400/15 text-warning-200'
+      default:
+        return 'border-white/25 bg-white/10 text-white'
+    }
+  }
+
   switch (props.tone) {
     case 'accent':
       return 'border-accent-500/30 bg-accent-100 text-accent-800'

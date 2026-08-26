@@ -131,6 +131,7 @@ const {
               :icon="statusIcon(systemHealth?.status ?? 'ok')"
               :label="statusLabels[systemHealth?.status ?? 'ok']"
               :tone="statusTone(systemHealth?.status ?? 'ok')"
+              surface="dark"
             />
           </div>
           <p class="mt-2 text-sm text-white/75">

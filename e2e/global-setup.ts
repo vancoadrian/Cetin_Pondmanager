@@ -17,6 +17,15 @@ import { createClient } from '@supabase/supabase-js'
  * driver, or in the legacy JSON file when RYBOLOV_STORAGE_DRIVER=file.
  */
 
+// Playwright nejde cez Nuxt env pipeline — bez tohto by setup nevidel
+// Supabase kľúče z .env a potichu by zapísal heslá do legacy JSON súboru
+try {
+  process.loadEnvFile(resolve(process.cwd(), '.env'))
+}
+catch {
+  // .env nemusí existovať (CI) — premenné vtedy prichádzajú z prostredia
+}
+
 const scrypt = promisify(nodeScrypt)
 const HASH_BYTES = 64
 export const E2E_PASSWORD = 'Cetin2026!'
