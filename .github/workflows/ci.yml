@@ -76,8 +76,8 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
 
-      - name: Install Playwright Chrome
-        run: pnpm exec playwright install --with-deps chrome
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chrome chromium
 
       - name: E2E tests (production build)
         run: pnpm test:e2e
