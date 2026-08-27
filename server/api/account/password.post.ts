@@ -10,6 +10,10 @@ import { clearSessionCookies } from '../../utils/appSession'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import { updateLocalAccountPassword } from '../../utils/localAccountStore'
 import { destroyAllLocalSessionsForAccount } from '../../utils/localSessionStore'
+import {
+  ensureAuthUserWithPassword,
+  isSupabaseAuthEnabled,
+} from '../../utils/supabaseAuthIdentity'
 
 export default defineEventHandler(async (event): Promise<AccountPasswordChangeResponse> => {
   const account = await requireMockAnglerAccount(event)
@@ -31,6 +35,13 @@ export default defineEventHandler(async (event): Promise<AccountPasswordChangeRe
 
   const passwordHash = await createPasswordHash(payload.data.password)
   await updateLocalAccountPassword(account.id, passwordHash)
+  if (isSupabaseAuthEnabled()) {
+    // GoTrue je autorita pre prihlásenie — nové heslo musí platiť aj tam.
+    await ensureAuthUserWithPassword(
+      { accountId: account.id, email: account.email, role: 'angler' },
+      payload.data.password,
+    )
+  }
   await appendLocalAuditEvent({
     action: 'account.password_changed',
     actorId: account.id,

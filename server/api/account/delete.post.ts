@@ -13,6 +13,10 @@ import { markLocalAccountDeleted } from '../../utils/localAccountStore'
 import { readLocalCatchState, writeLocalCatchState } from '../../utils/localCatchStore'
 import { readLocalReservationState, writeLocalReservationState } from '../../utils/localReservationStore'
 import { destroyAllLocalSessionsForAccount } from '../../utils/localSessionStore'
+import {
+  deleteAuthUserByEmail,
+  isSupabaseAuthEnabled,
+} from '../../utils/supabaseAuthIdentity'
 
 export default defineEventHandler(async (event): Promise<AccountDeletionResponse> => {
   const account = await requireMockAnglerAccount(event)
@@ -46,6 +50,13 @@ export default defineEventHandler(async (event): Promise<AccountDeletionResponse
     deletedAt,
     summary: anonymized.summary,
   })
+  if (isSupabaseAuthEnabled()) {
+    // Bez GoTrue účtu sa zmazaný e-mail nedá prihlásiť; zlyhanie mazania
+    // nesmie zablokovať lokálnu anonymizáciu (login aj tak blokuje deleted flag).
+    await deleteAuthUserByEmail(account.email).catch((error: Error) => {
+      console.warn(`Supabase Auth účet sa nepodarilo zmazať: ${error.message}`)
+    })
+  }
   await appendLocalAuditEvent({
     action: 'account.deleted',
     actorId: account.id,
