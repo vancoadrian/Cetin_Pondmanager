@@ -26,6 +26,12 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        // h3 je tranzitívna závislosť Nuxtu — mimo Nuxt runtime ju treba
+        // aliasovať rovnako ako v unit configu
+        find: /^h3$/,
+        replacement: `${rootDir}node_modules/.pnpm/h3@1.15.11/node_modules/h3/dist/index.mjs`,
+      },
+      {
         find: /^~\/(assets|components|composables|data|layouts|middleware|pages|plugins|repositories|schemas|services|utils)\//,
         replacement: `${rootDir}app/$1/`,
       },

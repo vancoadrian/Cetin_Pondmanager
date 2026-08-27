@@ -7,7 +7,7 @@ import {
 import { getValidationMessages, accountRegistrationPayloadSchema } from '~/schemas/pondSchemas'
 import { findMockAnglerAccountByEmail } from '~/services/anglerAccountService'
 import { createPasswordHash, toPublicRegisteredUser } from '../../utils/accountAuthentication'
-import { applySessionCookies } from '../../utils/appSession'
+import { applyAuthSessionCookies, applySessionCookies } from '../../utils/appSession'
 import { appendLocalAuditEvent } from '../../utils/localAuditLogStore'
 import {
   addLocalRegisteredAccount,
@@ -19,6 +19,7 @@ import {
   createAuthUserWithPassword,
   deleteAuthUserByEmail,
   isSupabaseAuthEnabled,
+  signInForAuthTokens,
 } from '../../utils/supabaseAuthIdentity'
 
 export default defineEventHandler(async (event): Promise<MockRegistrationResponse> => {
@@ -89,8 +90,17 @@ export default defineEventHandler(async (event): Promise<MockRegistrationRespons
   })
 
   const publicUser = toPublicRegisteredUser(account)
-  const { token } = await createLocalSession(publicUser.id, publicUser.role)
-  applySessionCookies(event, token, publicUser.role)
+  let authTokens
+  if (isSupabaseAuthEnabled()) {
+    authTokens = await signInForAuthTokens(email, payload.data.password).catch(() => undefined)
+  }
+  if (authTokens) {
+    applyAuthSessionCookies(event, authTokens, publicUser.role)
+  }
+  else {
+    const { token } = await createLocalSession(publicUser.id, publicUser.role)
+    applySessionCookies(event, token, publicUser.role)
+  }
 
   return {
     ok: true,

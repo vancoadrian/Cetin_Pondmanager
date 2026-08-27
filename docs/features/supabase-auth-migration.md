@@ -1,13 +1,26 @@
 # Migrácia autentifikácie na Supabase Auth
 
-Stav: **fázy 1–2a implementované** (27. 8. 2026) — GoTrue je v Supabase driveri
-autoritou pre identity a heslá cez `server/utils/supabaseAuthIdentity.ts`:
-login/registrácia/zmena/obnova hesla aj zmazanie účtu zapisujú a overujú
-v GoTrue, legacy scrypt slúži ako fallback s lazy migráciou pri prvom úspešnom
-prihlásení. File driver (dev/test adaptér) beží naďalej čisto na legacy ceste,
-takže unit testy ostávajú hermetické. Session vrstva (`app_sessions` cookie)
-zámerne zostáva — jej náhrada GoTrue JWT cookies je fáza 2b spolu s klientskym
-RLS. Pôvodný plán nasleduje nižšie.
+Stav: **fázy 1–2 implementované vrátane 2b sessions** (27. 8. 2026) — GoTrue
+je v Supabase driveri autoritou pre identity, heslá aj sessions:
+
+- Overenie a zápis hesiel cez `server/utils/supabaseAuthIdentity.ts`
+  (login/registrácia/zmena/obnova hesla aj zmazanie účtu), legacy scrypt ako
+  fallback s lazy migráciou pri prvom úspešnom prihlásení.
+- Session nesie GoTrue access token (JWT) + refresh token v httpOnly cookies
+  (`server/utils/authSessionTokens.ts`): identita sa číta lokálne z claims
+  (`app_metadata.app_account_id`/`app_role`) bez DB dotazu, expirácia sa rieši
+  tichým refreshom (single-use rotácia s dedupe paralelných requestov) a staré
+  opaque tokeny v `app_sessions` sa počas prechodného okna ďalej akceptujú
+  (dual-read). Nové stacky podpisujú ES256 (JWKS), legacy HS256 cez
+  `SUPABASE_JWT_SECRET`. GoTrue revokuje refresh rodiny pri zmene hesla
+  (overené integračne) — cudzie sessions zomrú najneskôr s expiráciou access
+  tokenu (~1 h).
+
+File driver (dev/test adaptér) beží naďalej čisto na legacy ceste, takže unit
+testy ostávajú hermetické. Otvorené ostáva klientske RLS čítanie — vyžaduje
+normalizáciu dátového modelu (runtime dokumentový store nemá na čom postaviť
+per-user policies) a pôjde spolu s remodelovaním dát. Pôvodný plán nasleduje
+nižšie.
 
 ## Dnešný stav
 

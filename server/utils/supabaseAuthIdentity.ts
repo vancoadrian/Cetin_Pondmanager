@@ -1,4 +1,5 @@
 import { createClient, type User } from '@supabase/supabase-js'
+import type { AuthSessionTokens } from './authSessionTokens'
 import {
   requireSupabaseRuntimeCredentials,
   resolveRuntimeStorageDriverKind,
@@ -54,11 +55,15 @@ export async function findAuthUserByEmail(email: string): Promise<User | undefin
 }
 
 /**
- * Overí heslo proti GoTrue. Vracia `false` iba pre neplatné prihlasovacie
- * údaje (vrátane neexistujúceho účtu); ostatné chyby (nedostupný stack a pod.)
- * prehadzuje, aby volajúci vedel spadnúť späť na legacy overenie.
+ * Prihlási sa do GoTrue a vráti session tokeny (fáza 2b). `undefined` znamená
+ * iba neplatné prihlasovacie údaje (vrátane neexistujúceho účtu); ostatné
+ * chyby (nedostupný stack a pod.) prehadzuje, aby volajúci vedel spadnúť
+ * späť na legacy overenie.
  */
-export async function verifyAuthUserPassword(email: string, password: string): Promise<boolean> {
+export async function signInForAuthTokens(
+  email: string,
+  password: string,
+): Promise<AuthSessionTokens | undefined> {
   const credentials = requireSupabaseRuntimeCredentials()
   const client = createClient(credentials.url, credentials.secretKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -69,11 +74,21 @@ export async function verifyAuthUserPassword(email: string, password: string): P
     password,
   })
 
-  if (data.user) return true
-  if (error && error.code === 'invalid_credentials') return false
-  if (error && error.status === 400) return false
+  if (data.session?.access_token && data.session.refresh_token) {
+    return {
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+    }
+  }
+  if (error && error.code === 'invalid_credentials') return undefined
+  if (error && error.status === 400) return undefined
 
   throw new Error(`Supabase Auth overenie zlyhalo: ${error?.message ?? 'neznáma chyba'}`)
+}
+
+/** Overenie hesla proti GoTrue bez záujmu o session tokeny. */
+export async function verifyAuthUserPassword(email: string, password: string): Promise<boolean> {
+  return Boolean(await signInForAuthTokens(email, password))
 }
 
 /** Založí alebo aktualizuje GoTrue účet a nastaví mu heslo. */
@@ -142,31 +157,43 @@ export async function deleteAuthUserByEmail(email: string): Promise<void> {
  * fallback a prvé úspešné legacy prihlásenie heslo lazy zmigruje do GoTrue
  * (bez dopadu na používateľa). Vo file driveri beží iba legacy cesta.
  */
-export async function verifyPasswordWithAuthMigration(
+export async function verifyPasswordForSessionWithAuthMigration(
   descriptor: AuthIdentityDescriptor,
   password: string,
   verifyLegacyPassword: () => Promise<boolean>,
-): Promise<boolean> {
+): Promise<{ ok: boolean, tokens?: AuthSessionTokens }> {
   if (!isSupabaseAuthEnabled()) {
-    return verifyLegacyPassword()
+    return { ok: await verifyLegacyPassword() }
   }
 
+  let tokens: AuthSessionTokens | undefined
   try {
-    if (await verifyAuthUserPassword(descriptor.email, password)) return true
+    tokens = await signInForAuthTokens(descriptor.email, password)
+    if (tokens) return { ok: true, tokens }
   }
   catch (error) {
     console.warn(`Supabase Auth nedostupné, používam legacy overenie: ${(error as Error).message}`)
-    return verifyLegacyPassword()
+    return { ok: await verifyLegacyPassword() }
   }
 
-  if (!(await verifyLegacyPassword())) return false
+  if (!(await verifyLegacyPassword())) return { ok: false }
 
   try {
     await ensureAuthUserWithPassword(descriptor, password)
+    tokens = await signInForAuthTokens(descriptor.email, password)
   }
   catch (error) {
     console.warn(`Lazy migrácia hesla do Supabase Auth zlyhala: ${(error as Error).message}`)
   }
 
-  return true
+  return { ok: true, tokens }
+}
+
+export async function verifyPasswordWithAuthMigration(
+  descriptor: AuthIdentityDescriptor,
+  password: string,
+  verifyLegacyPassword: () => Promise<boolean>,
+): Promise<boolean> {
+  const { ok } = await verifyPasswordForSessionWithAuthMigration(descriptor, password, verifyLegacyPassword)
+  return ok
 }

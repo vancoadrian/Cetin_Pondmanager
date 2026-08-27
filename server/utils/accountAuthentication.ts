@@ -13,7 +13,8 @@ import {
   findLocalRegisteredAccountById,
   type LocalRegisteredAnglerAccount,
 } from './localAccountStore'
-import { verifyPasswordWithAuthMigration } from './supabaseAuthIdentity'
+import { verifyPasswordForSessionWithAuthMigration, verifyPasswordWithAuthMigration } from './supabaseAuthIdentity'
+import type { AuthSessionTokens } from './authSessionTokens'
 
 const scrypt = promisify(nodeScrypt)
 const HASH_BYTES = 64
@@ -78,7 +79,16 @@ export async function verifyPasswordHash(password: string, encodedHash: string) 
   return timingSafeEqual(actual, expected)
 }
 
-export async function authenticateAppUser(email: string, password: string): Promise<PublicMockUser | undefined> {
+export interface AuthenticatedAppUser {
+  /** GoTrue session tokeny — chýbajú vo file driveri a pri GoTrue výpadku. */
+  tokens?: AuthSessionTokens
+  user: PublicMockUser
+}
+
+export async function authenticateAppUser(
+  email: string,
+  password: string,
+): Promise<AuthenticatedAppUser | undefined> {
   const mockUser = findMockUserByEmail(email)
   if (mockUser) {
     // Every seed account (owner/manager/marshal/... and the demo angler) must
@@ -86,7 +96,7 @@ export async function authenticateAppUser(email: string, password: string): Prom
     // Supabase driver GoTrue is authoritative and a valid legacy credential
     // override (scripts/generate-seed-credentials.ts) migrates lazily on the
     // first successful login.
-    const passwordMatches = await verifyPasswordWithAuthMigration(
+    const { ok, tokens } = await verifyPasswordForSessionWithAuthMigration(
       { accountId: mockUser.id, email: mockUser.email, role: mockUser.role },
       password,
       async () => {
@@ -96,28 +106,34 @@ export async function authenticateAppUser(email: string, password: string): Prom
           : false
       },
     )
-    if (!passwordMatches) return undefined
+    if (!ok) return undefined
 
     const profile = await findLocalAccountProfileOverride(mockUser.id)
     return {
-      ...mockUser,
-      name: profile?.name ?? mockUser.name,
-      phone: profile?.phone,
+      tokens,
+      user: {
+        ...mockUser,
+        name: profile?.name ?? mockUser.name,
+        phone: profile?.phone,
+      },
     }
   }
 
   const registeredAccount = await findLocalRegisteredAccountByEmail(email)
   if (!registeredAccount) return undefined
 
-  const passwordMatches = await verifyPasswordWithAuthMigration(
+  const { ok, tokens } = await verifyPasswordForSessionWithAuthMigration(
     { accountId: registeredAccount.id, email: registeredAccount.email, role: 'angler' },
     password,
     () => verifyPasswordHash(password, registeredAccount.passwordHash),
   )
-  if (!passwordMatches) return undefined
+  if (!ok) return undefined
 
   const profile = await findLocalAccountProfileOverride(registeredAccount.id)
-  return toPublicRegisteredUser(registeredAccount, profile)
+  return {
+    tokens,
+    user: toPublicRegisteredUser(registeredAccount, profile),
+  }
 }
 
 export async function verifyAppUserPassword(accountId: string, email: string, password: string) {

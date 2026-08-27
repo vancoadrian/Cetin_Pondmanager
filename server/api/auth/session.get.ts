@@ -1,7 +1,8 @@
-import { defineEventHandler, getCookie } from 'h3'
-import { AUTH_SESSION_COOKIE, findMockUserById, type PublicMockUser } from '~/composables/useMockAuth'
+import { defineEventHandler } from 'h3'
+import { findMockUserById, type PublicMockUser } from '~/composables/useMockAuth'
 import { findLocalAccountProfileOverride } from '../../utils/localAccountStore'
-import { resolveLocalSession } from '../../utils/localSessionStore'
+import { resolveAppSessionIdentity } from '../../utils/authSessionTokens'
+import { persistRefreshedAuthTokens } from '../../utils/appSession'
 import { resolveMockAnglerAccount } from '../../utils/anglerSession'
 
 export interface AuthSessionResponse {
@@ -14,8 +15,9 @@ export interface AuthSessionResponse {
  * ever learns "who is logged in" through this endpoint's response.
  */
 export default defineEventHandler(async (event): Promise<AuthSessionResponse> => {
-  const session = await resolveLocalSession(getCookie(event, AUTH_SESSION_COOKIE))
+  const session = await resolveAppSessionIdentity(event)
   if (!session) return { user: null }
+  persistRefreshedAuthTokens(event, session.role)
 
   if (session.role !== 'angler') {
     return { user: findMockUserById(session.accountId) ?? null }
