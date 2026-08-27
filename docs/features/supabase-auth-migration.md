@@ -1,9 +1,13 @@
 # Migrácia autentifikácie na Supabase Auth
 
-Stav: **návrh** (27. 8. 2026). Plán pre náhradu vlastného cookie/scrypt systému
-Supabase Auth podľa `docs/plan.md` (Fáza 5: „produkčne cookie nahradí Supabase
-Auth"). Implementácia si zaslúži samostatný vývojový blok — dotýka sa ~40
-súborov naprieč server utils, composables, API routes a e2e setupom.
+Stav: **fázy 1–2a implementované** (27. 8. 2026) — GoTrue je v Supabase driveri
+autoritou pre identity a heslá cez `server/utils/supabaseAuthIdentity.ts`:
+login/registrácia/zmena/obnova hesla aj zmazanie účtu zapisujú a overujú
+v GoTrue, legacy scrypt slúži ako fallback s lazy migráciou pri prvom úspešnom
+prihlásení. File driver (dev/test adaptér) beží naďalej čisto na legacy ceste,
+takže unit testy ostávajú hermetické. Session vrstva (`app_sessions` cookie)
+zámerne zostáva — jej náhrada GoTrue JWT cookies je fáza 2b spolu s klientskym
+RLS. Pôvodný plán nasleduje nižšie.
 
 ## Dnešný stav
 

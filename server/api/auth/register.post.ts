@@ -15,6 +15,11 @@ import {
   type LocalRegisteredAnglerAccount,
 } from '../../utils/localAccountStore'
 import { createLocalSession } from '../../utils/localSessionStore'
+import {
+  createAuthUserWithPassword,
+  deleteAuthUserByEmail,
+  isSupabaseAuthEnabled,
+} from '../../utils/supabaseAuthIdentity'
 
 export default defineEventHandler(async (event): Promise<MockRegistrationResponse> => {
   const payload = accountRegistrationPayloadSchema.safeParse(await readBody(event))
@@ -44,7 +49,32 @@ export default defineEventHandler(async (event): Promise<MockRegistrationRespons
     name: payload.data.name,
     passwordHash: await createPasswordHash(payload.data.password),
   }
-  await addLocalRegisteredAccount(account)
+
+  // V Supabase režime je autoritou pre prihlasovacie údaje GoTrue — účet sa
+  // zakladá najprv tam (vrátane kontroly duplicitného e-mailu naprieč
+  // celou identitou), lokálny záznam nesie profil a históriu.
+  if (isSupabaseAuthEnabled()) {
+    const { duplicate } = await createAuthUserWithPassword(
+      { accountId: account.id, email, role: 'angler' },
+      payload.data.password,
+    )
+    if (duplicate) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'Účet s týmto e-mailom už existuje. Prihláste sa alebo kontaktujte správcu.',
+      })
+    }
+  }
+
+  try {
+    await addLocalRegisteredAccount(account)
+  }
+  catch (error) {
+    if (isSupabaseAuthEnabled()) {
+      await deleteAuthUserByEmail(email).catch(() => undefined)
+    }
+    throw error
+  }
   await appendLocalAuditEvent({
     action: 'account.created',
     actorId: account.id,

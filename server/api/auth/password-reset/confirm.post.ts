@@ -5,8 +5,16 @@ import { createPasswordHash } from '../../../utils/accountAuthentication'
 import { clearSessionCookies } from '../../../utils/appSession'
 import { hashPasswordResetToken } from '../../../utils/accountPasswordReset'
 import { appendLocalAuditEvent } from '../../../utils/localAuditLogStore'
-import { completeLocalPasswordReset } from '../../../utils/localAccountStore'
+import { mockUsers } from '~/composables/useMockAuth'
+import {
+  completeLocalPasswordReset,
+  findLocalRegisteredAccountById,
+} from '../../../utils/localAccountStore'
 import { destroyAllLocalSessionsForAccount } from '../../../utils/localSessionStore'
+import {
+  ensureAuthUserWithPassword,
+  isSupabaseAuthEnabled,
+} from '../../../utils/supabaseAuthIdentity'
 
 export default defineEventHandler(async (event): Promise<PasswordResetConfirmResponse> => {
   const payload = passwordResetConfirmPayloadSchema.safeParse(await readBody(event))
@@ -28,6 +36,22 @@ export default defineEventHandler(async (event): Promise<PasswordResetConfirmRes
       statusCode: 422,
       statusMessage: 'Odkaz na obnovu hesla nie je platný alebo už vypršal.',
     })
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    // Obnovené heslo musí platiť aj v GoTrue, ktoré je autoritou pre login.
+    const mockUser = mockUsers.find((user) => user.id === completed.accountId)
+    const registeredAccount = mockUser
+      ? undefined
+      : await findLocalRegisteredAccountById(completed.accountId)
+    const identity = mockUser
+      ? { accountId: mockUser.id, email: mockUser.email, role: mockUser.role }
+      : registeredAccount
+        ? { accountId: registeredAccount.id, email: registeredAccount.email, role: 'angler' }
+        : undefined
+    if (identity) {
+      await ensureAuthUserWithPassword(identity, payload.data.password)
+    }
   }
 
   await appendLocalAuditEvent({
