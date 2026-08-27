@@ -74,9 +74,12 @@ Zdrojový adresár sa dá zmeniť cez `--source /cesta/k/datam`.
    žiadne `RYBOLOV_LOCAL_*` a žiadny `RYBOLOV_STORAGE_DRIVER=file`.
 3. `pnpm data:import -- --dry-run` a následný import produkčných dát bez
    `--force` konfliktov; konflikty vyriešiť vedome.
-4. `/api/health` na nasadenej inštancii: `persistence` = `ok`,
+4. Auth deprecačné okno: `RYBOLOV_AUTH_LEGACY_FALLBACK` nechať prázdne, kým sa
+   reálni používatelia neprihlásia (lazy migrácia hesiel do Supabase Auth);
+   potom nastaviť `disabled` a naplánovať zmazanie legacy auth kódu.
+5. `/api/health` na nasadenej inštancii: `persistence` = `ok`,
    readiness bez chýbajúcich povinných položiek.
-5. Smoke: registrácia + login + session po redeployi, rezervácia, upload a
+6. Smoke: registrácia + login + session po redeployi, rezervácia, upload a
    čítanie fotky, export + preview backupu.
 6. Zapnuté databázové zálohy/PITR a Security Advisor na Supabase projekte.
 7. Kompletné release brány z `docs/deployment/production-platform.md`.

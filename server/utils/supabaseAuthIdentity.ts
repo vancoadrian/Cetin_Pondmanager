@@ -26,6 +26,19 @@ export function isSupabaseAuthEnabled() {
   return resolveRuntimeStorageDriverKind() === 'supabase'
 }
 
+/**
+ * Kill-switch legacy cesty pre produkciu po deprecačnom okne:
+ * `RYBOLOV_AUTH_LEGACY_FALLBACK=disabled` vypne scrypt fallback, lazy
+ * migráciu hesiel aj dual-read starých `app_sessions` tokenov. Vo file
+ * driveri sa flag ignoruje — legacy je tam jediná cesta. Nevypínať skôr,
+ * než sa reálni používatelia stihnú prihlásiť (lazy migrácia je jediný
+ * spôsob, ako sa ich heslá dostanú do GoTrue).
+ */
+export function isLegacyAuthFallbackEnabled() {
+  if (!isSupabaseAuthEnabled()) return true
+  return process.env.RYBOLOV_AUTH_LEGACY_FALLBACK?.trim().toLowerCase() !== 'disabled'
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLocaleLowerCase('sk')
 }
@@ -172,10 +185,12 @@ export async function verifyPasswordForSessionWithAuthMigration(
     if (tokens) return { ok: true, tokens }
   }
   catch (error) {
+    if (!isLegacyAuthFallbackEnabled()) throw error
     console.warn(`Supabase Auth nedostupné, používam legacy overenie: ${(error as Error).message}`)
     return { ok: await verifyLegacyPassword() }
   }
 
+  if (!isLegacyAuthFallbackEnabled()) return { ok: false }
   if (!(await verifyLegacyPassword())) return { ok: false }
 
   try {
