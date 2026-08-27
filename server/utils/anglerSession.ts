@@ -1,11 +1,10 @@
-import { createError, getCookie, type H3Event } from 'h3'
-import { AUTH_SESSION_COOKIE } from '~/composables/useMockAuth'
+import { createError, type H3Event } from 'h3'
 import {
-  ANGLER_SESSION_COOKIE,
   findMockAnglerAccountById,
   type MockAnglerAccount,
 } from '~/services/anglerAccountService'
-import { resolveLocalSession } from './localSessionStore'
+import { resolveAppSessionIdentity } from './authSessionTokens'
+import { persistRefreshedAuthTokens } from './appSession'
 import {
   applyLocalProfileToAnglerAccount,
   toRegisteredAnglerAccount,
@@ -17,10 +16,10 @@ import {
 } from './localAccountStore'
 
 export async function resolveMockAnglerAccount(event: H3Event): Promise<MockAnglerAccount | undefined> {
-  const token = getCookie(event, ANGLER_SESSION_COOKIE) ?? getCookie(event, AUTH_SESSION_COOKIE)
-  const session = await resolveLocalSession(token)
-  if (!session || session.role !== 'angler') return undefined
-  const sessionAccountId = session.accountId
+  const identity = await resolveAppSessionIdentity(event)
+  if (!identity || identity.role !== 'angler') return undefined
+  persistRefreshedAuthTokens(event, identity.role)
+  const sessionAccountId = identity.accountId
 
   let account: MockAnglerAccount | undefined = findMockAnglerAccountById(sessionAccountId)
   const profile = await findLocalAccountProfileOverride(sessionAccountId)

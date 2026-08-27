@@ -84,6 +84,7 @@ const anonKey = supabaseStatus.ANON_KEY ?? supabaseStatus.PUBLISHABLE_KEY
 const secretKey = supabaseStatus.SECRET_KEY ?? supabaseStatus.SERVICE_ROLE_KEY
 const serviceRoleKey = supabaseStatus.SERVICE_ROLE_KEY ?? supabaseStatus.SECRET_KEY
 const databaseUrl = supabaseStatus.DB_URL
+const jwtSecret = supabaseStatus.JWT_SECRET
 
 if (!supabaseUrl || !publishableKey || !secretKey || !databaseUrl) {
   throw new Error('Supabase local stack did not return the required local credentials.')
@@ -102,6 +103,8 @@ const values = {
   SUPABASE_DB_URL: databaseUrl,
   SUPABASE_SECRET_KEY: secretKey,
   SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+  // HS256 overovanie GoTrue access tokenov bez roundtripu na auth server
+  ...(jwtSecret ? { SUPABASE_JWT_SECRET: jwtSecret } : {}),
 }
 
 for (const [key, value] of Object.entries(values)) {

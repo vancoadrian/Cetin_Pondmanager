@@ -2,7 +2,7 @@ import { createError, defineEventHandler, readBody } from 'h3'
 import { findMockUserByEmail, type PublicMockUser } from '~/composables/useMockAuth'
 import { getValidationMessages, loginPayloadSchema } from '~/schemas/pondSchemas'
 import { authenticateAppUser } from '../../utils/accountAuthentication'
-import { applySessionCookies } from '../../utils/appSession'
+import { applyAuthSessionCookies, applySessionCookies } from '../../utils/appSession'
 import { findLocalRegisteredAccountByEmail, isLocalAccountDeleted } from '../../utils/localAccountStore'
 import { createLocalSession } from '../../utils/localSessionStore'
 
@@ -36,16 +36,23 @@ export default defineEventHandler(async (event): Promise<MockLoginResponse> => {
     })
   }
 
-  const user = await authenticateAppUser(payload.data.email, payload.data.password)
-  if (!user) {
+  const authenticated = await authenticateAppUser(payload.data.email, payload.data.password)
+  if (!authenticated) {
     throw createError({
       statusCode: 401,
       statusMessage: 'E-mail alebo heslo nie sú správne.',
     })
   }
 
-  const { token } = await createLocalSession(user.id, user.role)
-  applySessionCookies(event, token, user.role)
+  const { tokens, user } = authenticated
+  if (tokens) {
+    // Fáza 2b: session nesú GoTrue JWT cookies; app_sessions ostáva fallback
+    applyAuthSessionCookies(event, tokens, user.role)
+  }
+  else {
+    const { token } = await createLocalSession(user.id, user.role)
+    applySessionCookies(event, token, user.role)
+  }
 
   return {
     ok: true,
