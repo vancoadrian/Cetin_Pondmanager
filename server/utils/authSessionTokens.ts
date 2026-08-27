@@ -4,6 +4,7 @@ import { createRemoteJWKSet, decodeJwt, decodeProtectedHeader, jwtVerify, type J
 import { AUTH_SESSION_COOKIE, type MockRole } from '~/composables/useMockAuth'
 import { ANGLER_SESSION_COOKIE } from '~/services/anglerAccountService'
 import { requireSupabaseRuntimeCredentials } from './runtimeStorageDriver'
+import { isLegacyAuthFallbackEnabled } from './supabaseAuthIdentity'
 import { getServerSupabaseClient } from './serverSupabaseClient'
 import { resolveLocalSession } from './localSessionStore'
 
@@ -130,6 +131,7 @@ export async function resolveAppSessionIdentity(event: H3Event): Promise<AppSess
   if (!token) return undefined
 
   if (!looksLikeAuthJwt(token)) {
+    if (!isLegacyAuthFallbackEnabled()) return undefined
     const session = await resolveLocalSession(token)
     return session ? { accountId: session.accountId, role: session.role, source: 'legacy' } : undefined
   }

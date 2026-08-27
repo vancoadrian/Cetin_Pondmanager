@@ -17,7 +17,13 @@ je v Supabase driveri autoritou pre identity, heslá aj sessions:
   tokenu (~1 h).
 
 File driver (dev/test adaptér) beží naďalej čisto na legacy ceste, takže unit
-testy ostávajú hermetické. Otvorené ostáva klientske RLS čítanie — vyžaduje
+testy ostávajú hermetické. Legacy cleanup má pripravený kill-switch:
+`RYBOLOV_AUTH_LEGACY_FALLBACK=disabled` vypne scrypt fallback, lazy migráciu
+aj dual-read session tokenov — zapnúť až po deprecačnom okne v produkcii,
+pretože lazy migrácia je jediný spôsob, ako sa heslá reálnych používateľov
+dostanú do GoTrue (scrypt hashe sa importovať nedajú). Samotné zmazanie
+legacy kódu (`credentialOverrides`, `app_sessions` dual-read) príde až po
+zapnutí kill-switchu v produkcii. Otvorené ostáva klientske RLS čítanie — vyžaduje
 normalizáciu dátového modelu (runtime dokumentový store nemá na čom postaviť
 per-user policies) a pôjde spolu s remodelovaním dát. Pôvodný plán nasleduje
 nižšie.
