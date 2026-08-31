@@ -34,7 +34,7 @@
     "test:lhci": "lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
-    "@nuxt/ui": "^3.0.0",
+    "@nuxt/ui": "^4.11.0",
     "@sentry/nuxt": "^10.71.0",
     "@supabase/supabase-js": "^2.112.2",
     "@vite-pwa/nuxt": "^1.0.0",
