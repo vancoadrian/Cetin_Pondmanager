@@ -56,7 +56,7 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.0.0",
     "@types/web-push": "^3.6.4",
-    "eslint": "^9.0.0",
+    "eslint": "^10.9.1",
     "postgres": "^3.4.9",
     "typescript": "^5.7.0",
     "vitest": "^4.1.6",
